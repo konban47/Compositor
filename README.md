@@ -1,3 +1,5 @@
+> **Windows 10/11 x64 Preview（简体中文 / English）**：请阅读 [Windows 版说明](windows/README.md)，或前往 [Windows Releases](https://github.com/konban47/Compositor/releases) 下载。以下为原 macOS 项目介绍。
+
 # Compositor
 
 Adobe Photoshop costs too much and tools like GIMP don’t feel familiar enough for me to stay in flow. That’s why I built Compositor.

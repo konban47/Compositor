@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets/compositor.ico" />
+    <AvaloniaResource Include="../../fonts/NotoSansSC.ttf" Link="Assets/Fonts/NotoSansSC.ttf" />
+    <EmbeddedResource Include="Locales/zh-CN.json" />
+    <ProjectReference Include="..\Compositor.Core\Compositor.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Headless" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.3" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- Windows releases use an independent fourth version component. -->
+    <Version>1.4.6.1</Version>
+    <AssemblyVersion>1.4.6.1</AssemblyVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>Compositor</AssemblyName>
+    <ApplicationIcon>Assets/compositor.ico</ApplicationIcon>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- The canvas copies a rendered piece into the screen's pixel order. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+</Project>

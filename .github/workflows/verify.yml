@@ -2,7 +2,9 @@ name: Verify
 
 on:
   push:
+    paths-ignore: ["windows/**", ".github/workflows/windows.yml"]
   pull_request:
+    paths-ignore: ["windows/**", ".github/workflows/windows.yml"]
 
 concurrency:
   group: verify-${{ github.workflow }}-${{ github.ref }}
@@ -15,7 +17,7 @@ jobs:
   unit:
     name: unit
     # Push covers same-repo branches. pull_request runs only for forks, so a PR is not tested twice.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    if: ${{ github.ref != 'refs/heads/windows-port' && !startsWith(github.ref, 'refs/tags/windows-v') && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository) }}
     runs-on: macos-26
     timeout-minutes: 60
     steps:

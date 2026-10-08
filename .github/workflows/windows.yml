@@ -1,0 +1,85 @@
+name: Windows
+on:
+  push:
+    branches: [windows-port]
+    tags: ['windows-v*']
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  pull_request:
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build with warnings as errors
+        run: dotnet build windows/Compositor.slnx -c Release -warnaserror --nologo
+      - name: Core, Chinese text and ONNX tests
+        run: dotnet test windows/tests/Compositor.Core.Tests -c Release --no-build --logger 'trx;LogFileName=core.trx' --results-directory artifacts/tests
+      - name: Drive the editor and dialogs in both languages
+        run: |
+          New-Item -ItemType Directory artifacts/screenshots -Force | Out-Null
+          $env:COMPOSITOR_LANGUAGE = 'en'
+          $env:COMPOSITOR_SETTINGS_DIR = Join-Path $env:RUNNER_TEMP 'compositor-en-tests'
+          foreach ($check in @('clicks', 'tabs', 'tools', 'shortcuts', 'camera-raw', 'dialogs', 'windows-checks')) {
+            dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll "--$check" "artifacts/screenshots/$check.png"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          $env:COMPOSITOR_LANGUAGE = 'zh-CN'
+          $env:COMPOSITOR_SETTINGS_DIR = Join-Path $env:RUNNER_TEMP 'compositor-zh-tests'
+          dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --windows-checks artifacts/screenshots/chinese-editor.png
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-${{ matrix.os }}
+          path: artifacts
+  package:
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build portable and installer
+        shell: pwsh
+        run: ./windows/scripts/package.ps1 -OutputDirectory "$PWD/artifacts" -Installer
+      - name: Test published app, installer and uninstaller
+        shell: pwsh
+        run: |
+          $env:COMPOSITOR_LANGUAGE = 'zh-CN'
+          $env:COMPOSITOR_SETTINGS_DIR = Join-Path $env:RUNNER_TEMP 'compositor-package-tests'
+          $app = Resolve-Path artifacts/Compositor-Windows-*-x64/Compositor.exe
+          $process = Start-Process -FilePath $app -ArgumentList @('--windows-checks', "$env:RUNNER_TEMP/published.png") -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Published app failed: $($process.ExitCode)" }
+          $installer = Get-Item artifacts/*-setup.exe
+          $destination = Join-Path $env:RUNNER_TEMP 'Compositor-Install-Test'
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$destination") -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -notin 0,3010) { throw "Install failed: $($process.ExitCode)" }
+          if (!(Test-Path "$destination/Compositor.exe")) { throw 'Application missing after install.' }
+          $process = Start-Process -FilePath "$destination/unins000.exe" -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Uninstall failed: $($process.ExitCode)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Compositor-Windows-x64
+          path: |
+            artifacts/*-portable.zip
+            artifacts/*-setup.exe
+            artifacts/SHA256SUMS.txt
+          compression-level: 0
