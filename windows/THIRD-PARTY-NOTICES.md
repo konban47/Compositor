@@ -34,3 +34,5 @@ The model runs locally on the CPU. Images are not sent to an external inference 
 | Microsoft Visual C++ Redistributable | VS 2022 x64, current official build at packaging | Microsoft software license. The unmodified signed redistributable is downloaded from [Microsoft](https://aka.ms/vs/17/release/vc_redist.x64.exe); its signature is checked and its hash is recorded in each package. |
 
 `licenses/nuget-packages.json` records the restored package versions, source URLs, license declarations and copyright metadata. Third-party licenses apply to those components independently of the application's MIT license. Build/test-only packages are not part of the application runtime. Inno Setup is a build tool; its generated installer contains its own engine and standard translated installer messages.
+
+The installer Chinese translation is vendored unmodified from [jrsoftware/issrc, ChineseSimplified.isl](https://github.com/jrsoftware/issrc/blob/main/Files/Languages/ChineseSimplified.isl). Its original translator credits and terms are retained in the file header.
