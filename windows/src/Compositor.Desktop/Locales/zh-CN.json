@@ -803,5 +803,10 @@
   "Use the Eyedropper tool to choose a foreground color, then add it here to adjust that color range.": "使用吸管工具选取前景色，在此添加后即可调整相应颜色范围。",
   "Draw one guide to rotate the picture; draw a second guide to correct perspective.": "绘制第一条参考线校正旋转；绘制第二条参考线校正透视。",
   "{0} guides drawn. Use Draw Guides to add another.": "已绘制 {0} 条参考线。使用“绘制参考线”添加。",
-  "Click a shortcut, then press the desired keys. Backspace clears it; Escape stops recording. Save to apply changes.": "单击快捷键后按下新组合键。Backspace 清除，Esc 停止录制。保存后应用更改。"
+  "Click a shortcut, then press the desired keys. Backspace clears it; Escape stops recording. Save to apply changes.": "单击快捷键后按下新组合键。Backspace 清除，Esc 停止录制。保存后应用更改。",
+  "Delete clipping source": "删除剪贴蒙版来源",
+  "Bake and Delete": "烘焙后删除",
+  "Remove Links and Delete": "释放链接后删除",
+  "Other layers use this layer as a clipping mask. Bake preserves their current clipped pixels; Remove Links reveals the original pixels. Both choices can be undone.": "其他图层正使用此图层作为剪贴蒙版。烘焙会保留当前剪贴外观并栅格化相关图层；释放链接会显示原始像素。两种操作均可撤销。",
+  "Could not delete layers: {0}": "无法删除图层：{0}"
 }

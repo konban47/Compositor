@@ -3082,27 +3082,27 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Deletes the selected layer, and anything a folder holds. Refused when a layer that stays is clipped
-    /// to it, because the Mac build asks whether to bake or unlink and this build cannot ask yet.
+    /// Deletes selected layers and their descendants, resolving clipping dependencies with an undoable choice.
     /// </summary>
-    private void DeleteLayer()
+    private async void DeleteLayer()
     {
         if (_document is not { } document) return;
         var ids = SelectedLayers;
         if (ids.Count == 0) return;
-        // What to select afterwards: whatever takes the place of the one an edit acts on, as the Mac build
-        // does. Several go as one step, each with its contents.
+        var revision = _history.CurrentRevision;
+        var choice = ClippingDeleteChoice.Cancel;
+        if (LayerDeletion.HasDependents(document, ids))
+        {
+            choice = await ClippingDeleteDialog.Ask(this);
+            if (choice == ClippingDeleteChoice.Cancel) return;
+            if (!ReferenceEquals(document, _document) || revision != _history.CurrentRevision) return;
+        }
         var anchor = Selected ?? ids[0];
         var index = document.Layers.FindIndex(layer => layer.ID == anchor);
         _history.Begin(ids.Count > 1 ? "Delete Layers" : "Delete Layer", document, anchor);
-        var refused = 0;
-        foreach (var id in ids) if (!LayerEdits.Delete(document, id)) refused++;
-        _history.End(document, anchor);
-        if (refused > 0)
-        {
-            Say("A layer that stayed is clipped to one that went; macOS offers to bake or unlink it and this build cannot yet");
-        }
-        if (refused == ids.Count) return;
+        try { LayerDeletion.Delete(document, ids, choice); }
+        catch (Exception error) { Say($"Could not delete layers: {error.Message}"); }
+        finally { _history.End(document, anchor); }
         var left = document.Layers;
         Reselect(left.Count == 0 ? null : left[Math.Clamp(index, 0, left.Count - 1)].ID);
     }

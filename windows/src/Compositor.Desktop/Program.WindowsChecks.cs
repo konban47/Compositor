@@ -109,6 +109,21 @@ public sealed partial class MainWindow
         Finish(DetectSubject(removeBackground: true));
         Check(_document.Layers.First(l => l.ID == Selected).Mask is not null, "The AI background action did not create a mask.");
         Undo();
+        var baseID = _document.Layers.First(l => l.Asset is not null && l.Text is null).ID;
+        var childID = LayerPlacement.AddBlank(_document, baseID)!.Value;
+        Check(LayerMaskEdits.Link(_document, baseID, childID), "Could not prepare a clipping dependency.");
+        Reselect(baseID);
+        DeleteLayer();
+        Dispatcher.UIThread.RunJobs();
+        var deletion = OwnedWindows.OfType<ClippingDeleteDialog>().Single();
+        var bakeButton = deletion.GetVisualDescendants().OfType<Button>()
+            .Single(button => button.Content?.ToString() == Localize.Text("Bake and Delete"));
+        bakeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+        Check(_document.Layers.All(layer => layer.ID != baseID), "Bake and Delete did not delete the clipping source.");
+        Check(_document.Layers.Single(layer => layer.ID == childID).MaskSourceID is null, "Bake left a dangling clipping link.");
+        Undo();
+        Check(_document.Layers.Any(layer => layer.ID == baseID), "Baked deletion did not undo.");
         SetTool(Tool.Move);
         _canvas.Fit();
     }

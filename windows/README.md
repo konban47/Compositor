@@ -38,7 +38,7 @@
 - Windows 使用 Avalonia / Skia 的 CPU 分块合成；没有移植 Apple Metal、Core Image、Vision 的专有实现。主体识别使用 U²-NetP，结果与 Apple Vision 不同；对象选择按预测蒙版的连通区域选择，不是多实例语义分割。
 - Bloom/Glow 的实现近似原视觉效果；相机 RAW 先经 LibRaw 解码为 8 位 sRGB 再进入调整面板，不是完整的传感器域 RAW 流程。Camera Raw 点颜色从前景色加入，原生 Mac 面板的直接取样交互未完全复刻。
 - PSD/PSB 不是 Photoshop 的完整可编辑往返格式；不支持的项目按导入报告说明处理。只能导出 PNG/JPEG，不提供 PSD 写回。
-- 删除仍被其他图层作为剪贴来源的图层时，需要先释放剪贴蒙版；Mac 的“烘焙后删除”对话框尚未移植。部分图层/标签页拖放交互与原生 Mac 不同，使用菜单操作。
+- 删除剪贴来源提供“烘焙后删除／释放链接后删除／取消”，支持撤销。部分图层/标签页拖放交互与原生 Mac 不同，使用菜单操作。
 - 字体名称跨系统不一定存在；使用回退字体后，重新编辑文字的排版可能变化。已有项目的图层 PNG 仍用于未编辑内容的显示。阿拉伯文/印度文字的复杂塑形不在此次中文支持范围内。
 - **实机验证环境为 Windows 11 Pro 10.0.26200。Windows 10 实机、真实输入法候选窗口、多显示器/数位板压力及超大项目仍需人工验收。** GitHub 的 Windows Server 2022/2025 测试不能替代 Windows 10 实机验收。因此首发标记为 Preview。
 
@@ -58,7 +58,7 @@ dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --windo
 
 构建脚本会从微软官网下载签名有效的 C++ 运行库，**不会在构建机安装它**。GitHub Actions 使用已有 Inno Setup 编译器构建安装包，并在临时 runner 上验证安装/卸载。
 
-核心测试当前为 **864 项**；还提供 `--clicks`、`--tabs`、`--tools`、`--shortcuts`、`--camera-raw`、`--dialogs`、`--windows-checks` 窗口测试，每项参数后跟截图路径。旧窗口断言用 `COMPOSITOR_LANGUAGE=en`；新增测试覆盖 en 和 zh-CN。测试设置目录应与个人配置分开。
+核心测试当前为 **868 项**；还提供 `--clicks`、`--tabs`、`--tools`、`--shortcuts`、`--camera-raw`、`--dialogs`、`--windows-checks` 窗口测试，每项参数后跟截图路径。旧窗口断言用 `COMPOSITOR_LANGUAGE=en`；新增测试覆盖 en 和 zh-CN。测试设置目录应与个人配置分开。
 
 CLI 位于包内 `cli/Compositor.Cli.exe`，运行 `--help` 查看命令。
 
@@ -68,6 +68,6 @@ An independent Windows x64 port retaining Compositor's `.comp` folder format. Ba
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 
-This first release is a **Preview**: tested locally on Windows 11 and in Windows Server CI, not manually certified on Windows 10. CPU rendering and U²-NetP replace Apple's native implementations; segmentation, glow, fonts, some drag/drop interactions and RAW development are not identical. PSD conversion has reported limitations and no PSD export. For dependent clipping-layer deletion, release the clipping link first; the Mac bake-and-delete choice remains a gap. These differences are stated explicitly rather than hidden behind a claim of complete native parity.
+This first release is a **Preview**: tested locally on Windows 11 and in Windows Server CI, not manually certified on Windows 10. CPU rendering and U²-NetP replace Apple's native implementations; segmentation, glow, fonts, some drag/drop interactions and RAW development are not identical. PSD conversion has reported limitations and no PSD export. Dependent clipping-layer deletion supports baking or releasing links, with undo. These differences are stated explicitly rather than hidden behind a claim of complete native parity.
 
 The repository includes reproducible build/package scripts, core tests and headless UI checks. Windows updates use `windows-v*` releases in this fork, never the upstream macOS DMG feed.

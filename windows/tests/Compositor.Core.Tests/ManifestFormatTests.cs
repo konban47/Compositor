@@ -141,7 +141,8 @@ public class ManifestFormatTests : ProjectTestBase
 
         using var snapshot = ProjectStore.Load(PathIn("Guide.comp"));
         var written = Serialized(snapshot.Manifest);
-        Assert.Equal(ExpectedMinimalManifest, written);
+        // C# raw strings inherit checkout line endings; the format itself always writes LF.
+        Assert.Equal(ExpectedMinimalManifest.ReplaceLineEndings("\n"), written);
 
         var rewritten = Serialized(ManifestJson.Deserialize(Encoding.UTF8.GetBytes(written)));
         Assert.Equal(written, rewritten);
