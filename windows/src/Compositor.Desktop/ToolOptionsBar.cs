@@ -80,7 +80,11 @@ internal sealed class ToolOptionsBar : Border
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         row.Children.Add(_title);
         row.Children.Add(_cells);
-        Child = row;
+        Child = new ScrollViewer
+        {
+            Content = row, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+        };
         Build();
     }
 

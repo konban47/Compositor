@@ -1,105 +1,63 @@
-> **Windows 10/11 x64 Preview（简体中文 / English）**：请阅读 [Windows 版说明](windows/README.md)，或前往 [Windows Releases](https://github.com/konban47/Compositor/releases) 下载。以下为原 macOS 项目介绍。
+# Compositor for Windows
 
-# Compositor
+源自 [Robbie Tilton 的 Compositor（macOS 原项目）](https://github.com/robbietilton/Compositor)。感谢 Robbie Tilton / Wonder Assembly 以 MIT 许可证开源，也感谢 [chenguisen 的 Windows 移植](https://github.com/chenguisen/Compositor/tree/compositor_win)为本项目提供基础。
 
-Adobe Photoshop costs too much and tools like GIMP don’t feel familiar enough for me to stay in flow. That’s why I built Compositor.
+本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
 
-The goal was to create a full-featured image editor that is completely free and open source. I used to use Photoshop for compositing and post-processing, so Compositor is built around that workflow - with the tools needed to create a pixel-perfect final image.
+[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.4.7.1) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.4.7.1.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
 
-Because it’s open source, you can download the Xcode project and add, remove, or modify any feature to fit your workflow.
+## 安装
 
-## Installation
+目标系统：Windows 10 1809 及以上、Windows 11，64 位 x64。
 
-### Download
-Get Compositor from [robbietilton.com/compositor](https://robbietilton.com/compositor), or download the latest release directly from [GitHub Releases](https://github.com/robbietilton/Compositor/releases/latest).
+- **安装版**：运行 `Compositor-Windows-1.4.7.1-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.4.7.1-x64-portable.zip`，运行 `Compositor.exe`。
+- 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
+- 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
 
-### Homebrew
+## 常用操作
 
-```sh
-brew install --cask robbietilton-compositor
+| 操作 | 使用方式 |
+| --- | --- |
+| 导入图像 | 拖动桌面／资源管理器文件到画布，或“文件 → 导入图像” |
+| 移动对象 | 按 V，选择图层或单击对象后拖动；支持多选图层变换 |
+| 平移画布 | 按 H，或按住空格，或按住鼠标中键拖动 |
+| 显示／隐藏图层 | 单击图层名称左侧的眼睛；睁眼显示，闭眼隐藏 |
+| 调整图层上下顺序 | 按住图层名称上下拖动，按插入线放置 |
+| 建立选区 | 使用矩形／椭圆选框、套索、魔棒；Shift 添加，Alt 减去 |
+| 清除局部内容 | 建立选区后按 Delete 或 Backspace，清除当前图层选区内像素 |
+| 局部修饰 | 先建立选区，再使用液化、涂抹、污点修复、仿制图章或画笔 |
+| 重复上次滤镜 | Ctrl+Alt+F；使用上次应用的参数，可撤销 |
+| 搜索命令 | Ctrl+F，可搜索中文或英文名称 |
+| 仅显示画布 | F 进入，F 或 Esc 返回 |
+
+`.comp` 项目是文件夹，需保留整个文件夹及其中的 `manifest.json` 和图层资源。普通图像可导出 PNG/JPEG，PSD/PSB 支持导入并显示转换报告。
+
+## 功能
+
+- 图层与组、24 种混合模式、图层蒙版、剪贴蒙版、调整图层、图层样式。
+- 选区及羽化、画笔／橡皮擦、仿制图章、污点修复、涂抹、液化、文字、形状、渐变和变换。
+- 色阶、曲线、色相／饱和度、Camera Raw、模糊、仿色及其他滤镜。
+- 离线选择主体、对象选择和移除背景，图片不上传服务器。
+- 多标签页、撤销／重做、异步保存、未保存关闭保护和独立 Windows 更新频道。
+- 中文界面使用 Photoshop 常见术语，提供中文输入法接口、随包中文字体和中文换行。
+
+## 验证与当前状态
+
+**1.4.7.1 Preview** 对齐上游 1.4.7，并移植其后 Camera Raw 高光／阴影修复。核心测试 887 项，另有中英文窗口操作、鼠标拖动、文件拖入、选区清除、图层显隐／排序、安装和卸载检查。[持续集成](https://github.com/konban47/Compositor/actions/workflows/windows.yml)
+
+本机验证环境为 Windows 11；Windows 10 实机、真实输入法候选窗、多显示器和数位板仍需人工验收。使用 CPU/Skia 与 U²-NetP，渲染、主体识别及 RAW 显影与 Apple 原生实现存在差异；应用和安装包尚未进行商业代码签名。[完整已知差异](windows/README.md#已知差异和验收边界)
+
+## 开发
+
+需要 .NET 10 SDK：
+
+```powershell
+dotnet build windows/Compositor.slnx -c Release -warnaserror
+dotnet test windows/tests/Compositor.Core.Tests -c Release
+./windows/scripts/package.ps1 -OutputDirectory "$PWD/dist" -Installer
 ```
 
-## Features
+生成安装包需要 Inno Setup 6。GitHub Actions 可构建自带运行时的安装版与免安装版。
 
-### Layers
-- Layers and folders, with opacity and Photoshop's full set of blend modes in its order — a folder's opacity dims everything inside it
-- Layer masks: paint, fill, invert, blur and feather them anywhere on the canvas, past the layer's own pixels; link or unlink them to transform a mask on its own
-- Clipping masks and folder masks
-- Adjustment layers: Hue/Saturation, Levels, Curves, Exposure, Gradient Map, Grain, Black & White, Color Balance, Invert, Gaussian Blur, Motion Blur and Noise
-- Layer effects: Stroke, Drop Shadow, Color Overlay, Inner Shadow, Outer Glow and Inner Glow, rendered on the GPU and editable at any time
-- Merge Down, Merge Layers and Merge Group (⌘E)
-- Duplicate, rename inline, reorder and nest by drag and drop; Option-drag to duplicate; a right-click menu in the Layers panel
-- Copy and paste whole layers and folders (⌘C/⌘V with no selection), within a project or between projects, or drag them between projects
-
-### Transform
-- Non-destructive move, scale, rotate and flip — images keep their full resolution however small you make them
-- Free distort (⌘-drag a handle), with Shift to lock to an axis
-- Transform several layers, or a whole folder, together
-- Snapping to canvas and layer edges and centers, with guides
-- Exact values for position, size, scale and angle, stepped with the arrow keys
-- Flip Layer and Flip Canvas, horizontal and vertical
-
-### Selections
-- Rectangle and Ellipse Marquee, Freehand and Polygonal Lasso, and the Magic tool — Wand selects by color, Object traces whatever you click (Tab switches)
-- Select Subject, and Expand, Contract and Feather on any selection
-- Add to and subtract from selections, move the outline, or move and duplicate the pixels inside
-- Load a layer's pixels or a mask as a selection
-- Content-Aware Fill, which can also extend an image past its edges
-
-### Painting and retouching
-- Brush with size, hardness, opacity and smoothing, in Paint or Erase mode (B and E), and Shift for straight lines
-- Spot Healing Brush (content-aware)
-- Clone Stamp, aligned or not, sampling one layer or all of them
-- Blur tool, on pixels or masks
-- Gradient tool and Shape tool (rectangles, rounded rectangles, ellipses and lines), which stay editable rather than being rasterized
-- Type tool (T): inline multiline editing in draggable, resizable paragraph boxes; font, size, color, alignment and spacing in the tool header; transform text and use it as a clipping mask
-- Eyedropper and a full color picker
-
-### Adjustments and filters
-- Camera Raw filter: light, color, curves, color mixer, color grading, detail, optics and geometry, in a panel beside the canvas
-- Levels (with Auto), Curves, Hue/Saturation, Exposure, Gradient Map, Grain, Black & White, Color Balance and Invert
-- Gaussian Blur and Motion Blur that spread past a layer's edges
-- Add Noise, Vignette, Bloom / Glow, Tonal Contrast, Lens Correction and Remove Background
-- Live previews, limited to the selection when there is one
-
-### Canvas and files
-- Multiple projects in tabs
-- A command palette (⌘F): search every menu command and tool by name, as in Raycast or Obsidian, and run it with Return
-- Canvas Only (F): the canvas alone on black over the whole screen, with every panel put away; F again brings them back
-- Rulers (⌘R), guides dragged from them, a layout grid with adjustable spacing and subdivisions, and Snap To for guides, grid, layers and document bounds
-- Crop with snapping, ratios including 3:4 and 9:16, and Option for symmetric cropping; with a selection, the crop starts at it
-- Canvas Size, Image Size and Trim
-- Sharp high-quality downsampling when zoomed out, and a pixel grid when zoomed in
-- Import JPEG, PNG, HEIC, TIFF, SVG, camera RAW (with a develop step first) and Photoshop PSD and PSB (8-bit RGB; not CMYK). Photoshop folders, masks, blend modes, fill rectangles/ellipses, and simple horizontal text stay editable; other vectors and vertical text become pixels. A conversion report is shown before anything is applied.
-- Large documents: the memory budget scales with your Mac, and a Photoshop file too big to open has its layers cropped to the canvas instead
-- Export JPEG with a live preview (⇧⌥⌘S); Copy Merged
-- Keep working while a project saves
-- Photoshop-style keyboard shortcuts throughout, remappable in Edit > Keyboard Shortcuts
-- Drag a number's label to scrub its value, as in Photoshop
-- Automatic updates, signed and notarized
-
-### Works with AI agents
-- AI agents and scripts can build and edit projects directly: a `.comp` is a folder of PNG layers and a manifest, and an open project updates live as it's written. See [Writing Compositor projects](docs/writing-comp-files.md)
-
-## Requirements
-
-- macOS 26.0 or later on a Mac with Apple silicon
-- Xcode 26 or later (to build from source)
-
-## Building
-
-Open `Compositor.xcodeproj` and run the **Compositor** scheme.
-
-## Releasing
-
-`scripts/release.sh` builds a Release version, signs it with Developer ID, notarizes and staples it, and packages it into `dist/Compositor-<version>.dmg`.
-
-It needs, all kept outside this repository:
-
-- a **Developer ID Application** certificate in the login keychain
-- notarization credentials saved with `xcrun notarytool store-credentials "compositor-notary" …`
-- [`create-dmg`](https://github.com/create-dmg/create-dmg) (`brew install create-dmg`)
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+MIT 许可证，见 [LICENSE](LICENSE)。原始 macOS 源码及历史保留在仓库，macOS 的下载、介绍和贡献请访问顶部上游链接。

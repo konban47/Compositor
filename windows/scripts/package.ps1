@@ -1,6 +1,6 @@
 param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\dist'),
-    [string]$Version = '1.4.6.1',
+    [string]$Version = '1.4.7.1',
     [string]$Dotnet = 'dotnet',
     [switch]$Installer
 )

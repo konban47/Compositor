@@ -56,7 +56,7 @@ public static class WarpEdits
             var stroke = new Stroke(work, mode, settings);
             foreach (var point in points) stroke.Append(point);
             if (stroke.Dabs.Count == 0) return false;
-            return StrokeInto(layer, work, stroke, asset);
+            return StrokeInto(document, layer, work, stroke, asset);
         }
     }
 
@@ -65,8 +65,10 @@ public static class WarpEdits
     /// the stroke left where that pixel was on the document. What the brush did not reach is untouched, and a
     /// pixel whose place on the document is off the canvas keeps what it had rather than falling to nothing.
     /// </summary>
-    private static bool StrokeInto(ImageLayer layer, SKBitmap work, Stroke stroke, ImportedImage asset)
+    private static bool StrokeInto(CanvasDocument document, ImageLayer layer, SKBitmap work, Stroke stroke, ImportedImage asset)
     {
+        var region = document.Selection.CoverageRect(document.Width, document.Height);
+        using var clip = document.Selection.Coverage(region);
         var width = asset.Width;
         var height = asset.Height;
         var toDocument = BrushEdits.PixelToDocument(layer.Transform, width, height);
@@ -92,14 +94,20 @@ public static class WarpEdits
                 var sx = (int)Math.Floor(at.X);
                 var sy = (int)Math.Floor(at.Y);
                 if (sx < 0 || sy < 0 || sx >= work.Width || sy >= work.Height) continue;
+                var amount = clip is null ? 1.0 : sx < region.Left || sx >= region.Right || sy < region.Top || sy >= region.Bottom
+                    ? 0.0 : clip.GetPixel(sx - region.Left, sy - region.Top).Red / 255.0;
+                if (amount <= 0) continue;
                 var from = sy * stride + sx * 4;
                 var to = y * painted.RowBytes + x * 4;
-                var alpha = source2[from + 3];
+                // Blend through antialiased/feathered coverage in premultiplied space.
+                var oldAlpha = target[to + 3];
+                var alpha = (byte)Math.Clamp(Math.Round(oldAlpha * (1 - amount) + source2[from + 3] * amount), 0, 255);
+                for (var channel = 0; channel < 3; channel++)
+                {
+                    var premultiplied = target[to + channel] * oldAlpha / 255.0 * (1 - amount) + source2[from + channel] * amount;
+                    target[to + channel] = alpha == 0 ? (byte)0 : (byte)Math.Clamp(Math.Round(premultiplied * 255 / alpha), 0, 255);
+                }
                 target[to + 3] = alpha;
-                // The document holds premultiplied pixels and a layer straight ones.
-                target[to] = Straight(source2[from], alpha);
-                target[to + 1] = Straight(source2[from + 1], alpha);
-                target[to + 2] = Straight(source2[from + 2], alpha);
                 covered++;
             }
         }

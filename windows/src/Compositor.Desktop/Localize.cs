@@ -14,6 +14,8 @@ internal static class Localize
 {
     private static readonly Dictionary<string, string> Chinese = Load();
     private static readonly string Preference = Path.Combine(AppPaths.SettingsDirectory, "language.txt");
+    private static readonly string? AuditPath = Environment.GetEnvironmentVariable("COMPOSITOR_LOCALIZATION_AUDIT");
+    private static readonly HashSet<string> Audited = [];
     internal static string Language { get; private set; } = ReadLanguage();
     internal static bool IsChinese => Language == "zh-CN";
     internal static FontFamily UiFont => new("avares://Compositor/Assets/Fonts#Noto Sans SC");
@@ -59,19 +61,23 @@ internal static class Localize
         if (suffix.Length > 0 && Chinese.TryGetValue(clean[..^suffix.Length], out translation)) return translation + "…";
         foreach (var (pattern, translated) in Templates.Value)
         {
-            var match = pattern.Match(clean);
+            // Accelerator underscores belong to menu labels, not interpolated file names or user text.
+            var match = pattern.Match(value);
             if (!match.Success) continue;
             return Regex.Replace(translated, @"\{(\d+)(?::[^}]+)?}", token =>
                 Text(match.Groups[int.Parse(token.Groups[1].Value, CultureInfo.InvariantCulture) + 1].Value));
         }
+        if (AuditPath is not null && Regex.IsMatch(value, "[A-Za-z]{2}") && !Regex.IsMatch(value, @"[\u4e00-\u9fff]")
+            && Audited.Add(value)) File.AppendAllText(AuditPath, value + Environment.NewLine);
         return value;
     }
 
     internal static string Format(FormattableString value)
     {
         if (!IsChinese) return value.ToString(CultureInfo.CurrentCulture);
-        var format = Chinese.GetValueOrDefault(value.Format, value.Format);
-        return string.Format(CultureInfo.CurrentCulture, format, value.GetArguments());
+        if (!Chinese.TryGetValue(value.Format, out var format)) return Text(value.ToString(CultureInfo.CurrentCulture));
+        return string.Format(CultureInfo.CurrentCulture, format,
+            value.GetArguments().Select(argument => argument is string text ? Text(text) : argument).ToArray());
     }
 
     internal static string English(string display)

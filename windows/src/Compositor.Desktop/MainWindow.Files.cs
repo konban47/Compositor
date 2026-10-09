@@ -52,7 +52,9 @@ public sealed partial class MainWindow
     }
 
     /// <summary>The file picker, command line and shell integration use the same import path.</summary>
-    internal async Task OpenPath(string path, bool newTab = true)
+    internal Task OpenPath(string path, bool newTab = true) => OpenPath(path, newTab, null);
+
+    private async Task OpenPath(string path, bool newTab, Tab? importTarget)
     {
         try
         {
@@ -66,15 +68,15 @@ public sealed partial class MainWindow
                 var imported = await Task.Run(() => PsdImporter.Read(path));
                 var snapshot = imported.Snapshot();
                 if (imported.Notes.Count > 0 && !await ConfirmDialog.Ask(this, "Photoshop conversion report",
-                    string.Join(Environment.NewLine, imported.Notes.Select(note => $"{note.Layer}: {note.What}")), "Import", "Cancel"))
+                    string.Join(Environment.NewLine, imported.Notes.Select(note => $"{note.Layer}: {Localize.Text(note.What)}")), "Import", "Cancel"))
                 { snapshot.Dispose(); return; }
                 AdoptImported(snapshot.ToDocument(), "Import Photoshop");
                 Say($"Imported {Path.GetFileName(path)} with {imported.Manifest.Layers.Count} layers.");
                 return;
             }
             if (!ImageImporter.LooksImportable(path)) throw new ImportException(ImportError.Unsupported);
-            var target = _open;
-            var fitting = Fitting();
+            var target = importTarget ?? _open;
+            var fitting = target.Document is { } fit ? new SKSizeI(fit.Width, fit.Height) : (SKSizeI?)null;
             var image = await Task.Run(() => ImageImporter.Decode(path, fitting));
             if (ImageImporter.IsRaw(path))
             {

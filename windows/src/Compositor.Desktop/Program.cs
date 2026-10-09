@@ -84,6 +84,7 @@ internal static partial class Program
         // history. It runs on Avalonia's headless platform, which is what makes hit-testing and pointer capture
         // real without a display.
         if (args is ["--clicks", var clicksOutput]) return Clicks(clicksOutput);
+        if (args is ["--interaction-checks", var interactionOutput]) return InteractionChecks(interactionOutput);
         // `--updates` reads the app's real update feed and says what it makes of it, which is the whole check
         // short of the dialog: off the network it prints that the feed could not be reached instead.
         if (args is ["--updates"]) return Updates();
@@ -181,11 +182,10 @@ internal static partial class Program
         // groups, so an item's index is not the look's.
         foreach (var name in new[] { "Atkinson (Classic Mac)", "Bayer 2 × 2", "Halftone Dots", "Mac Patterns", "ASCII" })
         {
-            var chosen = look.Items.OfType<ComboBoxItem>().ToList().FindIndex(item => (item.Content as string) == name);
+            var chosen = look.Items.OfType<ComboBoxItem>().ToList().FindIndex(item => (item.Content as string) == Localize.Text(name));
             if (chosen < 0)
             {
-                Console.WriteLine($"the Dither panel has no look called {name}");
-                continue;
+                throw new InvalidOperationException($"the Dither panel has no look called {name}");
             }
             look.SelectedIndex = chosen;
             var shown = panel.Children.Count(child => child.IsVisible);

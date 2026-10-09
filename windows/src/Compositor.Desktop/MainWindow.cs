@@ -417,15 +417,13 @@ public sealed partial class MainWindow : Window
         _maskLink.Click += (_, _) => ToggleMaskLink();
         _addMask.Items.Add(Command("_Reveal All (White)", () => AddMask(revealing: true)));
         _addMask.Items.Add(Command("_Hide All (Black)", () => AddMask(revealing: false)));
-        _layers.SelectionChanged += (_, _) => UpdateLayerMenu();
+        _layers.SelectionChanged += (_, _) => { UpdateLayerMenu(); ShowTransformBox(); _canvas.InvalidateVisual(); };
+        InitializeInteraction();
         _tabs.Add(_open);
         Content = Layout();
         RefreshTabs();
         UpdateLayerMenu();
-        // The tool in hand at the start is the Pan, which the rail marks on its own — but the options bar is
-        // only ever told what to show when a tool is picked, so without this it opens with every tool's rows at
-        // once. Found by opening the real window and looking at it.
-        RefreshOptionsBar();
+        SetTool(Tool.Move);
         BuildVerbs();
         RegisterKeys();
         ShowKeys();
@@ -565,6 +563,8 @@ public sealed partial class MainWindow : Window
                     Header = Localize.Text("_Filter"),
                     Items =
                     {
+                        (_lastFilterItem = Command("Last Filter", RepeatLastFilter, "Last Filter")),
+                        new Separator(),
                         Command("_Remove Background", () => _ = DetectSubject(true), "Remove Background"),
                         Command("_Camera Raw Filter…", CameraRawFilter),
                         new Separator(),
@@ -710,7 +710,8 @@ public sealed partial class MainWindow : Window
         DockPanel.SetDock(layers.Children[0], Dock.Top);
         layers.Children.Add(Appearance());
         DockPanel.SetDock(layers.Children[1], Dock.Top);
-        layers.Children.Add(new ScrollViewer { Content = _layers });
+        // ListBox owns its scrolling; an outer ScrollViewer prevents bounded layout and reveal-on-selection.
+        layers.Children.Add(_layers);
         _layersSide.Child = layers;
 
         var statusBar = new Border
@@ -975,6 +976,11 @@ public sealed partial class MainWindow : Window
         // The Windows key is Windows', and a chord made with it is not one the table can hold.
         if (e.Handled || e.KeyModifiers.HasFlag(KeyModifiers.Meta)) return;
         if (!Typing() && e.Key == Key.Escape && _canvasOnly) { ToggleCanvasOnly(); e.Handled = true; return; }
+        if (!Typing() && e.Key is Key.Delete or Key.Back && e.KeyModifiers == KeyModifiers.None
+            && _document?.Selection.Path is not null)
+        {
+            ClearPixels(); e.Handled = true; return;
+        }
         if (!Typing() && e.Key == Key.Tab && e.KeyModifiers == KeyModifiers.None && _tool is Tool.Wand or Tool.Object)
         { SetTool(_tool == Tool.Wand ? Tool.Object : Tool.Wand); e.Handled = true; return; }
         var held = ShortcutKeys.Held(e.KeyModifiers);
@@ -1061,6 +1067,7 @@ public sealed partial class MainWindow : Window
         Does("Move Layer Down", () => MoveLayer(-1));
         Does("Rename Layer", () => _ = RenameLayer());
         Does("Delete Layer", DeleteLayer);
+        Does("Last Filter", RepeatLastFilter);
         Does("Show Grid", ShowGrid);
         Does("Show Rulers", ShowRulers);
         Does("Show Guides", ShowGuides);
@@ -2878,7 +2885,7 @@ public sealed partial class MainWindow : Window
             ? $"{System.IO.Path.GetFileName(path)} has been changed since it was last saved."
             : "This project has not been saved.";
         return await ConfirmDialog.Ask(this, "Discard unsaved changes?",
-            $"{named} Anything not saved is lost.", "Discard", "Keep");
+            $"{named} Anything not saved is lost.", "Don't Save", "Cancel");
     }
 
     /// <summary>The layer the panel has selected, or the top one when nothing is: what an edit acts on.</summary>
@@ -3031,6 +3038,7 @@ public sealed partial class MainWindow : Window
 
     private void UpdateLayerMenu()
     {
+        UpdateLastFilter();
         var document = _document;
         var layer = document is not null && Selected is { } id
             ? document.Layers.FirstOrDefault(candidate => candidate.ID == id)
@@ -3062,7 +3070,7 @@ public sealed partial class MainWindow : Window
         if (_document is not { } document) return;
         ShowLayers(document);
         var row = layer is { } id ? _rows.IndexOf(id) : -1;
-        if (row >= 0) _layers.SelectedIndex = row;
+        if (row >= 0) SelectLayerRow(_rows[row]);
         Refresh();
     }
 
@@ -3147,6 +3155,7 @@ public sealed partial class MainWindow : Window
         if (_document is not { } document) return;
         _history.Begin("New Blank Layer", document, Selected);
         var made = LayerPlacement.AddBlank(document, Selected);
+        NameNewLayer(document, made, "Layer");
         _history.End(document, Selected);
         if (made is null) { Say("This document already holds as many layers as it may."); return; }
         Reselect(made);
@@ -3157,6 +3166,7 @@ public sealed partial class MainWindow : Window
         if (_document is not { } document) return;
         _history.Begin("New Folder", document, Selected);
         var made = LayerPlacement.AddFolder(document, Selected);
+        NameNewLayer(document, made, "Folder");
         _history.End(document, Selected);
         if (made is null) { Say("This document already holds as many layers as it may."); return; }
         Reselect(made);
@@ -3170,6 +3180,7 @@ public sealed partial class MainWindow : Window
         if (ids.Count == 0) return;
         _history.Begin("Group Layers", document, Selected);
         var folder = LayerPlacement.GroupSelected(document, ids);
+        NameNewLayer(document, folder, "Folder");
         _history.End(document, Selected);
         if (folder is null) { Say("Those layers could not be wrapped in a folder."); return; }
         Reselect(folder);
@@ -3279,6 +3290,8 @@ public sealed partial class MainWindow : Window
     private void SetTool(Tool tool)
     {
         _tool = tool;
+        _canvas.PanEnabled = tool == Tool.Pan;
+        if (!_canvas.IsPanning) _canvas.Cursor = tool == Tool.Pan ? new Cursor(StandardCursorType.Hand) : null;
         _canvas.SampleSourceOnClick = tool == Tool.Clone;
         // A colour range being picked takes the press whatever tool is in hand, so the canvas keeps sampling
         // until its panel is put away.
@@ -3348,9 +3361,9 @@ public sealed partial class MainWindow : Window
 
     /// <summary>What the brush is set to, in words, for the status line.</summary>
     private static string Spell(BrushSettings brush) =>
-        (brush.Hardness >= 1 ? "hard" : $"{brush.Hardness * 100:0}% hard") +
+        (brush.Hardness >= 1 ? Localize.Text("hard") : Localize.Format($"{brush.Hardness * 100:0}% hard")) +
         (brush.Opacity < 1 ? $", {brush.Opacity * 100:0}%" : "") +
-        $", color {brush.Red * 255:0},{brush.Green * 255:0},{brush.Blue * 255:0}";
+        Localize.Format($", color {brush.Red * 255:0},{brush.Green * 255:0},{brush.Blue * 255:0}");
 
     /// <summary>Asks for one of the magic wand's amounts, as the options bar's own buttons do.</summary>
     private async Task SetWand(WandSetting which)
@@ -3731,6 +3744,7 @@ public sealed partial class MainWindow : Window
         panel.Cancelled += CloseCameraRaw;
         _cameraRaw = panel;
         _cameraRawHost.Child = panel.View;
+        Localize.ApplyChoices(panel.View);
         _cameraRawHost.IsVisible = true;
         _layersSide.IsVisible = false;
         // The readout under the scope follows the pointer over the canvas, and is cleared when it leaves.
@@ -3837,7 +3851,11 @@ public sealed partial class MainWindow : Window
         // Kept for the next time the panel is opened, as the Mac's filter settings keep the last grade.
         _cameraRawAmounts = settings;
         if (_document is not { } current || id is not { } layer || settings.IsIdentity) return;
-        Edit("Camera Raw Filter", () => CameraRawEdits.Apply(current, layer, settings));
+        if (Edit("Camera Raw Filter", () => CameraRawEdits.Apply(current, layer, settings)))
+        {
+            var remembered = CopyFilterSettings(settings);
+            RememberFilter("Camera Raw Filter", (doc, target) => CameraRawEdits.Apply(doc, target, remembered));
+        }
         Reselect(layer);
         Say($"Camera Raw: exposure {settings.Exposure:0.##}, contrast {settings.Contrast:0}, " +
             $"saturation {settings.Saturation:0}");
@@ -3892,7 +3910,11 @@ public sealed partial class MainWindow : Window
         // of filter settings does.
         _filterAmounts = settings;
         if (_document is not { } current) return;
-        Edit($"{kind} Filter", () => FilterEdits.Apply(current, id, kind, settings));
+        if (Edit($"{kind} Filter", () => FilterEdits.Apply(current, id, kind, settings)))
+        {
+            var remembered = settings.Copy();
+            RememberFilter(kind.ToString(), (doc, target) => FilterEdits.Apply(doc, target, kind, remembered));
+        }
         Reselect(id);
         Say($"{kind} applied");
     }
@@ -3918,7 +3940,11 @@ public sealed partial class MainWindow : Window
         _ditherLook = chosen.Style;
         _ditherAmounts = chosen.Settings;
         if (_document is not { } current) return;
-        Edit("Dither", () => DitherEdits.Apply(current, id, chosen.Style, chosen.Settings));
+        if (Edit("Dither", () => DitherEdits.Apply(current, id, chosen.Style, chosen.Settings)))
+        {
+            var remembered = chosen.Settings.Copy();
+            RememberFilter("Dither", (doc, target) => DitherEdits.Apply(doc, target, chosen.Style, remembered));
+        }
         Reselect(id);
         Say($"Dither: {chosen.Style}, {chosen.Settings.Levels:0} tones");
     }
@@ -4024,6 +4050,7 @@ public sealed partial class MainWindow : Window
         if (_document is not { } document) return;
         _history.Begin("New Adjustment Layer", document, Selected);
         var made = LayerPlacement.AddAdjustment(document, kind, Selected);
+        NameNewLayer(document, made, LayerPlacement.Name(kind));
         _history.End(document, Selected);
         if (made is null)
         {
@@ -5565,14 +5592,16 @@ public sealed partial class MainWindow : Window
         _canvas.InvalidateVisual();
         UpdateLayerMenu();
         if (_transforming is null) ShowTransformBox();
-        var undo = _history.CanUndo ? $"Undo {_history.UndoName}" : "";
-        var redo = _history.CanRedo ? $"Redo {_history.RedoName}" : "";
-        var edited = _history.IsModified ? "edited" : "";
+        var undo = _history.CanUndo ? Localize.Format($"Undo {_history.UndoName}") : "";
+        var redo = _history.CanRedo ? Localize.Format($"Redo {_history.RedoName}") : "";
+        var edited = _history.IsModified ? Localize.Text("edited") : "";
         Say(string.Join("    ", new[] { undo, redo, edited }.Where(part => part.Length > 0)));
     }
 
     private void ShowLayers(CanvasDocument document)
     {
+        var selectedIds = SelectedLayers.ToHashSet();
+        var models = document.Layers.ToDictionary(layer => layer.ID);
         var rows = new List<ListBoxItem>();
         _rows.Clear();
         // Top of the stack first, as the Mac build's panel lists it.
@@ -5585,23 +5614,29 @@ public sealed partial class MainWindow : Window
             if (record.Opacity is { } opacity and < 1) notes.Add($"{opacity:0.##}");
             if (record.MaskFile is not null) notes.Add("mask");
             if (record.MaskSourceID is not null) notes.Add("clipped");
-            rows.Add(new ListBoxItem
+            var item = new ListBoxItem
             {
                 // The row carries the layer it stands for, so a multi-selection can be read back.
                 Tag = record.ID,
-                Content = new TextBlock
-                {
-                    Text = new string(' ', entry.Depth * 3) + record.Name +
-                        (notes.Count > 0 ? "  ·  " + string.Join("，", notes.Select(Localize.Text)) : ""),
-                    Foreground = Ink,
-                },
-            });
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                Padding = new Thickness(2),
+                Content = LayerRow(models[record.ID], entry.Depth,
+                    notes.Count > 0 ? "  ·  " + string.Join("，", notes.Select(Localize.Text)) : ""),
+            };
+            WireLayerDrag(item);
+            rows.Add(item);
             _rows.Add(record.ID);
         }
         var selected = _layers.SelectedIndex;
         _layers.ItemsSource = rows;
         // A row is the layer an edit acts on, so the top of the stack starts selected.
         _layers.SelectedIndex = selected >= 0 && selected < rows.Count ? selected : rows.Count > 0 ? 0 : -1;
+        var retained = rows.Where(row => row.Tag is Guid id && selectedIds.Contains(id)).ToArray();
+        if (retained.Length > 0)
+        {
+            _layers.SelectedItems?.Clear();
+            foreach (var row in retained) _layers.SelectedItems?.Add(row);
+        }
     }
 
     /// <summary>
@@ -5618,8 +5653,8 @@ public sealed partial class MainWindow : Window
                 AllowMultiple = false,
                 FileTypeFilter =
                 [
-                    new FilePickerFileType("Images") { Patterns = [.. ImageImporter.Extensions.Select(e => "*" + e)] },
-                    FilePickerFileTypes.All,
+                    new FilePickerFileType(Localize.Text("Images")) { Patterns = [.. ImageImporter.Extensions.Select(e => "*" + e)] },
+                    new FilePickerFileType(Localize.Text("All files")) { Patterns = ["*"] },
                 ],
             });
             if (picked.Count == 0 || picked[0].TryGetLocalPath() is not { } path) return;

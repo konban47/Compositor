@@ -137,7 +137,10 @@ public sealed partial class MainWindow
             cancel.Token.ThrowIfCancellationRequested();
             if (!ReferenceEquals(document, _document) || _history.CurrentRevision != revision) return;
             if (removeBackground)
+            {
                 Change("Remove Background", doc => SubjectEdits.RemoveBackground(doc, id!.Value, matte));
+                if (_history.CurrentRevision != revision) RememberBackgroundFilter();
+            }
             else
             {
                 using var outline = SubjectEdits.Outline(matte, point);
@@ -147,6 +150,6 @@ public sealed partial class MainWindow
         }
         catch (OperationCanceledException) { Say("Subject detection cancelled."); }
         catch (Exception error) { Say($"Could not find the subject: {error.Message}"); }
-        finally { done = true; progress.Close(); await dialog; _detecting = false; }
+        finally { done = true; progress.Close(); await dialog; _detecting = false; UpdateLastFilter(); }
     }
 }

@@ -74,7 +74,11 @@ public sealed partial class CanvasView : Control
     /// <summary>When set, dragging paints instead of panning.</summary>
     public bool PaintEnabled { get; set; }
 
-    /// <summary>Which selection tool the pointer is holding; None leaves it panning.</summary>
+    public bool PanEnabled { get; set; } = true;
+    public bool IsPanning => _dragging is not null;
+    public Action<SKPoint, KeyModifiers>? MoveTargetPressed { get; set; }
+
+    /// <summary>Which selection tool the pointer is holding.</summary>
     public SelectionTool Selection { get; set; }
 
     /// <summary>Handed the box a marquee drag ended on, in document pixels, and how it meets the selection.</summary>
@@ -358,11 +362,35 @@ public sealed partial class CanvasView : Control
         ClipToBounds = true;
         // The canvas takes the keys while text is being typed, as the Mac build's canvas does.
         Focusable = true;
+        _antsTimer.Tick += (_, _) => AdvanceAnts();
+        AttachedToVisualTree += (_, _) => _antsTimer.Start();
+        DetachedFromVisualTree += (_, _) => { _antsTimer.Stop(); _caretBlink.Stop(); _composite?.Dispose(); _composite = null; };
         _caretBlink.Tick += (_, _) =>
         {
             _caretOn = !_caretOn;
             if (TextEditing) InvalidateVisual();
         };
+    }
+
+    private readonly DispatcherTimer _antsTimer = new() { Interval = TimeSpan.FromMilliseconds(80) };
+    internal double AntsPhase { get; private set; }
+    internal void AdvanceAnts()
+    {
+        if (_document?.Selection.Path is not { IsEmpty: false } || !IsVisible) return;
+        AntsPhase = (AntsPhase + 1) % 8;
+        // Only the overlay changed. Reuse the composed image instead of rendering every layer at 12.5 fps.
+        base.InvalidateVisual();
+    }
+
+    private WriteableBitmap? _composite;
+    private CanvasDocument? _compositeDocument;
+    private SKRectI _compositeRegion;
+    private bool _compositeDirty = true;
+    internal int CompositeRenderCount { get; private set; }
+    public new void InvalidateVisual()
+    {
+        _compositeDirty = true;
+        base.InvalidateVisual();
     }
 
     /// <summary>Starts typing on the canvas: the keys come here and a caret blinks where the text ends.</summary>
@@ -590,8 +618,14 @@ public sealed partial class CanvasView : Control
             SKRectI.Create(0, 0, document.Width, document.Height));
         if (region.Width <= 0 || region.Height <= 0) return;
 
-        using var rendered = DocumentRenderer.RenderRegion(document, region);
-        using var image = ToImage(rendered);
+        if (_composite is null || _compositeDirty || !ReferenceEquals(document, _compositeDocument) || region != _compositeRegion)
+        {
+            using var rendered = DocumentRenderer.RenderRegion(document, region);
+            var next = ToImage(rendered);
+            _composite?.Dispose(); _composite = next;
+            _compositeDocument = document; _compositeRegion = region; _compositeDirty = false;
+            CompositeRenderCount++;
+        }
         var destination = new Rect(
             (region.Left - _origin.X) * _zoom,
             (region.Top - _origin.Y) * _zoom,
@@ -600,7 +634,7 @@ public sealed partial class CanvasView : Control
         DrawPaperShadow(context, destination);
         // The checkerboard under the picture, so transparent pixels show through it as they do on the Mac.
         context.DrawRectangle(Paper, null, destination);
-        context.DrawImage(image, destination);
+        context.DrawImage(_composite, destination);
         context.DrawRectangle(null, Skin.PictureEdgePen, destination);
         DrawGrid(context, document);
         DrawPixelGrid(context, document);
@@ -906,7 +940,8 @@ public sealed partial class CanvasView : Control
     /// </summary>
     private bool beginTransformDrag(LayerTransform box, SKPoint point, KeyModifiers modifiers)
     {
-        var handle = TransformEdits.HandleAt(box, point, TransformEdits.Grab / _zoom, TransformEdits.RotateGrip / _zoom);
+        var handle = TransformHandles
+            ? TransformEdits.HandleAt(box, point, TransformEdits.Grab / _zoom, TransformEdits.RotateGrip / _zoom) : null;
         // Ctrl on a corner takes hold of that corner on its own, which is a distortion: the shape it is
         // dragged into is not a rectangle with an angle, so the pixels are resampled into it on release.
         if (handle is { } corner && Corner(corner) is { } index && DistortEnabled
@@ -988,16 +1023,19 @@ public sealed partial class CanvasView : Control
         if (_document?.Selection.Path is not { } path || path.IsEmpty) return;
         // A white line with a black dashed one over it, as the Mac's overlay draws the marching ants.
         var outline = new Pen(Brushes.White, 1);
-        var ants = new Pen(Brushes.Black, 1) { DashStyle = new DashStyle([4.0, 4.0], 0) };
+        var ants = new Pen(Brushes.Black, 1) { DashStyle = new DashStyle([4.0, 4.0], AntsPhase) };
         foreach (var contour in Contours(path))
         {
-            for (var index = 1; index < contour.Count; index++)
+            if (contour.Count < 2) continue;
+            var geometry = new StreamGeometry();
+            using (var builder = geometry.Open())
             {
-                var from = ToScreen(contour[index - 1]);
-                var to = ToScreen(contour[index]);
-                context.DrawLine(outline, from, to);
-                context.DrawLine(ants, from, to);
+                builder.BeginFigure(ToScreen(contour[0]), false);
+                for (var index = 1; index < contour.Count; index++) builder.LineTo(ToScreen(contour[index]));
+                builder.EndFigure(true);
             }
+            context.DrawGeometry(null, outline, geometry);
+            context.DrawGeometry(null, ants, geometry);
         }
     }
 
@@ -1252,6 +1290,16 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
+        Focus();
+        var properties = e.GetCurrentPoint(this).Properties;
+        if (properties.IsMiddleButtonPressed || (PanEnabled && properties.IsLeftButtonPressed && !UprightDrawing && !EyedropperOnClick))
+        {
+            _dragging = e.GetPosition(this);
+            Cursor = new Cursor(StandardCursorType.SizeAll);
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
         // A Camera Raw guide comes before everything: the panel has asked to draw lines on the picture, and
         // nothing else the canvas does should happen while the pointer is down.
         if (_document is not null && UprightDrawing && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
@@ -1289,8 +1337,10 @@ public sealed partial class CanvasView : Control
             InvalidateVisual();
             return;
         }
+        if (TransformEnabled && properties.IsLeftButtonPressed)
+            MoveTargetPressed?.Invoke(ToDocument(e.GetPosition(this)), e.KeyModifiers);
         if (TransformEnabled && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
-            && TransformHandles && TransformBox is { } box
+            && TransformBox is { } box
             && beginTransformDrag(box, ToDocument(e.GetPosition(this)), e.KeyModifiers))
         {
             e.Pointer.Capture(this);
@@ -1414,8 +1464,7 @@ public sealed partial class CanvasView : Control
             e.Handled = true;
             return;
         }
-        _dragging = e.GetPosition(this);
-        e.Pointer.Capture(this);
+        // A missed object is not a request to pan. Only Hand, Space and the middle button pan.
         base.OnPointerPressed(e);
     }
 
@@ -1423,6 +1472,13 @@ public sealed partial class CanvasView : Control
     {
         PointerLeftCanvas?.Invoke();
         base.OnPointerExited(e);
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        _dragging = null;
+        Cursor = PanEnabled ? new Cursor(StandardCursorType.Hand) : null;
+        base.OnPointerCaptureLost(e);
     }
 
     /// <summary>
@@ -1696,6 +1752,7 @@ public sealed partial class CanvasView : Control
             return;
         }
         _dragging = null;
+        Cursor = PanEnabled ? new Cursor(StandardCursorType.Hand) : null;
         e.Pointer.Capture(null);
         base.OnPointerReleased(e);
     }

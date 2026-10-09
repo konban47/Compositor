@@ -51,8 +51,7 @@ internal sealed class GridSettingsDialog : DialogWindow
                 Row("Subdivisions", _subdivisions),
                 new TextBlock
                 {
-                    Text = $"Between {LayoutGrid.LeastSpacing} and {LayoutGrid.MostSpacing} pixels apart, "
-                        + $"split into at most {LayoutGrid.MostSubdivisions}.",
+                    Text = Localize.Format($"Between {LayoutGrid.LeastSpacing} and {LayoutGrid.MostSpacing} pixels apart, split into at most {LayoutGrid.MostSubdivisions}."),
                     TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 },
                 new StackPanel

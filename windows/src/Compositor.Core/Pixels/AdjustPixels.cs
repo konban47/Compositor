@@ -353,18 +353,20 @@ public static class AdjustPixels
 
     private static double ToneHighlights(double y, double amount)
     {
-        double t = CameraClamp((y - 0.5) / 0.5);
-        double weight = t * t;
-        if (amount >= 0) return CameraClamp(y + amount * weight * (1.0 - y));
-        return CameraClamp(y + amount * weight * (y - 0.5));
+        return CameraClamp(y + amount * (amount >= 0 ? 1.0 : 2.5) * ToneBump(1.0 - y));
     }
 
     private static double ToneShadows(double y, double amount)
     {
-        double t = CameraClamp((0.5 - y) / 0.5);
-        double weight = t * t;
-        if (amount >= 0) return CameraClamp(y + amount * weight * (0.5 - y));
-        return CameraClamp(y + amount * weight * y);
+        return CameraClamp(y + amount * (amount >= 0 ? 2.5 : 1.0) * ToneBump(y));
+    }
+
+    // Upstream 0b4c56c: monotone light/shadow curves preserve black, white and middle gray.
+    private static double ToneBump(double value)
+    {
+        if (value <= 0 || value >= 0.5) return 0;
+        var rest = 1 - 2 * value;
+        return value * rest * rest;
     }
 
     // The top quarter is the white point: +1 maps 0.875 to 1, −1 pulls everything above 0.75 down to 0.75.

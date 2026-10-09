@@ -17,8 +17,8 @@
 
   <PropertyGroup>
     <!-- Windows releases use an independent fourth version component. -->
-    <Version>1.4.6.1</Version>
-    <AssemblyVersion>1.4.6.1</AssemblyVersion>
+    <Version>1.4.7.1</Version>
+    <AssemblyVersion>1.4.7.1</AssemblyVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>Compositor</AssemblyName>
     <ApplicationIcon>Assets/compositor.ico</ApplicationIcon>

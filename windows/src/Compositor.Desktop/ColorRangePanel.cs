@@ -150,10 +150,10 @@ internal sealed class ColorRangePanel : DialogWindow
         ShowingMask = mask is not null;
         _mask.Show(mask);
         _hint.Text = picked == 0
-            ? "Click the picture to pick the color to select."
-            : "Shift-click adds a color, Option-click takes one away."
-                + $" {picked} color(s) picked, {taken} taken away.";
-        _problem.Text = _session.Problem ?? "";
+            ? Localize.Text("Click the picture to pick the color to select.")
+            : Localize.Text("Shift-click adds a color, Alt-click takes one away.")
+                + " " + Localize.Format($"{picked} color(s) picked, {taken} taken away.");
+        _problem.Text = Localize.Text(_session.Problem);
         _showing = true;
         try
         {

@@ -203,6 +203,7 @@ public static class Shortcuts
         Menu("Fill with Foreground Color", "Delete", Alt);
         Menu("Fill with Background Color", "Delete", Ctrl);
         Menu("Content-Aware Fill", "Delete", Alt | Shift);
+        Menu("Last Filter", "F", Ctrl | Alt);
         Menu("Select All", "A", Ctrl);
         Menu("Deselect", "D", Ctrl);
         Menu("Inverse Selection", "I", Ctrl | Shift);

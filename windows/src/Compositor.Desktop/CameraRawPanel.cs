@@ -613,8 +613,7 @@ internal sealed class CameraRawPanel
         {
             var at = _points.SelectedIndex;
             _points.ItemsSource = _pointList
-                .Select((point, index) => $"{index + 1}: hue {point.Hue:0}°, saturation {point.Saturation:0.00}, "
-                    + $"lightness {point.Luminance:0.00}")
+                .Select((point, index) => Localize.Format($"{index + 1}: hue {point.Hue:0}°, saturation {point.Saturation:0.00}, lightness {point.Luminance:0.00}"))
                 .ToList();
             _points.SelectedIndex = at;
         }

@@ -4,7 +4,7 @@ The application code and original icon are distributed under the repository's [M
 
 ## Source provenance
 
-- macOS reference: [robbietilton/Compositor](https://github.com/robbietilton/Compositor), commit `fa41b9b6693b8e1b3a01a13a9ea112edd8e008e3` (1.4.6).
+- macOS reference: [robbietilton/Compositor](https://github.com/robbietilton/Compositor), commit `fa41b9b6693b8e1b3a01a13a9ea112edd8e008e3` (initial 1.4.6 baseline). Windows 1.4.7.1 integrates upstream through `b5f9b80`, including the monotone Camera Raw tone curves from `0b4c56c`; the original MIT notices are retained.
 - Initial Windows implementation: [chenguisen/Compositor, compositor_win](https://github.com/chenguisen/Compositor/tree/compositor_win), commit `c51be1e57d699edce857115f43bbca579f18dcd4`, under the same MIT license. Its `windows/` directory was imported and extended. The original notices are retained.
 - [dvdstelt/Composa](https://github.com/dvdstelt/Composa), commit `86529d3b5355d28ddc28ec3db2e4de1d4d00f63b`, was researched as an alternative. No Composa or Lolly application source was copied. The unmodified U²-NetP model was obtained from its asset copy and verified by SHA-256.
 

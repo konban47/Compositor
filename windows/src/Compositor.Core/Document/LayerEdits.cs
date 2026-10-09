@@ -179,6 +179,20 @@ public static class LayerEdits
         return true;
     }
 
+    /// <summary>Places a dragged row beside another row, carrying a folder's descendants without cycles.</summary>
+    public static bool MoveRelative(CanvasDocument document, Guid layerID, Guid targetID, bool above)
+    {
+        if (layerID == targetID || Find(document, layerID) is not { } layer
+            || Find(document, targetID) is not { } target || document.Descendants(layerID).Contains(targetID)) return false;
+        var oldIndex = document.Layers.IndexOf(layer);
+        var parent = layer.ParentID;
+        document.Layers.Remove(layer);
+        var index = document.Layers.IndexOf(target) + (above ? 1 : 0);
+        document.Layers.Insert(index, layer);
+        layer.ParentID = target.ParentID;
+        return oldIndex != index || parent != layer.ParentID;
+    }
+
     /// <summary>
     /// Inserts a copy of a layer, and of everything a folder holds, just above it, with fresh ids and the
     /// same pixels: the copy and the original only part company once one of them is edited.
