@@ -142,7 +142,7 @@ public sealed partial class MainWindow
         };
         Grid.SetColumn(arrow, 1); panel.Children.Add(arrow);
         var thumbnail = new LayerThumbnail(() => Current()?.LiveText is not null ? null : Current()?.Asset?.Thumbnail,
-            layer.IsGroup ? "▰" : layer.LiveText is not null ? "T" : layer.Adjustment is not null ? "◐" : "")
+            layer.IsGroup ? "folder" : layer.LiveText is not null ? "T" : layer.Adjustment is not null ? "◐" : "")
             { Width = 32, Height = 32, Margin = new Thickness(layer.IsGroup ? 0 : depth * 12, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center };
         _layerThumbnails.Add(thumbnail);
         thumbnail.PointerPressed += (_, e) =>

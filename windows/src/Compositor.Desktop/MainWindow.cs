@@ -975,7 +975,7 @@ public sealed partial class MainWindow : Window
         if (e.Handled || e.KeyModifiers.HasFlag(KeyModifiers.Meta)) return;
         if (!Typing() && e.Key == Key.Escape && _canvasOnly) { ToggleCanvasOnly(); e.Handled = true; return; }
         if (!Typing() && e.Key is Key.Delete or Key.Back && e.KeyModifiers == KeyModifiers.None
-            && _document?.Selection.Path is not null)
+            && (_document?.Selection.Path is not null || _open.ActiveAlpha is not null))
         {
             ClearPixels(); e.Handled = true; return;
         }
@@ -3299,6 +3299,8 @@ public sealed partial class MainWindow : Window
 
     private void SetTool(Tool tool)
     {
+        if (_open.ActiveAlpha is not null && tool is Tool.Move or Tool.Type or Tool.Shape)
+        { Say("Select RGB to use this command."); return; }
         _tool = tool;
         _canvas.PanEnabled = tool == Tool.Pan;
         if (!_canvas.IsPanning) _canvas.Cursor = tool == Tool.Pan ? new Cursor(StandardCursorType.Hand) : null;
@@ -5500,11 +5502,12 @@ public sealed partial class MainWindow : Window
     /// <summary>Paints a finished stroke into the selected layer, as one undo step.</summary>
     private void Painted(IReadOnlyList<SKPoint> stroke)
     {
-        if (_document is not { } document || Selected is not { } id) return;
+        if (_document is not { } document) return;
         if (BrushFor(stroke) is not { } settings) return;
         if (EditActiveAlpha("Paint Channel", (target, channel) => _tool is Tool.Liquify or Tool.Smudge
             ? WarpEdits.Warp(target, channel, stroke, Warp(_tool), settings)
             : BrushEdits.Paint(target, channel, stroke, settings))) return;
+        if (Selected is not { } id) return;
         if (!LayerProtection.CanPaint(document, id)) { Say("The layer is locked."); return; }
         var name = _tool switch
         {
@@ -5593,6 +5596,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void TransformStarted()
     {
+        if (_open.ActiveAlpha is not null) return;
         if (_document is not { } document || Selected is not { } id) return;
         if (TransformEdits.GroupBox(document, SelectedLayers) is not { } box) return;
         _transforming = id;

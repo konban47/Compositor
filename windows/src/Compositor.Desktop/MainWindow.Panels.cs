@@ -190,6 +190,7 @@ public sealed partial class MainWindow
             menu.Items.Add(Command("Duplicate Layer", DuplicateLayer, "Duplicate Layer"));
             menu.Items.Add(Command("Delete Layer", DeleteLayer, "Delete Layer"));
             ShowKeys();
+            _keyRows.RemoveAll(row => menu.Items.Contains(row.Item));
         };
         row.ContextMenu = menu;
     }
@@ -215,6 +216,12 @@ internal sealed class LayerThumbnail(Func<SKBitmap?> source, string kind = "") :
 {
     public override void Render(DrawingContext context)
     {
+        if (kind == "folder")
+        {
+            using (context.PushTransform(Matrix.CreateTranslation(4, 6)))
+                context.DrawGeometry(Skin.SecondaryBrush, new Pen(Skin.LabelBrush, 1), StreamGeometry.Parse("M1,2 L10,2 L13,6 L25,6 L25,21 L1,21 Z"));
+            return;
+        }
         var box = new Rect(0, 0, Bounds.Width, Bounds.Height);
         context.DrawRectangle(Skin.Checker, new Pen(Skin.SecondaryBrush, 1), box);
         if (source() is { } pixels)

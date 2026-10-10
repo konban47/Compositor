@@ -1081,5 +1081,10 @@
   "Group": "组",
   "Auto White Balance": "自动白平衡",
   "White Balance Eyedropper": "白平衡吸管",
-  "Click a neutral gray area in the original layer.": "请单击原始图层中的中性灰区域。"
+  "Click a neutral gray area in the original layer.": "请单击原始图层中的中性灰区域。",
+  "Edit Layer Mask": "编辑图层蒙版",
+  "Thickness": "粗细",
+  "Paint Channel": "绘制通道",
+  "The layer is locked.": "图层已锁定。",
+  "This canvas is too large for a full-size alpha channel.": "画布过大，无法建立全尺寸 Alpha 通道。"
 }

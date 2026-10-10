@@ -1,4 +1,4 @@
-# Compositor project format, versions 1–11
+# Compositor project format, versions 1–11 and Windows extension 12
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
@@ -50,3 +50,14 @@ Pixel layer records may include optional `text` metadata: content, PostScript fo
 ### Layer effects
 
 An optional `effects` record contains independent `stroke`, `shadow`, `colorOverlay`, `innerShadow`, `outerGlow` and `innerGlow` records. Stroke carries a size (0–500 layer pixels), a color, an opacity and an `inside` flag choosing which side of the edge it sits on; drop shadow and inner shadow each carry an angle, a distance, a blur, a color and an opacity; color overlay carries a color and an opacity; outer glow and inner glow each carry a size (0–500 layer pixels), a color and an opacity. Each supports optional `enabled` visibility (missing means visible); hidden effects keep all parameters and remain listed under their layer. Effects, including their visibility, are saved and participate in document undo. Canvas previews run on a serial background worker with a shared pixel budget; exports render the full-resolution effects. A record omitting an effect means that layer does not have it, so older readers see the effects they understand and ignore the rest.
+
+## Windows extension version 12
+
+Windows 1.4.8.1 reads versions 1–12. The retained macOS implementation still reads/writes versions 1–11. Windows saves v12 only when a layer uses non-default `locks`, `fillOpacity`, `linkID`, or the document has alpha `channels`; otherwise it writes v11. Readers limited to v11 reject v12 rather than silently dropping these features.
+
+- Layer `locks`: optional integer bitmask, transparency = 1, image pixels = 2, position = 4, all = 8; 0–15 accepted, omitted means unlocked. Group flags also protect descendants. Visibility remains editable. Lock changes participate in undo.
+- Layer `fillOpacity`: optional finite number 0–1, omitted means 1. Scales layer content separately from layer effects; parent group fill scales children.
+- Layer `linkID`: optional UUID shared by linked layers; linked members move and transform together unless protected.
+- Root `channels`: optional ordered array of up to 64 alpha channels. Each contains `id` (unique nonempty UUID), `name` (nonempty UTF-8, max 16 KiB), `imageFile` (`channel-<UPPERCASE-UUID>.png`). Images live under `images/`, are 8-bit gray PNGs exactly the canvas dimensions, and count toward the mask pixel budget. White means selected, black unselected; intermediate gray values preserve partial coverage.
+
+RGB visibility, active editing channel, layer search and collapsed rows are viewport state and are not serialized. Alpha channels are preserved by document undo and transformed with canvas crop, resize, rotation and flips. Selections themselves remain transient, as in earlier versions; save one to an alpha channel to retain it in a project.

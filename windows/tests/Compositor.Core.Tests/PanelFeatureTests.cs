@@ -10,6 +10,13 @@ namespace Compositor.Core.Tests;
 
 public class PanelFeatureTests
 {
+    [Fact]
+    public void InvertingAlphaSelectionKeepsPartialCoverage()
+    {
+        using var document = Document(); using var gray = new SKBitmap(Bitmaps.MaskInfo(16, 12)); gray.Erase(new SKColor(90, 90, 90));
+        ChannelEdits.Load(document, gray); Assert.True(SelectionEdits.Invert(document));
+        using var coverage = document.Selection.Coverage(SKRectI.Create(0, 0, 16, 12)); Assert.Equal(165, coverage!.GetPixel(5, 5).Red);
+    }
     private static CanvasDocument Document()
     {
         var document = new CanvasDocument(Guid.NewGuid(), 16, 12);

@@ -533,6 +533,14 @@ public static class SelectionEdits
     public static bool Invert(CanvasDocument document)
     {
         if (document.Selection.Path is not { } path) return false;
+        if (document.Selection.HasRasterCoverage)
+        {
+            var coverage = document.Selection.Coverage(SKRectI.Create(0, 0, document.Width, document.Height))!;
+            var bytes = coverage.GetPixelSpan();
+            for (var y = 0; y < coverage.Height; y++) for (var x = 0; x < coverage.Width; x++)
+            { var at = y * coverage.RowBytes + x; bytes[at] = (byte)(255 - bytes[at]); }
+            document.Selection = DocumentSelection.FromCoverage(coverage); return true;
+        }
         var inverted = Combine(WholeCanvas(document), path, SKPathOp.Difference);
         if (inverted is null) return false;
         document.Selection = document.Selection.WithPath(inverted);

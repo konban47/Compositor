@@ -4,15 +4,15 @@ using SkiaSharp;
 
 namespace Compositor.Core.Pixels;
 
-/// <summary>Upstream 57ab3bb's measured 17³ tables composed onto a 33³ grid.</summary>
+/// <summary>Upstream 75147a2's measured 17³ tables composed onto a 33³ grid.</summary>
 public static class CameraRawTables
 {
-    private const int Size = 17, Grid = 33, Cells = 4913, Entries = Cells * 3, Count = 147;
+    private const int Size = 17, Grid = 33, Cells = 4913, Entries = Cells * 3, Count = 285;
     private static readonly byte[] Tables = Load();
     private readonly record struct Stage(int[] Tables, double[] Weights);
     private static readonly object Gate = new();
     private static string? _key;
-    private static (float[]? Before, float[]? After) _cached;
+    private static float[]? _cached;
     private static byte[] Load()
     {
         using var stream = typeof(CameraRawTables).Assembly.GetManifestResourceStream("Compositor.CameraRawTables.bin") ?? throw new InvalidDataException("Missing Camera Raw tables.");
@@ -81,21 +81,53 @@ public static class CameraRawTables
         });
         return result;
     }
-    public static (float[]? Before, float[]? After) Compose(CameraRawSettings s)
+    public readonly record struct Brightness(double Brightest = 128, double Luminance = 128, double LogBrightest = 128);
+    private static double Decode(double v) => v <= .04045 ? v / 12.92 : Math.Pow((v + .055) / 1.055, 2.4);
+    private static double Encode(double v) => v <= 0 ? 0 : v >= 1 ? 1 : v <= .0031308 ? v * 12.92 : 1.055 * Math.Pow(v, 1 / 2.4) - .055;
+    public static Brightness Statistics(ReadOnlySpan<byte> rgba, int width, int height, int stride)
     {
-        var key = string.Join("|", s.Exposure, s.Temperature, s.Tint, s.Contrast, s.Whites, s.Blacks, s.Saturation, s.Vibrance);
+        double brightest = 0, luminance = 0, logBrightest = 0, weight = 0;
+        for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
+        {
+            var p = y * stride + x * 4; double alpha = rgba[p + 3]; if (alpha == 0) continue;
+            var red = Decode(Math.Min(1, rgba[p] / alpha)); var green = Decode(Math.Min(1, rgba[p + 1] / alpha)); var blue = Decode(Math.Min(1, rgba[p + 2] / alpha));
+            var top = Math.Max(red, Math.Max(green, blue)); var w = alpha / 255;
+            brightest += w * top; luminance += w * (.2126 * red + .7152 * green + .0722 * blue);
+            logBrightest += w * Math.Log(top + .0003); weight += w;
+        }
+        return weight <= 0 ? new Brightness(127.5, 127.5, 127.5) : new Brightness(255 * Encode(brightest / weight),
+            255 * Encode(luminance / weight), 255 * Encode(Math.Exp(logBrightest / weight) - .0003));
+    }
+    private static Stage Adaptive(int start, double value, double brightness)
+    {
+        static (int Index, double Fraction) Find(double v, double[] points)
+        {
+            v = Math.Clamp(v, points[0], points[^1]); var i = 0;
+            while (i < points.Length - 2 && v > points[i + 1]) i++;
+            return (i, (v - points[i]) / (points[i + 1] - points[i]));
+        }
+        var (row, down) = Find(brightness, [53, 80, 104, 130, 160, 190, 224]);
+        var (column, across) = Find(value, [-100, -50, -25, 0, 25, 50, 100]); var at = start + row * 7 + column;
+        return new Stage([at, at + 1, at + 7, at + 8], [(1 - down) * (1 - across), (1 - down) * across, down * (1 - across), down * across]);
+    }
+    public static float[]? Compose(CameraRawSettings s, Brightness brightness)
+    {
+        var key = string.Join("|", s.Exposure, s.Temperature, s.Tint, s.Contrast, s.Highlights, s.Shadows,
+            s.Whites, s.Blacks, s.Saturation, s.Vibrance, brightness.Brightest, brightness.Luminance, brightness.LogBrightest);
         lock (Gate)
         {
             if (_key == key) return _cached;
-            var before = new List<Stage>(); var after = new List<Stage>();
-            if (s.Exposure != 0) before.Add(Slider(81, s.Exposure, -5, .5, 21));
-            if (s.Temperature != 0 || s.Tint != 0) before.Add(WhiteBalance(s.Temperature, s.Tint));
-            if (s.Contrast != 0) before.Add(Slider(102, s.Contrast));
-            if (s.Whites != 0) after.Add(Slider(111, s.Whites));
-            if (s.Blacks != 0) after.Add(Slider(120, s.Blacks));
-            if (s.Saturation != 0) after.Add(Slider(129, s.Saturation));
-            if (s.Vibrance != 0) after.Add(Slider(138, s.Vibrance));
-            _cached = (Compose(before), Compose(after)); _key = key; return _cached;
+            var stages = new List<Stage>();
+            if (s.Exposure != 0) stages.Add(Slider(81, s.Exposure, -5, .5, 21));
+            if (s.Temperature != 0 || s.Tint != 0) stages.Add(WhiteBalance(s.Temperature, s.Tint));
+            if (s.Contrast != 0) stages.Add(Adaptive(138, s.Contrast, brightness.Brightest));
+            if (s.Highlights != 0) stages.Add(Adaptive(187, s.Highlights, brightness.LogBrightest));
+            if (s.Shadows != 0) stages.Add(Adaptive(236, s.Shadows, brightness.Luminance));
+            if (s.Whites != 0) stages.Add(Slider(102, s.Whites));
+            if (s.Blacks != 0) stages.Add(Slider(111, s.Blacks));
+            if (s.Saturation != 0) stages.Add(Slider(120, s.Saturation));
+            if (s.Vibrance != 0) stages.Add(Slider(129, s.Vibrance));
+            _cached = Compose(stages); _key = key; return _cached;
         }
     }
     internal static void Lookup(float[]? table, ref double r, ref double g, ref double b)
@@ -152,15 +184,12 @@ public static partial class AdjustPixels
 {
     public static void CameraRawMeasured(Span<byte> rgba, int width, int height, int stride, CameraRawSettings settings)
     {
-        var (before, after) = CameraRawTables.Compose(settings);
+        var table = CameraRawTables.Compose(settings, CameraRawTables.Statistics(rgba, width, height, stride));
         for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
         {
             var p = y * stride + x * 4; double alpha = rgba[p + 3]; if (alpha == 0) continue;
             double r = rgba[p] / alpha, g = rgba[p + 1] / alpha, b = rgba[p + 2] / alpha;
-            CameraRawTables.Lookup(before, ref r, ref g, ref b);
-            if (settings.Highlights != 0) ScaleLuminance(ref r, ref g, ref b, ToneHighlights(Rec709(r, g, b), settings.Highlights / 100));
-            if (settings.Shadows != 0) ScaleLuminance(ref r, ref g, ref b, ToneShadows(Rec709(r, g, b), settings.Shadows / 100));
-            CameraRawTables.Lookup(after, ref r, ref g, ref b);
+            CameraRawTables.Lookup(table, ref r, ref g, ref b);
             rgba[p] = (byte)Math.Clamp(Math.Round(r * alpha), 0, alpha); rgba[p + 1] = (byte)Math.Clamp(Math.Round(g * alpha), 0, alpha); rgba[p + 2] = (byte)Math.Clamp(Math.Round(b * alpha), 0, alpha);
         }
     }

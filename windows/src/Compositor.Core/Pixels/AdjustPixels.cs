@@ -556,21 +556,57 @@ public static partial class AdjustPixels
         return (int)Math.Round(radius, MidpointRounding.AwayFromZero);
     }
 
-    private static void EffectsDehaze(ref double r, ref double g, ref double b, double amount)
+    private static bool GuidedFilterPlane(ReadOnlySpan<float> source, Span<float> target, int width, int height, int radius, float epsilon)
     {
-        double d = amount / 100.0;
-        double y = Rec709(r, g, b);
-        double contrast = 1.0 + 0.8 * d;
-        double pivot = 0.45 - 0.1 * (d > 0 ? d : 0);
-        double y2 = CameraClamp(pivot + (y - 0.45) * contrast);
-        if (d < 0) y2 = CameraClamp(y2 + -d * (1.0 - y2) * 0.45);
-        else y2 = CameraClamp(y2 - d * Math.Max(0.0, 0.4 - y2));
-        ScaleLuminance(ref r, ref g, ref b, y2);
-        y2 = Rec709(r, g, b);
-        double sat = 1.0 + 0.7 * d;
-        r = CameraClamp(y2 + (r - y2) * sat);
-        g = CameraClamp(y2 + (g - y2) * sat);
-        b = CameraClamp(y2 + (b - y2) * sat);
+        var count = width * height; var mean = new float[count]; var square = new float[count]; var a = new float[count]; var b = new float[count];
+        if (!BoxBlurPlane(source, mean, width, height, radius)) return false;
+        for (var i = 0; i < count; i++) a[i] = source[i] * source[i];
+        if (!BoxBlurPlane(a, square, width, height, radius)) return false;
+        for (var i = 0; i < count; i++)
+        {
+            var variance = Math.Max(0, square[i] - mean[i] * mean[i]);
+            a[i] = variance / (variance + epsilon); b[i] = mean[i] * (1 - a[i]);
+        }
+        if (!BoxBlurPlane(a, mean, width, height, radius) || !BoxBlurPlane(b, square, width, height, radius)) return false;
+        for (var i = 0; i < count; i++) target[i] = mean[i] * source[i] + square[i];
+        return true;
+    }
+    private static void EffectsDehaze(ref double r, ref double g, ref double b, double amount, double[] haze)
+    {
+        var d = amount / 100;
+        if (d < 0)
+        {
+            var veil = .3 * Math.Pow(-d, 1.3);
+            r = CameraClamp(r * (1 - veil) + haze[0] * veil); g = CameraClamp(g * (1 - veil) + haze[1] * veil); b = CameraClamp(b * (1 - veil) + haze[2] * veil);
+        }
+        else
+        {
+            var dark = Math.Min(1, Math.Min(r / Math.Max(haze[0], .001), Math.Min(g / Math.Max(haze[1], .001), b / Math.Max(haze[2], .001))));
+            var transmission = Math.Max(.5, 1 - .7 * d * dark);
+            r = CameraClamp((r - haze[0]) / transmission + haze[0]); g = CameraClamp((g - haze[1]) / transmission + haze[1]); b = CameraClamp((b - haze[2]) / transmission + haze[2]);
+        }
+    }
+    private static double[] DehazeHaze(ReadOnlySpan<byte> rgba, int width, int height, int stride)
+    {
+        var histogram = new double[256];
+        for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
+        {
+            var p = y * stride + x * 4; double alpha = rgba[p + 3]; if (alpha == 0) continue;
+            var level = (int)Math.Round(255 * Rec709(Math.Min(1, rgba[p] / alpha), Math.Min(1, rgba[p + 1] / alpha), Math.Min(1, rgba[p + 2] / alpha)));
+            histogram[level] += alpha / 255;
+        }
+        var total = histogram.Sum(); var threshold = 255;
+        for (double above = 0; threshold > 0 && above + histogram[threshold] < total * .01; threshold--) above += histogram[threshold];
+        var haze = new double[3]; double weight = 0;
+        for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
+        {
+            var p = y * stride + x * 4; double alpha = rgba[p + 3]; if (alpha == 0) continue;
+            var red = Math.Min(1, rgba[p] / alpha); var green = Math.Min(1, rgba[p + 1] / alpha); var blue = Math.Min(1, rgba[p + 2] / alpha);
+            if (Math.Round(255 * Rec709(red, green, blue)) < threshold) continue;
+            haze[0] += red * alpha; haze[1] += green * alpha; haze[2] += blue * alpha; weight += alpha;
+        }
+        for (var i = 0; i < 3; i++) haze[i] = weight > 0 ? haze[i] / weight : 1;
+        return haze;
     }
 
     /// <summary>The vignette's strength at a point of a frame (0 at its middle, 1 past its edges).</summary>
@@ -780,7 +816,7 @@ public static partial class AdjustPixels
                 {
                     fine = null;
                 }
-                if (fine == null || !BoxBlurPlane(luma, fine, width, height, EffectsRadius(1, scale))) failed = true;
+                if (fine == null || !GuidedFilterPlane(luma, fine, width, height, Math.Max(1, (int)Math.Round(Math.Max(width, height) * 8.0 / 1456)), .01f)) failed = true;
             }
             if (!failed && clarity != 0)
             {
@@ -792,7 +828,7 @@ public static partial class AdjustPixels
                 {
                     coarse = null;
                 }
-                if (coarse == null || !BoxBlurPlane(luma, coarse, width, height, EffectsRadius(4, scale))) failed = true;
+                if (coarse == null || !GuidedFilterPlane(luma, coarse, width, height, Math.Max(2, (int)Math.Round(Math.Max(width, height) * 32.0 / 1456)), .01f)) failed = true;
             }
             if (!failed && glow > 0)
             {
@@ -836,6 +872,7 @@ public static partial class AdjustPixels
             }
         }
         if (failed) return;
+        var haze = dehaze != 0 ? DehazeHaze(rgba, width, height, stride) : new double[] { 1, 1, 1 };
         double warmth = glowWarmth / 100.0;
         double glowRed, glowGreen, glowBlue, glowGain;
         if (glowStyle == 2)
@@ -869,11 +906,11 @@ public static partial class AdjustPixels
                 {
                     double tone = Rec709(r, g, b);
                     double detail = 0;
-                    if (fine != null) detail += texture / 100.0 * (tone - fine[index]);
-                    if (coarse != null) detail += clarity / 100.0 * (tone - coarse[index]);
+                    if (fine != null) detail += texture / 100.0 * (texture > 0 ? .6 : .5) * (tone - fine[index]);
+                    if (coarse != null) detail += clarity / 100.0 * (clarity > 0 ? .85 : .5) * (tone - coarse[index]);
                     if (detail != 0) ScaleLuminance(ref r, ref g, ref b, CameraClamp(tone + detail));
                 }
-                if (dehaze != 0) EffectsDehaze(ref r, ref g, ref b, dehaze);
+                if (dehaze != 0) EffectsDehaze(ref r, ref g, ref b, dehaze, haze);
                 if (glowPlane != null && glow > 0)
                 {
                     double add = glowPlane[index] * (glow / 100.0) * glowGain;
@@ -1376,10 +1413,10 @@ public static partial class AdjustPixels
                     if (alpha == 0) continue;
                     int index = y * width + x;
                     float edge = SharpenEdgeAt(luma, width, height, x, y, radius);
-                    double mask = CameraClamp((edge * (0.5 + detailMix) - threshold)
-                                              / Math.Max(0.04, 0.35 - threshold * 0.5));
+                    double mask = threshold > 0 ? CameraClamp((edge * (0.5 + detailMix) - threshold)
+                                              / Math.Max(0.04, 0.35 - threshold * 0.5)) : 1;
                     double high = luma[index] - work[index];
-                    double sharpened = CameraClamp(luma[index] + high * amount * mask * (0.5 + detailMix));
+                    double sharpened = CameraClamp(luma[index] + high * amount * mask * 1.9 * (0.5 + detailMix));
                     double r = Math.Min(1.0, rgba[p] / alpha), g = Math.Min(1.0, rgba[p + 1] / alpha),
                            b = Math.Min(1.0, rgba[p + 2] / alpha);
                     ScaleLuminance(ref r, ref g, ref b, sharpened);

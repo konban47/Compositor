@@ -70,4 +70,27 @@ public class Upstream148Tests
         Assert.True(pixels.Take(3).Max() - pixels.Take(3).Min() < 15);
         Assert.Equal(80, pixels[7]); Assert.Null(CameraRawTables.Neutralize(0, .5, .5));
     }
+
+    [Theory]
+    [InlineData(-100)] [InlineData(100)]
+    public void LatestDehazeLeavesUniformColorUnchanged(double amount)
+    {
+        using var doc = Document(); var layer = doc.Layers[0]; var before = layer.Asset!.Image.GetPixel(5, 5);
+        CameraRawEdits.Apply(doc, layer.ID, new CameraRawSettings { Dehaze = amount });
+        var after = doc.Layers[0].Asset!.Image.GetPixel(5, 5);
+        Assert.InRange(Math.Abs(before.Red - after.Red), 0, 2); Assert.InRange(Math.Abs(before.Green - after.Green), 0, 2);
+        Assert.Equal(before.Alpha, after.Alpha);
+    }
+
+    [Fact]
+    public void AdaptiveContrastChangesWithSurroundingBrightness()
+    {
+        static byte[] Row(byte background) => [background, background, background, 255, background, background, background, 255, 120, 100, 80, 255];
+        var dark = Row(20); var light = Row(240);
+        var darkStats = CameraRawTables.Statistics(dark, 3, 1, 12); var lightStats = CameraRawTables.Statistics(light, 3, 1, 12);
+        Assert.True(darkStats.Brightest < lightStats.Brightest);
+        AdjustPixels.CameraRawMeasured(dark, 3, 1, 12, new CameraRawSettings { Contrast = 100 });
+        AdjustPixels.CameraRawMeasured(light, 3, 1, 12, new CameraRawSettings { Contrast = 100 });
+        Assert.False(dark.AsSpan(8, 3).SequenceEqual(light.AsSpan(8, 3))); Assert.Equal(255, dark[11]);
+    }
 }

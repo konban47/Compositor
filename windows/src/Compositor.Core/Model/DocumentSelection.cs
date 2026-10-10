@@ -29,6 +29,7 @@ public sealed class DocumentSelection
     /// <summary>How far the edge fades, in document pixels. Zero is a hard edge.</summary>
     public double Feather { get; }
     private SKBitmap? _coverage;
+    internal bool HasRasterCoverage => _coverage is not null;
     private SKPoint _coverageOrigin;
 
     /// <summary>Keep all 256 coverage levels; the 50% outline is only the marching-ants display.</summary>

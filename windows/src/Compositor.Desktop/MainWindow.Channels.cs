@@ -36,6 +36,7 @@ public sealed partial class MainWindow
             else if (row.Tag is Guid id)
             {
                 _open.ActiveAlpha = id; _open.VisibleChannels = ColorChannels.None;
+                if (_tool is Tool.Move or Tool.Type or Tool.Shape) SetTool(Tool.Brush);
                 UpdateChannelView(); RefreshChannels();
             }
         };
@@ -139,6 +140,7 @@ public sealed partial class MainWindow
     private void NewAlpha(bool selection)
     {
         if (_document is not { } document) return;
+        if ((long)document.Width * document.Height > DocumentLimits.MaxSurfacePixels) { Say("This canvas is too large for a full-size alpha channel."); return; }
         var name = "Alpha " + (document.Channels.Count + 1);
         while (document.Channels.Any(channel => channel.Name == name)) name += " " + Localize.Text("copy");
         Guid? id = null;
@@ -177,6 +179,7 @@ public sealed partial class MainWindow
     private void LoadChannelSelection()
     {
         if (_document is not { } document) return;
+        if ((long)document.Width * document.Height > DocumentLimits.MaxSurfacePixels) { Say("This canvas is too large for a full-size alpha channel."); return; }
         if (_open.ActiveAlpha is { } id && document.Channels.FirstOrDefault(channel => channel.ID == id) is { } alpha)
             Edit("Load Channel Selection", () => ChannelEdits.Load(document, alpha.Asset.Image));
         else

@@ -74,7 +74,16 @@ public sealed partial class MainWindow
         var unlock = row.GetVisualDescendants().OfType<Button>().Single(button => ToolTip.GetTip(button)?.ToString() == Localize.Text("Unlock Layer"));
         unlock.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         Check(document.Layers.First(layer => layer.ID == first.ID).Locks == LayerLocks.None, "Lock icon did not unlock.");
-        SelectLayerRow(first.ID); SelectLayerRow(second.ID, true); GroupSelected();
+        SelectLayerRow(first.ID); UpdateLayout();
+        var secondRow = _layers.Items.OfType<ListBoxItem>().Single(item => Equals(item.Tag, second.ID));
+        var secondPoint = secondRow.TranslatePoint(new Point(110, 20), this)!.Value;
+        this.MouseDown(secondPoint, MouseButton.Left, RawInputModifiers.Control); this.MouseUp(secondPoint, MouseButton.Left, RawInputModifiers.Control);
+        Check(SelectedLayers.Count == 2, "Ctrl-click did not extend the layer selection.");
+        this.MouseDown(secondPoint, MouseButton.Right); this.MouseUp(secondPoint, MouseButton.Right);
+        Check(SelectedLayers.Count == 2, "Right-click cleared the multi-selection.");
+        secondRow.ContextMenu!.Open(secondRow); Dispatcher.UIThread.RunJobs();
+        secondRow.ContextMenu.Items.OfType<MenuItem>().Single(item => item.Header?.ToString() == Localize.Text("New Group"))
+            .RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent)); secondRow.ContextMenu.Close();
         var group = document.Layers.Single(layer => layer.IsGroup);
         Check(document.Layers.Count(layer => layer.ParentID == group.ID) == 2, "Multi-selection group lost layers.");
         _open.Collapsed.Add(group.ID); ShowLayers(document); Check(_rows.Count == 1, "Collapsed group still shows children.");
@@ -109,5 +118,12 @@ public sealed partial class MainWindow
         Check(exportButton.IsEnabled, "Export preview did not produce encoded bytes.");
         exportButton.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         Check(export.Result?.Bytes.AsSpan().StartsWith(new byte[] {137,80,78,71}) == true, "Export dialog result is not PNG.");
+        SelectLayerRow(first.ID);
+        var filtering = ApplyFilter(FilterKind.Scanlines);
+        var scanlines = OwnedWindows.OfType<FilterDialog>().Single(); scanlines.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+        using (var frame = scanlines.CaptureRenderedFrame()) frame!.Save(Path.ChangeExtension(output, "scanlines.png"), new PngBitmapEncoderOptions());
+        scanlines.GetVisualDescendants().OfType<Button>().Single(button => button.Content?.ToString() == Localize.Text("Cancel"))
+            .RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs(); Check(filtering.IsCompletedSuccessfully, "Scanlines dialog did not cancel.");
     }
 }
