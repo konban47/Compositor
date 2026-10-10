@@ -85,7 +85,7 @@ internal sealed class GenerativeDialog : DialogWindow
         if (_request is not null) return;
         var request = new GenerationRequest(_endpoint.Text ?? "", _model.Text ?? "", _prompt.Text ?? "", _size.SelectedItem?.ToString() ?? "1024x1024", (int)(_count.Value ?? 1));
         if (!SaveSettings()) return;
-        using var cancel = new CancellationTokenSource(); _request = cancel;
+        using var cancel = new CancellationTokenSource(TimeSpan.FromMinutes(10)); _request = cancel;
         _generate.IsEnabled = false; _cancel.IsEnabled = true; _status.Text = Localize.Text("Generating…");
         try
         {
