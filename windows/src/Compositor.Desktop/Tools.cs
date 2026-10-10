@@ -25,6 +25,8 @@ internal enum Tool
     Crop,
     Shape,
     Gradient,
+    HistoryBrush,
+    Path,
 }
 
 /// <summary>Which of the brush's amounts was asked for, by the Tools menu or the options bar.</summary>

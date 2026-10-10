@@ -19,4 +19,12 @@ public sealed class LayerShapeStyle
 
     public JsonPoint? Start { get; set; }
     public JsonPoint? End { get; set; }
+
+    /// <summary>For a <see cref="ShapeKind.Path"/> shape: an SVG path normalized to the unit square.</summary>
+    public string? Path { get; set; }
+
+    public bool IsValid =>
+        Kind != ShapeKind.Path || (Path is { Length: > 0 and <= 1_000_000 } && Parses(Path));
+
+    private static bool Parses(string path) => SkiaSharp.SKPath.ParseSvgPathData(path) is not null;
 }

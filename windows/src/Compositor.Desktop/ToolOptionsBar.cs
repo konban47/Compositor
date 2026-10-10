@@ -94,7 +94,7 @@ internal sealed class ToolOptionsBar : Border
     /// </summary>
     public void Show(Tool tool, bool hasDocument, bool maskSelected)
     {
-        var brush = tool is Tool.Brush or Tool.Clone or Tool.Blur or Tool.Liquify or Tool.Smudge or Tool.Heal;
+        var brush = tool is Tool.Brush or Tool.Clone or Tool.Blur or Tool.Liquify or Tool.Smudge or Tool.Heal or Tool.HistoryBrush;
         _loading = true;
         try
         {
@@ -116,6 +116,8 @@ internal sealed class ToolOptionsBar : Border
             On("crop", tool == Tool.Crop);
             On("transform", tool == Tool.Move && hasDocument);
             On("type", tool == Tool.Type);
+            On("history", tool == Tool.HistoryBrush && hasDocument);
+            On("path", tool == Tool.Path && hasDocument);
             On("zoom", tool == Tool.Pan);
             _title.Text = Localize.Text(Names.TryGetValue(tool, out var name) ? name : "");
             // The marquee's shape and the lasso's kind *are* the tool in hand, so the bar follows the tool
@@ -230,6 +232,8 @@ internal sealed class ToolOptionsBar : Border
     private readonly Button _flipH = new() { Content = Localize.Text("Flip H") };
     private readonly Button _flipV = new() { Content = Localize.Text("Flip V") };
     private readonly Button _editText = new() { Content = Localize.Text("Edit Text…") };
+    private readonly Button _historySource = new() { Content = Localize.Text("Set Source…") };
+    private readonly Button _pathHint = new() { Content = Localize.Text("Drag the mask's nodes") };
 
     /// <summary>What each tool's strip is called, which is the Mac's own title.</summary>
     private static readonly Dictionary<Tool, string> Names = new()
@@ -253,6 +257,8 @@ internal sealed class ToolOptionsBar : Border
         [Tool.Crop] = "Crop",
         [Tool.Shape] = "Shape",
         [Tool.Gradient] = "Gradient",
+        [Tool.HistoryBrush] = "History brush",
+        [Tool.Path] = "Path",
     };
 
     private void Build()
@@ -361,6 +367,8 @@ internal sealed class ToolOptionsBar : Border
         _flipH.Click += (_, _) => FlipAsked?.Invoke(true);
         _flipV.Click += (_, _) => FlipAsked?.Invoke(false);
         _editText.Click += (_, _) => TextAsked?.Invoke();
+        _historySource.Click += (_, _) => HistorySourceAsked?.Invoke();
+        _pathHint.Click += (_, _) => PathAsked?.Invoke();
 
         Cell("brush", _size);
         Cell("brush", _hardness);
@@ -396,8 +404,19 @@ internal sealed class ToolOptionsBar : Border
         Cell("transform", _flipH);
         Cell("transform", _flipV);
         Cell("type", _editText);
+        Cell("history", _historySource);
+        Cell("path", _pathHint);
         Cell("zoom", _zoom);
     }
+
+    /// <summary>The History Brush's source was asked for, so the window picks the state to paint back.</summary>
+    public event Action? HistorySourceAsked;
+
+    /// <summary>The Path tool asked for a vector mask to edit on the current layer.</summary>
+    public event Action? PathAsked;
+
+    /// <summary>Shows what the History Brush is painting back from.</summary>
+    public void ShowHistorySource(string label) => _historySource.Content = Localize.Format($"Source: {label}");
 
 
     /// <summary>The crop ratios the window offers, so the bar's own list is the same list.</summary>

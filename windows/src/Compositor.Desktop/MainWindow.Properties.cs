@@ -220,6 +220,43 @@ public sealed partial class MainWindow
                 switch (name) { case "Bold": style.Bold = value; break; case "Italic": style.Italic = value; break; case "Underline": style.Underline = value; break; default: style.Strikethrough = value; break; } });
             formatting.Children.Add(button);
         }
+        // The OpenType and script switches: small caps, super/subscript, ligatures and kerning, plus the
+        // reading direction. They rerender the layer through the same Change the rest use.
+        var script = new WrapPanel();
+        foreach (var (name, on) in new[]
+                 {
+                     ("Small Caps", text.SmallCaps), ("All Caps", text.AllCaps), ("Superscript", text.Superscript),
+                     ("Subscript", text.Subscript), ("Ligatures", text.Ligatures), ("Kerning", text.Kerning),
+                 })
+        {
+            var button = new ToggleButton { Content = Localize.Text(name), IsChecked = on == true, Padding = new Thickness(6, 3), Margin = new Thickness(2), FontSize = 11 };
+            button.Click += (_, _) =>
+            {
+                bool? value = button.IsChecked == true ? true : null;
+                Change(style =>
+                {
+                    switch (name)
+                    {
+                        case "Small Caps": style.SmallCaps = value; break;
+                        case "All Caps": style.AllCaps = value; break;
+                        case "Superscript": style.Superscript = value; break;
+                        case "Subscript": style.Subscript = value; break;
+                        case "Ligatures": style.Ligatures = value; break;
+                        default: style.Kerning = value; break;
+                    }
+                });
+            };
+            script.Children.Add(button);
+        }
+        var direction = new ComboBox
+        {
+            ItemsSource = new[] { Localize.Text("Auto direction"), Localize.Text("Left to right"), Localize.Text("Right to left") },
+            SelectedIndex = (int)text.Direction,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        direction.SelectionChanged += (_, _) => Change(style => style.Direction = (Compositor.Core.Format.TextDirection)Math.Max(0, direction.SelectedIndex));
+        var dynamic = new CheckBox { Content = Localize.Text("Dynamic text (fills {width}, {date} and other tokens)"), IsChecked = text.Dynamic == true };
+        dynamic.IsCheckedChanged += (_, _) => Change(style => style.Dynamic = dynamic.IsChecked == true ? true : null);
         var color = new TextBox { Text = $"#{(int)(text.Red * 255):X2}{(int)(text.Green * 255):X2}{(int)(text.Blue * 255):X2}", Tag = "property-text-color" };
         var previousColor = color.Text;
         color.LostFocus += (_, _) => { if (color.Text != previousColor && SKColor.TryParse(color.Text, out var parsed)) { previousColor = color.Text; Change(style => { style.Red = parsed.Red / 255.0; style.Green = parsed.Green / 255.0; style.Blue = parsed.Blue / 255.0; style.ColorRuns = null; }); } };
@@ -234,6 +271,11 @@ public sealed partial class MainWindow
                 PropertyAction("Numbered List", () => Change(style => { style.Content = string.Join('\n', style.Content.Split('\n').Select((line, index) => $"{index + 1}. {line}")); style.ColorRuns = null; style.FontRuns = null; }))),
             PropertyPair(PropertyAction("Uppercase", () => Change(style => { style.Content = style.Content.ToUpperInvariant(); style.ColorRuns = null; style.FontRuns = null; })),
                 PropertyAction("Lowercase", () => Change(style => { style.Content = style.Content.ToLowerInvariant(); style.ColorRuns = null; style.FontRuns = null; }))));
+        Section("OpenType and Script", script, direction);
+        Section("Dynamic Text", dynamic);
+        Section("Convert", PropertyPair(
+            PropertyAction("Convert to Frame", () => Edit("Convert to Frame", () => TextEdits.MakeFrame(_document!, id))),
+            PropertyAction("Convert to Vector Shape", () => Edit("Convert to Vector Shape", () => TextEdits.ToVectorShape(_document!, id)))));
     }
 
     private void BuildMaskProperties(ImageLayer layer)
@@ -261,7 +303,10 @@ public sealed partial class MainWindow
         if (layer.Asset is not null && !layer.IsGroup)
             body.Children.Add(PropertyAction("Apply Layer Mask", () => { Edit("Apply Layer Mask", () => MaskProperties.Apply(_document!, layer.ID)); SetPaintingMask(false); Reselect(layer.ID); }));
         if (mask.VectorPath is not null)
+        {
+            body.Children.Add(PropertyAction("Edit Path Nodes", () => SetTool(Tool.Path)));
             body.Children.Add(PropertyAction("Rasterize Mask", () => Edit("Rasterize Mask", () => { layer.Mask!.VectorPath = null; return true; })));
+        }
         body.Children.Add(PropertyAction("Delete Layer Mask", () => _ = ConfirmDeleteMask()));
         Section("Mask", body);
     }

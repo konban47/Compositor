@@ -242,6 +242,8 @@ internal sealed class ToolRail : Grid
         [Tool.Crop] = "Crop — drag a frame, then apply it",
         [Tool.Shape] = "Shape — drag out a rectangle, ellipse or line",
         [Tool.Gradient] = "Gradient — drag the line it runs along",
+        [Tool.HistoryBrush] = "History brush — paint back a chosen state",
+        [Tool.Path] = "Path — drag the nodes of a vector outline",
     };
 
     /// <summary>
@@ -385,6 +387,17 @@ internal sealed class ToolRail : Grid
                         context.FillRectangle(new SolidColorBrush(Colors.White, 0.15 + step * 0.2),
                             new Rect(At(5 + step * 2.6, 7), At(6.6 + step * 2.6, 15)));
                     }
+                    break;
+                case Tool.HistoryBrush:
+                    // A clock, for going back to an earlier moment.
+                    context.DrawEllipse(null, pen, At(11, 11), 7, 7);
+                    Line(11, 11, 11, 6);
+                    Line(11, 11, 15, 13);
+                    break;
+                case Tool.Path:
+                    context.DrawGeometry(null, pen, Path([(4, 17), (8, 6), (15, 8), (18, 17)], At, close: false));
+                    context.FillRectangle(Ink, new Rect(At(2.5, 15.5), At(5.5, 18.5)));
+                    context.FillRectangle(Ink, new Rect(At(12.5, 6.5), At(15.5, 9.5)));
                     break;
             }
         }

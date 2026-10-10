@@ -1,4 +1,4 @@
-# Compositor project format, versions 1–11 and Windows extension 12
+# Compositor project format, versions 1–11 and Windows extensions 12–14
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
@@ -64,7 +64,7 @@ RGB visibility, active editing channel, layer search and collapsed rows are view
 
 ## Windows extension version 13
 
-Windows **1.4.8.2 Preview** reads versions 1–13. It writes v13 when any layer has non-default mask appearance, a vector mask path, or the text options below. Otherwise it writes v12 when the version-12 fields are needed, or v11. Windows 1.4.8.1 rejects v13; the retained macOS implementation still supports only versions 1–11. The original macOS format constant is intentionally unchanged.
+Windows 1.4.8.2 introduced version 13, which reads versions 1–13. It writes v13 when any layer has non-default mask appearance, a vector mask path, or the text options below. Otherwise it writes v12 when the version-12 fields are needed, or v11. Windows 1.4.8.1 rejects v13; the retained macOS implementation still supports only versions 1–11. The original macOS format constant is intentionally unchanged.
 
 New optional layer fields require `maskFile` and version 13:
 
@@ -81,3 +81,27 @@ Mask state and metadata are copied independently for history snapshots; pixel as
 Replacing mask pixels clears `maskVectorPath` unless the pixels are unchanged; image resizing transforms retained path coordinates to the new raster grid. Pixel operations such as inversion, brush painting, smoothing and edge shifting produce a raster mask. Density and feather remain separate metadata until applying the mask to layer pixels.
 
 Properties panel position, active image/mask target, navigator visibility, history steps and snapshots are session state and are **not saved** in `.comp`. A document can have either one raster or one vector mask per layer, not both simultaneously. To preserve a selection between sessions, use the v12 alpha-channel mechanism. New copies from history receive a new document ID and independently owned pixel assets.
+
+## Windows extension version 14
+
+Windows **1.4.8.2 Preview** reads versions 1–14 and writes v14 only when a text layer uses the advanced typography below, or a shape layer is an arbitrary outline. Otherwise it writes the lowest version the document needs (v13, v12 or v11). Windows builds older than this section reject v14; the retained macOS implementation still supports only versions 1–11.
+
+New optional `text` fields require v14; all are absent by default:
+
+| Field | Validation and behavior |
+| --- | --- |
+| `smallCaps` | Boolean. Draws lowercase letters as reduced capitals (a synthetic treatment). |
+| `allCaps` | Boolean. Draws every letter as a capital. |
+| `superscript` | Boolean, and not together with `subscript`. The letters are reduced and raised above the baseline. |
+| `subscript` | Boolean. The letters are reduced and lowered below the baseline. |
+| `ligatures` | Boolean. Opens or closes the font's standard `liga` feature while shaping. |
+| `kerning` | Boolean. Turns kerning on or off while shaping. |
+| `features` | Array of up to 64 four-letter OpenType feature tags (for example `dlig`, `onum`, `frac`, `ss01`), each unique and alphanumeric, applied while shaping. |
+| `direction` | `Auto`, `LeftToRight` or `RightToLeft`. `Auto` follows the first strong character. |
+| `complexShaping` | Boolean. Whether HarfBuzz shapes the run, which is what gives Arabic, Hebrew and the Indic scripts their joined and contextual forms and their right-to-left order. |
+| `language` | Optional shaping language, 1–64 characters, for example `ar` or `ja`. |
+| `dynamic` | Boolean. Fills the `{name}`, `{width}`, `{height}`, `{resolution}`, `{layers}`, `{date}`, `{time}` and `{datetime}` tokens when the text is drawn. |
+
+A `shape` record may now have `kind` `Path` with a `path` field: an SVG path outline, normalized to the unit square, filled into the layer box and redrawn at any scale. Text-to-vector writes it, and the `.png` remains the display and export fallback. `path` is required, nonempty and parseable for a `Path` shape, and needs version 14.
+
+Non-linear history and the history brush are session state like every other history feature: neither is saved. A saved history brush source is not retained when the document is reopened.

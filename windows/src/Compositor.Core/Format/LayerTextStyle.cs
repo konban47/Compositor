@@ -15,7 +15,49 @@ public sealed class LayerTextStyle
     public bool? Italic { get; set; }
     public bool? Underline { get; set; }
     public bool? Strikethrough { get; set; }
+
+    /// <summary>Synthetic font treatments from Windows extension 13.</summary>
     public bool HasTypography => Bold is not null || Italic is not null || Underline is not null || Strikethrough is not null;
+
+    /// <summary>Draws lowercase letters as reduced capitals, synthesized from the uppercase glyphs.</summary>
+    public bool? SmallCaps { get; set; }
+
+    /// <summary>Draws every letter as a capital.</summary>
+    public bool? AllCaps { get; set; }
+
+    /// <summary>Reduced letters raised above the baseline (synthetic).</summary>
+    public bool? Superscript { get; set; }
+
+    /// <summary>Reduced letters lowered below the baseline (synthetic).</summary>
+    public bool? Subscript { get; set; }
+
+    /// <summary>Opens the font's standard ligatures (OpenType <c>liga</c>) while shaping. Null keeps the default.</summary>
+    public bool? Ligatures { get; set; }
+
+    /// <summary>Turns kerning on or off while shaping. Null keeps the default.</summary>
+    public bool? Kerning { get; set; }
+
+    /// <summary>Extra OpenType feature tags to enable, each four letters, e.g. <c>dlig</c>, <c>onum</c>, <c>frac</c>, <c>ss01</c>.</summary>
+    public List<string>? Features { get; set; }
+
+    /// <summary>Reading direction; Auto follows the first strong character.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public TextDirection Direction { get; set; } = TextDirection.Auto;
+
+    /// <summary>Text shaped and ordered by OpenType for Arabic, Hebrew and Indic scripts.</summary>
+    public bool? ComplexShaping { get; set; }
+
+    /// <summary>Which language to shape for, e.g. <c>ar</c>, <c>ja</c>. Null guesses from the content.</summary>
+    public string? Language { get; set; }
+
+    /// <summary>Whether <c>{name}</c>, <c>{width}</c>, <c>{date}</c> and other tokens are filled in when drawn.</summary>
+    public bool? Dynamic { get; set; }
+
+    /// <summary>Editable text options added by Windows extension 14.</summary>
+    public bool HasAdvancedTypography =>
+        SmallCaps is not null || AllCaps is not null || Superscript is not null || Subscript is not null
+        || Ligatures is not null || Kerning is not null || Features is { Count: > 0 }
+        || Direction != TextDirection.Auto || ComplexShaping is not null || Language is not null || Dynamic is not null;
 
     /// <summary>Baseline to baseline, in layer pixels. 0 is Auto: 120% of the font size.</summary>
     public double Leading { get; set; }
@@ -37,7 +79,29 @@ public sealed class LayerTextStyle
         && Color.IsValid(Red, Green, Blue)
         && double.IsFinite(Tracking) && Tracking is >= -100 and <= 1000
         && double.IsFinite(Leading) && Leading is >= 0 and <= 5000
-        && ColorRunsAreValid && FontRunsAreValid;
+        && ColorRunsAreValid && FontRunsAreValid
+        && (Superscript is not true || Subscript is not true)
+        && FeaturesAreValid && LanguageIsValid;
+
+    /// <summary>Feature tags are four ASCII letters or digits, at most 64 of them, and unique.</summary>
+    private bool FeaturesAreValid
+    {
+        get
+        {
+            if (Features is null) return true;
+            if (Features.Count is 0 or > 64) return false;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var tag in Features)
+            {
+                if (tag is null || tag.Length != 4 || tag.Any(character => !char.IsAsciiLetterOrDigit(character))) return false;
+                if (!seen.Add(tag)) return false;
+            }
+            return true;
+        }
+    }
+
+    private bool LanguageIsValid =>
+        Language is null || (Language.Length is > 0 and <= 64 && !ContainsNewline(Language));
 
     private bool BoxIsValid
     {

@@ -335,6 +335,36 @@ public sealed partial class CanvasView : Control
     /// <summary>Lines to draw along while a drag is snapped to something.</summary>
     public (double? X, double? Y) SnapLines { get; set; }
 
+    /// <summary>When set, a vector outline's nodes and handles can be taken hold of and dragged.</summary>
+    public bool PathEnabled { get; set; }
+
+    /// <summary>The outline's nodes being edited, in the mask's own pixels.</summary>
+    public Compositor.Core.Document.PathNodes? PathNodes { get; set; }
+
+    /// <summary>Maps an outline point to the document, so the nodes land where the outline is drawn.</summary>
+    public Func<SKPoint, SKPoint>? PathToDocument { get; set; }
+
+    /// <summary>Maps a document point back to the outline's pixels, which is where a drag is written.</summary>
+    public Func<SKPoint, SKPoint>? DocumentToPath { get; set; }
+
+    /// <summary>A node or handle was taken hold of: the whole drag is one undo step.</summary>
+    public Action? NodeDragStarted { get; set; }
+
+    /// <summary>A node or handle has been dragged somewhere, in the mask's own pixels.</summary>
+    public Action<int, int, bool, bool, SKPoint>? NodeMoved { get; set; }
+
+    /// <summary>A node was double-clicked to add one after it, or Alt-clicked to take it away.</summary>
+    public Action<int, int, bool>? NodeEdited { get; set; }
+
+    /// <summary>The node drag has ended: the window closes the undo step it opened.</summary>
+    public Action? NodeDragFinished { get; set; }
+
+    /// <summary>Which node is selected, so its handles are on show.</summary>
+    public (int Subpath, int Node)? SelectedNode { get; private set; }
+
+    private (int Subpath, int Node, bool Handle, bool Outgoing)? _nodeGrab;
+    private bool _nodeDragging;
+
     private TransformHandle? _handle;
     private LayerTransform _dragOriginal;
     private SKPoint _dragStart;
@@ -1044,6 +1074,7 @@ public sealed partial class CanvasView : Control
         DrawDraft(context);
         DrawCrop(context);
         DrawTransform(context);
+        DrawNodes(context);
         if (_document?.Selection.Path is not { } path || path.IsEmpty) return;
         // A white line with a black dashed one over it, as the Mac's overlay draws the marching ants.
         var outline = new Pen(Brushes.White, 1);
@@ -1152,6 +1183,67 @@ public sealed partial class CanvasView : Control
             Handle(context, centre, handle == TransformHandle.Rotate ? 8 : 7, round: handle == TransformHandle.Rotate);
         }
     }
+
+    /// <summary>The nodes and handles of the vector outline being edited, as Photoshop's Path tool shows them.</summary>
+    private void DrawNodes(DrawingContext context)
+    {
+        if (!PathEnabled || PathNodes is not { } nodes || PathToDocument is not { } map) return;
+        var accent = Skin.TransformPen;
+        var handlePen = new Pen(Brushes.Black, 1) { DashStyle = new DashStyle([3.0, 3.0], 0) };
+        for (var sub = 0; sub < nodes.Subpaths.Count; sub++)
+        {
+            var contour = nodes.Subpaths[sub].Nodes;
+            for (var index = 0; index < contour.Count; index++)
+            {
+                var anchor = ToScreen(map(contour[index].Point));
+                var isSelected = SelectedNode is ({ } chosenSub, { } chosen) && chosenSub == sub && chosen == index;
+                if (isSelected)
+                {
+                    foreach (var handle in new[] { contour[index].In, contour[index].Out })
+                    {
+                        if (handle is not { } control) continue;
+                        var at = ToScreen(map(control));
+                        context.DrawLine(handlePen, anchor, at);
+                        context.DrawEllipse(Brushes.White, new Pen(Brushes.Black, 1), at, 3, 3);
+                    }
+                }
+                var box = new Rect(anchor.X - 3.5, anchor.Y - 3.5, 7, 7);
+                context.FillRectangle(isSelected ? Brushes.White : Brushes.White, box);
+                context.DrawRectangle(null, accent, box);
+            }
+        }
+    }
+
+    /// <summary>The node or handle nearest a document point, if one is within reach.</summary>
+    private (int Subpath, int Node, bool Handle, bool Outgoing)? NodeGrabAt(
+        Compositor.Core.Document.PathNodes nodes, Func<SKPoint, SKPoint> map, SKPoint documentPoint)
+    {
+        var reach = TransformEdits.Grab / _zoom + 2;
+        (int Subpath, int Node, bool Handle, bool Outgoing)? best = null;
+        var nearest = reach;
+        // A selected node's handles are tested first, so a handle lying over an anchor is still grabbable.
+        if (SelectedNode is ({ } subpath, { } index) && subpath < nodes.Subpaths.Count
+            && index < nodes.Subpaths[subpath].Nodes.Count)
+        {
+            var node = nodes.Subpaths[subpath].Nodes[index];
+            foreach (var (control, outgoing) in new[] { (node.In, false), (node.Out, true) })
+            {
+                if (control is not { } at) continue;
+                var distance = Distance(map(at), documentPoint);
+                if (distance <= nearest) { nearest = distance; best = (subpath, index, true, outgoing); }
+            }
+        }
+        foreach (var grab in nodes.Grabs())
+        {
+            if (grab.Handle) continue;
+            var distance = Distance(map(grab.Point), documentPoint);
+            if (distance < nearest) { nearest = distance; best = (grab.Subpath, grab.Node, false, false); }
+        }
+        return best;
+    }
+
+    private static double Distance(SKPoint left, SKPoint right) =>
+        Math.Sqrt(Math.Pow(left.X - right.X, 2) + Math.Pow(left.Y - right.Y, 2));
 
     /// <summary>One handle of the transform box: a white square or circle the accent outlines.</summary>
     private static void Handle(DrawingContext context, Point centre, double size, bool round = false)
@@ -1432,6 +1524,37 @@ public sealed partial class CanvasView : Control
             e.Handled = true;
             return;
         }
+        if (PathEnabled && PathNodes is { } editable && PathToDocument is { } place
+            && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            e.Handled = true;
+            var point = ToDocument(e.GetPosition(this));
+            if (NodeGrabAt(editable, place, point) is { } grabbed)
+            {
+                SelectedNode = (grabbed.Subpath, grabbed.Node);
+                if (e.ClickCount > 1)
+                {
+                    NodeEdited?.Invoke(grabbed.Subpath, grabbed.Node, true);
+                }
+                else if (e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+                {
+                    NodeEdited?.Invoke(grabbed.Subpath, grabbed.Node, false);
+                }
+                else
+                {
+                    _nodeGrab = grabbed;
+                    _nodeDragging = true;
+                    NodeDragStarted?.Invoke();
+                    e.Pointer.Capture(this);
+                }
+            }
+            else
+            {
+                SelectedNode = null;
+            }
+            InvalidateVisual();
+            return;
+        }
         if (TypeOnClick && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             e.Handled = true;
@@ -1535,6 +1658,14 @@ public sealed partial class CanvasView : Control
         // Every move is reported, whatever the drag in hand is, so a readout that follows the pointer does not
         // stop while a stroke is being painted.
         PointerMovedAt?.Invoke(ToDocument(now));
+        // Dragging a vector outline's node or handle: where it has been put, in the outline's own pixels.
+        if (_nodeDragging && _nodeGrab is { } grab && DocumentToPath is { } toOutline)
+        {
+            NodeMoved?.Invoke(grab.Subpath, grab.Node, grab.Handle, grab.Outgoing, toOutline(ToDocument(now)));
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
         // Carrying a selection's pixels: how far they have come is all the window needs to know.
         if (_pixelsFrom is { } cut)
         {
@@ -1676,6 +1807,15 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
+        if (_nodeDragging)
+        {
+            _nodeDragging = false;
+            _nodeGrab = null;
+            e.Pointer.Capture(null);
+            InvalidateVisual();
+            NodeDragFinished?.Invoke();
+            return;
+        }
         if (_pixelsFrom is not null)
         {
             _pixelsFrom = null;

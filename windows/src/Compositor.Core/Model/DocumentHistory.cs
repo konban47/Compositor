@@ -30,6 +30,12 @@ public sealed partial class DocumentHistory
     public int EntryLimit { get; }
     public int RetainedByteLimit { get; }
 
+    /// <summary>
+    /// When set, an edit made after stepping back keeps the states that were ahead of it instead of throwing
+    /// them away, so the redo branch survives a change of mind — Photoshop's non-linear history.
+    /// </summary>
+    public bool AllowNonLinear { get; set; }
+
     public bool CanUndo => _depth == 0 && _past.Count > 0;
     public bool CanRedo => _depth == 0 && _future.Count > 0;
     public string UndoName => _past.Count > 0 ? _past[^1].Name : "";
@@ -84,7 +90,9 @@ public sealed partial class DocumentHistory
         if (Same(before.Document, document)) return;
         _revision = Guid.NewGuid();
         _past.Add(new Entry(_pendingName, before, new Snapshot(document?.Clone(), activeLayer, _revision)));
-        _future.Clear();
+        // Linear history throws the redo branch away; non-linear history keeps it so the states ahead stay
+        // reachable. The new state still lands after the current one, so both remain in order.
+        if (!AllowNonLinear) _future.Clear();
         Trim(document);
     }
 

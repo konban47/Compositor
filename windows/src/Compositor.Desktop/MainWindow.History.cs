@@ -11,16 +11,20 @@ public sealed partial class MainWindow
     private readonly ListBox _historyRows = new();
     private bool _showingHistory;
     private Guid? _chosenSnapshot;
+    private readonly CheckBox _nonLinearHistory = new() { Content = Localize.Text("Non-linear History"), FontSize = 11, Margin = new Avalonia.Thickness(8, 0, 0, 0) };
     private readonly Dictionary<Guid, SkiaSharp.SKBitmap> _historyPreviews = [];
     private Control BuildHistoryPanel()
     {
         Closed += (_, _) => { foreach (var bitmap in _historyPreviews.Values) bitmap.Dispose(); _historyPreviews.Clear(); };
+        _nonLinearHistory.IsCheckedChanged += (_, _) => _history.AllowNonLinear = _nonLinearHistory.IsChecked == true;
         var panel = new DockPanel();
         var footer = new WrapPanel { Margin = new Thickness(6), Orientation = Orientation.Horizontal };
         footer.Children.Add(PropertyAction("New Document from State", NewDocumentFromHistory));
         footer.Children.Add(PropertyAction("Create Snapshot", MakeSnapshot));
+        footer.Children.Add(PropertyAction("History Brush Source", () => _ = SetHistoryBrushSource()));
         footer.Children.Add(PanelButton("delete", "Delete History State", () => _ = DeleteHistoryTarget()));
         footer.Children.Add(PropertyAction("Clear History", () => _ = ClearHistorySteps()));
+        footer.Children.Add(_nonLinearHistory);
         DockPanel.SetDock(footer, Dock.Bottom); panel.Children.Add(footer); panel.Children.Add(_historyRows);
         _historyRows.SelectionChanged += (_, _) =>
         {
@@ -45,6 +49,7 @@ public sealed partial class MainWindow
         _showingHistory = true;
         try
         {
+            _nonLinearHistory.IsChecked = _history.AllowNonLinear;
             if (_document is not { } document) { _historyRows.ItemsSource = null; return; }
             _history.EnsureInitialSnapshot(document, Selected, _open.Name);
             var retained = _tabs.SelectMany(tab => tab.History.Snapshots).Select(snapshot => snapshot.ID).ToHashSet();

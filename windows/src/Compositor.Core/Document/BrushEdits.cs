@@ -19,6 +19,12 @@ public enum BrushMode
 
     /// <summary>Rebuilds the area from its surroundings: Spot Healing.</summary>
     Heal,
+
+    /// <summary>
+    /// Paints back what a chosen history state looked like: the History Brush. The source is a
+    /// document-sized render supplied by the caller.
+    /// </summary>
+    History,
 }
 
 /// <summary>How Spot Healing works out what to put in the painted area.</summary>
@@ -66,7 +72,14 @@ public sealed record BrushSettings(
     /// brush's own size, and its own default of 5. It is a setting of its own rather than something worked out
     /// from the diameter, so a wide brush can still be a gentle one.
     /// </summary>
-    double BlurRadius = 5);
+    double BlurRadius = 5,
+    /// <summary>
+    /// The document-sized picture a History Brush stroke paints back from. The caller owns it; it is not
+    /// disposed by <see cref="BrushEdits.Paint"/>. Null makes a History stroke paint nothing.
+    /// </summary>
+    SKBitmap? History = null,
+    /// <summary>Which way up the History Brush reads its source, so a rotated or flipped state still lines up.</summary>
+    SKPointI HistoryOffset = default);
 
 /// <summary>
 /// Painting a stroke into a layer's own pixels. Mouse samples arrive in document coordinates, so they are
@@ -137,16 +150,23 @@ public static class BrushEdits
         var toDocument = PixelToDocument(layer.Transform, width, height);
         if (!toDocument.TryInvert(out var toPixel)) return false;
 
-        // What the stroke paints from, taken now: the Clone Stamp's sample of the layer or the canvas, or
-        // the layer as it is before the stroke, softened. Taken once, so going over an area again within a
-        // stroke does not blur what it has just painted.
+        // What the stroke paints from, taken now: the Clone Stamp's sample of the layer or the canvas, the
+        // layer as it is before the stroke softened, or the picture a chosen history state looked like.
+        // Taken once, so going over an area again within a stroke does not blur what it has just painted.
         SKBitmap? sample = null;
+        SKBitmap? owned = null;
         if (settings.Mode is BrushMode.Clone or BrushMode.Blur)
         {
-            sample = Sampled(document, layer, settings);
-            if (sample is null) return false;
+            owned = Sampled(document, layer, settings);
+            if (owned is null) return false;
+            sample = owned;
         }
-        using var _sample = sample;
+        else if (settings.Mode == BrushMode.History)
+        {
+            sample = settings.History;
+            if (sample is null || sample.Width < document.Width || sample.Height < document.Height) return false;
+        }
+        using var _sample = owned;
         if (!Stroke(document, points, settings, toDocument, toPixel, width, height, out var coverage)) return false;
 
         var painted = new SKBitmap(Bitmaps.ColorInfo(width, height));
@@ -428,7 +448,7 @@ public static class BrushEdits
     private static bool ApplySampled(SKBitmap painted, float[] coverage, BrushSettings settings, SKBitmap sample,
         SKMatrix toDocument)
     {
-        var offset = settings.CloneFrom ?? default;
+        var offset = settings.Mode == BrushMode.History ? settings.HistoryOffset : settings.CloneFrom ?? default;
         var destination = painted.GetPixelSpan();
         var source = sample.GetPixelSpan();
         var sourceStride = sample.RowBytes;

@@ -270,5 +270,8 @@ public sealed class TextSession
         ColorRuns = style.ColorRuns,
         FontRuns = style.FontRuns,
         Bold = style.Bold, Italic = style.Italic, Underline = style.Underline, Strikethrough = style.Strikethrough,
+        SmallCaps = style.SmallCaps, AllCaps = style.AllCaps, Superscript = style.Superscript, Subscript = style.Subscript,
+        Ligatures = style.Ligatures, Kerning = style.Kerning, Features = style.Features, Direction = style.Direction,
+        ComplexShaping = style.ComplexShaping, Language = style.Language, Dynamic = style.Dynamic,
     };
 }

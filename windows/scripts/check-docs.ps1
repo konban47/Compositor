@@ -20,7 +20,7 @@ $formatCode = Read-Repo 'windows/src/Compositor.Core/Format/ProjectManifest.cs'
 $format = [regex]::Match($formatCode, 'const int Current = (\d+)').Groups[1].Value
 $formatDoc = Read-Repo 'docs/project-format.md'
 if (!$formatDoc.Contains("## Windows extension version $format")) { throw 'Current format is undocumented.' }
-foreach ($field in @('maskDensity','maskFeather','maskVectorPath','bold','italic','underline','strikethrough')) {
+foreach ($field in @('maskDensity','maskFeather','maskVectorPath','bold','italic','underline','strikethrough','smallCaps','allCaps','superscript','subscript','ligatures','kerning','features','direction','complexShaping','language','dynamic','path')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented persisted field: $field" }
 }
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

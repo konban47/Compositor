@@ -277,6 +277,14 @@ public sealed partial class MainWindow : Window
     private SKPoint? _cloneSource;
     private SKPointI? _cloneOffset;
 
+    /// <summary>What the History Brush paints back, and what to call it, chosen from the History panel.</summary>
+    private SKBitmap? _historyBrushSource;
+    private string _historyBrushLabel = "Set Source…";
+
+    /// <summary>The vector outline being edited by the Path tool, and the layer whose mask it is.</summary>
+    private PathNodes? _pathNodes;
+    private Guid? _pathLayerID;
+
     /// <summary>The shortcut keys as they were left last time, which the table in force is built from.</summary>
     private readonly ShortcutDefaults _shortcutSettings = ShortcutDefaults.Load(ShortcutDefaults.DefaultPath);
     /// <summary>Every row's key as it stands, the rows on their original key included.</summary>
@@ -377,6 +385,12 @@ public sealed partial class MainWindow : Window
         _optionsBar.CropApplied += ApplyCrop;
         _optionsBar.CropCancelled += CancelCrop;
         _optionsBar.TextAsked += () => _ = EditText();
+        _optionsBar.HistorySourceAsked += () => _ = SetHistoryBrushSource();
+        _optionsBar.PathAsked += () => NewVectorMaskForPath();
+        _canvas.NodeDragStarted = BeginPathDrag;
+        _canvas.NodeMoved = MovePathNode;
+        _canvas.NodeEdited = EditPathNode;
+        _canvas.NodeDragFinished = EndPathDrag;
         // Picking the marquee's shape or the lasso's kind is picking the tool that draws it, so the bar goes
         // through SetTool and the menu, the rail and the canvas all follow.
         _optionsBar.MarqueeShapeChosen += ellipse => SetTool(ellipse ? Tool.Ellipse : Tool.Marquee);
@@ -616,6 +630,8 @@ public sealed partial class MainWindow : Window
                         ToolItem("_Crop (drag a frame, then apply it)", Tool.Crop, "Crop tool"),
                         ToolItem("_Shape (drag out a rectangle, ellipse or line)", Tool.Shape, "Shape tool"),
                         ToolItem("_Gradient (drag the line it runs along)", Tool.Gradient, "Gradient tool"),
+                        ToolItem("_History brush (paint back a state)", Tool.HistoryBrush),
+                        ToolItem("_Path (drag a vector mask's nodes)", Tool.Path),
                         new Separator(),
                         _gradientMenu,
                         new Separator(),
@@ -2651,7 +2667,7 @@ public sealed partial class MainWindow : Window
             if (_message.Length == 0) throw new InvalidOperationException($"{tool} left the status line empty");
             // The options bar shows the rows this tool can be told about, and nothing else.
             if (_optionsBar.Shows("brush") != (tool is Tool.Brush or Tool.Clone or Tool.Blur or Tool.Liquify
-                or Tool.Smudge or Tool.Heal))
+                or Tool.Smudge or Tool.Heal or Tool.HistoryBrush))
             {
                 throw new InvalidOperationException($"{tool} got the brush rows wrong");
             }
@@ -3325,8 +3341,9 @@ public sealed partial class MainWindow : Window
         _canvas.ShapePreviewFor = tool == Tool.Shape ? dragged => ShapePlan(dragged) : null;
         _canvas.GuidesDraggable = tool == Tool.Move;
         ShowTransformBox();
-        _canvas.PaintEnabled = tool is Tool.Brush or Tool.Clone or Tool.Blur or Tool.Liquify or Tool.Smudge or Tool.Heal;
+        _canvas.PaintEnabled = tool is Tool.Brush or Tool.Clone or Tool.Blur or Tool.Liquify or Tool.Smudge or Tool.Heal or Tool.HistoryBrush;
         PushBrush();
+        SyncPathNodes();
         _canvas.Selection = tool switch
         {
             Tool.Marquee => SelectionTool.Rectangle,
@@ -3356,6 +3373,12 @@ public sealed partial class MainWindow : Window
             Tool.Crop => "Crop — drag a frame, Alt to grow it from the middle, then Crop ▸ Apply",
             Tool.Shape => $"Shape ({_options.Shape}) — drag it out; Shift squares it, Alt grows it from the middle",
             Tool.Gradient => $"Gradient ({_options.Gradient}, {(_options.GradientToBackground ? "to the background colour" : "to nothing")}) — drag the line it runs along",
+            Tool.HistoryBrush => _historyBrushSource is null
+                ? "History brush — choose a history state, then Set Source, then paint it back"
+                : $"History brush painting back \u201c{_historyBrushLabel}\u201d — drag on the canvas",
+            Tool.Path => _canvas.PathNodes is null
+                ? "Path — add a vector mask to this layer first (Add Vector Mask from Selection)"
+                : "Path — drag a node or handle; double-click to add one, Alt-click to take one away",
             Tool.Move => "Move — drag the layer, or a handle to scale and turn it",
             Tool.Marquee => "Marquee — drag a rectangle; Shift adds, Alt subtracts",
             Tool.Ellipse => "Elliptical marquee — drag an oval; Shift adds, Alt subtracts",
@@ -3461,6 +3484,7 @@ public sealed partial class MainWindow : Window
                 Tool.Clone => BrushMode.Clone,
                 Tool.Blur => BrushMode.Blur,
                 Tool.Heal => BrushMode.Heal,
+                Tool.HistoryBrush => BrushMode.History,
                 _ => BrushMode.Paint,
             },
         };
@@ -5522,6 +5546,7 @@ public sealed partial class MainWindow : Window
             Tool.Liquify => "Liquify",
             Tool.Smudge => "Smudge",
             Tool.Heal => "Spot Healing",
+            Tool.HistoryBrush => "History Brush",
             _ => "Brush",
         };
         Edit(_options.PaintOnMask ? $"{name} on the mask" : name, () =>
@@ -5555,6 +5580,15 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private BrushSettings? BrushFor(IReadOnlyList<SKPoint> stroke)
     {
+        if (_tool == Tool.HistoryBrush)
+        {
+            if (_historyBrushSource is not { } history)
+            {
+                Say("Choose a history state, then Set Source, before painting with the History Brush");
+                return null;
+            }
+            return _canvas.Brush with { Mode = BrushMode.History, History = history };
+        }
         if (_tool != Tool.Clone) return _canvas.Brush;
         if (_cloneSource is not { } source)
         {
@@ -5575,6 +5609,117 @@ public sealed partial class MainWindow : Window
         // A new source starts a new alignment, as the Mac build's does.
         _cloneOffset = null;
         Say($"Clone stamp copying from {point.X:0},{point.Y:0} — drag on the canvas");
+    }
+
+    /// <summary>
+    /// Sets what the History Brush paints back: a snapshot or the history state just before the current one,
+    /// rendered at document size. Chosen from the History panel's selection.
+    /// </summary>
+    private async Task SetHistoryBrushSource()
+    {
+        if (_document is not { } document) return;
+        CanvasDocument? source = null;
+        var label = "";
+        if (_chosenSnapshot is { } chosen && _history.Snapshots.FirstOrDefault(item => item.ID == chosen) is { } saved)
+        {
+            source = saved.State.Document; label = saved.Name;
+        }
+        else
+        {
+            var states = _history.States(document, Selected);
+            var current = -1;
+            for (var index = 0; index < states.Count; index++)
+            {
+                if (states[index].IsCurrent) { current = index; break; }
+            }
+            if (current > 0 && states[current - 1].Snapshot.Document is { } previous)
+            {
+                source = previous; label = Localize.Text(states[current - 1].Name);
+            }
+        }
+        if (source is null)
+        {
+            Say("Select a history state or snapshot in the History panel first");
+            return;
+        }
+        _historyBrushSource?.Dispose();
+        _historyBrushSource = DocumentRenderer.Render(source);
+        _historyBrushLabel = label.Length == 0 ? Localize.Text("Set Source…") : label;
+        _optionsBar.ShowHistorySource(_historyBrushLabel);
+        Say($"History brush will paint back \u201c{_historyBrushLabel}\u201d");
+        await Task.CompletedTask;
+    }
+
+    /// <summary>Loads the selected layer's vector mask nodes so the Path tool can show and drag them.</summary>
+    private void SyncPathNodes()
+    {
+        var layer = _tool == Tool.Path && _document is { } document && Selected is { } id
+            ? document.Layers.FirstOrDefault(item => item.ID == id) : null;
+        if (layer?.Mask?.VectorPath is null || MaskProperties.VectorNodes(_document!, layer.ID) is not { } nodes)
+        {
+            _canvas.PathEnabled = false; _canvas.PathNodes = null; _pathNodes = null; _pathLayerID = null;
+            return;
+        }
+        _pathNodes = nodes;
+        _pathLayerID = layer.ID;
+        _canvas.PathNodes = nodes;
+        _canvas.PathEnabled = true;
+        var mask = layer.Mask;
+        var toDocument = BrushEdits.PixelToDocument(layer.MaskTransform, mask.Asset.Width, mask.Asset.Height);
+        _canvas.PathToDocument = point => toDocument.MapPoint(point.X, point.Y);
+        if (toDocument.TryInvert(out var inverse))
+            _canvas.DocumentToPath = point => inverse.MapPoint(point.X, point.Y);
+        else
+            _canvas.DocumentToPath = null;
+    }
+
+    /// <summary>The Path tool asked for something to edit: make a vector mask from the selection if needed.</summary>
+    private void NewVectorMaskForPath()
+    {
+        if (_document is not { } document || Selected is not { } id) return;
+        if (document.Layers.FirstOrDefault(layer => layer.ID == id)?.Mask?.VectorPath is null) AddSelectionMask(true);
+        SyncPathNodes();
+        Say(_canvas.PathNodes is null
+            ? "Draw a selection first, then Add Vector Mask from Selection"
+            : "Path — drag a node or handle; double-click to add one, Alt-click to take one away");
+    }
+
+    private void BeginPathDrag()
+    {
+        if (_document is { } document) _history.Begin("Edit Path", document, Selected);
+    }
+
+    private void MovePathNode(int subpath, int node, bool handle, bool outgoing, SKPoint point)
+    {
+        if (_pathNodes is not { } nodes || subpath < 0 || subpath >= nodes.Subpaths.Count) return;
+        if (handle) nodes.MoveHandle(subpath, node, outgoing, point);
+        else
+        {
+            if (node < 0 || node >= nodes.Subpaths[subpath].Nodes.Count) return;
+            var current = nodes.Subpaths[subpath].Nodes[node].Point;
+            nodes.MoveNode(subpath, node, new SKPoint(point.X - current.X, point.Y - current.Y));
+        }
+        _canvas.InvalidateVisual();
+    }
+
+    private void EndPathDrag()
+    {
+        if (_document is { } document && _pathLayerID is { } id && _pathNodes is { } nodes)
+            MaskProperties.SetVectorPath(document, id, nodes.ToSvg());
+        _history.End(_document, Selected);
+        Refresh();
+    }
+
+    private void EditPathNode(int subpath, int node, bool add)
+    {
+        if (_document is not { } document || _pathNodes is not { } nodes) return;
+        Edit("Edit Path", () =>
+        {
+            if (!(add ? nodes.InsertAfter(subpath, node) : nodes.RemoveAt(subpath, node))) return false;
+            return _pathLayerID is { } id && MaskProperties.SetVectorPath(document, id, nodes.ToSvg());
+        });
+        SyncPathNodes();
+        _canvas.InvalidateVisual();
     }
 
     /// <summary>
@@ -5654,6 +5799,7 @@ public sealed partial class MainWindow : Window
         _canvas.InvalidateVisual();
         UpdateLayerMenu();
         if (_transforming is null) ShowTransformBox();
+        SyncPathNodes();
         var undo = _history.CanUndo ? Localize.Format($"Undo {_history.UndoName}") : "";
         var redo = _history.CanRedo ? Localize.Format($"Redo {_history.RedoName}") : "";
         var edited = _history.IsModified ? Localize.Text("edited") : "";

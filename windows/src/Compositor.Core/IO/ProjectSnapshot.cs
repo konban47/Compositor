@@ -83,7 +83,9 @@ public sealed class ProjectSnapshot : IDisposable
     {
         var manifest = new ProjectManifest
         {
-            Version = document.Layers.Any(layer => layer.LiveText?.HasTypography == true || layer.Mask is { } mask && (mask.Density != 1 || mask.Feather != 0 || mask.VectorPath is not null)) ? 13
+            Version = document.Layers.Any(layer => layer.LiveText?.HasAdvancedTypography == true
+                    || layer.LiveShape?.Kind == Format.ShapeKind.Path) ? 14
+                : document.Layers.Any(layer => layer.LiveText?.HasTypography == true || layer.Mask is { } mask && (mask.Density != 1 || mask.Feather != 0 || mask.VectorPath is not null)) ? 13
                 : document.Channels.Count > 0 || document.Layers.Any(layer => layer.Locks != LayerLocks.None
                 || layer.FillOpacity != 1 || layer.LinkID is not null) ? 12 : 11,
             DocumentID = document.ID,

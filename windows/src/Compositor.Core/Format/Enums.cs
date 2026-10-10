@@ -81,11 +81,21 @@ public enum TextAlignment
     Right,
 }
 
+/// <summary>Which way a text layer reads. Auto follows the first strong character.</summary>
+public enum TextDirection
+{
+    Auto,
+    LeftToRight,
+    RightToLeft,
+}
+
 public enum ShapeKind
 {
     Rectangle,
     Ellipse,
     Line,
+    /// <summary>An arbitrary vector outline, as text-to-vector draws: its normalized path fills the box.</summary>
+    Path,
 }
 
 /// <summary>Guide axis raw values are lowercase, unlike the rest of the format.</summary>

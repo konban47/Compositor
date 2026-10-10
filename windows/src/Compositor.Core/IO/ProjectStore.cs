@@ -59,6 +59,15 @@ public static class ProjectStore
                     || (text.ColorRuns is not null && version < 10)
                     || (text.FontRuns is not null && version < 11)
                     || (text.HasTypography && version < 13)
+                    || (text.HasAdvancedTypography && version < 14)
+                    || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null)
+                {
+                    throw new ProjectException(ProjectError.Invalid);
+                }
+            }
+            if (layer.Shape is { } shape)
+            {
+                if (!shape.IsValid || (shape.Kind == Format.ShapeKind.Path && version < 14)
                     || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null)
                 {
                     throw new ProjectException(ProjectError.Invalid);

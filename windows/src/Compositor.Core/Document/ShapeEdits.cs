@@ -94,6 +94,19 @@ public static class ShapeEdits
                 canvas.DrawOval(bounds, fill);
                 break;
             }
+            case ShapeKind.Path:
+            {
+                if (style.Path is { } data && SKPath.ParseSvgPathData(data) is { } outline)
+                {
+                    using (outline)
+                    {
+                        outline.Transform(SKMatrix.CreateScale(width, height));
+                        using var fill = new SKPaint { Color = colour, IsAntialias = true, Style = SKPaintStyle.Fill };
+                        canvas.DrawPath(outline, fill);
+                    }
+                }
+                break;
+            }
             default:
             {
                 var radius = Math.Min(Math.Max(0, style.CornerRadius), Math.Min(bounds.Width, bounds.Height) / 2);

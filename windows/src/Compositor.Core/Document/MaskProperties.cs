@@ -139,6 +139,36 @@ public static class MaskProperties
         return true;
     }
 
+    /// <summary>The editable nodes of a layer's vector mask, or null when it has none.</summary>
+    public static PathNodes? VectorNodes(CanvasDocument document, Guid id) =>
+        document.Layers.FirstOrDefault(layer => layer.ID == id)?.Mask?.VectorPath is { } path
+            ? PathNodes.Parse(path) : null;
+
+    /// <summary>
+    /// Replaces a layer's vector mask outline and redraws its grayscale fallback, so what is drawn, exported
+    /// and saved stay in step. False when the layer has no vector mask or the data will not parse.
+    /// </summary>
+    public static bool SetVectorPath(CanvasDocument document, Guid id, string svg)
+    {
+        if (document.Layers.FirstOrDefault(layer => layer.ID == id) is not { Mask: { } mask } layer) return false;
+        using var path = SKPath.ParseSvgPathData(svg);
+        if (path is null) return false;
+        var width = mask.Asset.Width;
+        var height = mask.Asset.Height;
+        if (width <= 0 || height <= 0) return false;
+        var image = new SKBitmap(Bitmaps.MaskInfo(width, height));
+        image.Erase(SKColors.Black);
+        using (var canvas = new SKCanvas(image))
+        {
+            using var paint = new SKPaint { Color = SKColors.White, IsAntialias = true };
+            canvas.DrawPath(path, paint);
+        }
+        var replaced = mask.Replacing(LayerMask.AssetFrom(image).Asset);
+        replaced.VectorPath = svg;
+        layer.Mask = replaced;
+        return true;
+    }
+
     public static bool LoadSelection(CanvasDocument document, Guid id)
     {
         if (document.Layers.FirstOrDefault(layer => layer.ID == id) is not { Mask: { } mask } layer

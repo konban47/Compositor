@@ -17,6 +17,10 @@ The application code and original icon are distributed under the repository's [M
 
 The model runs locally on the CPU. Images are not sent to an external inference service. The font is unmodified and does not replace any system font. Full license texts are in `licenses/` and accompany the packaged application.
 
+## Unicode data
+
+`src/Compositor.Core/Document/BidiData.g.cs` is generated from the Unicode Character Database files `DerivedBidiClass.txt`, `BidiBrackets.txt` and `BidiMirroring.txt` (Unicode 18.0.0). It holds only the bidirectional character classes, paired brackets and mirroring used by the UAX #9 implementation in `Bidi.cs`. The Unicode data files are copyright © Unicode, Inc. and distributed under the [Unicode License v3](https://www.unicode.org/license.txt), reproduced in `licenses/UNICODE-LICENSE.txt`. The generated table is unmodified data.
+
 ## Runtime dependencies
 
 | Component | Version | License / source |
