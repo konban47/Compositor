@@ -143,6 +143,11 @@ public sealed partial class DocumentHistory
         foreach (var (image, thumbnail) in Assets(snapshot.State.Document))
         foreach (var bitmap in new[] { image, thumbnail })
             if (!live.Contains(bitmap) && seen.Add(bitmap)) bytes += (long)bitmap.RowBytes * bitmap.Height;
+        var livePackages = (current?.Layers ?? []).Where(l => l.SmartObject is not null).Select(l => l.SmartObject!.Package).ToHashSet();
+        var seenPackages = new HashSet<byte[]>();
+        foreach (var snapshot in _past.Concat(_future).SelectMany(e => new[] { e.Before, e.After }).Concat(_snapshots.Select(s => s.State)))
+        foreach (var layer in snapshot.Document?.Layers ?? [])
+            if (layer.SmartObject is { } smart && !livePackages.Contains(smart.Package) && seenPackages.Add(smart.Package)) bytes += smart.Package.LongLength;
         return bytes;
     }
 

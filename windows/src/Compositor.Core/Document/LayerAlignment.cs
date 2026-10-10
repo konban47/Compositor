@@ -19,7 +19,8 @@ public static class LayerAlignment
             IEnumerable<Guid> all = layer.IsGroup ? document.Descendants(id).Append(id) : [id];
             if (all.Any(child => !LayerProtection.CanMove(document, child))) continue;
             if (members.Count == 0 || TransformEdits.GroupBox(document, [id]) is not { } box) continue;
-            var points = members.SelectMany(item => new[] { item.Transform.Point(0, 0), item.Transform.Point(1, 0), item.Transform.Point(0, 1), item.Transform.Point(1, 1) }).ToArray();
+            var boundMembers = layer.Container != Compositor.Core.Format.LayerContainer.Group ? new[] { layer } : members.ToArray();
+            var points = boundMembers.SelectMany(item => new[] { item.Transform.Point(0, 0), item.Transform.Point(1, 0), item.Transform.Point(0, 1), item.Transform.Point(1, 1) }).ToArray();
             var bounds = new SKRect(points.Min(p => p.X), points.Min(p => p.Y), points.Max(p => p.X), points.Max(p => p.Y));
             units.Add((box, bounds, TransformEdits.Originals(document, [id])));
         }

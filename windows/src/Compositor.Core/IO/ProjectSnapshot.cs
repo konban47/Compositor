@@ -22,6 +22,8 @@ public sealed class ProjectSnapshot : IDisposable
 
     public Dictionary<Guid, ImportedImage> Images { get; } = [];
 
+    public Dictionary<Guid, Model.SmartObjectData> SmartObjects { get; } = [];
+
     public Dictionary<Guid, ImportedImage> Masks { get; } = [];
     public Dictionary<Guid, ImportedImage> Channels { get; } = [];
 
@@ -54,6 +56,8 @@ public sealed class ProjectSnapshot : IDisposable
                 Mask = MaskFor(record),
                 Adjustment = record.Adjustment,
                 Effects = record.Effects,
+                Blending = record.Blending, Label = record.Label ?? LayerLabel.None,
+                Container = record.Container ?? LayerContainer.Group, SmartObject = SmartObjects.GetValueOrDefault(record.ID),
                 Shape = record.Shape is { } shape && Images.TryGetValue(record.ID, out var pixels)
                     ? new LayerShape(shape, pixels.Image) : null,
                 Text = record.Text is { } text && Images.TryGetValue(record.ID, out var textPixels)
@@ -84,7 +88,10 @@ public sealed class ProjectSnapshot : IDisposable
         var channels = document.Channels.Where(c => !c.IsTemporary).ToArray();
         var manifest = new ProjectManifest
         {
-            Version = document.Layers.Any(layer => layer.LiveText?.HasAdvancedTypography == true
+            Version = document.Layers.Any(layer => layer.Blending is not null || layer.Effects?.Items is not null
+                    || layer.Effects?.Enabled == false || layer.IsGroup && (layer.Effects is not null || layer.BlendMode != LayerBlendMode.Normal)
+                    || layer.Label != LayerLabel.None || layer.Container != LayerContainer.Group || layer.SmartObject is not null) ? 15
+                : document.Layers.Any(layer => layer.LiveText?.HasAdvancedTypography == true
                     || layer.LiveShape?.Kind == Format.ShapeKind.Path) ? 14
                 : document.Layers.Any(layer => layer.LiveText?.HasTypography == true || layer.Mask is { } mask && (mask.Density != 1 || mask.Feather != 0 || mask.VectorPath is not null)) ? 13
                 : channels.Length > 0 || document.Layers.Any(layer => layer.Locks != LayerLocks.None
@@ -103,6 +110,7 @@ public sealed class ProjectSnapshot : IDisposable
         foreach (var channel in channels) snapshot.Channels[channel.ID] = channel.Asset;
         foreach (var layer in document.Layers)
         {
+            if (layer.SmartObject is { } smart) snapshot.SmartObjects[layer.ID] = smart;
             if (layer.Asset is { } asset) snapshot.Images[layer.ID] = asset;
             if (layer.Mask is { } mask) snapshot.Masks[layer.ID] = mask.Asset;
         }

@@ -33,7 +33,7 @@ public sealed class EffectRaster : IDisposable
 /// shadow, inside stroke. Nothing here applies the layer's own opacity — that is the compositor's, applied
 /// to the whole raster.
 /// </summary>
-public static class EffectRasterizer
+public static partial class EffectRasterizer
 {
     /// <summary>
     /// Draws the enabled effects. The pixels handed in already have the layer's mask applied — that is the
@@ -42,10 +42,16 @@ public static class EffectRasterizer
     /// effect's settings are out of range, or when the grown raster would exceed the surface limit.
     /// <paramref name="pixels"/> must be premultiplied sRGB RGBA8888.
     /// </summary>
-    public static EffectRaster? Render(SKBitmap pixels, LayerEffects effects, double fillOpacity = 1)
+    public static EffectRaster? Render(SKBitmap pixels, LayerEffects effects, double fillOpacity = 1, bool transparency = true)
     {
         if (pixels.ColorType != SKColorType.Rgba8888 || pixels.AlphaType == SKAlphaType.Unpremul)
             throw new ArgumentException("Effect pixels must be premultiplied RGBA8888.", nameof(pixels));
+        if (!effects.Enabled) return null;
+        if (effects.Items is not null)
+        {
+            try { return RenderStyle(pixels, effects, fillOpacity, transparency); }
+            catch (OutOfMemoryException) { throw new ProjectException(ProjectError.TooLarge); }
+        }
         var visible = Visible(effects);
         if (visible.IsEmpty) return null;
         if (!visible.IsValid) throw new ProjectException(ProjectError.Invalid);

@@ -38,4 +38,14 @@ foreach ($asset in @($table,$converted)) {
     if (!(Read-Repo $updates).Contains($hash)) { throw "Camera Raw data changed without updated provenance: $asset" }
 }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--workspace-checks')) { throw 'Workspace UI checks are missing from CI.' }
+foreach ($field in @('blending','items','globalLightAngle','smartObjectFile','smartObjectID','container','label','blackSplit','whiteSplit')) {
+    if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v15 field: $field" }
+}
+$layerGuide = Read-Repo 'windows/LAYER-STYLES.md'
+foreach ($feature in @('混合颜色带','智能对象','画框','画板','遮住所有对象','CSS','SVG','Ctrl+Shift+E','Ctrl+Alt+Shift+')) {
+    if (!$layerGuide.Contains($feature)) { throw "Layer guide is missing $feature." }
+}
+if (!(Read-Repo 'windows/scripts/package.ps1').Contains('LAYER-STYLES.md')) { throw 'Layer guide missing from package.' }
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--layer-style-checks')) { throw 'Layer style UI checks missing from CI.' }
+if (!$keys.Contains('Menu("Merge Visible", "E", Ctrl | Shift)')) { throw 'Merge Visible shortcut documentation is stale.' }
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

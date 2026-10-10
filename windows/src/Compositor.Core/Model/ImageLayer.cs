@@ -56,6 +56,10 @@ public sealed class ImageLayer : IDisposable
     public LayerShape? Shape { get; set; }
     public Format.LayerEffects? Effects { get; set; }
     public LayerText? Text { get; set; }
+    public Format.LayerBlending? Blending { get; set; }
+    public Format.LayerLabel Label { get; set; }
+    public Format.LayerContainer Container { get; set; }
+    public SmartObjectData? SmartObject { get; set; }
 
     /// <summary>The shape this layer still is: null once its pixels were edited some other way.</summary>
     public Format.LayerShapeStyle? LiveShape =>
@@ -95,6 +99,7 @@ public sealed class ImageLayer : IDisposable
             Shape = Shape,
             Effects = Effects,
             Text = Text,
+            Blending = Blending, Label = Label, Container = Container, SmartObject = SmartObject,
         };
 
     /// <summary>
@@ -109,6 +114,7 @@ public sealed class ImageLayer : IDisposable
         && ReferenceEquals(Asset?.Image, other.Asset?.Image)
         && SameMask(Mask, other.Mask)
         && ReferenceEquals(Adjustment, other.Adjustment) && ReferenceEquals(Shape, other.Shape)
+        && Label == other.Label && Container == other.Container && ReferenceEquals(Blending, other.Blending) && ReferenceEquals(SmartObject, other.SmartObject)
         && ReferenceEquals(Effects, other.Effects) && ReferenceEquals(Text, other.Text);
 
     private static bool SameMask(LayerMask? left, LayerMask? right) =>

@@ -60,6 +60,7 @@ public readonly record struct ShortcutChord(string Key, ShortcutModifiers Modifi
         "OemComma" => ",",
         "OemPeriod" => ".",
         "OemPipe" => "\\",
+        "OemQuestion" => "/",
         _ when key.Length == 2 && key[0] == 'D' && char.IsAsciiDigit(key[1]) => key[1..],
         _ => key,
     };
@@ -190,7 +191,7 @@ public static class Shortcuts
         Menu("Open Project", "O", Ctrl);
         Menu("Save", "S", Ctrl);
         Menu("Save As", "S", Ctrl | Shift);
-        Menu("Export PNG", "E", Ctrl | Shift);
+        Menu("Export PNG");
         Menu("Export As", "W", Ctrl | Alt | Shift);
         Menu("Export JPEG", "S", Ctrl | Alt | Shift);
         Menu("Close Tab", "W", Ctrl);
@@ -224,6 +225,12 @@ public static class Shortcuts
         Menu("Group Layers", "G", Ctrl);
         Menu("Ungroup Layers", "G", Ctrl | Shift);
         Menu("Lock Layer", "OemPipe", Ctrl);
+        Menu("Layer Style");
+        Menu("Merge Visible", "E", Ctrl | Shift);
+        Menu("Quick Export Layers PNG", "OemQuotes", Ctrl | Shift);
+        Menu("Export Layers As", "OemQuotes", Ctrl | Alt | Shift);
+        Menu("Lock Layers Dialog", "OemQuestion", Ctrl);
+        Menu("Hide Layers", "OemComma", Ctrl);
         Menu("RGB Channel", "D2", Ctrl);
         Menu("Red Channel", "D3", Ctrl);
         Menu("Green Channel", "D4", Ctrl);

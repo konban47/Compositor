@@ -130,8 +130,19 @@ public sealed partial class MainWindow
             Edit("Layer Visibility", () => LayerEdits.SetVisible(document, current.ID, !current.IsVisible));
             ShowLayers(document);
         };
-        var panel = new Grid { ColumnDefinitions = new ColumnDefinitions("28,Auto,Auto,Auto,Auto,*,24"), MinHeight = 36 };
+        var panel = new Grid { ColumnDefinitions = new ColumnDefinitions("28,Auto,Auto,Auto,Auto,*,26,24"), MinHeight = 36 };
         panel.Children.Add(eye);
+        if (layer.Label != Compositor.Core.Format.LayerLabel.None)
+        {
+            var color = layer.Label switch { Compositor.Core.Format.LayerLabel.Red => "#994c4c", Compositor.Core.Format.LayerLabel.Orange => "#996432", Compositor.Core.Format.LayerLabel.Yellow => "#8d853c", Compositor.Core.Format.LayerLabel.Green => "#4e7c4e", Compositor.Core.Format.LayerLabel.Blue => "#47668a", Compositor.Core.Format.LayerLabel.Violet => "#785489", _ => "#686868" };
+            eye.Background = new SolidColorBrush(Avalonia.Media.Color.Parse(color));
+        }
+        if (layer.Effects is not null || layer.Blending is { IsDefault: false })
+        {
+            var fx = PanelButton("fx", "Layer Style", () => { SelectLayerRow(layer.ID); _ = EditLayerStyle(); }); fx.Width = 26; fx.Opacity = layer.Effects?.Enabled == false ? 0.4 : 1;
+            Grid.SetColumn(fx, 6); panel.Children.Add(fx);
+        }
+        panel.DoubleTapped += (_, e) => { if (e.Handled) return; SelectLayerRow(layer.ID); _ = EditLayerStyle(); e.Handled = true; };
         var arrow = new Button { Content = layer.IsGroup ? (_open.Collapsed.Contains(layer.ID) ? "▸" : "▾") : "",
             Width = 18, Height = 28, Margin = new Thickness(depth * 10, 0, 0, 0), Padding = new Thickness(0),
             Background = Brushes.Transparent, BorderThickness = new Thickness(0), IsVisible = layer.IsGroup, Focusable = false };
@@ -152,6 +163,7 @@ public sealed partial class MainWindow
             { SelectLayerRow(layer.ID); SelectLayerPixels(); e.Handled = true; }
             else { SelectLayerRow(layer.ID); SetPaintingMask(false); e.Handled = true; }
         };
+        thumbnail.DoubleTapped += (_, e) => { SelectLayerRow(layer.ID); if (layer.SmartObject is not null) EditSmartContents(); else _ = EditLayerStyle(); e.Handled = true; };
         Grid.SetColumn(thumbnail, 2); panel.Children.Add(thumbnail);
         if (layer.Mask is not null)
         {
@@ -161,11 +173,13 @@ public sealed partial class MainWindow
             Grid.SetColumn(link, 3); panel.Children.Add(link);
             var mask = new LayerThumbnail(() => Current()?.Mask?.Asset.Thumbnail) { Width = 30, Height = 30, Margin = new Thickness(3), Active = () => Selected == layer.ID && MaskTarget };
             _layerThumbnails.Add(mask); ToolTip.SetTip(mask, Localize.Text("Edit Layer Mask"));
+            mask.DoubleTapped += (_, e) => { SelectLayerRow(layer.ID); SetPaintingMask(true); OpenInspector(0); e.Handled = true; };
             mask.PointerPressed += (_, e) => { SelectLayerRow(layer.ID); SetPaintingMask(true); e.Handled = true; };
             Grid.SetColumn(mask, 4); panel.Children.Add(mask);
         }
         var name = new TextBlock { Text = layer.Name + (layer.LinkID is not null ? "  ↔" : ""), Foreground = Ink, FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 2, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+        name.DoubleTapped += (_, e) => { SelectLayerRow(layer.ID); _ = RenameLayer(); e.Handled = true; };
         ToolTip.SetTip(name, layer.Name + notes); Grid.SetColumn(name, 5); panel.Children.Add(name);
         if (layer.Locks != LayerLocks.None || _document is { } doc && LayerProtection.Effective(doc, layer.ID) != LayerLocks.None)
         {
@@ -176,7 +190,7 @@ public sealed partial class MainWindow
                 ShowLayers(current);
             });
             unlock.Width = 24; unlock.IsEnabled = layer.Locks != LayerLocks.None;
-            Grid.SetColumn(unlock, 6); panel.Children.Add(unlock);
+            Grid.SetColumn(unlock, 7); panel.Children.Add(unlock);
         }
         return panel;
     }

@@ -139,8 +139,12 @@ public sealed class InnerGlowEffect
 /// What a layer draws around itself. Kept with the layer, so it follows every edit. A record omitting an
 /// effect means the layer does not have it, so older readers see the effects they understand.
 /// </summary>
-public sealed class LayerEffects
+public sealed partial class LayerEffects
 {
+    public List<StyleEffect>? Items { get; set; }
+    public bool Enabled { get; set; } = true;
+    public double GlobalLightAngle { get; set; } = 120;
+
     public StrokeEffect? Stroke { get; set; }
     public ShadowEffect? Shadow { get; set; }
     public ColorOverlayEffect? ColorOverlay { get; set; }
@@ -156,13 +160,22 @@ public sealed class LayerEffects
         if (copy.InnerShadow is { } inner) { inner.Distance = Math.Clamp(inner.Distance * scale, 0, 5000); inner.Blur = Math.Clamp(inner.Blur * scale, 0, 500); }
         if (copy.OuterGlow is { } outerGlow) outerGlow.Size = Math.Clamp(outerGlow.Size * scale, 0, 500);
         if (copy.InnerGlow is { } innerGlow) innerGlow.Size = Math.Clamp(innerGlow.Size * scale, 0, 500);
+        foreach (var effect in copy.Items ?? [])
+        {
+            effect.Size = Math.Clamp(effect.Size * scale, 0, 500);
+            effect.Distance = Math.Clamp(effect.Distance * scale, 0, 5000);
+            effect.Soften = Math.Clamp(effect.Soften * scale, 0, 100);
+            effect.OffsetX = Math.Clamp(effect.OffsetX * scale, -100000, 100000);
+            effect.OffsetY = Math.Clamp(effect.OffsetY * scale, -100000, 100000);
+        }
         return copy;
     }
 
     public bool IsEmpty =>
-        Stroke is null && Shadow is null && ColorOverlay is null && InnerShadow is null && OuterGlow is null && InnerGlow is null;
+        (Items is null || Items.Count == 0) && Stroke is null && Shadow is null && ColorOverlay is null && InnerShadow is null && OuterGlow is null && InnerGlow is null;
 
     public bool IsValid =>
-        (Stroke?.IsValid ?? true) && (Shadow?.IsValid ?? true) && (ColorOverlay?.IsValid ?? true)
+        (Items is null || Items.Count <= 40 && Items.All(item => item is { IsValid: true }))
+        && StyleEffect.In(GlobalLightAngle, -360, 360) && (Stroke?.IsValid ?? true) && (Shadow?.IsValid ?? true) && (ColorOverlay?.IsValid ?? true)
         && (InnerShadow?.IsValid ?? true) && (OuterGlow?.IsValid ?? true) && (InnerGlow?.IsValid ?? true);
 }

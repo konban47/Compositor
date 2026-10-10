@@ -1,4 +1,4 @@
-# Compositor project format, versions 1–11 and Windows extensions 12–14
+# Compositor project format, versions 1–11 and Windows extensions 12–15
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
@@ -105,3 +105,27 @@ New optional `text` fields require v14; all are absent by default:
 A `shape` record may now have `kind` `Path` with a `path` field: an SVG path outline, normalized to the unit square, filled into the layer box and redrawn at any scale. Text-to-vector writes it, and the `.png` remains the display and export fallback. `path` is required, nonempty and parseable for a `Path` shape, and needs version 14.
 
 Non-linear history and the history brush are session state like every other history feature: neither is saved. A saved history brush source is not retained when the document is reopened.
+
+## Windows extension version 15
+
+Windows **1.4.9.2 Preview** reads v1–v15. A document requires v15 when it contains `blending`, `effects.items`, globally disabled effects, a group with effects or non-Normal blending, a color label, a frame/artboard, or an embedded smart object. Otherwise the existing lowest-required-version rule (v11–v14) applies. Older Windows builds and the original macOS app reject unsupported versions rather than silently discarding these features.
+
+New optional layer fields:
+
+| Field | Representation |
+| --- | --- |
+| `blending` | Advanced blending record described below. |
+| `label` | `None`, `Red`, `Orange`, `Yellow`, `Green`, `Blue`, `Violet`, `Gray`. Absence means None. |
+| `container` | Group-only: `Group`, `Frame`, `Artboard`; absence means ordinary group. Frame/artboard bounds use the group transform. An artboard paints white and clips descendants; a frame clips descendants and may also have a vector mask. |
+| `smartObjectFile` | Exactly the uppercase layer UUID followed by `.SMART.ZIP`, in `images/`. Requires a non-group layer with a cached `imageFile`. |
+| `smartObjectID` | Nonempty source UUID, paired with `smartObjectFile`; copies with the same ID share source updates. Independent copies get a new ID. |
+
+`effects` retains its six legacy slots for older projects. New fields are `enabled` (default true), `globalLightAngle` (degrees, −360…360, default 120), and optional `items` (ordered list, maximum 40). When `items` exists it is authoritative; legacy slots are converted when edited in the new dialog. Each item has a `kind`: `BevelEmboss`, `Stroke`, `InnerShadow`, `InnerGlow`, `Satin`, `ColorOverlay`, `GradientOverlay`, `PatternOverlay`, `OuterGlow`, `DropShadow`.
+
+Item fields: `enabled`, `blendMode`, `opacity`, `red`/`green`/`blue`, `red2`/`green2`/`blue2`, `size`, `distance`, `angle`, `useGlobalLight`, `spread`, `noise`, `contour`, `contourEnabled`, `invert`, `centerSource`, `position`, `fillType`, `gradient`, `scale`, `offsetX`/`offsetY`, `alignWithLayer`, `pattern`, `patternPng`, `textureEnabled`, `textureDepth`, `bevel`, `technique`, `depth`, `soften`, `altitude`, `highlightOpacity`/`shadowOpacity`, `highlightMode`/`shadowMode`. All numeric values must be finite. RGB and opacities are 0…1; size 0…500, distance 0…5000, angle −360…360, spread/noise 0…100, scale 1…1000 percent, offsets ±100000, texture depth ±1000, bevel depth 0…1000, soften 0…100, altitude 0…90. `fillType` is 0 color / 1 gradient / 2 pattern; `technique` is 0 smooth / 1 chisel hard / 2 chisel soft. Other modes use the enum strings in `LayerStyle.cs`. Invalid values are rejected.
+
+`patternPng` is base64 PNG, maximum 2,800,000 characters and 1024×1024 pixels, at most 8-bit channels. The UI scales imports to 512 pixels on their longest edge. Pattern `Image` requires valid image bytes; malformed encoded assets are rejected. Settings JSON presets use `LayerStylePreset` version 1, independently of the project version, and are not Adobe ASL files.
+
+`blending` contains `red`/`green`/`blue` (all true by default), `knockout` (`None`, `Shallow`, `Deep`), `blendInteriorEffectsAsGroup` (false), `blendClippedLayersAsGroup` (true), `transparencyShapesLayer` (true), `layerMaskHidesEffects`/`vectorMaskHidesEffects` (false), and `ranges` (up to four unique channels). Each range contains `channel` (`Gray`, `Red`, `Green`, `Blue`), `source` and `underlying`. Each band stores `black`, `blackSplit`, `whiteSplit`, `white` with `0 ≤ black ≤ blackSplit ≤ whiteSplit ≤ white ≤ 255`; defaults 0,0,255,255. Split ranges linearly fade coverage. Band restrictions multiply. These CPU semantics are documented in the [layer-style guide](../windows/LAYER-STYLES.md), not a claim of Adobe pixel parity.
+
+An embedded smart ZIP contains its own `manifest.json` and the source image/mask/channel/smart files at the ZIP root under their manifest filenames. It is never extracted to disk. Each source and the aggregate source data in a project are limited to 128 MiB compressed; opening a source checks for duplicate entries, at most 30,001 entries, and at most 512 MiB total expanded bytes, plus the normal manifest and image limits. Nested sources remain lazy until opened. The parent PNG is the display fallback; opening contents restores editable layers. Saving contents updates matching source IDs; saving the parent persists the new source and cache together. No Adobe PSB, linked external file, or PSD smart-object round-trip is implied.

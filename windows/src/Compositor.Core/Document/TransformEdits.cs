@@ -255,7 +255,7 @@ public static class TransformEdits
             .Select(layer => layer.LinkID).ToHashSet();
         wanted.UnionWith(document.Layers.Where(layer => layer.LinkID is not null && links.Contains(layer.LinkID)).Select(layer => layer.ID));
         var visible = document.EffectiveVisibleIDs();
-        return document.Layers.Where(layer => layer.Asset is not null && !layer.IsGroup && visible.Contains(layer.ID))
+        return document.Layers.Where(layer => (layer.Asset is not null && !layer.IsGroup || layer.Container != Format.LayerContainer.Group) && visible.Contains(layer.ID))
             .Where(layer => Inside(document, layer, wanted) && LayerProtection.CanMove(document, layer.ID))
             .ToList();
     }
@@ -276,6 +276,7 @@ public static class TransformEdits
     /// </summary>
     public static LayerTransform? GroupBox(CanvasDocument document, IReadOnlyCollection<Guid> ids)
     {
+        if (ids.Count == 1 && document.Layers.FirstOrDefault(l => ids.Contains(l.ID) && l.Container != Format.LayerContainer.Group) is { } container) return container.Transform;
         var members = GroupMembers(document, ids);
         if (members.Count == 0) return null;
         double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;

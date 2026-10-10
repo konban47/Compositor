@@ -171,6 +171,11 @@ public sealed class CanvasDocument : IDisposable
         MaskVectorPath = layer.Mask?.VectorPath,
         Shape = layer.LiveShape,
         Effects = layer.Effects,
+        Blending = layer.Blending,
+        Label = layer.Label == LayerLabel.None ? null : layer.Label,
+        Container = layer.Container == LayerContainer.Group ? null : layer.Container,
+        SmartObjectFile = layer.SmartObject is null ? null : SmartObjectData.FileName(layer.ID),
+        SmartObjectID = layer.SmartObject?.ID,
         Text = layer.LiveText,
     };
 

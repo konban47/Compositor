@@ -1128,6 +1128,12 @@ public sealed partial class MainWindow : Window
         Does("Duplicate Layer", DuplicateLayer);
         Does("Toggle Clipping Mask", ToggleClipping);
         Does("Group Layers", GroupSelected);
+        Does("Layer Style", () => _ = EditLayerStyle());
+        Does("Merge Visible", () => MergeAll(false));
+        Does("Quick Export Layers PNG", () => _ = ExportSelectedLayers(true));
+        Does("Export Layers As", () => _ = ExportSelectedLayers(false));
+        Does("Lock Layers Dialog", () => _ = LayerLocksDialog());
+        Does("Hide Layers", ToggleSelectedVisibility);
         Does("Ungroup Layers", UngroupSelected);
         Does("Lock Layer", ToggleLayerLock);
         Does("RGB Channel", () => SelectColorChannel(ColorChannels.RGB));
@@ -2887,6 +2893,7 @@ public sealed partial class MainWindow : Window
         if (at < 0) return;
         var wasOpen = ReferenceEquals(tab, _open);
         _tabs.RemoveAt(at);
+        _smartTabs.Remove(tab);
         if (_tabs.Count == 0) _tabs.Add(new Tab());
         tab.Document?.Dispose();
         var next = _tabs[Math.Min(at, _tabs.Count - 1)];
@@ -3043,7 +3050,9 @@ public sealed partial class MainWindow : Window
         _history.Begin(name, document, Selected);
         var revision = _history.CurrentRevision;
         var alphaBefore = _open.ActiveAlpha is not null && !_editingAlpha ? document.Clone() : null;
-        change();
+        using var rollback = document.Clone();
+        try { change(); }
+        catch { document.Adopt(rollback); _history.End(document, Selected); Refresh(); throw; }
         if (alphaBefore is not null && document.Width == alphaBefore.Width && document.Height == alphaBefore.Height
             && !SameLayers(alphaBefore, document))
         {
@@ -4172,27 +4181,16 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void BuildEffectsMenu()
     {
-        foreach (var kind in Enum.GetValues<EffectKind>())
-        {
-            var wanted = kind;
-            _effectsMenu.Items.Add(LayerCommand(EffectDialog.TitleFor(kind) + "…", () => _ = EditEffect(wanted), null,
-                (_, layer) => layer.IsGroup == false));
-        }
+        _effectsMenu.Items.Add(LayerCommand("Blending Options…", () => _ = EditLayerStyle(), "Layer Style"));
+        foreach (var kind in Enum.GetValues<StyleEffectKind>())
+            _effectsMenu.Items.Add(LayerCommand(LayerStyleDialog.NameFor(kind) + "…", () => _ = EditLayerStyle(kind), null));
         _effectsMenu.Items.Add(new Separator());
         _clearEffects = LayerCommand("_Clear Effects", ClearEffects, null, (_, layer) => layer.Effects is not null);
         _effectsMenu.Items.Add(_clearEffects);
     }
 
     /// <summary>One effect's panel, with the layer's own effect as it starts out.</summary>
-    private async Task EditEffect(EffectKind kind)
-    {
-        if (_document is not { } document || Selected is not { } id) return;
-        if (document.Layers.FirstOrDefault(layer => layer.ID == id) is not { } layer) return;
-        if (await EffectDialog.Ask(this, kind, layer.Effects) is not { } effects) return;
-        if (_document is not { } current) return;
-        Edit(EffectDialog.TitleFor(kind), () => LayerEdits.SetEffect(current, id, kind, effects));
-        Reselect(id);
-    }
+    private Task EditEffect(EffectKind kind) => EditLayerStyle(Enum.Parse<StyleEffectKind>(kind.ToString()));
 
     /// <summary>Every effect taken off the layer, as one undo step.</summary>
     private void ClearEffects()

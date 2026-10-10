@@ -107,8 +107,10 @@ public sealed partial class MainWindow
         selected?.Execute();
     }
 
+    private Task MaskAllObjects() => DetectSubject(true, allObjects: true);
+
     private async Task DetectSubject(bool removeBackground, SKPoint? point = null,
-        Compositor.Core.Document.SelectionMode mode = Compositor.Core.Document.SelectionMode.Replace)
+        Compositor.Core.Document.SelectionMode mode = Compositor.Core.Document.SelectionMode.Replace, bool allObjects = false)
     {
         if (_detecting || _document is not { } document || _canvas.TextEditing) return;
         var id = Selected;
@@ -122,7 +124,7 @@ public sealed partial class MainWindow
         using var cancel = new CancellationTokenSource();
         var progress = new SubjectProgressWindow
         {
-            Title = Localize.Text(removeBackground ? "Remove Background" : "Select Subject"),
+            Title = Localize.Text(allObjects ? "Mask All Objects" : removeBackground ? "Remove Background" : "Select Subject"),
             Width = 380, CanResize = false, SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
@@ -163,7 +165,19 @@ public sealed partial class MainWindow
             }, cancel.Token);
             cancel.Token.ThrowIfCancellationRequested();
             if (!ReferenceEquals(document, _document) || _history.CurrentRevision != revision) return;
-            if (removeBackground)
+            if (allObjects)
+            {
+                IReadOnlyList<Guid> groups = [];
+                Edit("Mask All Objects", () =>
+                {
+                    groups = ObjectMaskGroups.Create(document, id!.Value, matte);
+                    for (var i = 0; i < groups.Count; i++) document.Layers.Single(l => l.ID == groups[i]).Name = Localize.Text("Object") + " " + (i + 1);
+                    return groups.Count > 0;
+                });
+                if (groups.Count > 0) Reselect(groups[0]);
+                else Say("No separate foreground objects were found.");
+            }
+            else if (removeBackground)
             {
                 Change("Remove Background", doc => SubjectEdits.RemoveBackground(doc, id!.Value, matte));
                 if (_history.CurrentRevision != revision) RememberBackgroundFilter();

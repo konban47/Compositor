@@ -16,7 +16,7 @@ namespace Compositor.Core.Rendering;
 /// effective opacity, after its members have blended into it with their own.
 /// </para>
 /// </summary>
-public static class DocumentRenderer
+public static partial class DocumentRenderer
 {
     /// <summary>
     /// Renders the whole canvas in one buffer. The result is premultiplied sRGB on a transparent
@@ -81,6 +81,9 @@ public static class DocumentRenderer
         {
             if (!layer.IsVisible) continue;
             halo += layer.Adjustment?.SamplingMargin ?? 0;
+            if (layer.IsGroup && layer.Effects is { Enabled: true } fx)
+                halo += (long)Math.Ceiling(fx.Items?.Where(e => e.Enabled).Select(e => e.Size * 3 + e.Distance + e.Soften * 3).DefaultIfEmpty(0).Max()
+                    ?? Math.Max(fx.Shadow is { } shadow ? shadow.Distance + shadow.Blur * 3 : 0, fx.OuterGlow?.Size * 3 ?? 0));
         }
         return (int)Math.Min(halo, DocumentLimits.MaxSide);
     }
@@ -160,7 +163,7 @@ public static class DocumentRenderer
         _ => new SKSamplingOptions(SKCubicResampler.Mitchell),
     };
 
-    private sealed class Renderer
+    private sealed partial class Renderer
     {
         private readonly CanvasDocument _document;
         private readonly SKBitmap _canvas;
@@ -189,8 +192,9 @@ public static class DocumentRenderer
             using var canvas = new SKCanvas(_canvas);
             // Every surface is drawn in document coordinates, so a piece's own corner is a translation.
             canvas.Translate(-_region.Left, -_region.Top);
-            DrawSiblings(_document.Layers.Where(layer => layer.ParentID is null).ToList(),
-                new Target(_canvas, canvas, _region.Location));
+            try { DrawSiblings(_document.Layers.Where(layer => layer.ParentID is null).ToList(),
+                new Target(_canvas, canvas, _region.Location)); }
+            finally { foreach (var hole in _deepHoles) hole.Pixels.Dispose(); _deepHoles.Clear(); }
         }
 
         /// <summary>A rectangle held to the piece of the canvas being rendered.</summary>
@@ -214,7 +218,8 @@ public static class DocumentRenderer
                 {
                     while (end < siblings.Count && siblings[end].MaskSourceID == layer.ID) end++;
                 }
-                if (end > index + 1) DrawStack(siblings, index, end, target);
+                if (end > index + 1 && layer.Blending?.BlendClippedLayersAsGroup != false) DrawStack(siblings, index, end, target);
+                else if (end > index + 1) DrawIndependentStack(siblings, index, end, target);
                 else if (layer.IsVisible) DrawLayer(layer, target);
                 index = end;
             }
@@ -224,7 +229,8 @@ public static class DocumentRenderer
         {
             if (layer.IsGroup)
             {
-                DrawSiblings(ChildrenOf(layer), target);
+                if (Isolated(layer)) DrawGroup(layer, target);
+                else DrawSiblings(ChildrenOf(layer), target);
                 return;
             }
             if (layer.Effects is not null && layer.Asset is null) throw Unsupported(layer);
@@ -234,11 +240,11 @@ public static class DocumentRenderer
                 return;
             }
 
-            var opacity = LayerOpacity.Effective(layer, _byID);
+            var opacity = Opacity(layer);
             if (opacity <= 0) return;
             var content = Content(layer, out var bounds);
             if (content is null) return;
-            using (content) Composite(target, content, bounds, layer.BlendMode, opacity);
+            using (content) CompositeLayer(target, content, bounds, layer, opacity);
         }
 
         /// <summary>
@@ -250,7 +256,7 @@ public static class DocumentRenderer
         private void DrawAdjustment(ImageLayer layer, Target target)
         {
             if (layer.Adjustment is not { } adjustment) return;
-            var opacity = LayerOpacity.Effective(layer, _byID) * layer.FillOpacity;
+            var opacity = Opacity(layer) * layer.FillOpacity;
             if (opacity <= 0) return;
             var width = target.Bitmap.Width;
             var height = target.Bitmap.Height;
@@ -265,12 +271,12 @@ public static class DocumentRenderer
             using var mixed = Mix(original, adjusted, (float)opacity, null, default, Coverage.Gray);
             SKBitmap? masked = null;
             var painted = mixed;
-            if (layer.Mask is { IsEnabled: true } mask)
+            foreach (var (mask, placement) in Masks(layer, includeOwn: true))
             {
-                using var maskPixels = Document.MaskProperties.Coverage(mask, layer.MaskTransform,
+                using var maskPixels = Document.MaskProperties.Coverage(mask, placement,
                     new Model.LayerTransform(target.Origin.X, target.Origin.Y, width, height), width, height);
-                masked = Mix(original, mixed, 1f, maskPixels, SKRectI.Create(0, 0, width, height), Coverage.Gray);
-                painted = masked;
+                var next = Mix(original, painted, 1f, maskPixels, SKRectI.Create(0, 0, width, height), Coverage.Gray);
+                masked?.Dispose(); masked = next; painted = masked;
             }
             var region = SKRectI.Create(target.Origin.X, target.Origin.Y, width, height);
             using (var paint = new SKPaint { BlendMode = SKBlendMode.Src })
@@ -320,7 +326,7 @@ public static class DocumentRenderer
         {
             var baseLayer = siblings[start];
             if (baseLayer.Effects is not null && baseLayer.Asset is null) throw Unsupported(baseLayer);
-            var opacity = LayerOpacity.Effective(baseLayer, _byID);
+            var opacity = Opacity(baseLayer);
             if (opacity <= 0) return;
 
             // The coverage comes from the base's pixels whether or not the base is drawn: it is the shape
@@ -363,12 +369,11 @@ public static class DocumentRenderer
                         using (member.Content)
                         {
                             using var clipped = Restrict(member.Content, member.Bounds, baseContent, baseBounds, luminance: false);
-                            Composite(group, clipped, member.Bounds, child.BlendMode,
-                                LayerOpacity.Effective(child, _byID));
+                            CompositeLayer(group, clipped, member.Bounds, child, Opacity(child));
                         }
                     }
                 }
-                Composite(target, surface, bounds, baseLayer.BlendMode, opacity);
+                CompositeLayer(target, surface, bounds, baseLayer, opacity);
             }
         }
 
@@ -381,15 +386,25 @@ public static class DocumentRenderer
         private SKBitmap? Content(ImageLayer layer, out SKRectI bounds)
         {
             bounds = Clip(Bounds(layer.Transform));
-            if (layer.Asset is not { } asset || bounds.Width <= 0 || bounds.Height <= 0) return null;
+            if (layer.Asset is not { } asset) return null;
             if (layer.Effects is { } effects)
             {
-                using var shown = ImageWithOwnMask(layer, asset);
-                if (EffectRasterizer.Render(shown, effects, layer.FillOpacity) is { } raster)
+                if (SplitInterior(layer)) { effects = effects.Scaled(1); effects.Items!.RemoveAll(IsInterior); }
+                if (effects.Items?.Any(e => !e.AlignWithLayer) == true)
                 {
-                    using (raster) return Raster(layer, raster, out bounds);
+                    effects = effects.Scaled(1);
+                    foreach (var effect in effects.Items!.Where(e => !e.AlignWithLayer))
+                    { effect.OffsetX += layer.Transform.X * asset.Width / layer.Transform.Width; effect.OffsetY += layer.Transform.Y * asset.Height / layer.Transform.Height; }
+                }
+                var hideEffects = layer.Mask?.VectorPath is null ? layer.Blending?.LayerMaskHidesEffects == true : layer.Blending?.VectorMaskHidesEffects == true;
+                var maskSource = layer.Clone(); if (hideEffects) maskSource.Mask = null;
+                using var shown = ImageWithOwnMask(maskSource, asset);
+                if (EffectRasterizer.Render(shown, effects, layer.FillOpacity, layer.Blending?.TransparencyShapesLayer ?? true) is { } raster)
+                {
+                    using (raster) return Raster(layer, raster, out bounds, hideEffects);
                 }
             }
+            if (bounds.Width <= 0 || bounds.Height <= 0) return null;
             var content = Allocate(bounds.Width, bounds.Height);
             using (var canvas = new SKCanvas(content))
             {
@@ -412,10 +427,11 @@ public static class DocumentRenderer
         /// <c>inset</c> pixels bigger on every side, so its transform is scaled up by the same proportion to
         /// land on the same centre.
         /// </summary>
-        private SKBitmap? Raster(ImageLayer layer, EffectRaster raster, out SKRectI bounds)
+        private SKBitmap? Raster(ImageLayer layer, EffectRaster raster, out SKRectI bounds, bool ownMask = false)
         {
             var transform = Grown(layer.Transform, raster);
             bounds = Clip(Bounds(transform));
+            if (bounds.Width <= 0 || bounds.Height <= 0) return null;
             if (bounds.Width <= 0 || bounds.Height <= 0) return null;
             var content = Allocate(bounds.Width, bounds.Height);
             using (var canvas = new SKCanvas(content))
@@ -424,7 +440,7 @@ public static class DocumentRenderer
                 using var paint = new SKPaint { IsAntialias = true };
                 DrawTransformed(canvas, raster.Pixels, transform, SKBlendMode.SrcOver, paint);
             }
-            foreach (var (mask, maskTransform) in Masks(layer, includeOwn: false))
+            foreach (var (mask, maskTransform) in Masks(layer, includeOwn: ownMask))
             {
                 using var coverage = Document.MaskProperties.Coverage(mask, maskTransform, new Model.LayerTransform(bounds.Left, bounds.Top, bounds.Width, bounds.Height), bounds.Width, bounds.Height);
                 var restricted = Restrict(content, bounds, coverage, bounds, luminance: true);
@@ -478,7 +494,7 @@ public static class DocumentRenderer
             var parent = layer.ParentID;
             for (var depth = 0; parent is { } id && depth < 64; depth++)
             {
-                if (!_byID.TryGetValue(id, out var folder)) break;
+                if (_isolated.Contains(id) || !_byID.TryGetValue(id, out var folder)) break;
                 if (folder.Mask is { IsEnabled: true } folderMask)
                 {
                     yield return (folderMask, folderMask.Placement ?? folder.Transform);

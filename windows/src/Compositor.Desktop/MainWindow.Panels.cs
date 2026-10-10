@@ -145,11 +145,15 @@ public sealed partial class MainWindow
     private void ShowEffectsMenu(Control owner)
     {
         var menu = new ContextMenu();
-        foreach (var kind in Enum.GetValues<EffectKind>())
-        {
-            var value = kind; menu.Items.Add(Command(EffectDialog.TitleFor(kind) + "…", () => _ = EditEffect(value)));
-        }
-        menu.Items.Add(Command("Clear Effects", ClearEffects)); menu.Open(owner);
+        menu.Items.Add(Command("Blending Options…", () => _ = EditLayerStyle()));
+        foreach (var kind in Enum.GetValues<StyleEffectKind>())
+            menu.Items.Add(Command(LayerStyleDialog.NameFor(kind) + "…", () => _ = EditLayerStyle(kind)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Command("Copy Layer Style", CopyLayerStyle));
+        var paste = Command("Paste Layer Style", PasteLayerStyle); paste.IsEnabled = _copiedStyle is not null; menu.Items.Add(paste);
+        menu.Items.Add(Command("Scale Effects…", () => _ = ScaleLayerEffects()));
+        menu.Items.Add(Command("Show / Hide Layer Effects", ToggleEffects));
+        menu.Items.Add(Command("Clear Layer Style", ClearSelectedStyles)); menu.Open(owner);
     }
 
     private void ShowAdjustmentMenu(Control owner)
@@ -236,14 +240,7 @@ public sealed partial class MainWindow
             foreach (var item in menu.Items.OfType<MenuItem>()) _keyRows.RemoveAll(row => ReferenceEquals(row.Item, item));
             menu.Items.Clear();
             var current = _document?.Layers.FirstOrDefault(item => item.ID == layer.ID);
-            menu.Items.Add(Command(current?.Locks.HasFlag(LayerLocks.All) == true ? "Unlock Layer" : "Lock Layer", ToggleLayerLock, "Lock Layer"));
-            menu.Items.Add(Command("New Group", GroupSelected, "Group Layers"));
-            menu.Items.Add(Command("Ungroup Layers", UngroupSelected, "Ungroup Layers"));
-            menu.Items.Add(Command("Link / Unlink Layers", LinkLayers));
-            menu.Items.Add(new Separator());
-            menu.Items.Add(Command("Rename Layer…", () => _ = RenameLayer(), "Rename Layer"));
-            menu.Items.Add(Command("Duplicate Layer", DuplicateLayer, "Duplicate Layer"));
-            menu.Items.Add(Command("Delete Layer", DeleteLayer, "Delete Layer"));
+            PopulateLayerContext(menu, current ?? layer);
             ShowKeys();
             _keyRows.RemoveAll(row => menu.Items.Contains(row.Item));
         };

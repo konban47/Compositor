@@ -29,7 +29,8 @@ public static class LayerProtection
         (Effective(document, id) & (LayerLocks.All | LayerLocks.Position)) == 0;
 
     public static bool CanPaint(CanvasDocument document, Guid id) =>
-        (Effective(document, id) & (LayerLocks.All | LayerLocks.Pixels)) == 0;
+        (Effective(document, id) & (LayerLocks.All | LayerLocks.Pixels)) == 0
+        && document.Layers.FirstOrDefault(layer => layer.ID == id)?.SmartObject is null;
 
     public static bool Set(CanvasDocument document, IEnumerable<Guid> ids, LayerLocks locks)
     {
@@ -78,6 +79,8 @@ public static class LayerProtection
                 layer.Transform = old.Transform;
                 layer.ParentID = old.ParentID;
             }
+            if (old.SmartObject is not null && layer.SmartObject is not null && operation != "Update Smart Object")
+            { layer.Asset = old.Asset; layer.Shape = old.Shape; layer.Text = old.Text; }
             if (protection.HasFlag(LayerLocks.Pixels))
             {
                 layer.Asset = old.Asset; layer.Shape = old.Shape; layer.Text = old.Text;

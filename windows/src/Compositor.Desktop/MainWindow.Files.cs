@@ -13,6 +13,7 @@ public sealed partial class MainWindow
     {
         if (ReferenceEquals(tab, _open)) CommitText();
         if (tab.Document is null) return;
+        if (!asNew && SaveSmartContents(tab)) return;
         if (tab.Saving is { } pending) { await pending; return; }
         var path = tab.Path;
         if (asNew || path is null)

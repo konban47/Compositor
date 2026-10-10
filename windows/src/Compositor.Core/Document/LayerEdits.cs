@@ -143,6 +143,7 @@ public static class LayerEdits
         var from = layer.Effects;
         var next = new Format.LayerEffects
         {
+            Items = from?.Items?.Select(e => e.Copy()).ToList(), Enabled = from?.Enabled ?? true, GlobalLightAngle = from?.GlobalLightAngle ?? 120,
             Stroke = kind == Format.EffectKind.Stroke ? effect?.Stroke : from?.Stroke,
             Shadow = kind == Format.EffectKind.DropShadow ? effect?.Shadow : from?.Shadow,
             ColorOverlay = kind == Format.EffectKind.ColorOverlay ? effect?.ColorOverlay : from?.ColorOverlay,

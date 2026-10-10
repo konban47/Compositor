@@ -38,6 +38,11 @@ public sealed class ProjectLayerRecord
     public LayerEffects? Effects { get; set; }
 
     public LayerTextStyle? Text { get; set; }
+    public LayerBlending? Blending { get; set; }
+    public LayerLabel? Label { get; set; }
+    public LayerContainer? Container { get; set; }
+    public string? SmartObjectFile { get; set; }
+    public Guid? SmartObjectID { get; set; }
 
     /// <summary>A folder has no image file.</summary>
     public bool IsGroupValue => IsGroup ?? false;

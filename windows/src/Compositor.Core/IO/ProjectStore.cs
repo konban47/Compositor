@@ -48,6 +48,13 @@ public static class ProjectStore
         }
         foreach (var layer in manifest.Layers)
         {
+            if ((layer.Blending is not null && (!layer.Blending.IsValid || version < 15))
+                || (layer.Effects is not null && (!layer.Effects.IsValid || version < 15 && (layer.Effects.Items is not null || !layer.Effects.Enabled)))
+                || (layer.Label is { } label && (version < 15 || !Enum.IsDefined(label)))
+                || (layer.Container is { } container && (version < 15 || !Enum.IsDefined(container) || layer.IsGroup != true))
+                || (layer.SmartObjectFile is not null && (version < 15 || layer.SmartObjectFile != Model.SmartObjectData.FileName(layer.ID)
+                    || layer.SmartObjectID is null || layer.ImageFile is null || layer.IsGroup == true))
+                || (layer.SmartObjectFile is null && layer.SmartObjectID is not null)) throw new ProjectException(ProjectError.Invalid);
             if ((layer.Locks is { } locks && (locks < 0 || locks > 15))
                 || (layer.FillOpacity is { } fill && (!double.IsFinite(fill) || fill < 0 || fill > 1))
                 || (version < 12 && (layer.Locks is not null || layer.FillOpacity is not null || layer.LinkID is not null)))
@@ -92,7 +99,7 @@ public static class ProjectStore
             var blend = layer.BlendMode ?? LayerBlendMode.Normal;
             if (!double.IsFinite(opacity) || opacity is < 0 or > 1
                 || (version < 3 && (opacity != 1 || blend != LayerBlendMode.Normal))
-                || (layer.IsGroup == true && (blend != LayerBlendMode.Normal || (version < 8 && opacity != 1))))
+                || (layer.IsGroup == true && (version < 15 && blend != LayerBlendMode.Normal || version < 8 && opacity != 1)))
             {
                 throw new ProjectException(ProjectError.Invalid);
             }
@@ -200,6 +207,15 @@ public static class ProjectStore
                 throw new ProjectException(ProjectError.MissingImage);
             CheckSize(asset.Width, asset.Height, ref maskPixels);
             images[channel.ImageFile] = PngCodec.Encode(asset.Image);
+        }
+        long embeddedBytes = 0;
+        foreach (var layer in snapshot.Manifest.Layers.Where(l => l.SmartObjectFile is not null))
+        {
+            if (!snapshot.SmartObjects.TryGetValue(layer.ID, out var smart) || smart.ID != layer.SmartObjectID)
+                throw new ProjectException(ProjectError.MissingImage);
+            embeddedBytes += smart.Package.Length;
+            if (embeddedBytes > Model.SmartObjectData.MaxBytes) throw new ProjectException(ProjectError.TooLarge);
+            images[layer.SmartObjectFile!] = smart.Package;
         }
         var metadata = ManifestJson.Serialize(snapshot.Manifest);
         if (metadata.Length > Model.DocumentLimits.MaxManifestBytes) throw new ProjectException(ProjectError.TooLarge);
@@ -318,6 +334,14 @@ public static class ProjectStore
                     if (isMask) snapshot.Masks[layer.ID] = asset;
                     else snapshot.Images[layer.ID] = asset;
                 }
+            }
+            long embeddedBytes = 0;
+            foreach (var layer in manifest.Layers.Where(l => l.SmartObjectFile is not null))
+            {
+                var bytes = File.ReadAllBytes(ResolveAsset(package, $"{ImagesName}/{layer.SmartObjectFile}", Model.SmartObjectData.MaxBytes));
+                embeddedBytes += bytes.Length;
+                if (embeddedBytes > Model.SmartObjectData.MaxBytes) throw new ProjectException(ProjectError.TooLarge);
+                snapshot.SmartObjects[layer.ID] = new Model.SmartObjectData(layer.SmartObjectID!.Value, bytes);
             }
             foreach (var channel in manifest.Channels ?? [])
             {
