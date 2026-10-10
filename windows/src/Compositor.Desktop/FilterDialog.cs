@@ -39,6 +39,7 @@ internal sealed class FilterDialog : DialogWindow
         _amounts = start.Copy();
         Title = Localize.Text(kind switch
         {
+            FilterKind.Scanlines => "Scanlines",
             FilterKind.GaussianBlur => "Gaussian Blur",
             FilterKind.MotionBlur => "Motion Blur",
             FilterKind.BloomGlow => "Bloom / Glow",
@@ -56,6 +57,26 @@ internal sealed class FilterDialog : DialogWindow
         var group = new StackPanel { Margin = new Thickness(16), Spacing = 4 };
         switch (kind)
         {
+            case FilterKind.Scanlines:
+                Height = 690;
+                Add(group, "Line Spacing", 2, 32, start.Scanlines.Spacing, 4, (s, v) => s.Scanlines.Spacing = Math.Round(v), "0");
+                Add(group, "Thickness", 5, 100, start.Scanlines.Thickness, 70, (s, v) => s.Scanlines.Thickness = v);
+                Add(group, "Dots by Tone", 0, 100, start.Scanlines.Dots, 0, (s, v) => s.Scanlines.Dots = v);
+                Add(group, "Wobble", 0, 64, start.Scanlines.Wobble, 0, (s, v) => s.Scanlines.Wobble = v);
+                Add(group, "Displace", -100, 100, start.Scanlines.Displace, 0, (s, v) => s.Scanlines.Displace = v);
+                Add(group, "Smoothness", 0, 100, start.Scanlines.Smoothness, 50, (s, v) => s.Scanlines.Smoothness = v);
+                Add(group, "Threshold", 0, 100, start.Scanlines.Threshold, 0, (s, v) => s.Scanlines.Threshold = v);
+                Add(group, "Color Split", 0, 16, start.Scanlines.Split, 0, (s, v) => s.Scanlines.Split = v);
+                Add(group, "Density", -100, 100, start.Scanlines.Density, 0, (s, v) => s.Scanlines.Density = v);
+                Add(group, "Contrast", -100, 100, start.Scanlines.Contrast, 0, (s, v) => s.Scanlines.Contrast = v);
+                Add(group, "Black Level", 0, 100, start.Scanlines.BlackLevel, 0, (s, v) => s.Scanlines.BlackLevel = v);
+                Add(group, "Glow", 0, 100, start.Scanlines.Glow, 0, (s, v) => s.Scanlines.Glow = v);
+                Check(group, "Original Colors", start.Scanlines.OriginalColors, (s, v) => s.Scanlines.OriginalColors = v);
+                Swatch(group, "Dark Color", (start.Scanlines.DarkRed, start.Scanlines.DarkGreen, start.Scanlines.DarkBlue), (0, 0, 0),
+                    (s, c) => { s.Scanlines.DarkRed = c.Red; s.Scanlines.DarkGreen = c.Green; s.Scanlines.DarkBlue = c.Blue; }, "Dark Color", "Choose the screen color");
+                Swatch(group, "Light Color", (start.Scanlines.LightRed, start.Scanlines.LightGreen, start.Scanlines.LightBlue), (1, 1, 1),
+                    (s, c) => { s.Scanlines.LightRed = c.Red; s.Scanlines.LightGreen = c.Green; s.Scanlines.LightBlue = c.Blue; }, "Light Color", "Choose the line color");
+                break;
             case FilterKind.GaussianBlur:
                 Add(group, "Radius, pixels", 0.1, 250, start.BlurRadius, defaults.BlurRadius, (s, v) => s.BlurRadius = v);
                 break;

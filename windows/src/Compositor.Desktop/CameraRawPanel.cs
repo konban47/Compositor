@@ -39,6 +39,12 @@ internal sealed class CameraRawPanel
 
     /// <summary>Nothing is to be written; the caller puts the picture back as it was.</summary>
     public event Action? Cancelled;
+    public event Action? AutoWhiteBalance;
+    public event Action? PickWhiteBalance;
+    public void SetWhiteBalance(double temperature, double tint)
+    {
+        Move("Temperature, cool to warm", temperature); Move("Tint, green to magenta", tint);
+    }
 
     /// <summary>What is shown over the picture while the amounts are moved: clipped shadows in blue, clipped
     /// highlights in red, and the sharpening mask. None of it is ever applied on Apply.</summary>
@@ -283,6 +289,10 @@ internal sealed class CameraRawPanel
         Add(groups, "Blacks", -100, 100, start.Blacks, (s, v) => s.Blacks = v);
 
         groups.Children.Add(Heading("Color"));
+        var autoBalance = new Button { Content = Localize.Text("Auto White Balance") };
+        var pickBalance = new Button { Content = Localize.Text("White Balance Eyedropper") };
+        autoBalance.Click += (_, _) => AutoWhiteBalance?.Invoke(); pickBalance.Click += (_, _) => PickWhiteBalance?.Invoke();
+        groups.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { autoBalance, pickBalance } });
         Add(groups, "Temperature, cool to warm", -100, 100, start.Temperature, (s, v) => s.Temperature = v);
         Add(groups, "Tint, green to magenta", -100, 100, start.Tint, (s, v) => s.Tint = v);
         Add(groups, "Vibrance", -100, 100, start.Vibrance, (s, v) => s.Vibrance = v);

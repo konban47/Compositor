@@ -29,6 +29,7 @@ public enum FilterKind
 
     /// <summary>Radial distortion: either direction straightens a lens.</summary>
     LensCorrection,
+    Scanlines,
 }
 
 /// <summary>
@@ -41,6 +42,7 @@ public enum FilterKind
 /// </summary>
 public sealed class FilterSettings
 {
+    public ScanlineSettings Scanlines { get; set; } = new();
     /// <summary>How far the distortion is pushed at ±100, as a share of the corner's distance.</summary>
     public const double LensStrength = 0.35;
 
@@ -98,11 +100,15 @@ public sealed class FilterSettings
     /// Another object holding the same amounts, which is what a panel edits: the window remembers the amounts
     /// a filter was last used with, and a panel that writes into a copy leaves them alone until Apply.
     /// </summary>
-    public FilterSettings Copy() => (FilterSettings)MemberwiseClone();
+    public FilterSettings Copy()
+    {
+        var copy = (FilterSettings)MemberwiseClone(); copy.Scanlines = Scanlines.Copy(); return copy;
+    }
 
     /// <summary>Whether the amounts this filter reads are ones it may use.</summary>
     public bool IsValid(FilterKind kind) => kind switch
     {
+        FilterKind.Scanlines => Scanlines.IsValid,
         FilterKind.GaussianBlur => Within(BlurRadius, 0.1, 250),
         FilterKind.MotionBlur => Within(MotionAngle, -90, 90) && Within(MotionDistance, 1, 2000),
         FilterKind.BloomGlow => Within(BloomAmount, 0, 100) && Within(BloomRadius, 1, 150),
@@ -120,6 +126,7 @@ public sealed class FilterSettings
     /// <summary>Whether this filter would change anything at all.</summary>
     public bool DoesAnything(FilterKind kind) => kind switch
     {
+        FilterKind.Scanlines => true,
         FilterKind.GaussianBlur => BlurRadius > 0,
         FilterKind.MotionBlur => MotionDistance > 0,
         FilterKind.BloomGlow => BloomAmount > 0,
@@ -177,6 +184,9 @@ public static class FilterEdits
         var stride = work.RowBytes;
         switch (kind)
         {
+            case FilterKind.Scanlines:
+                ScanlinePixels.Apply(pixels, width, height, stride, settings.Scanlines);
+                break;
             case FilterKind.GaussianBlur:
                 // Not clamped: the room around the layer exists so the blur fades at its edge; the border of
                 // the wider buffer is far enough away that reading it as the edge changes nothing.

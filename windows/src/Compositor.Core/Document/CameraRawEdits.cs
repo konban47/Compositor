@@ -441,10 +441,7 @@ public static class CameraRawEdits
         }
         if (settings.AdjustsLight || settings.AdjustsColor)
         {
-            var (red, green, blue) = settings.Gains;
-            AdjustPixels.CameraRaw(pixels, width, height, stride, red, green, blue,
-                settings.Exposure, settings.Contrast, settings.Highlights, settings.Shadows,
-                settings.Whites, settings.Blacks, settings.Vibrance, settings.Saturation, 0);
+            AdjustPixels.CameraRawMeasured(pixels, width, height, stride, settings);
         }
         if (settings.AdjustsCurve || settings.AdjustsGrading)
         {

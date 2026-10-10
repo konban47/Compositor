@@ -6,7 +6,7 @@ namespace Compositor.Core.Format;
 public sealed class ProjectManifest
 {
     /// <summary>The format version new saves write.</summary>
-    public const int Current = 11;
+    public const int Current = 12;
 
     /// <summary>Every version <c>Load</c> accepts.</summary>
     public const int SupportedLower = 1;
@@ -30,8 +30,17 @@ public sealed class ProjectManifest
 
     /// <summary>Alignment guides. Missing on versions 1–7.</summary>
     public List<CanvasGuide>? Guides { get; set; }
+    public List<ProjectChannelRecord>? Channels { get; set; }
 
     public const string FormatIdentifier = "com.compositor.project";
 
     public static bool IsSupported(int version) => version is >= SupportedLower and <= SupportedUpper;
+}
+
+public sealed class ProjectChannelRecord
+{
+    public Guid ID { get; set; }
+    public string Name { get; set; } = "";
+    public string ImageFile { get; set; } = "";
+    public static string FileName(Guid id) => $"channel-{id.ToString().ToUpperInvariant()}.png";
 }

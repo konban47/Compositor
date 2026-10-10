@@ -28,6 +28,19 @@ public sealed class DocumentSelection
 
     /// <summary>How far the edge fades, in document pixels. Zero is a hard edge.</summary>
     public double Feather { get; }
+    private SKBitmap? _coverage;
+    private SKPoint _coverageOrigin;
+
+    /// <summary>Keep all 256 coverage levels; the 50% outline is only the marching-ants display.</summary>
+    public static DocumentSelection FromCoverage(SKBitmap coverage)
+    {
+        var mask = new byte[coverage.Width * coverage.Height];
+        for (var y = 0; y < coverage.Height; y++)
+        for (var x = 0; x < coverage.Width; x++)
+            mask[y * coverage.Width + x] = coverage.GetPixel(x, y).Red >= 128 ? (byte)1 : (byte)0;
+        var path = Document.SelectionEdits.Outline(mask, coverage.Width, coverage.Height) ?? new SKPath();
+        return new DocumentSelection(path, false, 0) { _coverage = coverage };
+    }
 
     /// <summary>Nothing is selected, so an edit may touch the whole document.</summary>
     public static DocumentSelection All { get; } = new(null, true, 0);
@@ -47,14 +60,15 @@ public sealed class DocumentSelection
     }
 
     /// <summary>Whether the outline encloses nothing.</summary>
-    public bool IsEmpty => Path is { } path
+    public bool IsEmpty => _coverage is null && Path is { } path
         && (path.IsEmpty || path.Bounds.Width <= 0 || path.Bounds.Height <= 0);
 
     /// <summary>Whether a whole pixel is inside the selection. A softened edge is not accounted for here.</summary>
     public bool Contains(int x, int y) => Path is not { } path || path.Contains(x + 0.5f, y + 0.5f);
 
     /// <summary>The same outline with a softer edge.</summary>
-    public DocumentSelection WithFeather(double feather) => new(Path, Antialiased, feather);
+    public DocumentSelection WithFeather(double feather) => new(Path, Antialiased, feather)
+        { _coverage = _coverage, _coverageOrigin = _coverageOrigin };
 
     /// <summary>The same softening around a different outline, as Modify and Inverse keep what they were given.</summary>
     public DocumentSelection WithPath(SKPath path) => new(path, Antialiased, Feather);
@@ -70,7 +84,8 @@ public sealed class DocumentSelection
         builder.AddPath(path, SKPathAddMode.Append);
         var moved = builder.Detach();
         moved.Transform(SKMatrix.CreateTranslation((float)dx, (float)dy));
-        return new DocumentSelection(moved, Antialiased, Feather);
+        return new DocumentSelection(moved, Antialiased, Feather) { _coverage = _coverage,
+            _coverageOrigin = new SKPoint(_coverageOrigin.X + (float)dx, _coverageOrigin.Y + (float)dy) };
     }
 
     /// <summary>
@@ -79,6 +94,7 @@ public sealed class DocumentSelection
     /// </summary>
     public SKRectI CoverageRect(int canvasWidth, int canvasHeight)
     {
+        if (_coverage is not null) return SKRectI.Create(0, 0, canvasWidth, canvasHeight);
         if (Path is not { } path || IsEmpty) return SKRectI.Create(0, 0, 0, 0);
         var reach = (float)Math.Ceiling(Feather * 2) + 1;
         var bounds = path.Bounds;
@@ -99,7 +115,7 @@ public sealed class DocumentSelection
         if (Path is not { } path) return null;
         var coverage = Bitmaps.Allocate(Bitmaps.MaskInfo(Math.Max(1, region.Width), Math.Max(1, region.Height)));
         coverage.Erase(SKColors.Black);
-        if (region.Width <= 0 || region.Height <= 0 || path.IsEmpty) return coverage;
+        if (region.Width <= 0 || region.Height <= 0 || path.IsEmpty && _coverage is null) return coverage;
         using (var canvas = new SKCanvas(coverage))
         {
             canvas.Translate(-region.Left, -region.Top);
@@ -109,7 +125,8 @@ public sealed class DocumentSelection
                 Style = SKPaintStyle.Fill,
                 IsAntialias = Antialiased || Feather > 0,
             };
-            canvas.DrawPath(path, paint);
+            if (_coverage is { } stored) canvas.DrawBitmap(stored, _coverageOrigin, new SKSamplingOptions(SKFilterMode.Nearest), paint);
+            else canvas.DrawPath(path, paint);
         }
         if (Feather > 0)
         {
@@ -126,6 +143,7 @@ public sealed class DocumentSelection
     public bool Matches(DocumentSelection other)
     {
         if (ReferenceEquals(this, other)) return true;
+        if (!ReferenceEquals(_coverage, other._coverage) || _coverageOrigin != other._coverageOrigin) return false;
         if (Path is null || other.Path is null) return Path is null && other.Path is null;
         if (Antialiased != other.Antialiased || Feather != other.Feather) return false;
         if (Path.Bounds != other.Path.Bounds || Path.PointCount != other.Path.PointCount) return false;

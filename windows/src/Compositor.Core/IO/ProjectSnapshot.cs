@@ -23,6 +23,7 @@ public sealed class ProjectSnapshot : IDisposable
     public Dictionary<Guid, ImportedImage> Images { get; } = [];
 
     public Dictionary<Guid, ImportedImage> Masks { get; } = [];
+    public Dictionary<Guid, ImportedImage> Channels { get; } = [];
 
     /// <summary>The runtime mask of a record, or nil when the layer has none or its pixels are missing.</summary>
     public Model.LayerMask? MaskFor(ProjectLayerRecord layer)
@@ -42,6 +43,9 @@ public sealed class ProjectSnapshot : IDisposable
                 record.Name)
             {
                 IsVisible = record.IsVisible,
+                Locks = (LayerLocks)(record.Locks ?? 0),
+                FillOpacity = record.FillOpacity ?? 1,
+                LinkID = record.LinkID,
                 ParentID = record.ParentID,
                 IsGroup = record.IsGroup ?? false,
                 Opacity = record.Opacity ?? 1,
@@ -66,6 +70,8 @@ public sealed class ProjectSnapshot : IDisposable
         var document = new CanvasDocument(Manifest.DocumentID, Manifest.Width, Manifest.Height, Manifest.Resolution ?? 72);
         document.Layers.AddRange(RuntimeLayers());
         document.Guides.AddRange(Manifest.Guides ?? []);
+        foreach (var channel in Manifest.Channels ?? [])
+            document.Channels.Add(new AlphaChannel(channel.ID, channel.Name, Channels[channel.ID]));
         return document;
     }
 
@@ -77,7 +83,8 @@ public sealed class ProjectSnapshot : IDisposable
     {
         var manifest = new ProjectManifest
         {
-            Version = ProjectManifest.Current,
+            Version = document.Channels.Count > 0 || document.Layers.Any(layer => layer.Locks != LayerLocks.None
+                || layer.FillOpacity != 1 || layer.LinkID is not null) ? ProjectManifest.Current : 11,
             DocumentID = document.ID,
             Width = document.Width,
             Height = document.Height,
@@ -85,8 +92,11 @@ public sealed class ProjectSnapshot : IDisposable
             ActiveLayerID = document.Layers.Count > 0 ? document.Layers[^1].ID : null,
             Layers = [.. document.Layers.Select(CanvasDocument.Record)],
             Guides = document.Guides.Count > 0 ? [.. document.Guides] : null,
+            Channels = document.Channels.Count == 0 ? null : document.Channels.Select(channel => new ProjectChannelRecord
+                { ID = channel.ID, Name = channel.Name, ImageFile = ProjectChannelRecord.FileName(channel.ID) }).ToList(),
         };
         var snapshot = new ProjectSnapshot(manifest);
+        foreach (var channel in document.Channels) snapshot.Channels[channel.ID] = channel.Asset;
         foreach (var layer in document.Layers)
         {
             if (layer.Asset is { } asset) snapshot.Images[layer.ID] = asset;
@@ -99,6 +109,8 @@ public sealed class ProjectSnapshot : IDisposable
     {
         foreach (var image in Images.Values) image.Dispose();
         foreach (var mask in Masks.Values) mask.Dispose();
+        foreach (var channel in Channels.Values) channel.Dispose();
+        Channels.Clear();
         Images.Clear();
         Masks.Clear();
     }

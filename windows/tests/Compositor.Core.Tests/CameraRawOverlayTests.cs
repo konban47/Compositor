@@ -71,16 +71,19 @@ public class CameraRawOverlayTests
     [Fact]
     public void TheOverlayIsOverTheGradeThePanelIsShowing()
     {
-        // Flattening the contrast lifts the black band to mid grey, so nothing is clipped any more and the
-        // shadow view leaves it alone: what is shown is the picture as the panel has it, not as it was before.
+        // The measured 1.4.8 curve preserves pure black even at minimum contrast. The overlay must still
+        // mark that endpoint while leaving the graded, unclipped midtone unchanged.
         var (document, layer) = Bands();
         using var _ = document;
         var lifted = new CameraRawSettings { Contrast = -100 };
+        var graded = document.Clone();
+        CameraRawEdits.Apply(graded, layer.ID, lifted);
+        var expectedMiddle = At(graded.Layers[0], 15, 15);
         Assert.True(CameraRawEdits.Overlay(document, layer.ID, lifted,
             shadows: true, highlights: false, sharpenMask: false));
         var risen = At(layer, 5, 15);
-        Assert.True(risen.Red > 100, $"the black band was not lifted by the contrast: {risen}");
-        Assert.True(Math.Abs(risen.Blue - risen.Red) < 40, $"the shadows were still shown as clipped: {risen}");
+        Assert.True(risen.Blue > 150 && risen.Red < 20, $"the black endpoint lost its clipping overlay: {risen}");
+        Assert.Equal(expectedMiddle, At(layer, 15, 15));
     }
 
     [Fact]

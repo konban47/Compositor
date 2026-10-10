@@ -506,7 +506,7 @@ public static class SelectionEdits
     /// The outline of a mask, along exact pixel edges, or null when there is nothing to draw or it is too
     /// detailed to be worth drawing. The caller keeps what comes back.
     /// </summary>
-    private static SKPath? Outline(byte[] mask, int width, int height)
+    internal static SKPath? Outline(byte[] mask, int width, int height)
     {
         if (WandPixels.WandTrace(mask, width, height, out var points, out _, out var loops, out var loopCount) != 0
             || loopCount == 0)

@@ -4,7 +4,7 @@ namespace Compositor.Core.Pixels;
 /// Port of <c>Rendering/AdjustPixels.c</c>: the Image &gt; Adjustments kernels plus the Camera Raw
 /// pipeline. Buffers are premultiplied RGBA, four bytes per pixel, unless stated otherwise.
 /// </summary>
-public static class AdjustPixels
+public static partial class AdjustPixels
 {
     /// <summary>Euclidean distance, standing in for C's <c>hypot</c> over the ranges used here.</summary>
     private static double Hypot(double x, double y) => Math.Sqrt(x * x + y * y);

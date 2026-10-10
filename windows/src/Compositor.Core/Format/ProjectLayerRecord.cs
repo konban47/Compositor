@@ -13,6 +13,9 @@ public sealed class ProjectLayerRecord
     public Guid? ParentID { get; set; }
     public bool? IsGroup { get; set; }
     public double? Opacity { get; set; }
+    public int? Locks { get; set; }
+    public double? FillOpacity { get; set; }
+    public Guid? LinkID { get; set; }
     public LayerBlendMode? BlendMode { get; set; }
     public string? MaskFile { get; set; }
     public bool? MaskEnabled { get; set; }

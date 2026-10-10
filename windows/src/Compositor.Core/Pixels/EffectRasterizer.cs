@@ -42,7 +42,7 @@ public static class EffectRasterizer
     /// effect's settings are out of range, or when the grown raster would exceed the surface limit.
     /// <paramref name="pixels"/> must be premultiplied sRGB RGBA8888.
     /// </summary>
-    public static EffectRaster? Render(SKBitmap pixels, LayerEffects effects)
+    public static EffectRaster? Render(SKBitmap pixels, LayerEffects effects, double fillOpacity = 1)
     {
         if (pixels.ColorType != SKColorType.Rgba8888 || pixels.AlphaType == SKAlphaType.Unpremul)
             throw new ArgumentException("Effect pixels must be premultiplied RGBA8888.", nameof(pixels));
@@ -101,15 +101,17 @@ public static class EffectRasterizer
         if (stroke is { Inside: false }) FillRing(canvas, shape, work, temp, width, height, stroke);
 
         var recolored = source.ToArray();
+        if (fillOpacity < 1)
+            for (var index = 0; index < recolored.Length; index++) recolored[index] = (byte)Math.Round(recolored[index] * Math.Clamp(fillOpacity, 0, 1));
 
         // Over the pixels: a flat color, then a shadow inside the layer's own edges.
         if (visible.ColorOverlay is { } overlay && overlay.Opacity > 0)
-            Recolor(recolored, null, stride, pixels.Width, pixels.Height, inset, width, overlay.Red, overlay.Green, overlay.Blue, overlay.Opacity);
+            Recolor(recolored, source, null, stride, pixels.Width, pixels.Height, inset, width, overlay.Red, overlay.Green, overlay.Blue, overlay.Opacity);
         if (visible.InnerGlow is { } innerGlow && innerGlow.Opacity > 0)
         {
             Blur(shape, work, temp, width, height, innerGlow.Size);
             for (var i = 0; i < count; i++) work[i] = Math.Clamp(1 - work[i], 0f, 1f);
-            Recolor(recolored, work, stride, pixels.Width, pixels.Height, inset, width, innerGlow.Red, innerGlow.Green, innerGlow.Blue, innerGlow.Opacity);
+            Recolor(recolored, source, work, stride, pixels.Width, pixels.Height, inset, width, innerGlow.Red, innerGlow.Green, innerGlow.Blue, innerGlow.Opacity);
         }
         if (visible.InnerShadow is { } inner && inner.Opacity > 0)
         {
@@ -117,7 +119,7 @@ public static class EffectRasterizer
             Shift(shape, work, width, height, dx, dy);
             Blur(work, work, temp, width, height, inner.Blur);
             for (var i = 0; i < count; i++) work[i] = Math.Clamp(1 - work[i], 0f, 1f);
-            Recolor(recolored, work, stride, pixels.Width, pixels.Height, inset, width, inner.Red, inner.Green, inner.Blue, inner.Opacity);
+            Recolor(recolored, source, work, stride, pixels.Width, pixels.Height, inset, width, inner.Red, inner.Green, inner.Blue, inner.Opacity);
         }
         Over(canvas, recolored, stride, pixels.Width, pixels.Height, inset, width);
         // An inside stroke is drawn over the pixels, or they would simply cover it.
@@ -137,15 +139,16 @@ public static class EffectRasterizer
     }
 
     // Inner effects recolor only the source and keep its alpha, including translucent pixels.
-    private static void Recolor(byte[] pixels, float[]? coverage, int stride, int width, int height,
+    private static void Recolor(byte[] pixels, ReadOnlySpan<byte> original, float[]? coverage, int stride, int width, int height,
         int inset, int canvasWidth, double red, double green, double blue, double opacity)
     {
         for (var y = 0; y < height; y++)
             for (var x = 0; x < width; x++)
             {
                 var at = y * stride + x * 4;
-                var alpha = pixels[at + 3];
+                var alpha = original[at + 3];
                 var amount = Math.Clamp(opacity * (coverage is null ? 1 : coverage[(y + inset) * canvasWidth + x + inset]), 0, 1);
+                pixels[at + 3] = (byte)Math.Clamp(Math.Round(pixels[at + 3] * (1 - amount) + alpha * amount), 0, 255);
                 pixels[at] = (byte)Math.Clamp(Math.Round(pixels[at] * (1 - amount) + red * alpha * amount), 0, alpha);
                 pixels[at + 1] = (byte)Math.Clamp(Math.Round(pixels[at + 1] * (1 - amount) + green * alpha * amount), 0, alpha);
                 pixels[at + 2] = (byte)Math.Clamp(Math.Round(pixels[at + 2] * (1 - amount) + blue * alpha * amount), 0, alpha);

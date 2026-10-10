@@ -81,6 +81,30 @@ internal sealed class ToolRail : Grid
     /// </summary>
     internal Button? ButtonFor(Tool tool) => _buttons.TryGetValue(tool, out var button) ? button : null;
 
+    public void ShowShortcuts(IReadOnlyDictionary<string, Compositor.Core.IO.ShortcutChord> shortcuts)
+    {
+        foreach (var (tool, button) in _buttons)
+        {
+            var title = tool switch
+            {
+                Tool.Pan => "Hand tool", Tool.Move => "Move / Transform tool",
+                Tool.Marquee or Tool.Ellipse => "Marquee tool", Tool.Lasso or Tool.Polygon => "Lasso tool",
+                Tool.Wand or Tool.Object => "Magic wand", Tool.Brush => "Brush tool", Tool.Clone => "Clone Stamp",
+                Tool.Blur or Tool.Smudge or Tool.Liquify => "Blur / Smudge / Liquify", Tool.Heal => "Spot Healing",
+                Tool.Eyedropper => "Eyedropper tool", Tool.Type => "Type tool", Tool.Crop => "Crop tool",
+                Tool.Shape => "Shape tool", _ => "Gradient tool",
+            };
+            var key = shortcuts.TryGetValue($"{Compositor.Core.IO.Shortcuts.Canvas}:{title}", out var chord) ? chord.Label : "";
+            if (tool == Tool.Object) key += ", Tab";
+            var text = Localize.Text(Names[tool]);
+            var parts = text.Split('—', 2, StringSplitOptions.TrimEntries);
+            var tip = parts[0] + (key.Length > 0 ? $"({key})" : "")
+                + (parts.Length > 1 ? ": " + parts[1] : "");
+            ToolTip.SetTip(button, tip);
+            Avalonia.Automation.AutomationProperties.SetName(button, tip);
+        }
+    }
+
     /// <summary>One of the two colour swatches, which is what a click there opens the picker through. True for
     /// the foreground. The self check is the only caller.</summary>
     internal Button? SwatchFor(bool foreground) => foreground ? _front : _back;

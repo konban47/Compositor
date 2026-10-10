@@ -25,6 +25,22 @@ public static class DocumentRenderer
     public static SKBitmap Render(CanvasDocument document) =>
         RenderRegion(document, SKRectI.Create(0, 0, document.Width, document.Height));
 
+    /// <summary>Bounded-memory thumbnail, including canvases larger than one render buffer.</summary>
+    public static SKBitmap Preview(CanvasDocument document, int maximum = 256)
+    {
+        var scale = Math.Min(1, maximum / (double)Math.Max(document.Width, document.Height));
+        var result = Allocate(Math.Max(1, (int)Math.Ceiling(document.Width * scale)), Math.Max(1, (int)Math.Ceiling(document.Height * scale)));
+        using var canvas = new SKCanvas(result);
+        for (var y = 0; y < document.Height; y += 1024)
+        for (var x = 0; x < document.Width; x += 1024)
+        {
+            var region = SKRectI.Create(x, y, Math.Min(1024, document.Width - x), Math.Min(1024, document.Height - y));
+            using var tile = RenderRegion(document, region);
+            canvas.DrawBitmap(tile, SKRect.Create((float)(x * scale), (float)(y * scale), (float)(region.Width * scale), (float)(region.Height * scale)), new SKSamplingOptions(SKFilterMode.Linear));
+        }
+        return result;
+    }
+
     /// <summary>
     /// Renders one rectangle of the canvas, in the rectangle's own coordinates, so a canvas larger than any
     /// one buffer can be drawn in pieces.
@@ -234,7 +250,7 @@ public static class DocumentRenderer
         private void DrawAdjustment(ImageLayer layer, Target target)
         {
             if (layer.Adjustment is not { } adjustment) return;
-            var opacity = LayerOpacity.Effective(layer, _byID);
+            var opacity = LayerOpacity.Effective(layer, _byID) * layer.FillOpacity;
             if (opacity <= 0) return;
             var width = target.Bitmap.Width;
             var height = target.Bitmap.Height;
@@ -368,7 +384,7 @@ public static class DocumentRenderer
             if (layer.Effects is { } effects)
             {
                 using var shown = ImageWithOwnMask(layer, asset);
-                if (EffectRasterizer.Render(shown, effects) is { } raster)
+                if (EffectRasterizer.Render(shown, effects, layer.FillOpacity) is { } raster)
                 {
                     using (raster) return Raster(layer, raster, out bounds);
                 }
@@ -377,7 +393,7 @@ public static class DocumentRenderer
             using (var canvas = new SKCanvas(content))
             {
                 canvas.Translate(-bounds.Left, -bounds.Top);
-                using var paint = new SKPaint { IsAntialias = true };
+                using var paint = new SKPaint { IsAntialias = true, Color = SKColors.White.WithAlpha((byte)Math.Round(layer.FillOpacity * 255)) };
                 DrawTransformed(canvas, asset.Image, layer.Transform, SKBlendMode.SrcOver, paint);
             }
             foreach (var (mask, transform) in Masks(layer, includeOwn: true))

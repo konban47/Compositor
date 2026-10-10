@@ -59,6 +59,7 @@ public readonly record struct ShortcutChord(string Key, ShortcutModifiers Modifi
         "OemQuotes" => "'",
         "OemComma" => ",",
         "OemPeriod" => ".",
+        "OemPipe" => "\\",
         _ when key.Length == 2 && key[0] == 'D' && char.IsAsciiDigit(key[1]) => key[1..],
         _ => key,
     };
@@ -189,6 +190,7 @@ public static class Shortcuts
         Menu("Save", "S", Ctrl);
         Menu("Save As", "S", Ctrl | Shift);
         Menu("Export PNG", "E", Ctrl | Shift);
+        Menu("Export As", "W", Ctrl | Alt | Shift);
         Menu("Export JPEG", "S", Ctrl | Alt | Shift);
         Menu("Close Tab", "W", Ctrl);
         Menu("Fit Canvas", "D0", Ctrl);
@@ -219,6 +221,12 @@ public static class Shortcuts
         Menu("Duplicate Layer", "J", Ctrl | Shift);
         Menu("Toggle Clipping Mask", "G", Ctrl | Alt);
         Menu("Group Layers", "G", Ctrl);
+        Menu("Ungroup Layers", "G", Ctrl | Shift);
+        Menu("Lock Layer", "OemPipe", Ctrl);
+        Menu("RGB Channel", "D2", Ctrl);
+        Menu("Red Channel", "D3", Ctrl);
+        Menu("Green Channel", "D4", Ctrl);
+        Menu("Blue Channel", "D5", Ctrl);
         Menu("New Blank Layer", "N", Ctrl | Shift);
         Menu("Move Layer Up", "OemCloseBrackets", Ctrl);
         Menu("Move Layer Down", "OemOpenBrackets", Ctrl);

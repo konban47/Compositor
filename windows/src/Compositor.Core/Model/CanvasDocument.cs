@@ -25,6 +25,9 @@ public sealed class CanvasDocument : IDisposable
 
     /// <summary>Bottom to top.</summary>
     public List<ImageLayer> Layers { get; } = [];
+    public List<AlphaChannel> Channels { get; } = [];
+    /// <summary>Session editing target; never changes RGB exports or what is saved as visible artwork.</summary>
+    public ColorChannels EditChannels { get; set; } = ColorChannels.RGB;
 
     /// <summary>Saved with the project; undo covers them.</summary>
     public List<CanvasGuide> Guides { get; } = [];
@@ -47,6 +50,8 @@ public sealed class CanvasDocument : IDisposable
         var copy = new CanvasDocument(ID, Width, Height, Resolution) { _ownsPixels = false };
         copy.Layers.AddRange(Layers.Select(layer => layer.Clone()));
         copy.Selection = Selection;
+        copy.Channels.AddRange(Channels);
+        copy.EditChannels = EditChannels;
         // Guides are objects, so they are copied rather than shared: a snapshot has to keep the positions it
         // was taken at, or moving a guide could not be undone.
         copy.Guides.AddRange(Guides.Select(guide => new CanvasGuide
@@ -81,13 +86,14 @@ public sealed class CanvasDocument : IDisposable
         Guides.Clear();
         Guides.AddRange(other.Guides);
         Selection = other.Selection;
+        Channels.Clear(); Channels.AddRange(other.Channels);
     }
 
     /// <summary>Whether two documents hold the same thing, with pixels compared by identity.</summary>
     public bool SameAs(CanvasDocument other)
     {
         if (ID != other.ID || Width != other.Width || Height != other.Height || Resolution != other.Resolution
-            || Layers.Count != other.Layers.Count || Guides.Count != other.Guides.Count
+            || Layers.Count != other.Layers.Count || Guides.Count != other.Guides.Count || !Channels.SequenceEqual(other.Channels)
             || !Selection.Matches(other.Selection)) return false;
         for (var index = 0; index < Layers.Count; index++)
         {
@@ -145,6 +151,9 @@ public sealed class CanvasDocument : IDisposable
         ID = layer.ID,
         Name = layer.Name,
         IsVisible = layer.IsVisible,
+        Locks = layer.Locks == LayerLocks.None ? null : (int)layer.Locks,
+        FillOpacity = layer.FillOpacity == 1 ? null : layer.FillOpacity,
+        LinkID = layer.LinkID,
         Transform = Format.LayerTransform.FromRuntime(layer.Transform),
         ImageFile = layer.Asset is null ? null : Format.LayerMask.ExpectedImageFile(layer.ID),
         ParentID = layer.ParentID,
@@ -167,6 +176,7 @@ public sealed class CanvasDocument : IDisposable
         if (_ownsPixels)
         {
             foreach (var layer in Layers) layer.Dispose();
+            foreach (var channel in Channels) channel.Asset.Dispose();
         }
         Layers.Clear();
     }

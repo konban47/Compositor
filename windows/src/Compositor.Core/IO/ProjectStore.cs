@@ -37,8 +37,21 @@ public static class ProjectStore
         }
 
         var version = manifest.Version;
+        var channelIDs = new HashSet<Guid>();
+        if (manifest.Channels?.Count > 64) throw new ProjectException(ProjectError.TooLarge);
+        foreach (var channel in manifest.Channels ?? [])
+        {
+            if (version < 12 || channel.ID == Guid.Empty || !channelIDs.Add(channel.ID)
+                || string.IsNullOrWhiteSpace(channel.Name) || Encoding.UTF8.GetByteCount(channel.Name) > 16_384
+                || channel.ImageFile != ProjectChannelRecord.FileName(channel.ID))
+                throw new ProjectException(ProjectError.Invalid);
+        }
         foreach (var layer in manifest.Layers)
         {
+            if ((layer.Locks is { } locks && (locks < 0 || locks > 15))
+                || (layer.FillOpacity is { } fill && (!double.IsFinite(fill) || fill < 0 || fill > 1))
+                || (version < 12 && (layer.Locks is not null || layer.FillOpacity is not null || layer.LinkID is not null)))
+                throw new ProjectException(ProjectError.Invalid);
             if (layer.Text is { } text)
             {
                 // Per-letter colors arrived in version 10, per-letter faces in version 11.
@@ -170,6 +183,14 @@ public static class ProjectStore
             }
         }
 
+        foreach (var channel in snapshot.Manifest.Channels ?? [])
+        {
+            if (!snapshot.Channels.TryGetValue(channel.ID, out var asset)
+                || asset.Width != snapshot.Manifest.Width || asset.Height != snapshot.Manifest.Height)
+                throw new ProjectException(ProjectError.MissingImage);
+            CheckSize(asset.Width, asset.Height, ref maskPixels);
+            images[channel.ImageFile] = PngCodec.Encode(asset.Image);
+        }
         var metadata = ManifestJson.Serialize(snapshot.Manifest);
         if (metadata.Length > Model.DocumentLimits.MaxManifestBytes) throw new ProjectException(ProjectError.TooLarge);
 
@@ -287,6 +308,17 @@ public static class ProjectStore
                     if (isMask) snapshot.Masks[layer.ID] = asset;
                     else snapshot.Images[layer.ID] = asset;
                 }
+            }
+            foreach (var channel in manifest.Channels ?? [])
+            {
+                var file = ResolveAsset(package, $"{ImagesName}/{channel.ImageFile}", Model.DocumentLimits.MaxAssetBytes);
+                var bytes = File.ReadAllBytes(file);
+                var channelHeader = PngCodec.ReadHeader(bytes);
+                if (!channelHeader.IsEightBitOrLess || channelHeader.Width != manifest.Width || channelHeader.Height != manifest.Height)
+                    throw new ProjectException(ProjectError.Invalid);
+                CheckSize(channelHeader.Width, channelHeader.Height, ref maskPixels);
+                var bitmap = PngCodec.DecodeMask(channelHeader, bytes);
+                snapshot.Channels[channel.ID] = new Model.ImportedImage(bitmap, Model.Bitmaps.Thumbnail(bitmap), channel.Name);
             }
         }
         catch

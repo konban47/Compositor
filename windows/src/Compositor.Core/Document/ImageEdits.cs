@@ -89,6 +89,7 @@ public static class ImageEdits
             }
             layer.Transform = transform;
         }
+        ChannelEdits.Transform(document, width, height, SKMatrix.CreateScale((float)sx, (float)sy));
         document.Width = width;
         document.Height = height;
         document.Resolution = resolution;

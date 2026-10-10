@@ -22,6 +22,7 @@ internal static partial class Program
     public static int Main(string[] args)
     {
         if (args is ["--windows-checks", var windowsOutput]) return WindowsChecks(windowsOutput);
+        if (args is ["--panel-checks", var panelOutput]) return PanelChecks(panelOutput);
         // Draws the canvas control straight to a PNG, so the interface can be checked without a window.
         // `--grid` turns the layout grid on for the render, which is how that drawing is checked.
         if (args is ["--render", var project, var output]) return Render(project, output, showGrid: false);

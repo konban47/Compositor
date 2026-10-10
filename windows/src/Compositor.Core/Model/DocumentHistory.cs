@@ -76,6 +76,8 @@ public sealed class DocumentHistory
         _depth--;
         if (_depth > 0 || _pending is not { } before) return;
         _pending = null;
+        if (before.Document is not null && document is not null)
+            LayerProtection.Enforce(before.Document, document, _pendingName);
         // Selecting, navigating and edits that changed nothing must preserve the redo history.
         if (Same(before.Document, document)) return;
         _revision = Guid.NewGuid();
@@ -132,6 +134,7 @@ public sealed class DocumentHistory
 
     private static IEnumerable<(SKBitmap Image, SKBitmap Thumbnail)> Assets(CanvasDocument? document)
     {
+        foreach (var channel in document?.Channels ?? []) yield return (channel.Asset.Image, channel.Asset.Thumbnail);
         foreach (var layer in document?.Layers ?? [])
         {
             if (layer.Asset is { } asset) yield return (asset.Image, asset.Thumbnail);

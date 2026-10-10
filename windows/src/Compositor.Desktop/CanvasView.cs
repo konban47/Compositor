@@ -364,7 +364,7 @@ public sealed partial class CanvasView : Control
         Focusable = true;
         _antsTimer.Tick += (_, _) => AdvanceAnts();
         AttachedToVisualTree += (_, _) => _antsTimer.Start();
-        DetachedFromVisualTree += (_, _) => { _antsTimer.Stop(); _caretBlink.Stop(); _composite?.Dispose(); _composite = null; };
+        DetachedFromVisualTree += (_, _) => { _antsTimer.Stop(); _caretBlink.Stop(); _composite?.Dispose(); _composite = null; _navigatorImage?.Dispose(); _navigatorImage = null; };
         _caretBlink.Tick += (_, _) =>
         {
             _caretOn = !_caretOn;
@@ -390,6 +390,7 @@ public sealed partial class CanvasView : Control
     public new void InvalidateVisual()
     {
         _compositeDirty = true;
+        _navigatorDirty = true;
         base.InvalidateVisual();
     }
 
@@ -570,19 +571,22 @@ public sealed partial class CanvasView : Control
     }
 
     public void ZoomBy(double factor)
+        => ZoomAt(factor, new Point(Bounds.Width / 2, Bounds.Height / 2));
+
+    /// <summary>Keep the document pixel under the pointer fixed, including at the zoom limits.</summary>
+    public void ZoomAt(double factor, Point pointer)
     {
-        var anchor = new SKPoint(_origin.X + (float)(Bounds.Width / _zoom / 2), _origin.Y + (float)(Bounds.Height / _zoom / 2));
-        var before = anchor;
+        if (!double.IsFinite(factor) || factor <= 0) return;
+        var before = ToDocument(pointer);
         SetZoom(_zoom * factor);
-        // Keep the same document point under the middle of the view.
-        _origin = new SKPoint((float)(before.X - Bounds.Width / _zoom / 2), (float)(before.Y - Bounds.Height / _zoom / 2));
+        _origin = new SKPoint((float)(before.X - pointer.X / _zoom), (float)(before.Y - pointer.Y / _zoom));
         Moved();
     }
 
     /// <summary>The view has moved or changed zoom: it is redrawn, and whatever follows it is told.</summary>
     private void Moved()
     {
-        InvalidateVisual();
+        base.InvalidateVisual();
         ViewportChanged?.Invoke();
     }
 
@@ -602,6 +606,8 @@ public sealed partial class CanvasView : Control
     }
 
     public bool CanvasOnly { get; set; }
+    public ColorChannels DisplayChannels { get; set; } = ColorChannels.RGB;
+    public SKBitmap? AlphaDisplay { get; set; }
 
     public override void Render(DrawingContext context)
     {
@@ -616,11 +622,28 @@ public sealed partial class CanvasView : Control
         var bottom = (int)Math.Ceiling(_origin.Y + size.Height / _zoom);
         var region = SKRectI.Intersect(SKRectI.Create(left, top, right - left, bottom - top),
             SKRectI.Create(0, 0, document.Width, document.Height));
-        if (region.Width <= 0 || region.Height <= 0) return;
+        if (region.Width <= 0 || region.Height <= 0) { DrawNavigator(context); return; }
 
         if (_composite is null || _compositeDirty || !ReferenceEquals(document, _compositeDocument) || region != _compositeRegion)
         {
             using var rendered = DocumentRenderer.RenderRegion(document, region);
+            ChannelEdits.View(rendered, DisplayChannels, AlphaDisplay is null);
+            if (AlphaDisplay is { } alpha)
+            {
+                for (var y = 0; y < rendered.Height; y++)
+                for (var x = 0; x < rendered.Width; x++)
+                {
+                    var ax = x + region.Left; var ay = y + region.Top;
+                    var value = ax < alpha.Width && ay < alpha.Height ? alpha.GetPixel(ax, ay).Red : (byte)0;
+                    if (DisplayChannels == ColorChannels.None) rendered.SetPixel(x, y, new SKColor(value, value, value));
+                    else
+                    {
+                        var color = rendered.GetPixel(x, y); var mask = (255 - value) / 510.0;
+                        rendered.SetPixel(x, y, new SKColor((byte)(color.Red * (1 - mask) + 255 * mask),
+                            (byte)(color.Green * (1 - mask)), (byte)(color.Blue * (1 - mask)), 255));
+                    }
+                }
+            }
             var next = ToImage(rendered);
             _composite?.Dispose(); _composite = next;
             _compositeDocument = document; _compositeRegion = region; _compositeDirty = false;
@@ -644,6 +667,7 @@ public sealed partial class CanvasView : Control
         DrawStroke(context);
         DrawSampleRing(context);
         DrawFloating(context);
+        DrawNavigator(context);
     }
 
     /// <summary>The pixels a drag is carrying, drawn where the pointer has put them.</summary>
@@ -1261,8 +1285,14 @@ public sealed partial class CanvasView : Control
         new((float)(_origin.X + screen.X / _zoom), (float)(_origin.Y + screen.Y / _zoom));
 
     /// <summary>A copy of a rendered piece in the order the screen wants: blue before red, premultiplied.</summary>
-    private static WriteableBitmap ToImage(SKBitmap source)
+    internal static WriteableBitmap ToImage(SKBitmap source)
     {
+        if (source.ColorType != SKColorType.Rgba8888 || source.AlphaType == SKAlphaType.Unpremul)
+        {
+            using var rgba = new SKBitmap(new SKImageInfo(source.Width, source.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+            using (var canvas = new SKCanvas(rgba)) canvas.DrawBitmap(source, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest));
+            return ToImage(rgba);
+        }
         var target = new WriteableBitmap(new PixelSize(source.Width, source.Height), new Vector(96, 96),
             PixelFormat.Bgra8888, AlphaFormat.Premul);
         using (var locked = target.Lock())
@@ -1273,7 +1303,7 @@ public sealed partial class CanvasView : Control
                 var start = (byte*)locked.Address;
                 for (var y = 0; y < source.Height; y++)
                 {
-                    var from = pixels.Slice(y * source.Width * 4, source.Width * 4);
+                    var from = pixels.Slice(y * source.RowBytes, source.Width * 4);
                     var to = new Span<byte>(start + y * locked.RowBytes, source.Width * 4);
                     for (var x = 0; x < source.Width; x++)
                     {
@@ -1292,9 +1322,12 @@ public sealed partial class CanvasView : Control
     {
         Focus();
         var properties = e.GetCurrentPoint(this).Properties;
+        if (NavigatorPress(e)) return;
         if (properties.IsMiddleButtonPressed || (PanEnabled && properties.IsLeftButtonPressed && !UprightDrawing && !EyedropperOnClick))
         {
             _dragging = e.GetPosition(this);
+            _zoomDragging = properties.IsMiddleButtonPressed && (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0;
+            _zoomAnchor = _dragging.Value;
             Cursor = new Cursor(StandardCursorType.SizeAll);
             e.Pointer.Capture(this);
             e.Handled = true;
@@ -1476,7 +1509,7 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
-        _dragging = null;
+        _dragging = null; _zoomDragging = false; _navigatorDragging = false;
         Cursor = PanEnabled ? new Cursor(StandardCursorType.Hand) : null;
         base.OnPointerCaptureLost(e);
     }
@@ -1628,9 +1661,11 @@ public sealed partial class CanvasView : Control
             base.OnPointerMoved(e);
             return;
         }
+        if (_navigatorDragging) { NavigateTo(now); e.Handled = true; return; }
         if (_dragging is { } last)
         {
-            _origin = new SKPoint(
+            if (_zoomDragging) ZoomAt(Math.Pow(2, (last.Y - now.Y) / 100), _zoomAnchor);
+            else _origin = new SKPoint(
                 (float)(_origin.X - (now.X - last.X) / _zoom),
                 (float)(_origin.Y - (now.Y - last.Y) / _zoom));
             _dragging = now;
@@ -1751,7 +1786,7 @@ public sealed partial class CanvasView : Control
             InvalidateVisual();
             return;
         }
-        _dragging = null;
+        _dragging = null; _zoomDragging = false; _navigatorDragging = false;
         Cursor = PanEnabled ? new Cursor(StandardCursorType.Hand) : null;
         e.Pointer.Capture(null);
         base.OnPointerReleased(e);
@@ -1759,7 +1794,7 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
-        ZoomBy(e.Delta.Y > 0 ? 1.15 : 1 / 1.15);
+        ZoomAt(Math.Pow(1.15, Math.Clamp(e.Delta.Y, -20, 20)), e.GetPosition(this));
         e.Handled = true;
         base.OnPointerWheelChanged(e);
     }

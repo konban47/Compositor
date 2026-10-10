@@ -43,6 +43,9 @@ public sealed class ImageLayer : IDisposable
     public LayerTransform Transform { get; set; }
     public string Name { get; set; }
     public bool IsVisible { get; set; } = true;
+    public LayerLocks Locks { get; set; }
+    public double FillOpacity { get; set; } = 1;
+    public Guid? LinkID { get; set; }
     public Guid? ParentID { get; set; }
     public bool IsGroup { get; set; }
     public double Opacity { get; set; } = 1;
@@ -79,6 +82,9 @@ public sealed class ImageLayer : IDisposable
         new(id, Asset, Transform, name)
         {
             IsVisible = IsVisible,
+            Locks = Locks,
+            FillOpacity = FillOpacity,
+            LinkID = LinkID,
             ParentID = parentID,
             IsGroup = IsGroup,
             Opacity = Opacity,
@@ -97,6 +103,7 @@ public sealed class ImageLayer : IDisposable
     /// </summary>
     public bool SameAs(ImageLayer other) =>
         ID == other.ID && Name == other.Name && IsVisible == other.IsVisible && Transform == other.Transform
+        && Locks == other.Locks && FillOpacity == other.FillOpacity && LinkID == other.LinkID
         && ParentID == other.ParentID && IsGroup == other.IsGroup && Opacity == other.Opacity
         && BlendMode == other.BlendMode && MaskSourceID == other.MaskSourceID
         && ReferenceEquals(Asset?.Image, other.Asset?.Image)
@@ -134,7 +141,7 @@ public static class LayerOpacity
         for (var depth = 0; parent is { } id && depth < 64; depth++)
         {
             if (!byID.TryGetValue(id, out var folder)) break;
-            opacity *= folder.Opacity;
+            opacity *= folder.Opacity * folder.FillOpacity;
             parent = folder.ParentID;
         }
         return opacity;
@@ -147,7 +154,7 @@ public static class LayerOpacity
         for (var depth = 0; parent is { } id && depth < 64; depth++)
         {
             if (!byID.TryGetValue(id, out var folder)) break;
-            opacity *= folder.Opacity ?? 1;
+            opacity *= (folder.Opacity ?? 1) * (folder.FillOpacity ?? 1);
             parent = folder.ParentID;
         }
         return opacity;

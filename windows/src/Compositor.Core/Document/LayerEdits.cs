@@ -59,6 +59,9 @@ public static class LayerEdits
     /// </summary>
     public static void FlipCanvas(CanvasDocument document, bool horizontally)
     {
+        ChannelEdits.Transform(document, document.Width, document.Height, horizontally
+            ? new SkiaSharp.SKMatrix(-1, 0, document.Width, 0, 1, 0, 0, 0, 1)
+            : new SkiaSharp.SKMatrix(1, 0, 0, 0, -1, document.Height, 0, 0, 1));
         var axis = horizontally ? document.Width / 2.0 : document.Height / 2.0;
         foreach (var layer in document.Layers)
         {
@@ -75,7 +78,7 @@ public static class LayerEdits
     /// <summary>Moves one layer by whole document pixels. A linked mask follows it.</summary>
     public static bool Move(CanvasDocument document, Guid layerID, double dx, double dy)
     {
-        if (Find(document, layerID) is not { } layer) return false;
+        if (Find(document, layerID) is not { } layer || !LayerProtection.CanMove(document, layerID)) return false;
         layer.Transform = layer.Transform with { X = layer.Transform.X + dx, Y = layer.Transform.Y + dy };
         return true;
     }
@@ -182,6 +185,7 @@ public static class LayerEdits
     /// <summary>Places a dragged row beside another row, carrying a folder's descendants without cycles.</summary>
     public static bool MoveRelative(CanvasDocument document, Guid layerID, Guid targetID, bool above)
     {
+        if (!LayerProtection.CanMove(document, layerID)) return false;
         if (layerID == targetID || Find(document, layerID) is not { } layer
             || Find(document, targetID) is not { } target || document.Descendants(layerID).Contains(targetID)) return false;
         var oldIndex = document.Layers.IndexOf(layer);

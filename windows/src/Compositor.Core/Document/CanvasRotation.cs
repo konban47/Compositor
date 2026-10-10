@@ -46,6 +46,8 @@ public static class CanvasRotation
             turned.Transform(matrix);
             document.Selection = document.Selection.WithPath(turned);
         }
+        ChannelEdits.Transform(document, height, width, clockwise
+            ? new SKMatrix(0, -1, height, 1, 0, 0, 0, 0, 1) : new SKMatrix(0, 1, 0, -1, 0, width, 0, 0, 1));
         document.Width = height; document.Height = width;
         return true;
     }

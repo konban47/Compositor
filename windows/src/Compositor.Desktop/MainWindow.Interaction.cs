@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using Compositor.Core.Document;
 using Compositor.Core.IO;
 using Compositor.Core.Model;
@@ -117,28 +118,61 @@ public sealed partial class MainWindow
 
     private Control LayerRow(ImageLayer layer, int depth, string notes)
     {
-        var eye = new Button
-        {
-            Content = new LayerEye(layer.IsVisible), Width = 28, Height = 28,
-            Padding = new Thickness(3), Background = Brushes.Transparent, BorderThickness = new Thickness(0),
-            Focusable = false, Tag = "visibility",
-        };
+        ImageLayer? Current() => _document?.Layers.FirstOrDefault(item => item.ID == layer.ID);
+        var eye = new Button { Content = new LayerEye(layer.IsVisible) { Width = 20, Height = 20 }, Width = 28, Height = 32,
+            Padding = new Thickness(3), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Focusable = false, Tag = "visibility" };
         ToolTip.SetTip(eye, Localize.Text(layer.IsVisible ? "Hide Layer" : "Show Layer"));
         Avalonia.Automation.AutomationProperties.SetName(eye, Localize.Text(layer.IsVisible ? "Hide Layer" : "Show Layer"));
         eye.Click += (_, _) =>
         {
-            if (_document is not { } document) return;
-            Edit("Layer Visibility", () => LayerEdits.SetVisible(document, layer.ID, !layer.IsVisible));
+            if (_document is not { } document || Current() is not { } current) return;
+            Edit("Layer Visibility", () => LayerEdits.SetVisible(document, current.ID, !current.IsVisible));
             ShowLayers(document);
         };
-        var panel = new Grid { ColumnDefinitions = new ColumnDefinitions("28,*") };
-        var name = new TextBlock
+        var panel = new Grid { ColumnDefinitions = new ColumnDefinitions("28,Auto,Auto,Auto,*,24"), MinHeight = 42 };
+        panel.Children.Add(eye);
+        var arrow = new Button { Content = layer.IsGroup ? (_open.Collapsed.Contains(layer.ID) ? "▸" : "▾") : "",
+            Width = 18, Height = 28, Margin = new Thickness(depth * 10, 0, 0, 0), Padding = new Thickness(0),
+            Background = Brushes.Transparent, BorderThickness = new Thickness(0), IsVisible = layer.IsGroup, Focusable = false };
+        ToolTip.SetTip(arrow, Localize.Text("Expand / Collapse Group"));
+        arrow.Click += (_, _) =>
         {
-            Text = layer.Name + notes, Foreground = Ink, VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(4 + depth * 14, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis,
+            if (!_open.Collapsed.Add(layer.ID)) _open.Collapsed.Remove(layer.ID);
+            if (_document is { } doc) { ShowLayers(doc); SelectLayerRow(layer.ID); }
         };
-        Grid.SetColumn(name, 1);
-        panel.Children.Add(eye); panel.Children.Add(name);
+        Grid.SetColumn(arrow, 1); panel.Children.Add(arrow);
+        var thumbnail = new LayerThumbnail(() => Current()?.LiveText is not null ? null : Current()?.Asset?.Thumbnail,
+            layer.IsGroup ? "▰" : layer.LiveText is not null ? "T" : layer.Adjustment is not null ? "◐" : "")
+            { Width = 32, Height = 32, Margin = new Thickness(layer.IsGroup ? 0 : depth * 12, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center };
+        _layerThumbnails.Add(thumbnail);
+        thumbnail.PointerPressed += (_, e) =>
+        {
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            { SelectLayerRow(layer.ID); SelectLayerPixels(); e.Handled = true; }
+            else { SetPaintingMask(false); }
+        };
+        Grid.SetColumn(thumbnail, 2); panel.Children.Add(thumbnail);
+        if (layer.Mask is not null)
+        {
+            var mask = new LayerThumbnail(() => Current()?.Mask?.Asset.Thumbnail) { Width = 30, Height = 30, Margin = new Thickness(3) };
+            _layerThumbnails.Add(mask); ToolTip.SetTip(mask, Localize.Text("Edit Layer Mask"));
+            mask.PointerPressed += (_, e) => { SelectLayerRow(layer.ID); SetPaintingMask(true); e.Handled = true; };
+            Grid.SetColumn(mask, 3); panel.Children.Add(mask);
+        }
+        var name = new TextBlock { Text = layer.Name + (layer.LinkID is not null ? "  ↔" : ""), Foreground = Ink,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 2, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+        ToolTip.SetTip(name, layer.Name + notes); Grid.SetColumn(name, 4); panel.Children.Add(name);
+        if (layer.Locks != LayerLocks.None || _document is { } doc && LayerProtection.Effective(doc, layer.ID) != LayerLocks.None)
+        {
+            var unlock = PanelButton("lock", "Unlock Layer", () =>
+            {
+                if (_document is not { } current) return;
+                Edit("Layer Locks", () => LayerProtection.Set(current, [layer.ID], LayerLocks.None));
+                ShowLayers(current);
+            });
+            unlock.Width = 24; unlock.IsEnabled = layer.Locks != LayerLocks.None;
+            Grid.SetColumn(unlock, 5); panel.Children.Add(unlock);
+        }
         return panel;
     }
 
@@ -147,8 +181,19 @@ public sealed partial class MainWindow
         row.AddHandler(PointerPressedEvent, (_, e) =>
         {
             if (!e.GetCurrentPoint(row).Properties.IsLeftButtonPressed || e.GetPosition(row).X < 32) return;
+            if (e.Source is Visual source && (source is Button || source.GetVisualAncestors().TakeWhile(item => item != row).Any(item => item is Button || item is LayerThumbnail))) return;
             if (row.Tag is not Guid id) return;
-            SelectLayerRow(id, e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && _layers.SelectedItems?.Contains(row) == true)
+                _layers.SelectedItems.Remove(row);
+            else if (e.KeyModifiers.HasFlag(KeyModifiers.Shift) && _layers.SelectedIndex >= 0)
+            {
+                var from = _layers.SelectedIndex; var to = _layers.Items.IndexOf(row);
+                for (var index = Math.Min(from, to); index <= Math.Max(from, to); index++)
+                    if (_layers.SelectedItems?.Contains(_layers.Items[index]) != true) _layers.SelectedItems?.Add(_layers.Items[index]);
+            }
+            else if (!SelectedLayers.Contains(id))
+                SelectLayerRow(id, e.KeyModifiers.HasFlag(KeyModifiers.Control));
+            if (_document is { } doc && !LayerProtection.CanMove(doc, id)) { e.Handled = true; return; }
             _dragLayer = id; _layerPress = e.GetPosition(_layers); _layerDragging = false;
             e.Pointer.Capture(row); e.Handled = true;
         }, RoutingStrategies.Tunnel);

@@ -251,9 +251,12 @@ public static class TransformEdits
     public static List<ImageLayer> GroupMembers(CanvasDocument document, IReadOnlyCollection<Guid> ids)
     {
         var wanted = ids.ToHashSet();
+        var links = document.Layers.Where(layer => wanted.Contains(layer.ID) && layer.LinkID is not null)
+            .Select(layer => layer.LinkID).ToHashSet();
+        wanted.UnionWith(document.Layers.Where(layer => layer.LinkID is not null && links.Contains(layer.LinkID)).Select(layer => layer.ID));
         var visible = document.EffectiveVisibleIDs();
         return document.Layers.Where(layer => layer.Asset is not null && !layer.IsGroup && visible.Contains(layer.ID))
-            .Where(layer => Inside(document, layer, wanted))
+            .Where(layer => Inside(document, layer, wanted) && LayerProtection.CanMove(document, layer.ID))
             .ToList();
     }
 

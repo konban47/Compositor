@@ -218,6 +218,9 @@ public sealed partial class MainWindow : Window
 
         /// <summary>The layer behind each row of the panel, so a selection can be turned back into an id.</summary>
         public List<Guid> Rows { get; } = [];
+        public HashSet<Guid> Collapsed { get; } = [];
+        public ColorChannels VisibleChannels { get; set; } = ColorChannels.RGB;
+        public Guid? ActiveAlpha { get; set; }
 
         /// <summary>Which row the panel had selected, so a tab comes back the way it was left.</summary>
         public int SelectedRow { get; set; }
@@ -302,7 +305,7 @@ public sealed partial class MainWindow : Window
         // The picker is a window of its own and the app is left running until the last window closes, so it
         // goes with the editor rather than being left behind to hold the session open.
         Closing += ConfirmWindowClose;
-        Closed += (_, _) => _picker?.Close();
+        Closed += (_, _) => { _picker?.Close(); _channelThumbnail?.Dispose(); foreach (var image in _channelImages) image.Dispose(); };
         Background = Skin.ChromeBrush;
         // The window's plain labels (a heading, a readout) take their colour from here, as the Mac's do from
         // the appearance; controls that name their own text keep it.
@@ -417,6 +420,7 @@ public sealed partial class MainWindow : Window
         _maskLink.Click += (_, _) => ToggleMaskLink();
         _addMask.Items.Add(Command("_Reveal All (White)", () => AddMask(revealing: true)));
         _addMask.Items.Add(Command("_Hide All (Black)", () => AddMask(revealing: false)));
+        _lockLayer.Click += (_, _) => ToggleLayerLock();
         _layers.SelectionChanged += (_, _) => { UpdateLayerMenu(); ShowTransformBox(); _canvas.InvalidateVisual(); };
         InitializeInteraction();
         _tabs.Add(_open);
@@ -454,6 +458,7 @@ public sealed partial class MainWindow : Window
                         Command("Save _As…", SaveAs, "Save As"),
                         new Separator(),
                         Command("_Export PNG…", ExportPng, "Export PNG"),
+                        Command("Export As…", () => _ = ExportAs(), "Export As"),
                         Command("Export _JPEG…", () => _ = ExportJpeg(), "Export JPEG"),
                         new Separator(),
                         Command("_Close Tab", () => _ = CloseTab(_open), "Close Tab"),
@@ -501,6 +506,8 @@ public sealed partial class MainWindow : Window
                         LayerCommand("Move Layer _Up", () => MoveLayer(1), "Move Layer Up"),
                         LayerCommand("Move Layer _Down", () => MoveLayer(-1), "Move Layer Down"),
                         new Separator(),
+                        _lockLayer,
+                        Command("Ungroup Layers", UngroupSelected, "Ungroup Layers"),
                         _clipping,
                         LayerCommand("_Group Selected Layers", GroupSelected, "Group Layers",
                             (document, layer) => document.Layers.Count < LayerPlacement.MaxLayers),
@@ -569,6 +576,7 @@ public sealed partial class MainWindow : Window
                         Command("_Camera Raw Filter…", CameraRawFilter),
                         new Separator(),
                         Command("_Gaussian Blur…", () => _ = ApplyFilter(FilterKind.GaussianBlur)),
+                        Command("Scanlines…", () => _ = ApplyFilter(FilterKind.Scanlines)),
                         Command("_Motion Blur…", () => _ = ApplyFilter(FilterKind.MotionBlur)),
                         Command("Add _Noise…", () => _ = ApplyFilter(FilterKind.AddNoise)),
                         Command("_Bloom / Glow…", () => _ = ApplyFilter(FilterKind.BloomGlow)),
@@ -670,6 +678,7 @@ public sealed partial class MainWindow : Window
                         _lockGuides,
                         _showTransform,
                         _pixelGrid,
+                        NavigatorMenu(),
                         _snapping,
                         Command("_Grid Settings…", () => _ = GridSettings()),
                         _snapToCanvas,
@@ -699,20 +708,7 @@ public sealed partial class MainWindow : Window
         };
 
         _mainMenu = menu;
-        var layers = new DockPanel();
-        layers.Children.Add(new TextBlock
-        {
-            Text = Localize.Text("Layers"),
-            Margin = new Thickness(10, 8, 10, 6),
-            Foreground = Ink,
-            FontWeight = FontWeight.SemiBold,
-        });
-        DockPanel.SetDock(layers.Children[0], Dock.Top);
-        layers.Children.Add(Appearance());
-        DockPanel.SetDock(layers.Children[1], Dock.Top);
-        // ListBox owns its scrolling; an outer ScrollViewer prevents bounded layout and reveal-on-selection.
-        layers.Children.Add(_layers);
-        _layersSide.Child = layers;
+        _layersSide.Child = BuildPanels();
 
         var statusBar = new Border
         {
@@ -910,6 +906,7 @@ public sealed partial class MainWindow : Window
                      (_snapping, "Snap"),
                      (_merge, "Merge Layers"),
                      (_clipping, "Toggle Clipping Mask"),
+                     (_lockLayer, "Lock Layer"),
                  })
         {
             ShowKey(item, key);
@@ -941,6 +938,7 @@ public sealed partial class MainWindow : Window
         {
             item.InputGesture = _keys.TryGetValue(id, out var chord) ? ShortcutKeys.Gesture(chord) : null;
         }
+        _rail.ShowShortcuts(_keys);
         if (unknown > 0)
         {
             Say($"{unknown} shortcut rows name a key this build does not know, so they are not in force");
@@ -1034,6 +1032,7 @@ public sealed partial class MainWindow : Window
         Does("Save", Save);
         Does("Save As", SaveAs);
         Does("Export PNG", ExportPng);
+        Does("Export As", () => _ = ExportAs());
         Does("Export JPEG", () => _ = ExportJpeg());
         Does("Close Tab", () => _ = CloseTab(_open));
         Does("Fit Canvas", () => { _canvas.Fit(); Say(); });
@@ -1061,6 +1060,12 @@ public sealed partial class MainWindow : Window
         Does("Duplicate Layer", DuplicateLayer);
         Does("Toggle Clipping Mask", ToggleClipping);
         Does("Group Layers", GroupSelected);
+        Does("Ungroup Layers", UngroupSelected);
+        Does("Lock Layer", ToggleLayerLock);
+        Does("RGB Channel", () => SelectColorChannel(ColorChannels.RGB));
+        Does("Red Channel", () => SelectColorChannel(ColorChannels.Red));
+        Does("Green Channel", () => SelectColorChannel(ColorChannels.Green));
+        Does("Blue Channel", () => SelectColorChannel(ColorChannels.Blue));
         Does("Merge Layers", MergeLayers);
         Does("New Blank Layer", NewBlankLayer);
         Does("Move Layer Up", () => MoveLayer(1));
@@ -1147,7 +1152,14 @@ public sealed partial class MainWindow : Window
             return Edit("Move Selection", () => SelectionEdits.Move(document, dx, dy));
         }
         if (_tool != Tool.Move || Selected is not { } id) return false;
-        return Edit("Move Layer", () => LayerEdits.Move(document, id, dx, dy));
+        if (_open.ActiveAlpha is not null) { Say("Select RGB to transform image layers."); return false; }
+        return Edit("Move Layer", () =>
+        {
+            var changed = false;
+            foreach (var member in TransformEdits.GroupMembers(document, SelectedLayers.Count > 0 ? SelectedLayers : [id]))
+            { member.Transform = member.Transform with { X = member.Transform.X + dx, Y = member.Transform.Y + dy }; changed = true; }
+            return changed;
+        });
     }
 
     /// <summary>The pixels a drag is carrying, and how far it has taken them.</summary>
@@ -1162,6 +1174,7 @@ public sealed partial class MainWindow : Window
     private bool PixelsTaken(SKPoint at)
     {
         if (_document is not { } document || Selected is not { } id) return false;
+        if (_open.ActiveAlpha is not null || !LayerProtection.CanMove(document, id) || !LayerProtection.CanPaint(document, id)) return false;
         if (document.Selection.Path is not { } path || !path.Contains(at.X, at.Y)) return false;
         if (SelectionEdits.LiftPixels(document, id) is not { } floating)
         {
@@ -1960,7 +1973,7 @@ public sealed partial class MainWindow : Window
         }
         var wasOpacity = document.Layers.First(one => one.ID == dimming).Opacity;
         var down = track.Y + _opacity.Bounds.Height / 2;
-        Drag(new Point(track.X + 110, down), new Point(track.X + 30, down));
+        Drag(new Point(track.X + _opacity.Bounds.Width - 12, down), new Point(track.X + 14, down));
         var nowOpacity = document.Layers.First(one => one.ID == dimming).Opacity;
         report.Add($"the opacity slider dragged left: {wasOpacity:0.00} → {nowOpacity:0.00}, "
             + $"one \"{_history.UndoName}\" step");
@@ -2914,8 +2927,17 @@ public sealed partial class MainWindow : Window
     {
         if (_document is not { } document) return false;
         _history.Begin(name, document, Selected);
-        var changed = change();
+        var revision = _history.CurrentRevision;
+        var alphaBefore = _open.ActiveAlpha is not null && !_editingAlpha ? document.Clone() : null;
+        change();
+        if (alphaBefore is not null && document.Width == alphaBefore.Width && document.Height == alphaBefore.Height
+            && !SameLayers(alphaBefore, document))
+        {
+            document.Layers.Clear(); document.Layers.AddRange(alphaBefore.Layers.Select(layer => layer.Clone()));
+            Say("Select RGB to use this command.");
+        }
         _history.End(document, Selected);
+        var changed = _history.CurrentRevision != revision;
         Refresh();
         return changed;
     }
@@ -2951,7 +2973,9 @@ public sealed partial class MainWindow : Window
         // mode at its index: _blendRows says what each one is.
         _blendRows.Clear();
         _blendRows.AddRange(GroupedChoice.Fill(_blend, LayerEdits.BlendGroups, mode => Spell(mode)));
-        _blend.Width = 150;
+        _blend.Width = 125;
+        _opacity.Width = 76;
+        _opacityReadout.Width = 35;
         _blend.SelectionChanged += (_, _) =>
         {
             if (_showingAppearance) return;
@@ -2992,23 +3016,8 @@ public sealed partial class MainWindow : Window
 
         return new StackPanel
         {
-            Margin = new Thickness(10, 0, 10, 8),
-            Spacing = 4,
-            Children =
-            {
-                _blend,
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Spacing = 6,
-                    Children =
-                    {
-                        new TextBlock { Text = Localize.Text("Opacity"), Width = 52, VerticalAlignment = VerticalAlignment.Center },
-                        _opacity,
-                        _opacityReadout,
-                    },
-                },
-            },
+            Orientation = Orientation.Horizontal, Spacing = 5,
+            Children = { _blend, new TextBlock { Text = Localize.Text("Opacity"), VerticalAlignment = VerticalAlignment.Center }, _opacity, _opacityReadout },
         };
     }
 
@@ -3028,7 +3037,7 @@ public sealed partial class MainWindow : Window
             _blend.SelectedIndex = layer is null ? -1 : _blendRows.IndexOf(layer.BlendMode);
             _opacity.Value = (layer?.Opacity ?? 1) * 100;
             _opacityReadout.Text = Localize.Format($"{_opacity.Value:0}%");
-            _blend.IsEnabled = _opacity.IsEnabled = layer is not null;
+            _blend.IsEnabled = _opacity.IsEnabled = layer is not null && _document is { } doc && !LayerProtection.Effective(doc, layer.ID).HasFlag(LayerLocks.All);
         }
         finally
         {
@@ -3055,6 +3064,7 @@ public sealed partial class MainWindow : Window
         _visibility.Header = Localize.Text(layer?.IsVisible == false ? "_Show Layer" : "_Hide Layer");
         _visibility.IsEnabled = layer is not null;
         ShowAppearance(layer);
+        ShowPanelState(layer);
         _clipping.Header = Localize.Text(layer?.MaskSourceID is not null ? "Release _Clipping Mask" : "Create _Clipping Mask");
         _clipping.IsEnabled = document is not null && layer is not null && LayerMaskEdits.CanToggle(document, layer.ID);
         _addMask.IsEnabled = layer is { Mask: null };
@@ -3177,10 +3187,10 @@ public sealed partial class MainWindow : Window
     {
         if (_document is not { } document) return;
         var ids = SelectedLayers;
-        if (ids.Count == 0) return;
+        if (ids.Count == 0 || ids.Any(id => LayerProtection.Effective(document, id).HasFlag(LayerLocks.All))) return;
         _history.Begin("Group Layers", document, Selected);
         var folder = LayerPlacement.GroupSelected(document, ids);
-        NameNewLayer(document, folder, "Folder");
+        NameNewLayer(document, folder, "Group");
         _history.End(document, Selected);
         if (folder is null) { Say("Those layers could not be wrapped in a folder."); return; }
         Reselect(folder);
@@ -3620,6 +3630,7 @@ public sealed partial class MainWindow : Window
             return;
         }
         var (mask, from, to, opacity, shape) = GradientPlan(document, id);
+        if (EditActiveAlpha("Gradient Channel", (target, channel) => GradientEdits.Fill(target, channel, false, start, end, from, to, opacity, shape))) return;
         Edit(mask ? "Gradient Mask" : "Gradient",
             () => GradientEdits.Fill(document, id, mask, start, end, from, to, opacity, shape));
         Reselect(id);
@@ -3726,6 +3737,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void CameraRawFilter()
     {
+        if (_open.ActiveAlpha is not null) { Say("Select RGB to use this command."); return; }
         if (_document is not { } document || Selected is not { } id) return;
         if (document.Layers.FirstOrDefault(layer => layer.ID == id) is not { Asset: not null, IsGroup: false })
         {
@@ -3742,6 +3754,14 @@ public sealed partial class MainWindow : Window
         panel.Preview = PreviewCameraRaw;
         panel.Applied += ApplyCameraRaw;
         panel.Cancelled += CloseCameraRaw;
+        panel.AutoWhiteBalance += async () =>
+        {
+            if (document.Layers.FirstOrDefault(layer => layer.ID == id)?.Asset?.Image is not { } original) return;
+            using var copy = original.Copy();
+            var balance = await Task.Run(() => Compositor.Core.Pixels.CameraRawTables.AutoBalance(copy));
+            if (ReferenceEquals(panel, _cameraRaw) && balance is { } solved) panel.SetWhiteBalance(solved.Temperature, solved.Tint);
+        };
+        panel.PickWhiteBalance += () => { _pickingWhiteBalance = true; _canvas.EyedropperOnClick = true; Say("Click a neutral gray area in the original layer."); };
         _cameraRaw = panel;
         _cameraRawHost.Child = panel.View;
         Localize.ApplyChoices(panel.View);
@@ -3868,6 +3888,7 @@ public sealed partial class MainWindow : Window
     private void CloseCameraRaw()
     {
         if (_cameraRaw is null) return;
+        _pickingWhiteBalance = false; _canvas.EyedropperOnClick = _tool == Tool.Eyedropper;
         _cameraRaw = null;
         _cameraRawLayer = null;
         _cameraRawScope = null;
@@ -3909,6 +3930,7 @@ public sealed partial class MainWindow : Window
         // The amounts this filter was used with are kept for the next time it is opened, as the Mac's one set
         // of filter settings does.
         _filterAmounts = settings;
+        if (EditActiveAlpha("Channel Filter", (target, channel) => FilterEdits.Apply(target, channel, kind, settings))) return;
         if (_document is not { } current) return;
         if (Edit($"{kind} Filter", () => FilterEdits.Apply(current, id, kind, settings)))
         {
@@ -3939,6 +3961,7 @@ public sealed partial class MainWindow : Window
         // The look as well as the amounts: Dither opens again on the one it was last used with.
         _ditherLook = chosen.Style;
         _ditherAmounts = chosen.Settings;
+        if (EditActiveAlpha("Channel Dither", (target, channel) => DitherEdits.Apply(target, channel, chosen.Style, chosen.Settings))) return;
         if (_document is not { } current) return;
         if (Edit("Dither", () => DitherEdits.Apply(current, id, chosen.Style, chosen.Settings)))
         {
@@ -4096,6 +4119,7 @@ public sealed partial class MainWindow : Window
         StopPreview();
         if (asked is not { } settings) return;
         if (_document is not { } current) return;
+        if (EditActiveAlpha("Channel Adjustment", (target, channel) => FilterEdits.ApplyAdjustment(target, channel, settings))) return;
         Edit(LayerPlacement.Name(kind), () => FilterEdits.ApplyAdjustment(current, id, settings));
         Reselect(id);
         Say($"{LayerPlacement.Name(kind)} applied");
@@ -4641,7 +4665,7 @@ public sealed partial class MainWindow : Window
 
     /// <summary>Starts showing what a panel would do to a layer, before anything is committed.
     private void StartPreview(CanvasDocument document, Guid layerID) =>
-        StartPreview(FilterPreview.Begin(document, layerID), layerID);
+        StartPreview(_open.ActiveAlpha is null && LayerProtection.CanPaint(document, layerID) ? FilterPreview.Begin(document, layerID) : null, layerID);
 
     /// <summary>The same for a look that changes several layers at once, which is what a group distortion is.</summary>
     private void StartPreview(CanvasDocument document, IReadOnlyList<Guid> layerIDs) =>
@@ -4707,7 +4731,12 @@ public sealed partial class MainWindow : Window
     {
         _previewTimer?.Stop();
         if (_preview is not { } preview || _previewApply is not { } apply) return;
-        if (!preview.Show(apply)) return;
+        if (!preview.Show(target =>
+        {
+            var changed = apply(target);
+            if (_document is { } original) LayerProtection.Enforce(original, target, "Preview");
+            return changed;
+        })) return;
         // The canvas is put back on the preview every time it is shown: the panel's Preview tick may have been
         // off, which takes the canvas back to the document as it stands.
         _canvas.PreviewDocument = preview.Document;
@@ -5161,9 +5190,22 @@ public sealed partial class MainWindow : Window
     /// The eyedropper: the colour under the click becomes the brush's — or, when a panel that picks colours is
     /// up, goes into that instead, because that is what the click was for.
     /// </summary>
+    private bool _pickingWhiteBalance;
     private void Picked(SKPoint point, KeyModifiers keys)
     {
         if (_document is not { } document) return;
+        if (_pickingWhiteBalance && _cameraRaw is { } panel)
+        {
+            if (document.Layers.FirstOrDefault(layer => layer.ID == _cameraRawLayer) is { Asset: { } asset } layer
+                && layer.Transform.InBox(point) is { } local)
+            {
+                var sample = asset.Image.GetPixel(Math.Clamp((int)(local.X / layer.Transform.Width * asset.Width), 0, asset.Width - 1),
+                    Math.Clamp((int)(local.Y / layer.Transform.Height * asset.Height), 0, asset.Height - 1));
+                if (sample.Alpha > 0 && Compositor.Core.Pixels.CameraRawTables.Neutralize(sample.Red / 255.0, sample.Green / 255.0, sample.Blue / 255.0) is { } balance)
+                    panel.SetWhiteBalance(balance.Temperature, balance.Tint);
+            }
+            _pickingWhiteBalance = false; _canvas.EyedropperOnClick = _tool == Tool.Eyedropper; return;
+        }
         if ((long)document.Width * document.Height > DocumentLimits.MaxSurfacePixels)
         {
             Say("This canvas is too big to read a color from in one piece");
@@ -5356,6 +5398,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void FillPixels(SKColor colour, string name)
     {
+        if (EditActiveAlpha(name, (target, channel) => FillEdits.Fill(target, channel, colour))) return;
         if (_document is not { } document || Selected is not { } id) return;
         var filled = Edit(_options.PaintOnMask ? "Fill Mask" : name, () => _options.PaintOnMask
             ? FillEdits.FillMask(document, id,
@@ -5373,6 +5416,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ClearPixels()
     {
+        if (EditActiveAlpha("Clear Channel", (target, channel) => FillEdits.Fill(target, channel, SKColors.Black))) return;
         if (_document is not { } document || Selected is not { } id) return;
         if (_options.PaintOnMask)
         {
@@ -5458,6 +5502,10 @@ public sealed partial class MainWindow : Window
     {
         if (_document is not { } document || Selected is not { } id) return;
         if (BrushFor(stroke) is not { } settings) return;
+        if (EditActiveAlpha("Paint Channel", (target, channel) => _tool is Tool.Liquify or Tool.Smudge
+            ? WarpEdits.Warp(target, channel, stroke, Warp(_tool), settings)
+            : BrushEdits.Paint(target, channel, stroke, settings))) return;
+        if (!LayerProtection.CanPaint(document, id)) { Say("The layer is locked."); return; }
         var name = _tool switch
         {
             Tool.Clone => "Clone Stamp",
@@ -5589,6 +5637,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Repaints the canvas and says where the history stands.</summary>
     private void Refresh()
     {
+        UpdateChannelView();
         _canvas.InvalidateVisual();
         UpdateLayerMenu();
         if (_transforming is null) ShowTransformBox();
@@ -5601,13 +5650,15 @@ public sealed partial class MainWindow : Window
     private void ShowLayers(CanvasDocument document)
     {
         var selectedIds = SelectedLayers.ToHashSet();
+        _layerThumbnails.Clear();
         var models = document.Layers.ToDictionary(layer => layer.ID);
         var rows = new List<ListBoxItem>();
         _rows.Clear();
         // Top of the stack first, as the Mac build's panel lists it.
-        foreach (var entry in document.HierarchyEntries(topFirst: true))
+        foreach (var entry in document.HierarchyEntries(collapsed: _layerKind.SelectedIndex <= 0 && string.IsNullOrWhiteSpace(_layerSearch.Text) ? _open.Collapsed : [], topFirst: true))
         {
             var record = entry.Layer;
+            if (!MatchesLayerFilter(models[record.ID])) continue;
             var notes = new List<string>();
             if (!entry.Visible) notes.Add("hidden");
             if (record.BlendMode is { } blend && blend != LayerBlendMode.Normal) notes.Add(Spell(blend));
@@ -5624,6 +5675,7 @@ public sealed partial class MainWindow : Window
                     notes.Count > 0 ? "  ·  " + string.Join("，", notes.Select(Localize.Text)) : ""),
             };
             WireLayerDrag(item);
+            WireLayerContext(item, models[record.ID]);
             rows.Add(item);
             _rows.Add(record.ID);
         }
@@ -5711,34 +5763,31 @@ public sealed partial class MainWindow : Window
     /// File ▸ Export JPEG: the flattened document written at a quality that is asked for. A JPEG has to be
     /// made whole, so a canvas too big to hold is refused rather than quietly written wrong.
     /// </summary>
-    private async Task ExportJpeg()
+    private Task ExportJpeg() => ExportAs(ExportFormat.Jpeg);
+
+    private async Task ExportAs(ExportFormat format = ExportFormat.Png)
     {
-        if (_document is not { } document)
-        {
-            Say("Nothing to export yet.");
-            return;
-        }
+        if (_document is not { } document) { Say("Nothing to export yet."); return; }
         try
         {
+            if (await ExportAsDialog.Ask(this, document, format) is not { } result) return;
+            var extension = result.Options.Extension;
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                Title = Localize.Text("Export JPEG"),
-                SuggestedFileName = "Compositor export.jpg",
-                DefaultExtension = "jpg",
+                Title = Localize.Text("Export As"), SuggestedFileName = "Compositor export." + extension,
+                DefaultExtension = extension, FileTypeChoices = [new FilePickerFileType(extension.ToUpperInvariant()) { Patterns = ["*." + extension] }],
             });
             if (file?.TryGetLocalPath() is not { } path) return;
-            if (await QualityDialog.Ask(this) is not { } quality) return;
-            if (!ImageWriter.Write(document, path, quality))
-            {
-                Say("That canvas is too large to write as one JPEG.");
-                return;
-            }
-            Say($"Exported {path}");
+            await File.WriteAllBytesAsync(path, result.Bytes); Say($"Exported {path}");
         }
-        catch (Exception error)
-        {
-            Say($"Could not export: {error.Message}");
-        }
+        catch (Exception error) { Say($"Could not export: {error.Message}"); }
+    }
+
+    private MenuItem NavigatorMenu()
+    {
+        var item = new MenuItem { Header = Localize.Text("Navigator"), ToggleType = MenuItemToggleType.CheckBox };
+        item.Click += (_, _) => { _canvas.NavigatorEnabled = item.IsChecked; _canvas.InvalidateVisual(); };
+        return item;
     }
 
     private static string Spell<T>(T value) where T : struct, Enum =>
