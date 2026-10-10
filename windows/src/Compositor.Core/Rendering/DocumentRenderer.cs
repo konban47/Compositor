@@ -167,7 +167,7 @@ public static partial class DocumentRenderer
     {
         private readonly CanvasDocument _document;
         private readonly SKBitmap _canvas;
-        private readonly SKRectI _region;
+        private SKRectI _region;
         private readonly Dictionary<Guid, ImageLayer> _byID = [];
         private readonly Dictionary<Guid, List<ImageLayer>> _children = [];
 
@@ -394,7 +394,11 @@ public static partial class DocumentRenderer
                 {
                     effects = effects.Scaled(1);
                     foreach (var effect in effects.Items!.Where(e => !e.AlignWithLayer))
-                    { effect.OffsetX += layer.Transform.X * asset.Width / layer.Transform.Width; effect.OffsetY += layer.Transform.Y * asset.Height / layer.Transform.Height; }
+                    {
+                        var sign = effect.Kind == StyleEffectKind.GradientOverlay || effect.Kind == StyleEffectKind.Stroke && effect.FillType == 1 ? -1 : 1;
+                        effect.OffsetX += sign * layer.Transform.X * asset.Width / layer.Transform.Width;
+                        effect.OffsetY += sign * layer.Transform.Y * asset.Height / layer.Transform.Height;
+                    }
                 }
                 var hideEffects = layer.Mask?.VectorPath is null ? layer.Blending?.LayerMaskHidesEffects == true : layer.Blending?.VectorMaskHidesEffects == true;
                 var maskSource = layer.Clone(); if (hideEffects) maskSource.Mask = null;

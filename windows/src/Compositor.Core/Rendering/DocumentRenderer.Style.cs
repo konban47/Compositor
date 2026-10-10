@@ -26,9 +26,15 @@ public static partial class DocumentRenderer
         private void DrawGroup(ImageLayer layer, Target target)
         {
             var opacity = Opacity(layer); if (opacity <= 0) return;
-            using var pixels = Allocate(_region.Width, _region.Height);
+            var requested = _region;
+            // Coordinate-based group effects need a stable surface, independent of the requested tile.
+            var coordinates = layer.Effects is { Enabled: true, Items: { } effects } && effects.Any(e => e.Enabled
+                && (e.Kind is StyleEffectKind.GradientOverlay or StyleEffectKind.PatternOverlay || e.TextureEnabled || e.Kind == StyleEffectKind.Stroke && e.FillType != 0));
+            var area = coordinates ? SKRectI.Create(_document.Width, _document.Height) : requested;
+            if ((long)area.Width * area.Height > DocumentLimits.MaxSurfacePixels) throw new Core.IO.ProjectException(Core.IO.ProjectError.TooLarge);
+            using var pixels = Allocate(area.Width, area.Height);
             var firstHole = _deepHoles.Count;
-            _isolated.Add(layer.ID);
+            _isolated.Add(layer.ID); _region = area;
             try
             {
                 using var canvas = new SKCanvas(pixels); canvas.Translate(-_region.Left, -_region.Top);
@@ -42,19 +48,19 @@ public static partial class DocumentRenderer
                 }
                 DrawSiblings(ChildrenOf(layer), new Target(pixels, canvas, _region.Location));
             }
-            finally { _isolated.Remove(layer.ID); }
+            finally { _isolated.Remove(layer.ID); _region = requested; }
             if (layer.Container != LayerContainer.Group)
             {
                 var data = pixels.GetPixelSpan();
                 for (var y = 0; y < pixels.Height; y++) for (var x = 0; x < pixels.Width; x++)
-                    if (layer.Transform.InBox(new SKPoint(_region.Left + x + 0.5f, _region.Top + y + 0.5f)) is null)
+                    if (layer.Transform.InBox(new SKPoint(area.Left + x + 0.5f, area.Top + y + 0.5f)) is null)
                         data.Slice(y * pixels.RowBytes + x * 4, 4).Clear();
             }
             // A deep knockout propagates through every enclosing isolated surface; a shallow one stops here.
             for (var i = firstHole; i < _deepHoles.Count; i++) Erase(target, _deepHoles[i].Pixels, _deepHoles[i].Bounds);
             using var asset = ImportedImage.Create(pixels.Copy(), layer.Name);
             var rendered = layer.Clone(); rendered.IsGroup = false; rendered.Asset = asset;
-            rendered.Transform = new Model.LayerTransform(_region.Left, _region.Top, _region.Width, _region.Height);
+            rendered.Transform = new Model.LayerTransform(area.Left, area.Top, area.Width, area.Height);
             if (rendered.Mask is not null) rendered.Mask.Placement = layer.MaskTransform;
             using var content = Content(rendered, out var bounds);
             if (content is not null) CompositeLayer(target, content, bounds, rendered, opacity);

@@ -158,8 +158,12 @@ public sealed class LayerStyleWorkflowTests
     {
         var layer = Solid(SKColors.Red); var group = new ImageLayer(Guid.NewGuid(), null, layer.Transform, "Group") { IsGroup = true, Effects = new LayerEffects { Items = [new() { Kind = StyleEffectKind.OuterGlow, Green = 1, Size = 5 }] } };
         layer.ParentID = group.ID; using var doc = Document(group, layer);
-        using var full = DocumentRenderer.Render(doc); using var region = DocumentRenderer.RenderRegion(doc, new SKRectI(8, 8, 24, 24));
-        for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) Assert.Equal(full.GetPixel(x + 8, y + 8), region.GetPixel(x, y));
+        foreach (var kind in new[] { StyleEffectKind.OuterGlow, StyleEffectKind.GradientOverlay, StyleEffectKind.PatternOverlay })
+        {
+            group.Effects = new LayerEffects { Items = [new() { Kind = kind, Green = 1, Size = 5 }] };
+            using var full = DocumentRenderer.Render(doc); using var region = DocumentRenderer.RenderRegion(doc, new SKRectI(8, 8, 24, 24));
+            for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) Assert.Equal(full.GetPixel(x + 8, y + 8), region.GetPixel(x, y));
+        }
     }
     [Fact]
     public void SmartHistoryCountsEmbeddedPackagesAndRestoresSource()
@@ -175,6 +179,9 @@ public sealed class LayerStyleWorkflowTests
     {
         var effect = new StyleEffect { Kind = StyleEffectKind.PatternOverlay, Pattern = StylePattern.Image, PatternPng = "bad png" };
         Assert.False(effect.IsValid); Assert.False(new BlendRange { White = 256 }.IsValid);
+        using var pattern = Bitmaps.Allocate(Bitmaps.ColorInfo(1, 1)); pattern.Erase(SKColors.Magenta);
+        var layer = Solid(SKColors.White); layer.Effects = new LayerEffects { Items = [new() { Kind = StyleEffectKind.PatternOverlay, Pattern = StylePattern.Checkerboard, PatternPng = Convert.ToBase64String(PngCodec.Encode(pattern)), Red = 1, Green2 = 1, Blue2 = 0 }] };
+        using var doc = Document(layer); using var image = DocumentRenderer.Render(doc); Assert.NotEqual(SKColors.Magenta, image.GetPixel(32, 32));
     }
     [Fact]
     public void SimpleSvgHasVectorGeometryAndEscapedNames()

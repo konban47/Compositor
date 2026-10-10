@@ -203,7 +203,8 @@ internal sealed class LayerStyleDialog : DialogWindow
     private void EffectOptions(StyleEffect e)
     {
         Heading(NameFor(e.Kind)); Check("Enable Effect", e.Enabled, v => { e.Enabled = v; Rebuild(); });
-        Mode("Blend Mode", e.BlendMode, v => e.BlendMode = v); Number("Opacity (%)", e.Opacity * 100, 0, 100, v => e.Opacity = v / 100);
+        if (e.Kind != StyleEffectKind.BevelEmboss) Mode("Blend Mode", e.BlendMode, v => e.BlendMode = v);
+        Number("Opacity (%)", e.Opacity * 100, 0, 100, v => e.Opacity = v / 100);
         if (e.Kind != StyleEffectKind.BevelEmboss) Color("Color", e);
         if (e.Kind is StyleEffectKind.DropShadow or StyleEffectKind.InnerShadow or StyleEffectKind.BevelEmboss)
             Check("Use Global Light", e.UseGlobalLight, v => { e.UseGlobalLight = v; Rebuild(); });

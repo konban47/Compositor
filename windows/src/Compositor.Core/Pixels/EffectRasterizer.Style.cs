@@ -145,7 +145,7 @@ public static partial class EffectRasterizer
         {
             var plane = new byte[canvas.Length];
             var fill = e.Kind == StyleEffectKind.GradientOverlay ? 1 : e.Kind == StyleEffectKind.PatternOverlay ? 2 : e.Kind == StyleEffectKind.Stroke ? e.FillType : 0;
-            using var pattern = fill == 2 && e.PatternPng is { } encoded ? DecodePattern(encoded) : null;
+            using var pattern = fill == 2 && e.Pattern == StylePattern.Image && e.PatternPng is { } encoded ? DecodePattern(encoded) : null;
             for (var y = 0; y < height; y++)
             for (var x = 0; x < width; x++)
             {
