@@ -1519,5 +1519,8 @@
   "The parent smart object is missing or locked.": "父文档中的智能对象不存在或已锁定。",
   "No separate foreground objects were found.": "未检测到独立的前景对象。",
   "Update Smart Object": "更新智能对象",
-  "Name:": "名称："
+  "Name:": "名称：",
+  "Switch Foreground and Background Colors (X)": "切换前景色和背景色 (X)",
+  "Default Foreground and Background Colors (D)": "默认前景色和背景色 (D)",
+  "Layer Opacity": "图层不透明度"
 }
