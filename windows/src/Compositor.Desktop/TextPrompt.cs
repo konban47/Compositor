@@ -22,9 +22,46 @@ internal sealed class TextPrompt : DialogWindow
         SizeToContent = SizeToContent.Height;
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        _box = new TextBox { Text = initial, Margin = new Thickness(0, 8, 0, 14) };
-        var ok = new Button { Content = Localize.Text("OK"), IsDefault = true };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        _box = new TextBox
+        {
+            Text = initial,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceDarkBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            Foreground = Skin.LabelBrush,
+            Margin = new Thickness(0, 8, 0, 14),
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        var ok = new Button
+        {
+            Content = Localize.Text("OK"),
+            IsDefault = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         ok.Click += (_, _) => Accept();
         cancel.Click += (_, _) => Close();
         _box.KeyDown += (_, pressed) =>
@@ -38,7 +75,7 @@ internal sealed class TextPrompt : DialogWindow
             Margin = new Thickness(16),
             Children =
             {
-                new TextBlock { Text = Localize.Text(label) },
+                new TextBlock { Text = Localize.Text(label), FontSize = 12, Foreground = Skin.LabelBrush },
                 _box,
                 new StackPanel
                 {

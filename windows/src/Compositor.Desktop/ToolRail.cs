@@ -98,8 +98,11 @@ internal sealed class ToolRail : Grid
         _marked = tool;
         foreach (var (button, tools) in _groups)
         {
-            button.Background = tools.Contains(tool) ? Skin.TabFront : Brushes.Transparent;
-            if (tools.Contains(tool)) { button.Tag = tool; button.Content = GroupIcon(tool, tools.Count > 1); }
+            var active = tools.Contains(tool);
+            button.Background = active ? Skin.SurfaceControlPressedBrush : Brushes.Transparent;
+            button.BorderBrush = active ? Skin.AccentBrush : Brushes.Transparent;
+            button.BorderThickness = new Thickness(active ? 1 : 0);
+            if (active) { button.Tag = tool; button.Content = GroupIcon(tool, tools.Count > 1); }
         }
         ShowShortcuts(_shortcuts);
     }
@@ -172,8 +175,21 @@ internal sealed class ToolRail : Grid
         foreach (var ids in _layout.Groups)
         {
             var group = ids.Select(Enum.Parse<Tool>).ToList(); if (group.Count == 0) continue;
-            var button = new Button { Content = GroupIcon(group[0], group.Count > 1), Tag = group[0], Width = 44, Height = 34, Padding = new Thickness(8, 5),
-                Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
+            var active = group.Contains(Tool.Pan);
+            var button = new Button
+            {
+                Content = GroupIcon(group[0], group.Count > 1),
+                Tag = group[0],
+                Width = 44,
+                Height = 34,
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(0),
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Background = active ? Skin.SurfaceControlPressedBrush : Brushes.Transparent,
+                BorderBrush = active ? Skin.AccentBrush : Brushes.Transparent,
+                BorderThickness = new Thickness(active ? 1 : 0),
+            };
             var heldOpen = false;
             void OpenGroup()
             {
@@ -204,7 +220,7 @@ internal sealed class ToolRail : Grid
     }
 
     /// <summary>
-    /// The two swatches, overlapping as the Mac draws them, with a swap and a reset under them. The foreground
+    /// The two swatches, overlapping as Photoshop draws them, with a swap and a reset under them. The foreground
     /// is the one in front, because it is the one that is painted with.
     /// </summary>
     private Control Colours()
@@ -218,14 +234,14 @@ internal sealed class ToolRail : Grid
         Canvas.SetTop(front, 4);
         swatches.Children.Add(back);
         swatches.Children.Add(front);
-        var swap = Small("⇄", "Swap the foreground and background colors");
-        var reset = Small("↺", "Put them back to black and white");
+        var swap = Small("⇄", "Switch Foreground and Background Colors (X)");
+        var reset = Small("◩", "Default Foreground and Background Colors (D)");
         swap.Click += (_, _) => ColoursSwapped?.Invoke();
         reset.Click += (_, _) => ColoursReset?.Invoke();
         var row = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 2,
+            Spacing = 4,
             HorizontalAlignment = HorizontalAlignment.Center,
             Children = { swap, reset },
         };
@@ -245,10 +261,11 @@ internal sealed class ToolRail : Grid
             Width = 24,
             Height = 24,
             Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(2),
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch,
             BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Colors.White, 0.35),
+            BorderBrush = new SolidColorBrush(Colors.White, 0.4),
         };
         ToolTip.SetTip(button, Localize.Text(foreground ? "Foreground color" : "Background color"));
         button.Click += (_, _) => ColourChosen?.Invoke(foreground);
@@ -265,9 +282,13 @@ internal sealed class ToolRail : Grid
             Width = 20,
             Height = 18,
             Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(2),
             FontSize = 11,
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
         };
         ToolTip.SetTip(button, Localize.Text(hint));
         return button;
@@ -347,87 +368,130 @@ internal sealed class ToolRail : Grid
             switch (Kind)
             {
                 case Tool.Pan:
-                    // A hand: a rounded palm with three fingers over it.
-                    context.DrawRectangle(null, pen, new Rect(At(6, 9), At(17, 19)));
-                    Line(8, 9, 8, 5);
-                    Line(11, 9, 11, 4);
-                    Line(14, 9, 14, 5);
-                    Line(4, 12, 6, 10);
+                    // Photoshop Hand Tool: open hand with palm, thumb and four fingers
+                    context.DrawGeometry(null, pen, Path([
+                        (7, 19), (6, 13), (3, 11), (2.5, 9), (5, 9.5), (6.5, 6), (8.5, 6), (8.5, 10),
+                        (9, 4), (11, 4), (11, 10), (11.5, 4.5), (13.5, 4.5), (13.5, 10), (14, 7), (16, 7), (16, 12), (15, 19)
+                    ], At, close: true));
+                    Line(7, 19, 15, 19);
                     break;
                 case Tool.Move:
-                    Line(11, 3, 11, 19);
-                    Line(3, 11, 19, 11);
-                    Line(9, 5, 11, 3);
-                    Line(13, 5, 11, 3);
-                    Line(9, 17, 11, 19);
-                    Line(13, 17, 11, 19);
-                    Line(5, 9, 3, 11);
-                    Line(5, 13, 3, 11);
-                    Line(17, 9, 19, 11);
-                    Line(17, 13, 19, 11);
+                    // Photoshop Move Tool: 4-directional solid arrow cross
+                    Line(4, 11, 18, 11);
+                    Line(11, 4, 11, 18);
+                    context.DrawGeometry(Ink, null, Path([(11, 2), (8, 6), (14, 6)], At, close: true));
+                    context.DrawGeometry(Ink, null, Path([(11, 20), (8, 16), (14, 16)], At, close: true));
+                    context.DrawGeometry(Ink, null, Path([(2, 11), (6, 8), (6, 14)], At, close: true));
+                    context.DrawGeometry(Ink, null, Path([(20, 11), (16, 8), (16, 14)], At, close: true));
+                    context.FillRectangle(Ink, new Rect(At(10, 10), At(12, 12)));
                     break;
                 case Tool.Marquee:
-                    context.DrawRectangle(null, dashed, new Rect(At(4, 5), At(18, 17)));
+                    // Photoshop Rectangular Marquee
+                    context.DrawRectangle(null, dashed, new Rect(At(3, 4), At(19, 18)));
                     break;
                 case Tool.Ellipse:
-                    context.DrawEllipse(null, dashed, At(11, 11), 7, 5.5);
+                    // Photoshop Elliptical Marquee
+                    context.DrawEllipse(null, dashed, At(11, 11), 8, 6);
                     break;
                 case Tool.Lasso:
-                    context.DrawEllipse(null, pen, At(11, 10), 6, 5);
-                    Line(7, 14, 4, 18);
+                    // Photoshop Lasso Tool: looped lasso rope with knot and tail
+                    context.DrawGeometry(null, pen, Path([
+                        (7, 13), (5, 9), (8, 4), (14, 4), (18, 8), (17, 13), (12, 15), (7, 13), (5, 16), (3, 19)
+                    ], At, close: false));
+                    Line(6, 12, 8, 15);
                     break;
                 case Tool.Polygon:
-                    context.DrawGeometry(null, pen, Path([(4, 17), (8, 5), (16, 5), (18, 16)], At, close: true));
+                    // Photoshop Polygonal Lasso Tool: closed polygon with anchor vertices
+                    context.DrawGeometry(null, pen, Path([(4, 16), (6, 5), (16, 4), (19, 13), (13, 18)], At, close: true));
+                    foreach (var (px, py) in new[] { (4, 16), (6, 5), (16, 4), (19, 13), (13, 18) })
+                        context.FillRectangle(Ink, new Rect(At(px - 1.2, py - 1.2), new Size(2.4, 2.4)));
                     break;
                 case Tool.Object:
+                    // Photoshop Object Selection Tool: marquee box with subject silhouette
+                    context.DrawRectangle(null, dashed, new Rect(At(2, 2), At(20, 20)));
+                    context.DrawEllipse(Ink, null, At(11, 8), 2.5, 2.5);
+                    context.DrawGeometry(Ink, null, Path([(6, 17), (7, 13), (10, 12), (12, 12), (15, 13), (16, 17)], At, close: true));
+                    break;
                 case Tool.Wand:
-                    Line(4, 18, 13, 9);
-                    Line(16, 3, 16, 9);
-                    Line(13, 6, 19, 6);
+                    // Photoshop Magic Wand Tool: diagonal wand with starburst sparkles
+                    Line(3, 19, 12, 10);
+                    context.DrawGeometry(Ink, null, Path([(10.5, 11.5), (12.5, 9.5), (13.5, 10.5), (11.5, 12.5)], At, close: true));
+                    // 4-point sparkle star at wand tip
+                    Line(17, 2, 17, 8);
+                    Line(14, 5, 20, 5);
+                    // Mini sparkles
+                    Line(11, 2.5, 11, 5.5);
+                    Line(9.5, 4, 12.5, 4);
+                    Line(19, 9.5, 19, 12.5);
+                    Line(17.5, 11, 20.5, 11);
                     break;
                 case Tool.Brush:
-                    Line(5, 18, 13, 10);
-                    context.DrawGeometry(Soft, null, Path([(12, 11), (17, 4), (18, 12)], At, close: true));
+                    // Photoshop Brush Tool: angled paintbrush with ferrule and curved bristles
+                    Line(19, 3, 14, 8);
+                    context.DrawGeometry(Ink, null, Path([(12, 7), (15, 10), (13.5, 11.5), (10.5, 8.5)], At, close: true));
+                    context.DrawGeometry(Soft, pen, Path([(10.5, 8.5), (13.5, 11.5), (9, 16), (4, 18), (6, 13)], At, close: true));
                     break;
                 case Tool.Clone:
-                    context.DrawRectangle(Soft, pen, new Rect(At(8, 3), At(14, 7)));
-                    Line(4, 10, 18, 10);
-                    context.DrawGeometry(null, pen, Path([(7, 11), (15, 11), (18, 19), (4, 19)], At, close: true));
+                    // Photoshop Clone Stamp Tool: contoured rubber stamp with knob and base pad
+                    context.DrawEllipse(Ink, null, At(11, 4), 3.5, 2.5);
+                    Line(11, 6, 11, 9);
+                    Line(8, 10, 14, 10);
+                    context.DrawGeometry(null, pen, Path([(5, 16), (6, 11), (16, 11), (17, 16)], At, close: true));
+                    Line(3, 18, 19, 18);
                     break;
                 case Tool.Blur:
-                    context.DrawEllipse(Soft, pen, At(11, 14), 4.5, 4.5);
-                    context.DrawGeometry(Soft, null, Path([(7, 12), (11, 4), (15, 12)], At, close: true));
+                    // Photoshop Blur Tool: smooth water teardrop with highlight
+                    context.DrawGeometry(Soft, pen, Path([(11, 3), (16, 11), (16, 14), (13.5, 18), (8.5, 18), (6, 14), (6, 11)], At, close: true));
+                    context.DrawGeometry(null, thin, Path([(8.5, 12), (8, 14), (9.5, 16)], At, close: false));
                     break;
                 case Tool.Liquify:
-                    Line(3, 13, 7, 9);
-                    Line(7, 9, 11, 13);
-                    Line(11, 13, 15, 9);
-                    Line(15, 9, 19, 13);
+                    // Photoshop Liquify Tool: warp distortion wave with center push arrow
+                    context.DrawGeometry(null, pen, Path([(3, 10), (7, 6), (11, 13), (15, 6), (19, 10)], At, close: false));
+                    context.DrawGeometry(null, pen, Path([(3, 15), (7, 11), (11, 18), (15, 11), (19, 15)], At, close: false));
+                    Line(11, 6, 11, 13);
+                    context.DrawGeometry(Ink, null, Path([(11, 15), (9, 12), (13, 12)], At, close: true));
                     break;
                 case Tool.Smudge:
-                    Line(3, 16, 8, 10);
-                    Line(8, 10, 13, 16);
-                    Line(13, 16, 17, 10);
-                    context.DrawEllipse(Soft, null, At(18, 9), 2.4, 2.4);
+                    // Photoshop Smudge Tool: finger pushing down and dragging paint
+                    context.DrawGeometry(null, pen, Path([(4, 15), (4, 9), (7, 6), (11, 6), (15, 10), (17, 13)], At, close: false));
+                    Line(11, 6, 17, 12);
+                    context.DrawEllipse(Ink, null, At(17, 12), 2, 2);
+                    Line(13, 16, 18, 16);
+                    Line(11, 18, 19, 18);
                     break;
                 case Tool.Heal:
-                    context.DrawEllipse(Soft, pen, At(11, 11), 7.5, 7.5);
-                    context.DrawEllipse(null, thin, At(11, 11), 3, 3);
+                    // Photoshop Spot Healing Brush: diagonal adhesive band-aid with perforated dots
+                    context.DrawGeometry(Soft, pen, Path([(8, 3), (17, 12), (14, 18), (4, 9)], At, close: true));
+                    Line(9, 7.5, 6.5, 10);
+                    Line(14.5, 13, 12, 15.5);
+                    context.DrawEllipse(Ink, null, At(10.5, 11.5), 1, 1);
+                    context.DrawEllipse(Ink, null, At(8.5, 9.5), 0.8, 0.8);
+                    context.DrawEllipse(Ink, null, At(12.5, 13.5), 0.8, 0.8);
                     break;
                 case Tool.Eyedropper:
-                    Line(6, 18, 15, 9);
-                    context.DrawGeometry(Soft, null, Path([(3, 19), (4, 15), (7, 18)], At, close: true));
-                    Line(12, 6, 16, 10);
+                    // Photoshop Eyedropper: angled pipette with rubber bulb, barrel and tip
+                    context.DrawGeometry(Ink, null, Path([(15, 6), (17, 3), (19, 5), (16, 8)], At, close: true));
+                    Line(15, 7, 9, 13);
+                    Line(13, 9, 7, 15);
+                    Line(14, 6, 16, 8);
+                    Line(9, 13, 4, 18);
+                    Line(7, 15, 4, 18);
+                    context.FillRectangle(Ink, new Rect(At(3, 18), At(5, 20)));
                     break;
                 case Tool.Type:
-                    Line(5, 5, 17, 5);
-                    Line(11, 5, 11, 19);
+                    // Photoshop Type Tool: bold serif capital 'T'
+                    Line(4, 5, 18, 5);
+                    Line(4, 5, 4, 8);
+                    Line(18, 5, 18, 8);
+                    Line(11, 5, 11, 18);
+                    Line(8, 18, 14, 18);
                     break;
                 case Tool.Crop:
-                    Line(4, 7, 16, 7);
-                    Line(16, 7, 16, 19);
-                    Line(7, 4, 7, 16);
-                    Line(7, 16, 19, 16);
+                    // Photoshop Crop Tool: two interlocking L-shaped cropping blades
+                    Line(4, 7, 17, 7);
+                    Line(7, 4, 7, 17);
+                    Line(5, 15, 18, 15);
+                    Line(15, 5, 15, 18);
                     break;
                 case Tool.ShapeEllipse:
                     context.DrawEllipse(null, pen, At(11, 11), 8, 6); break;
@@ -447,27 +511,35 @@ internal sealed class ToolRail : Grid
                 case Tool.PathSelection:
                     context.DrawGeometry(Soft, pen, Path([(4,2),(17,12),(11,13),(8,20)], At,true)); break;
                 case Tool.Shape:
-                    context.DrawRectangle(null, pen, new Rect(At(4, 4), At(14, 14)));
-                    context.DrawEllipse(null, pen, At(13, 13), 5, 5);
+                    // Photoshop Shape Tool: vector rectangle with corner anchor handles
+                    context.DrawRectangle(null, pen, new Rect(At(4, 5), At(18, 17)));
+                    foreach (var (sx, sy) in new[] { (3, 4), (17, 4), (17, 16), (3, 16) })
+                        context.FillRectangle(Ink, new Rect(At(sx, sy), new Size(2.5, 2.5)));
                     break;
                 case Tool.Gradient:
-                    context.DrawRectangle(null, pen, new Rect(At(4, 6), At(18, 16)));
-                    for (var step = 0; step < 5; step++)
+                    // Photoshop Gradient Tool: gradient bar swatch with progressive steps
+                    context.DrawRectangle(null, pen, new Rect(At(3, 6), At(19, 16)));
+                    for (var step = 0; step < 6; step++)
                     {
-                        context.FillRectangle(new SolidColorBrush(Colors.White, 0.15 + step * 0.2),
-                            new Rect(At(5 + step * 2.6, 7), At(6.6 + step * 2.6, 15)));
+                        var alpha = 0.12 + step * 0.16;
+                        context.FillRectangle(new SolidColorBrush(Colors.White, alpha),
+                            new Rect(At(4 + step * 2.3, 7), At(6.3 + step * 2.3, 15)));
                     }
                     break;
                 case Tool.HistoryBrush:
-                    // A clock, for going back to an earlier moment.
-                    context.DrawEllipse(null, pen, At(11, 11), 7, 7);
-                    Line(11, 11, 11, 6);
-                    Line(11, 11, 15, 13);
+                    // Photoshop History Brush Tool: paintbrush with circular rewind arrow
+                    context.DrawGeometry(null, pen, Path([(6, 12), (5, 9), (8, 5), (14, 5), (17, 8)], At, close: false));
+                    context.DrawGeometry(Ink, null, Path([(3, 10), (7, 13), (7, 9)], At, close: true));
+                    Line(11, 11, 17, 17);
+                    context.DrawGeometry(Soft, pen, Path([(8, 14), (11, 11), (12, 12), (9, 15)], At, close: true));
                     break;
                 case Tool.Path:
-                    context.DrawGeometry(null, pen, Path([(4, 17), (8, 6), (15, 8), (18, 17)], At, close: false));
-                    context.FillRectangle(Ink, new Rect(At(2.5, 15.5), At(5.5, 18.5)));
-                    context.FillRectangle(Ink, new Rect(At(12.5, 6.5), At(15.5, 9.5)));
+                    // Photoshop Pen Tool: fountain pen nib with slit and breather hole
+                    context.DrawGeometry(null, pen, Path([(11, 2), (16, 9), (14, 15), (8, 15), (6, 9)], At, close: true));
+                    context.DrawEllipse(Ink, null, At(11, 10), 1.5, 1.5);
+                    Line(11, 2, 11, 8.5);
+                    Line(8, 17, 14, 17);
+                    Line(8, 19, 14, 19);
                     break;
             }
         }

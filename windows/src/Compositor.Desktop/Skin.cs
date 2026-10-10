@@ -9,82 +9,108 @@ using Avalonia.Themes.Fluent;
 namespace Compositor.Desktop;
 
 /// <summary>
-/// The colours the interface is drawn in, taken from the Mac build rather than invented: every one names the
-/// Swift or AppKit value it comes from, so a change here can be checked against Compositor/*.swift. The Mac
-/// build asks for the dark appearance (<c>.preferredColorScheme(.dark)</c> in ContentView), so this port does
-/// too, and Fluent's own dark palette is then moved onto the Mac's greys and the Mac's blue where it differs.
+/// The colours and layout styling logic of the interface, designed to strictly follow Adobe Photoshop's
+/// professional Dark theme: neutral 0x32 dark grey chrome, 0x28 canvas pasteboard, 0x1473E6 Adobe blue accent,
+/// 0x22 dark inset control surfaces, and crisp 1px borders and high-readability typography hierarchy.
 /// </summary>
 internal static class Skin
 {
-    // ---- What the Mac build writes down ----
+    // ---- Photoshop Layout & Surface Colours ----
 
-    /// <summary><c>Color(white: 0.14)</c>: the editor's own background in ContentView.</summary>
-    public static readonly Color Chrome = Color.FromRgb(0x24, 0x24, 0x24);
+    /// <summary>Photoshop dark UI chrome: panel bodies, tool headers, options bar and window frame (#323232).</summary>
+    public static readonly Color Chrome = Color.FromRgb(0x32, 0x32, 0x32);
 
-    /// <summary><c>NSColor(white: 0.105)</c>: the pasteboard drawn behind the picture in EditorCanvas.draw.</summary>
-    public static readonly Color Pasteboard = Color.FromRgb(0x1B, 0x1B, 0x1B);
+    /// <summary>Photoshop workspace pasteboard behind document canvas (#282828).</summary>
+    public static readonly Color Pasteboard = Color.FromRgb(0x28, 0x28, 0x28);
 
-    /// <summary>The transparency checker: <c>NSColor(white: 0.30)</c> with <c>0.35</c> squares, 10 points each.</summary>
-    public static readonly Color CheckerBase = Color.FromRgb(0x4D, 0x4D, 0x4D);
-    public static readonly Color CheckerSquare = Color.FromRgb(0x59, 0x59, 0x59);
-    /// <summary>How wide one checker square is, in points, as the Mac's canvas draws it.</summary>
+    /// <summary>Deep recessed background for text inputs, number fields, listboxes, and slider tracks (#222222).</summary>
+    public static readonly Color SurfaceDark = Color.FromRgb(0x22, 0x22, 0x22);
+
+    /// <summary>Standard Photoshop button and toggle surface (#3D3D3D).</summary>
+    public static readonly Color SurfaceControl = Color.FromRgb(0x3D, 0x3D, 0x3D);
+
+    /// <summary>Photoshop control hover state (#4C4C4C).</summary>
+    public static readonly Color SurfaceControlHover = Color.FromRgb(0x4C, 0x4C, 0x4C);
+
+    /// <summary>Photoshop control pressed and active tool sunken state (#252525).</summary>
+    public static readonly Color SurfaceControlPressed = Color.FromRgb(0x25, 0x25, 0x25);
+
+    /// <summary>Subtle 1px border between docked workspace sections (#262626).</summary>
+    public static readonly Color BorderSubtle = Color.FromRgb(0x26, 0x26, 0x26);
+
+    /// <summary>Standard 1px control outline border (#464646).</summary>
+    public static readonly Color BorderControl = Color.FromRgb(0x46, 0x46, 0x46);
+
+    /// <summary>The transparency checker: Photoshop default neutral dark squares (#383838 and #454545).</summary>
+    public static readonly Color CheckerBase = Color.FromRgb(0x38, 0x38, 0x38);
+    public static readonly Color CheckerSquare = Color.FromRgb(0x45, 0x45, 0x45);
+    /// <summary>How wide one checker square is, in points.</summary>
     public const double CheckerSize = 10;
 
-    /// <summary><c>NSColor.white.withAlphaComponent(0.13)</c>: the hairline around the picture.</summary>
-    public static readonly Color PictureEdge = Color.FromArgb(0x21, 0xFF, 0xFF, 0xFF);
+    /// <summary>Photoshop hairline edge around document picture (#3F3F3F with subtle white glow).</summary>
+    public static readonly Color PictureEdge = Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF);
 
-    /// <summary><c>EditorSession.guideColor</c>: srgb(0, 1, 1) at 0.9, Photoshop's default guide colour.</summary>
+    /// <summary>Photoshop's default cyan guide colour: srgb(0, 1, 1) at 0.9 (#E600FFFF).</summary>
     public static readonly Color Guide = Color.FromArgb(0xE6, 0x00, 0xFF, 0xFF);
 
-    /// <summary>The layout grid's default look — Light Gray 0.7, majors at 45% and subdivisions at 28%.</summary>
+    /// <summary>The layout grid's look — Photoshop Light Gray grid with subtle subdivisions.</summary>
     public static readonly Color Grid = Color.FromArgb(0x73, 0xB3, 0xB3, 0xB3);
     public static readonly Color GridFine = Color.FromArgb(0x47, 0xB3, 0xB3, 0xB3);
 
-    /// <summary><c>NSColor(white: 0.55, alpha: 0.45)</c>: a line around every document pixel.</summary>
+    /// <summary>Photoshop pixel grid: subtle line around document pixels at high zoom.</summary>
     public static readonly Color PixelGrid = Color.FromArgb(0x73, 0x8C, 0x8C, 0x8C);
 
-    /// <summary><c>NSColor.black.withAlphaComponent(0.6)</c>: what a crop takes away.</summary>
+    /// <summary>Photoshop crop dim overlay: 60% black.</summary>
     public static readonly Color CropDim = Color.FromArgb(0x99, 0x00, 0x00, 0x00);
 
-    /// <summary>Ruler tick, label and the line that shuts the strip off, from CanvasRulers.</summary>
-    public static readonly Color RulerFace = Color.FromRgb(0x33, 0x33, 0x33);
-    public static readonly Color RulerTick = Color.FromRgb(0x9E, 0x9E, 0x9E);
-    public static readonly Color RulerLabel = Color.FromRgb(0xC7, 0xC7, 0xC7);
-    public static readonly Color RulerEdge = Color.FromRgb(0x14, 0x14, 0x14);
+    /// <summary>Photoshop ruler face, tick, label and edge (#2C2C2C, #808080, #B0B0B0, #1E1E1E).</summary>
+    public static readonly Color RulerFace = Color.FromRgb(0x2C, 0x2C, 0x2C);
+    public static readonly Color RulerTick = Color.FromRgb(0x80, 0x80, 0x80);
+    public static readonly Color RulerLabel = Color.FromRgb(0xB0, 0xB0, 0xB0);
+    public static readonly Color RulerEdge = Color.FromRgb(0x1E, 0x1E, 0x1E);
 
-    // ---- The Mac's system colours, at the values its dark appearance resolves them to ----
+    // ---- Adobe Photoshop Accent & Typography Colours ----
 
-    /// <summary><c>NSColor.controlAccentColor</c>, whose default is the system blue: dark-mode blue is #0A84FF.</summary>
-    public static readonly Color Accent = Color.FromRgb(0x0A, 0x84, 0xFF);
-    /// <summary>The shades a track, a thumb or a tick takes when the pointer is over it or it is held down.</summary>
-    public static readonly Color AccentHover = Color.FromRgb(0x4C, 0xA0, 0xFF);
-    public static readonly Color AccentPressed = Color.FromRgb(0x00, 0x60, 0xC9);
+    /// <summary>Adobe Photoshop signature accent blue (#1473E6).</summary>
+    public static readonly Color Accent = Color.FromRgb(0x14, 0x73, 0xE6);
+    /// <summary>Photoshop accent hover (#378EF0).</summary>
+    public static readonly Color AccentHover = Color.FromRgb(0x37, 0x8E, 0xF0);
+    /// <summary>Photoshop accent pressed (#0D5BBD).</summary>
+    public static readonly Color AccentPressed = Color.FromRgb(0x0D, 0x5B, 0xBD);
 
-    /// <summary><c>NSColor.labelColor</c> in the dark appearance: white at 0.85.</summary>
-    public static readonly Color Label = Color.FromArgb(0xD9, 0xFF, 0xFF, 0xFF);
-    /// <summary><c>NSColor.secondaryLabelColor</c>: white at 0.55, what `.secondary` resolves to.</summary>
-    public static readonly Color Secondary = Color.FromArgb(0x8C, 0xFF, 0xFF, 0xFF);
+    /// <summary>Photoshop primary text label: clean light grey (#E1E1E1).</summary>
+    public static readonly Color Label = Color.FromRgb(0xE1, 0xE1, 0xE1);
+    /// <summary>Photoshop secondary text label: neutral medium grey (#9E9E9E).</summary>
+    public static readonly Color Secondary = Color.FromRgb(0x9E, 0x9E, 0x9E);
+    /// <summary>Photoshop disabled text: muted dark grey (#666666).</summary>
+    public static readonly Color Disabled = Color.FromRgb(0x66, 0x66, 0x66);
 
-    // ---- How the app's own surfaces are painted with them ----
+    // ---- App Surface Brushes ----
 
     public static readonly IBrush ChromeBrush = new SolidColorBrush(Chrome);
     public static readonly IBrush PasteboardBrush = new SolidColorBrush(Pasteboard);
+    public static readonly IBrush SurfaceDarkBrush = new SolidColorBrush(SurfaceDark);
+    public static readonly IBrush SurfaceControlBrush = new SolidColorBrush(SurfaceControl);
+    public static readonly IBrush SurfaceControlHoverBrush = new SolidColorBrush(SurfaceControlHover);
+    public static readonly IBrush SurfaceControlPressedBrush = new SolidColorBrush(SurfaceControlPressed);
+    public static readonly IBrush BorderSubtleBrush = new SolidColorBrush(BorderSubtle);
+    public static readonly IBrush BorderControlBrush = new SolidColorBrush(BorderControl);
     public static readonly IBrush LabelBrush = new SolidColorBrush(Label);
     public static readonly IBrush SecondaryBrush = new SolidColorBrush(Secondary);
+    public static readonly IBrush DisabledBrush = new SolidColorBrush(Disabled);
     public static readonly IBrush AccentBrush = new SolidColorBrush(Accent);
 
-    /// <summary>The tab in front, and the ones behind it: `Color.white.opacity(0.12)` over the strip
-    /// (`0.035` when it is not the one being looked at), with a border of 0.22 and 0.08.</summary>
-    public static readonly IBrush TabFront = new SolidColorBrush(Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF));
-    public static readonly IBrush TabBack = new SolidColorBrush(Color.FromArgb(0x09, 0xFF, 0xFF, 0xFF));
-    public static readonly IBrush TabFrontEdge = new SolidColorBrush(Color.FromArgb(0x38, 0xFF, 0xFF, 0xFF));
-    public static readonly IBrush TabBackEdge = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
+    /// <summary>Photoshop active document tab: seamless #323232 body with #1473E6 top accent border.</summary>
+    public static readonly IBrush TabFront = new SolidColorBrush(Chrome);
+    /// <summary>Photoshop inactive document tab: darker #252525 body.</summary>
+    public static readonly IBrush TabBack = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x25));
+    public static readonly IBrush TabFrontEdge = new SolidColorBrush(Accent);
+    public static readonly IBrush TabBackEdge = new SolidColorBrush(BorderSubtle);
 
-    /// <summary>The line between the groups of a list, as AppKit draws <c>NSMenuItem.separator()</c> in the
-    /// dark appearance: white at 0.15.</summary>
-    public static readonly IBrush MenuRule = new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF));
+    /// <summary>Photoshop menu separator rule: #3E3E3E.</summary>
+    public static readonly IBrush MenuRule = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x3E));
 
-    /// <summary>Pens for the canvas's own drawing.</summary>
+    /// <summary>Pens for canvas drawing.</summary>
     public static readonly IPen PictureEdgePen = new Pen(new SolidColorBrush(PictureEdge), 1);
     public static readonly IPen GuidePen = new Pen(new SolidColorBrush(Guide), 1);
     public static readonly IPen SnapPen = new Pen(new SolidColorBrush(Accent), 1);
@@ -93,17 +119,14 @@ internal static class Skin
     public static readonly IPen PixelGridPen = new Pen(new SolidColorBrush(PixelGrid), 1);
     public static readonly IBrush CropDimBrush = new SolidColorBrush(CropDim);
 
-    /// <summary>The transform box: the accent's line, with white handles the accent outlines, as the Mac's
-    /// overlay draws them (a dark line behind it read as a grey halo around the box).</summary>
+    /// <summary>Photoshop transform box: crisp Adobe blue line with solid white handles.</summary>
     public static readonly IPen TransformPen = new Pen(new SolidColorBrush(Accent), 1);
     public static readonly IBrush HandleFill = Brushes.White;
     public static readonly IPen HandlePen = new Pen(new SolidColorBrush(Accent), 1);
 
-    /// <summary>A curve editor's ground and grid: the Mac puts `Color.black.opacity(0.35)` behind the graph and
-    /// draws its grid in `white.opacity(0.12)` — over the chrome that is these two, a drawing context having no
-    /// other way to stack them.</summary>
-    public static readonly IBrush CurveGround = new SolidColorBrush(Color.FromRgb(0x17, 0x17, 0x17));
-    public static readonly IBrush CurveGrid = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+    /// <summary>Photoshop curve editor ground and grid.</summary>
+    public static readonly IBrush CurveGround = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
+    public static readonly IBrush CurveGrid = new SolidColorBrush(Color.FromRgb(0x38, 0x38, 0x38));
 
     private static IBrush? _checker;
 
@@ -167,10 +190,36 @@ internal static class Skin
             moved++;
         }
 
-        // The Mac's chrome, its label and its secondary text, where Fluent's own would be black, white and grey.
+        // Photoshop's chrome, its primary label and secondary text
         moved += Wear(dark, "SystemControlBackgroundAltHighBrush", Chrome);
         moved += Wear(dark, "SystemControlForegroundBaseHighBrush", Label);
         moved += Wear(dark, "SystemControlForegroundBaseMediumBrush", Secondary);
+
+        // Photoshop control surfaces and borders
+        moved += Wear(dark, "ButtonBackground", SurfaceControl);
+        moved += Wear(dark, "ButtonBackgroundPointerOver", SurfaceControlHover);
+        moved += Wear(dark, "ButtonBackgroundPressed", SurfaceControlPressed);
+        moved += Wear(dark, "ButtonBorderBrush", BorderControl);
+        moved += Wear(dark, "ButtonForeground", Label);
+
+        moved += Wear(dark, "TextControlBackground", SurfaceDark);
+        moved += Wear(dark, "TextControlBackgroundPointerOver", Color.FromRgb(0x28, 0x28, 0x28));
+        moved += Wear(dark, "TextControlBackgroundFocused", SurfaceDark);
+        moved += Wear(dark, "TextControlBorderBrush", BorderControl);
+        moved += Wear(dark, "TextControlBorderBrushFocused", Accent);
+        moved += Wear(dark, "TextControlForeground", Label);
+
+        moved += Wear(dark, "ComboBoxBackground", SurfaceControl);
+        moved += Wear(dark, "ComboBoxBackgroundPointerOver", SurfaceControlHover);
+        moved += Wear(dark, "ComboBoxBorderBrush", BorderControl);
+
+        moved += Wear(dark, "ListBoxBackground", SurfaceDark);
+        moved += Wear(dark, "SliderTrackValueFill", Accent);
+        moved += Wear(dark, "SliderThumbBackground", Color.FromRgb(0xA6, 0xA6, 0xA6));
+        moved += Wear(dark, "SliderThumbBackgroundPointerOver", Color.FromRgb(0xD0, 0xD0, 0xD0));
+        moved += Wear(dark, "CheckBoxCheckBackgroundFillChecked", Accent);
+        moved += Wear(dark, "RadioButtonOuterEllipseFillChecked", Accent);
+
         return moved;
     }
 

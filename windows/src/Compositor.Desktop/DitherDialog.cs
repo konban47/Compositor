@@ -139,9 +139,47 @@ internal sealed class DitherDialog : DialogWindow
             },
         }, TwoColours);
 
-        var ok = new Button { Content = Localize.Text("Apply"), IsDefault = true };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
-        var reset = new Button { Content = Localize.Text("Reset") };
+        var ok = new Button
+        {
+            Content = Localize.Text("Apply"),
+            IsDefault = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var reset = new Button
+        {
+            Content = Localize.Text("Reset"),
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         ok.Click += (_, _) => Accept();
         cancel.Click += (_, _) => Close();
         reset.Click += (_, _) => Restore(defaults);
@@ -228,7 +266,7 @@ internal sealed class DitherDialog : DialogWindow
         Spacing = 8,
         Children =
         {
-            new TextBlock { Text = Localize.Text(label), Width = 130, VerticalAlignment = VerticalAlignment.Center },
+            new TextBlock { Text = Localize.Text(label), Width = 130, FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center },
             box,
         },
     }, applies);
@@ -258,7 +296,7 @@ internal sealed class DitherDialog : DialogWindow
         Action<DitherSettings, double> set, string format, Func<bool> applies)
     {
         var slider = new Slider { Minimum = least, Maximum = most, Value = value, Width = 240 };
-        var readout = new TextBlock { Text = Localize.Text(""), Width = 44, VerticalAlignment = VerticalAlignment.Center };
+        var readout = new TextBlock { Text = Localize.Text(""), Width = 44, FontSize = 11, Foreground = Skin.SecondaryBrush, VerticalAlignment = VerticalAlignment.Center };
         void Show() => readout.Text = slider.Value.ToString(format);
         slider.PropertyChanged += (_, change) =>
         {
@@ -273,7 +311,7 @@ internal sealed class DitherDialog : DialogWindow
             Spacing = 8,
             Children =
             {
-                new TextBlock { Text = Localize.Text(label), Width = 130, VerticalAlignment = VerticalAlignment.Center },
+                new TextBlock { Text = Localize.Text(label), Width = 130, FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center },
                 slider,
                 readout,
             },

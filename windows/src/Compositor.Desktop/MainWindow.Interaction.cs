@@ -120,7 +120,7 @@ public sealed partial class MainWindow
     private Control LayerRow(ImageLayer layer, int depth, string notes)
     {
         ImageLayer? Current() => _document?.Layers.FirstOrDefault(item => item.ID == layer.ID);
-        var eye = new Button { Content = new LayerEye(layer.IsVisible) { Width = 20, Height = 20 }, Width = 28, Height = 32,
+        var eye = new Button { Content = new LayerEye(layer.IsVisible) { Width = 18, Height = 18 }, Width = 28, Height = 32,
             Padding = new Thickness(3), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Focusable = false, Tag = "visibility" };
         ToolTip.SetTip(eye, Localize.Text(layer.IsVisible ? "Hide Layer" : "Show Layer"));
         Avalonia.Automation.AutomationProperties.SetName(eye, Localize.Text(layer.IsVisible ? "Hide Layer" : "Show Layer"));
@@ -130,7 +130,7 @@ public sealed partial class MainWindow
             Edit("Layer Visibility", () => LayerEdits.SetVisible(document, current.ID, !current.IsVisible));
             ShowLayers(document);
         };
-        var panel = new Grid { ColumnDefinitions = new ColumnDefinitions("28,Auto,Auto,Auto,Auto,*,24"), MinHeight = 42 };
+        var panel = new Grid { ColumnDefinitions = new ColumnDefinitions("28,Auto,Auto,Auto,Auto,*,24"), MinHeight = 36 };
         panel.Children.Add(eye);
         var arrow = new Button { Content = layer.IsGroup ? (_open.Collapsed.Contains(layer.ID) ? "▸" : "▾") : "",
             Width = 18, Height = 28, Margin = new Thickness(depth * 10, 0, 0, 0), Padding = new Thickness(0),
@@ -164,7 +164,7 @@ public sealed partial class MainWindow
             mask.PointerPressed += (_, e) => { SelectLayerRow(layer.ID); SetPaintingMask(true); e.Handled = true; };
             Grid.SetColumn(mask, 4); panel.Children.Add(mask);
         }
-        var name = new TextBlock { Text = layer.Name + (layer.LinkID is not null ? "  ↔" : ""), Foreground = Ink,
+        var name = new TextBlock { Text = layer.Name + (layer.LinkID is not null ? "  ↔" : ""), Foreground = Ink, FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 2, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         ToolTip.SetTip(name, layer.Name + notes); Grid.SetColumn(name, 5); panel.Children.Add(name);
         if (layer.Locks != LayerLocks.None || _document is { } doc && LayerProtection.Effective(doc, layer.ID) != LayerLocks.None)
@@ -250,9 +250,19 @@ internal sealed class LayerEye(bool visible) : Control
 {
     public override void Render(DrawingContext context)
     {
-        var pen = new Pen(Skin.LabelBrush, 1.5);
-        var shape = StreamGeometry.Parse(visible ? "M1,10 Q10,0 19,10 Q10,20 1,10 Z" : "M1,8 Q10,19 19,8 M3,11 L1,15 M10,14 L10,18 M17,11 L19,15");
-        context.DrawGeometry(null, pen, shape);
-        if (visible) context.DrawEllipse(Skin.LabelBrush, null, new Point(10, 10), 2.5, 2.5);
+        var pen = new Pen(Skin.LabelBrush, 1.4) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        if (visible)
+        {
+            var shape = StreamGeometry.Parse("M2,10 Q10,2 18,10 Q10,18 2,10 Z");
+            context.DrawGeometry(null, pen, shape);
+            context.DrawEllipse(Skin.LabelBrush, null, new Point(10, 10), 2.8, 2.8);
+        }
+        else
+        {
+            var shape = StreamGeometry.Parse("M3,11 Q10,17 17,11");
+            context.DrawGeometry(null, new Pen(Skin.SecondaryBrush, 1.2), shape);
+            var slash = new Pen(Skin.SecondaryBrush, 1.2) { LineCap = PenLineCap.Round };
+            context.DrawLine(slash, new Point(4, 16), new Point(16, 4));
+        }
     }
 }

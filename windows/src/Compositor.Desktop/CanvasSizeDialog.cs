@@ -24,8 +24,30 @@ internal sealed class CanvasSizeDialog : DialogWindow
         SizeToContent = SizeToContent.Height;
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        _width = new TextBox { Text = width.ToString(), Width = 100 };
-        _height = new TextBox { Text = height.ToString(), Width = 100 };
+        _width = new TextBox
+        {
+            Text = width.ToString(),
+            Width = 100,
+            Height = 24,
+            FontSize = 11.5,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceDarkBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            Foreground = Skin.LabelBrush,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        _height = new TextBox
+        {
+            Text = height.ToString(),
+            Width = 100,
+            Height = 24,
+            FontSize = 11.5,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceDarkBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            Foreground = Skin.LabelBrush,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
         // Row-major from the top left, the order CanvasEdits numbers its anchors in.
         _anchor.ItemsSource = new[]
         {
@@ -35,9 +57,41 @@ internal sealed class CanvasSizeDialog : DialogWindow
         };
         _anchor.SelectedIndex = Math.Clamp(anchor, 0, 8);
         _anchor.Width = 140;
+        _anchor.Height = 24;
+        _anchor.FontSize = 11.5;
+        _anchor.CornerRadius = new CornerRadius(2);
+        _anchor.Background = Skin.SurfaceControlBrush;
+        _anchor.BorderBrush = Skin.BorderControlBrush;
+        _anchor.VerticalContentAlignment = VerticalAlignment.Center;
 
-        var ok = new Button { Content = Localize.Text("OK"), IsDefault = true };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        var ok = new Button
+        {
+            Content = Localize.Text("OK"),
+            IsDefault = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         ok.Click += (_, _) => Accept();
         cancel.Click += (_, _) => Close();
 
@@ -73,7 +127,7 @@ internal sealed class CanvasSizeDialog : DialogWindow
         Spacing = 8,
         Children =
         {
-            new TextBlock { Text = Localize.Text(label), Width = 120, VerticalAlignment = VerticalAlignment.Center },
+            new TextBlock { Text = Localize.Text(label), Width = 120, FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center },
             control,
         },
     };

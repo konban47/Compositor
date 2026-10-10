@@ -13,16 +13,64 @@ namespace Compositor.Desktop;
 internal sealed class ExportAsDialog : DialogWindow
 {
     private readonly CanvasDocument _document;
-    private readonly ComboBox _format = new() { ItemsSource = new[] { "PNG", "JPEG", "PDF" }, Width = 170 };
+    private readonly ComboBox _format = new()
+    {
+        ItemsSource = new[] { "PNG", "JPEG", "PDF" },
+        Width = 170,
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceControlBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
     private readonly NumericUpDown _width = Dimension();
     private readonly NumericUpDown _height = Dimension();
-    private readonly CheckBox _linked = new() { Content = Localize.Text("Constrain Proportions"), IsChecked = true };
-    private readonly NumericUpDown _quality = new() { Minimum = 1, Maximum = 100, Value = 90, Width = 170 };
-    private readonly CheckBox _transparent = new() { Content = Localize.Text("Transparency"), IsChecked = true };
-    private readonly ComboBox _background = new() { ItemsSource = new[] { Localize.Text("White"), Localize.Text("Black") }, SelectedIndex = 0, Width = 170 };
+    private readonly CheckBox _linked = new() { Content = Localize.Text("Constrain Proportions"), FontSize = 11.5, IsChecked = true };
+    private readonly NumericUpDown _quality = new()
+    {
+        Minimum = 1,
+        Maximum = 100,
+        Value = 90,
+        Width = 170,
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        Foreground = Skin.LabelBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
+    private readonly CheckBox _transparent = new() { Content = Localize.Text("Transparency"), FontSize = 11.5, IsChecked = true };
+    private readonly ComboBox _background = new()
+    {
+        ItemsSource = new[] { Localize.Text("White"), Localize.Text("Black") },
+        SelectedIndex = 0,
+        Width = 170,
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceControlBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
     private readonly Image _preview = new() { Stretch = Stretch.Uniform, Margin = new Thickness(12) };
-    private readonly TextBlock _size = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly Button _export = new() { Content = Localize.Text("Export"), IsDefault = true, IsEnabled = false };
+    private readonly TextBlock _size = new() { TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Skin.SecondaryBrush };
+    private readonly Button _export = new()
+    {
+        Content = Localize.Text("Export"),
+        IsDefault = true,
+        IsEnabled = false,
+        MinWidth = 80,
+        Height = 26,
+        FontSize = 12,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.AccentBrush,
+        BorderBrush = Skin.AccentBrush,
+        BorderThickness = new Thickness(1),
+        Foreground = Brushes.White,
+        HorizontalContentAlignment = HorizontalAlignment.Center,
+    };
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(220) };
     private ExportResult? _encoded;
     private WriteableBitmap? _bitmap;
@@ -37,11 +85,24 @@ internal sealed class ExportAsDialog : DialogWindow
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _width.Value = document.Width; _height.Value = document.Height; _format.SelectedIndex = (int)format;
         var controls = new StackPanel { Spacing = 9, Margin = new Thickness(18), Width = 230 };
-        void Add(string label, Control control) { controls.Children.Add(new TextBlock { Text = Localize.Text(label) }); controls.Children.Add(control); }
+        void Add(string label, Control control) { controls.Children.Add(new TextBlock { Text = Localize.Text(label), FontSize = 11.5, Foreground = Skin.LabelBrush }); controls.Children.Add(control); }
         Add("Format", _format); Add("Width, pixels", _width); Add("Height, pixels", _height);
         controls.Children.Add(_linked); Add("Quality", _quality); controls.Children.Add(_transparent); Add("Background", _background);
         controls.Children.Add(_size);
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 80,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         cancel.Click += (_, _) => Close();
         _export.Click += (_, _) => { if (_encoded is null) return; Result = (Options(), _encoded.Bytes); Close(); };
         controls.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Children = { cancel, _export } });
@@ -57,7 +118,21 @@ internal sealed class ExportAsDialog : DialogWindow
         Closed += (_, _) => { _closed = true; _revision++; _timer.Stop(); _bitmap?.Dispose(); _encoded?.Dispose(); _document.Dispose(); };
     }
 
-    private static NumericUpDown Dimension() => new() { Minimum = 1, Maximum = DocumentLimits.MaxSide, Increment = 1, FormatString = "0", Width = 170 };
+    private static NumericUpDown Dimension() => new()
+    {
+        Minimum = 1,
+        Maximum = DocumentLimits.MaxSide,
+        Increment = 1,
+        FormatString = "0",
+        Width = 170,
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        Foreground = Skin.LabelBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
     private ExportOptions Options() => new((ExportFormat)_format.SelectedIndex, (int)(_width.Value ?? 1), (int)(_height.Value ?? 1),
         (int)(_quality.Value ?? 90), _transparent.IsChecked == true, _background.SelectedIndex == 1 ? SKColors.Black : SKColors.White, _document.Resolution);
     private void DimensionChanged(bool width)

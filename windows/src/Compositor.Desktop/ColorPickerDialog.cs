@@ -21,9 +21,27 @@ internal sealed class ColorPickerDialog : DialogWindow
     private readonly PickerHsb _hsb;
     private readonly SvField _field;
     private readonly HueStrip _hue;
-    private readonly Border _preview = new() { Width = 64, Height = 64, CornerRadius = new CornerRadius(5) };
+    private readonly Border _preview = new()
+    {
+        Width = 64,
+        Height = 64,
+        CornerRadius = new CornerRadius(2),
+        BorderBrush = Skin.BorderControlBrush,
+        BorderThickness = new Thickness(1),
+    };
     private readonly NumericUpDown[] _channels = new NumericUpDown[3];
-    private readonly TextBox _hex = new() { Width = 84, FontFamily = new FontFamily("Consolas,Menlo,monospace") };
+    private readonly TextBox _hex = new()
+    {
+        Width = 84,
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        Foreground = Skin.LabelBrush,
+        FontFamily = new FontFamily("Consolas,Menlo,monospace"),
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
     private bool _showing;
     private bool _done;
 
@@ -66,8 +84,34 @@ internal sealed class ColorPickerDialog : DialogWindow
         _hue = new HueStrip(_hsb);
         _hue.Changed += Refresh;
 
-        var ok = new Button { Content = Localize.Text("OK"), IsDefault = true };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        var ok = new Button
+        {
+            Content = Localize.Text("OK"),
+            IsDefault = true,
+            MinWidth = 68,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 68,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         Ok = ok;
         Cancel = cancel;
         ok.Click += (_, _) =>
@@ -97,8 +141,15 @@ internal sealed class ColorPickerDialog : DialogWindow
                 // Wide enough for the three digits and the spinner beside them, which a narrower one squeezes
                 // out of sight.
                 Width = 112,
+                Height = 24,
+                FontSize = 11.5,
+                CornerRadius = new CornerRadius(2),
+                Background = Skin.SurfaceDarkBrush,
+                BorderBrush = Skin.BorderControlBrush,
+                Foreground = Skin.LabelBrush,
                 FormatString = "0",
                 ClipValueToMinMax = true,
+                VerticalContentAlignment = VerticalAlignment.Center,
             };
             amount.ValueChanged += (_, _) =>
             {

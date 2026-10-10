@@ -36,14 +36,14 @@ public sealed partial class MainWindow
 
     private Control BuildInspector(Control layers)
     {
-        _inspectorTabs.Items.Add(new TabItem { Header = Localize.Text("Properties"), FontSize = 13,
+        _inspectorTabs.Items.Add(new TabItem { Header = Localize.Text("Properties"), FontSize = 11.5, FontWeight = FontWeight.SemiBold,
             Content = new ScrollViewer { Content = _properties, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } });
-        _inspectorTabs.Items.Add(new TabItem { Header = Localize.Text("History"), FontSize = 13, Content = BuildHistoryPanel() });
+        _inspectorTabs.Items.Add(new TabItem { Header = Localize.Text("History"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Content = BuildHistoryPanel() });
         _inspectorTabs.SelectedIndex = 0;
-        var dock = new Grid { RowDefinitions = new RowDefinitions("4*,5,5*") };
+        var dock = new Grid { RowDefinitions = new RowDefinitions("4*,4,5*") };
         _inspectorTabs.MinHeight = 100; layers.MinHeight = 150;
         dock.Children.Add(_inspectorTabs);
-        var splitter = new GridSplitter { ResizeDirection = GridResizeDirection.Rows, HorizontalAlignment = HorizontalAlignment.Stretch, Background = new SolidColorBrush(Skin.RulerFace) };
+        var splitter = new GridSplitter { ResizeDirection = GridResizeDirection.Rows, HorizontalAlignment = HorizontalAlignment.Stretch, Background = Skin.BorderSubtleBrush };
         Grid.SetRow(splitter, 1); dock.Children.Add(splitter);
         Grid.SetRow(layers, 2); dock.Children.Add(layers);
         return dock;
@@ -84,8 +84,8 @@ public sealed partial class MainWindow
         var heading = MaskTarget ? layer.Mask!.VectorPath is null ? "Layer Mask" : "Vector Mask"
             : SelectedLayers.Count > 1 ? "Multiple Layers" : layer.IsGroup ? "Group" : layer.LiveText is not null ? "Type Layer"
             : layer.LiveShape is not null ? "Shape Layer" : layer.Adjustment is not null ? "Adjustment Layer" : "Pixel Layer";
-        _properties.Children.Add(new TextBlock { Text = Localize.Text(heading), FontSize = 15, FontWeight = FontWeight.SemiBold });
-        _properties.Children.Add(new TextBlock { Text = layer.Name, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Skin.SecondaryBrush });
+        _properties.Children.Add(new TextBlock { Text = Localize.Text(heading), FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Skin.LabelBrush });
+        _properties.Children.Add(new TextBlock { Text = layer.Name, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Skin.SecondaryBrush });
         if (MaskTarget) { BuildMaskProperties(layer); return; }
         BuildTransformProperties(layer);
         if (layer.LiveText is { } text) BuildTextProperties(layer.ID, text);
@@ -111,11 +111,25 @@ public sealed partial class MainWindow
         if (quick.Children.Count > 0) Section("Quick Actions", quick);
     }
 
-    private static TextBlock PropertyLabel(string text) => new() { Text = Localize.Text(text), FontSize = 12, TextWrapping = TextWrapping.Wrap };
+    private static TextBlock PropertyLabel(string text) => new() { Text = Localize.Text(text), FontSize = 11, Foreground = Skin.SecondaryBrush, TextWrapping = TextWrapping.Wrap };
     private static Button PropertyAction(string text, Action action)
     {
-        var button = new Button { Content = Localize.Text(text), HorizontalAlignment = HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Center, MinHeight = 28, Padding = new Thickness(7, 3), Tag = text };
+        var button = new Button
+        {
+            Content = Localize.Text(text),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            MinHeight = 24,
+            Height = 24,
+            FontSize = 11,
+            Padding = new Thickness(6, 2),
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            Tag = text,
+        };
         ToolTip.SetTip(button, Localize.Text(text));
         button.Click += (_, _) => action(); return button;
     }
@@ -152,8 +166,23 @@ public sealed partial class MainWindow
     private static Control PropertyField(string label, Control field) => new StackPanel { Spacing = 2, Children = { PropertyLabel(label), field } };
     private static NumericUpDown PropertyNumber(string tag, double value, double min, double max, Action<double> changed)
     {
-        var input = new NumericUpDown { Value = (decimal)value, Minimum = (decimal)min, Maximum = (decimal)max,
-            FormatString = "0.##", ShowButtonSpinner = false, Increment = 1, HorizontalAlignment = HorizontalAlignment.Stretch, Tag = tag };
+        var input = new NumericUpDown
+        {
+            Value = (decimal)value,
+            Minimum = (decimal)min,
+            Maximum = (decimal)max,
+            FormatString = "0.##",
+            ShowButtonSpinner = false,
+            Increment = 1,
+            Height = 24,
+            FontSize = 11,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceDarkBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            Foreground = Skin.LabelBrush,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Tag = tag,
+        };
         var last = (decimal)value;
         void Commit()
         {

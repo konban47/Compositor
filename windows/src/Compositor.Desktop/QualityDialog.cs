@@ -26,8 +26,34 @@ internal sealed class QualityDialog : DialogWindow
             if (change.Property == Slider.ValueProperty) readout.Text = ((int)_quality.Value).ToString();
         };
 
-        var ok = new Button { Content = Localize.Text("Export"), IsDefault = true };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        var ok = new Button
+        {
+            Content = Localize.Text("Export"),
+            IsDefault = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         ok.Click += (_, _) =>
         {
             _result = (int)Math.Clamp(_quality.Value, 1, 100);
@@ -41,14 +67,14 @@ internal sealed class QualityDialog : DialogWindow
             Spacing = 8,
             Children =
             {
-                new TextBlock { Text = Localize.Text("Higher keeps more of the picture and makes a larger file.") },
+                new TextBlock { Text = Localize.Text("Higher keeps more of the picture and makes a larger file."), FontSize = 11, Foreground = Skin.SecondaryBrush },
                 new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
                     Spacing = 8,
                     Children =
                     {
-                        new TextBlock { Text = Localize.Text("Quality"), Width = 70, VerticalAlignment = VerticalAlignment.Center },
+                        new TextBlock { Text = Localize.Text("Quality"), Width = 70, FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center },
                         _quality,
                         readout,
                     },

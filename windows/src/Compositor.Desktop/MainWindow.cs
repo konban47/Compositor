@@ -749,8 +749,10 @@ public sealed partial class MainWindow : Window
 
         var statusBar = new Border
         {
-            Height = 28,
-            Background = Panel,
+            Height = 24,
+            Background = Skin.SurfaceDarkBrush,
+            BorderBrush = Skin.BorderSubtleBrush,
+            BorderThickness = new Thickness(0, 1, 0, 0),
             Child = new DockPanel { Children = { _statusInfo, _status } },
         };
         DockPanel.SetDock(_statusInfo, Dock.Left);
@@ -760,8 +762,10 @@ public sealed partial class MainWindow : Window
         // controls, which is what the Mac puts in its window toolbar.
         var tabs = new Border
         {
-            Background = Panel,
-            Padding = new Thickness(8, 4, 8, 4),
+            Background = Skin.ChromeBrush,
+            BorderBrush = Skin.BorderSubtleBrush,
+            BorderThickness = new Thickness(0, 1, 0, 1),
+            Padding = new Thickness(6, 2, 6, 2),
             Child = Toolbar(),
         };
         DockPanel.SetDock(menu, Dock.Top);
@@ -797,13 +801,26 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private Control Toolbar()
     {
-        var add = new Button { Content = Localize.Text("＋"), Padding = new Thickness(8, 0, 8, 0) };
+        var add = new Button
+        {
+            Content = Localize.Text("＋"),
+            Height = 24,
+            Width = 26,
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            FontSize = 12,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
         ToolTip.SetTip(add, Localize.Text("New canvas"));
         add.Click += (_, _) => _ = NewProject();
         var zooms = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 4,
+            Spacing = 3,
             Children =
             {
                 ViewButton("Fit", "Fit the canvas in the window", () => _canvas.Fit()),
@@ -829,7 +846,19 @@ public sealed partial class MainWindow : Window
     /// <summary>A button of the toolbar: the same command a View menu row is, with the status line refreshed.</summary>
     private Button ViewButton(string text, string hint, Action act)
     {
-        var button = new Button { Content = Localize.Text(text), Padding = new Thickness(8, 2, 8, 2) };
+        var button = new Button
+        {
+            Content = Localize.Text(text),
+            Height = 24,
+            Padding = new Thickness(7, 2, 7, 2),
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            FontSize = 11,
+            Foreground = Skin.LabelBrush,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
         ToolTip.SetTip(button, Localize.Text(hint));
         button.Click += (_, _) =>
         {
@@ -2874,39 +2903,73 @@ public sealed partial class MainWindow : Window
         Say($"{tab.Name} closed");
     }
 
-    /// <summary>The tab strip: a button a tab, the one in front marked, and a way to start another.</summary>
+    /// <summary>The tab strip: a button a tab, styled as Photoshop rectangular document tabs.</summary>
     private void RefreshTabs()
     {
         _tabStrip.Children.Clear();
         foreach (var tab in _tabs)
         {
-            // The buttons carry the tab, so they are left unpainted and the capsule behind them shows.
-            var name = new Button { Content = tab.Name, Tag = tab, Background = Brushes.Transparent };
+            var front = ReferenceEquals(tab, _open);
+            var name = new Button
+            {
+                Content = tab.Name,
+                Tag = tab,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                FontSize = 11.5,
+                FontWeight = front ? FontWeight.SemiBold : FontWeight.Normal,
+                Foreground = front ? Skin.LabelBrush : Skin.SecondaryBrush,
+                Padding = new Thickness(4, 2, 4, 2),
+                VerticalContentAlignment = VerticalAlignment.Center,
+            };
             name.Click += (_, _) => Bring(tab);
             var close = new Button
             {
-                Content = Localize.Text("×"), Padding = new Thickness(4, 0, 4, 0), Tag = tab, Background = Brushes.Transparent,
+                Content = Localize.Text("×"),
+                Width = 16,
+                Height = 16,
+                Padding = new Thickness(0),
+                Tag = tab,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                FontSize = 11,
+                Foreground = Skin.SecondaryBrush,
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
             };
             close.IsVisible = _tabs.Count > 1 || tab.Document is not null || tab.Path is not null;
             close.Click += (_, _) => _ = CloseTab(tab);
-            // A tab is a capsule, as the Mac draws one: the one in front the brighter of the two.
-            var front = ReferenceEquals(tab, _open);
             _tabStrip.Children.Add(new Border
             {
                 Background = front ? Skin.TabFront : Skin.TabBack,
                 BorderBrush = front ? Skin.TabFrontEdge : Skin.TabBackEdge,
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(11),
-                Padding = new Thickness(8, 0, 2, 0),
+                BorderThickness = new Thickness(0, front ? 2 : 1, 0, 0),
+                CornerRadius = new CornerRadius(2, 2, 0, 0),
+                Padding = new Thickness(8, 2, 4, 2),
+                Margin = new Thickness(2, 0, 2, 0),
                 Child = new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
-                    Spacing = 2,
+                    Spacing = 3,
                     Children = { name, close },
                 },
             });
         }
-        var add = new Button { Content = Localize.Text("+"), Padding = new Thickness(8, 0, 8, 0) };
+        var add = new Button
+        {
+            Content = Localize.Text("+"),
+            Width = 20,
+            Height = 20,
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            FontSize = 11,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 2, 0, 0),
+        };
         add.Click += (_, _) => _ = NewProject();
         _tabStrip.Children.Add(add);
     }
@@ -3020,9 +3083,21 @@ public sealed partial class MainWindow : Window
         // mode at its index: _blendRows says what each one is.
         _blendRows.Clear();
         _blendRows.AddRange(GroupedChoice.Fill(_blend, LayerEdits.BlendGroups, mode => Spell(mode)));
-        _blend.Width = 125;
-        _opacity.Width = 76;
+        _blend.Width = 115;
+        _blend.Height = 24;
+        _blend.FontSize = 11;
+        _blend.CornerRadius = new CornerRadius(2);
+        _blend.Background = Skin.SurfaceControlBrush;
+        _blend.BorderBrush = Skin.BorderControlBrush;
+        _blend.VerticalContentAlignment = VerticalAlignment.Center;
+
+        _opacity.Width = 72;
+        _opacity.Height = 20;
+
         _opacityReadout.Width = 35;
+        _opacityReadout.FontSize = 11;
+        _opacityReadout.Foreground = Skin.LabelBrush;
+
         _blend.SelectionChanged += (_, _) =>
         {
             if (_showingAppearance) return;
@@ -3064,7 +3139,7 @@ public sealed partial class MainWindow : Window
         return new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 5,
-            Children = { _blend, new TextBlock { Text = Localize.Text("Opacity"), VerticalAlignment = VerticalAlignment.Center }, _opacity, _opacityReadout },
+            Children = { _blend, new TextBlock { Text = Localize.Text("Opacity"), FontSize = 11, Foreground = Skin.SecondaryBrush, VerticalAlignment = VerticalAlignment.Center }, _opacity, _opacityReadout },
         };
     }
 

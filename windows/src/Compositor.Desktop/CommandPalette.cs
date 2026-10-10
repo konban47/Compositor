@@ -12,8 +12,25 @@ internal sealed class CommandPalette : DialogWindow
         public override string ToString() => Shortcut.Length == 0 ? Title : $"{Title}    {Shortcut}";
     }
 
-    private readonly TextBox _query = new() { PlaceholderText = Localize.Text("Search commands and tools…") };
-    private readonly ListBox _results = new();
+    private readonly TextBox _query = new()
+    {
+        PlaceholderText = Localize.Text("Search commands and tools…"),
+        Height = 28,
+        FontSize = 12,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        Foreground = Skin.LabelBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
+    private readonly ListBox _results = new()
+    {
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(2),
+        FontSize = 12,
+    };
     private readonly IReadOnlyList<Entry> _entries;
     private Entry? _chosen;
 

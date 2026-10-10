@@ -13,14 +13,43 @@ namespace Compositor.Desktop;
 /// </summary>
 internal sealed class TextDialog : DialogWindow
 {
-    private readonly TextBox _content = new() { AcceptsReturn = true, Height = 120, TextWrapping = TextWrapping.Wrap };
-    private readonly TextBox _font = new();
-    private readonly TextBox _size = new();
-    private readonly TextBox _colour = new();
-    private readonly TextBox _tracking = new();
-    private readonly TextBox _leading = new();
-    private readonly ComboBox _alignment = new();
+    private readonly TextBox _content = new()
+    {
+        AcceptsReturn = true,
+        Height = 120,
+        FontSize = 12,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        Foreground = Skin.LabelBrush,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly TextBox _font = StyleBox();
+    private readonly TextBox _size = StyleBox();
+    private readonly TextBox _colour = StyleBox();
+    private readonly TextBox _tracking = StyleBox();
+    private readonly TextBox _leading = StyleBox();
+    private readonly ComboBox _alignment = new()
+    {
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceControlBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
     private LayerTextStyle? _result;
+
+    private static TextBox StyleBox() => new()
+    {
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        Foreground = Skin.LabelBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
 
     private TextDialog(string title, LayerTextStyle style)
     {
@@ -42,8 +71,34 @@ internal sealed class TextDialog : DialogWindow
             TextAlignment.Right => 2,
             _ => 0,
         };
-        var ok = new Button { Content = Localize.Text("OK"), IsDefault = true };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        var ok = new Button
+        {
+            Content = Localize.Text("OK"),
+            IsDefault = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         ok.Click += (_, _) => Accept(style);
         cancel.Click += (_, _) => Close();
         var rows = new StackPanel
@@ -51,14 +106,14 @@ internal sealed class TextDialog : DialogWindow
             Spacing = 6,
             Children =
             {
-                new TextBlock { Text = Localize.Text("Text") },
+                new TextBlock { Text = Localize.Text("Text"), FontSize = 12, Foreground = Skin.LabelBrush },
                 _content,
                 Row("Font", _font),
                 Row("Size in pixels", _size),
                 Row("Color, red green blue 0-255", _colour),
                 Row("Tracking, pixels between letters", _tracking),
                 Row("Leading, line to line 0 for auto", _leading),
-                new TextBlock { Text = Localize.Text("Alignment") },
+                new TextBlock { Text = Localize.Text("Alignment"), FontSize = 12, Foreground = Skin.LabelBrush },
                 _alignment,
                 new StackPanel
                 {
@@ -77,7 +132,7 @@ internal sealed class TextDialog : DialogWindow
     private static Control Row(string label, Control field) => new StackPanel
     {
         Spacing = 2,
-        Children = { new TextBlock { Text = Localize.Text(label) }, field },
+        Children = { new TextBlock { Text = Localize.Text(label), FontSize = 11, Foreground = Skin.SecondaryBrush }, field },
     };
 
     private void Accept(LayerTextStyle original)

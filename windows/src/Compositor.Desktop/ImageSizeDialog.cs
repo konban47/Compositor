@@ -29,12 +29,51 @@ internal sealed class ImageSizeDialog : DialogWindow
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _aspect = height == 0 ? 1 : (double)width / height;
-        _width = new TextBox { Text = width.ToString(), Width = 100 };
-        _height = new TextBox { Text = height.ToString(), Width = 100 };
-        _resolution = new TextBox { Text = resolution.ToString("0.##"), Width = 100 };
+        _width = new TextBox
+        {
+            Text = width.ToString(),
+            Width = 100,
+            Height = 24,
+            FontSize = 11.5,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceDarkBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            Foreground = Skin.LabelBrush,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        _height = new TextBox
+        {
+            Text = height.ToString(),
+            Width = 100,
+            Height = 24,
+            FontSize = 11.5,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceDarkBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            Foreground = Skin.LabelBrush,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        _resolution = new TextBox
+        {
+            Text = resolution.ToString("0.##"),
+            Width = 100,
+            Height = 24,
+            FontSize = 11.5,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceDarkBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            Foreground = Skin.LabelBrush,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
         _sampling.ItemsSource = new[] { "Bicubic (best for pictures)", "Nearest (best for pixel art)" };
         _sampling.SelectedIndex = sampling == LayerSampling.Nearest ? 1 : 0;
         _sampling.Width = 240;
+        _sampling.Height = 24;
+        _sampling.FontSize = 11.5;
+        _sampling.CornerRadius = new CornerRadius(2);
+        _sampling.Background = Skin.SurfaceControlBrush;
+        _sampling.BorderBrush = Skin.BorderControlBrush;
+        _sampling.VerticalContentAlignment = VerticalAlignment.Center;
 
         // The two sizes stay in step while the box is ticked, each following the one just typed in.
         _width.PropertyChanged += (_, change) =>
@@ -48,8 +87,34 @@ internal sealed class ImageSizeDialog : DialogWindow
             Relink(fromWidth: false);
         };
 
-        var ok = new Button { Content = Localize.Text("OK"), IsDefault = true };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        var ok = new Button
+        {
+            Content = Localize.Text("OK"),
+            IsDefault = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         ok.Click += (_, _) => Accept();
         cancel.Click += (_, _) => Close();
 
@@ -87,7 +152,7 @@ internal sealed class ImageSizeDialog : DialogWindow
         Spacing = 8,
         Children =
         {
-            new TextBlock { Text = Localize.Text(label), Width = 140, VerticalAlignment = VerticalAlignment.Center },
+            new TextBlock { Text = Localize.Text(label), Width = 140, FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center },
             control,
         },
     };

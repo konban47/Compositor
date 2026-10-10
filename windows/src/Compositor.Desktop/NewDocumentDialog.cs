@@ -26,13 +26,82 @@ internal sealed class NewDocumentDialog : DialogWindow
         ("A3 at 300 per inch", 3508, 4961),
     ];
 
-    private readonly TextBox _width = new() { Text = Localize.Text("1920"), Width = 100 };
-    private readonly TextBox _height = new() { Text = Localize.Text("1080"), Width = 100 };
-    private readonly TextBox _resolution = new() { Text = Localize.Text("72"), Width = 100 };
-    private readonly ComboBox _preset = new() { Width = 200 };
-    private readonly TextBlock _size = new() { Margin = new Thickness(0, 4, 0, 0) };
-    private readonly ComboBox _units = new() { Width = 160, ItemsSource = new[] { "Pixels", "Inches", "Centimeters", "Millimeters" }, SelectedIndex = 0 };
-    private readonly ComboBox _background = new() { Width = 160, ItemsSource = new[] { "Transparent", "White", "Black" }, SelectedIndex = 0 };
+    private readonly TextBox _width = new()
+    {
+        Text = Localize.Text("1920"),
+        Width = 100,
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        Foreground = Skin.LabelBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
+    private readonly TextBox _height = new()
+    {
+        Text = Localize.Text("1080"),
+        Width = 100,
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        Foreground = Skin.LabelBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
+    private readonly TextBox _resolution = new()
+    {
+        Text = Localize.Text("72"),
+        Width = 100,
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        Foreground = Skin.LabelBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
+    private readonly ComboBox _preset = new()
+    {
+        Width = 200,
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceControlBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
+    private readonly TextBlock _size = new()
+    {
+        Margin = new Thickness(0, 4, 0, 0),
+        FontSize = 11,
+        Foreground = Skin.SecondaryBrush,
+    };
+    private readonly ComboBox _units = new()
+    {
+        Width = 160,
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceControlBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        ItemsSource = new[] { "Pixels", "Inches", "Centimeters", "Millimeters" },
+        SelectedIndex = 0,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
+    private readonly ComboBox _background = new()
+    {
+        Width = 160,
+        Height = 24,
+        FontSize = 11.5,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceControlBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        ItemsSource = new[] { "Transparent", "White", "Black" },
+        SelectedIndex = 0,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
     private int _previousUnit;
     private bool _choosing;
     private (int Width, int Height, double Resolution, int Background)? _result;
@@ -69,8 +138,34 @@ internal sealed class NewDocumentDialog : DialogWindow
             if (change.Property == TextBox.TextProperty) ShowSize();
         };
 
-        var ok = new Button { Content = Localize.Text("OK"), IsDefault = true };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        var ok = new Button
+        {
+            Content = Localize.Text("OK"),
+            IsDefault = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         ok.Click += (_, _) => Accept();
         cancel.Click += (_, _) => Close();
         Content = new StackPanel
@@ -110,7 +205,7 @@ internal sealed class NewDocumentDialog : DialogWindow
         Spacing = 8,
         Children =
         {
-            new TextBlock { Text = Localize.Text(label), Width = 140, VerticalAlignment = VerticalAlignment.Center },
+            new TextBlock { Text = Localize.Text(label), Width = 140, FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center },
             control,
         },
     };

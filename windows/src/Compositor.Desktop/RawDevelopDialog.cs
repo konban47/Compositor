@@ -27,15 +27,41 @@ internal sealed class RawDevelopDialog : DialogWindow
         content.Children.Add(_preview);
         foreach (var (label, slider) in new[] { ("Exposure", _exposure), ("Temperature", _temperature), ("Tint", _tint) })
         {
-            var value = new TextBlock { Width = 55, VerticalAlignment = VerticalAlignment.Center };
+            var value = new TextBlock { Width = 55, FontSize = 11, Foreground = Skin.SecondaryBrush, VerticalAlignment = VerticalAlignment.Center };
             void Update() { value.Text = slider.Value.ToString("0.0"); Preview(); }
             slider.ValueChanged += (_, _) => Update();
             content.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12,
-                Children = { new TextBlock { Text = Localize.Text(label), Width = 105, VerticalAlignment = VerticalAlignment.Center }, slider, value } });
+                Children = { new TextBlock { Text = Localize.Text(label), Width = 105, FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center }, slider, value } });
             value.Text = Localize.Text("0.0");
         }
-        var ok = new Button { Content = Localize.Text("Develop"), IsDefault = true };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        var ok = new Button
+        {
+            Content = Localize.Text("Develop"),
+            IsDefault = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         ok.Click += (_, _) => { _accepted = true; Close(); }; cancel.Click += (_, _) => Close();
         content.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10,
             HorizontalAlignment = HorizontalAlignment.Right, Children = { cancel, ok } });

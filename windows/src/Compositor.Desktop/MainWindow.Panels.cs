@@ -17,9 +17,46 @@ namespace Compositor.Desktop;
 public sealed partial class MainWindow
 {
     private readonly TabControl _panelTabs = new();
-    private readonly TextBox _layerSearch = new() { PlaceholderText = Localize.Text("Find layers"), Width = 138 };
-    private readonly ComboBox _layerKind = new() { Width = 115, SelectedIndex = 0 };
-    private readonly NumericUpDown _fill = new() { Minimum = 0, Maximum = 100, Value = 100, Width = 70, ShowButtonSpinner = false, FormatString = "0'%'", Increment = 1 };
+    private readonly TextBox _layerSearch = new()
+    {
+        PlaceholderText = Localize.Text("Find layers"),
+        Width = 145,
+        Height = 24,
+        FontSize = 11,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        Foreground = Skin.LabelBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
+    private readonly ComboBox _layerKind = new()
+    {
+        Width = 115,
+        Height = 24,
+        FontSize = 11,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceControlBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        SelectedIndex = 0,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
+    private readonly NumericUpDown _fill = new()
+    {
+        Minimum = 0,
+        Maximum = 100,
+        Value = 100,
+        Width = 70,
+        Height = 24,
+        FontSize = 11,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        Foreground = Skin.LabelBrush,
+        ShowButtonSpinner = false,
+        FormatString = "0'%'",
+        Increment = 1,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
     private readonly Dictionary<LayerLocks, ToggleButton> _lockButtons = [];
     private readonly List<LayerThumbnail> _layerThumbnails = [];
     private readonly MenuItem _lockLayer = new();
@@ -37,7 +74,7 @@ public sealed partial class MainWindow
         top.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { _layerKind, _layerSearch } });
         top.Children.Add(Appearance());
         var locks = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
-        locks.Children.Add(new TextBlock { Text = Localize.Text("Lock:"), VerticalAlignment = VerticalAlignment.Center });
+        locks.Children.Add(new TextBlock { Text = Localize.Text("Lock:"), FontSize = 11, Foreground = Skin.SecondaryBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) });
         foreach (var (flag, icon, label) in new[]
         {
             (LayerLocks.Transparency, "transparency", "Lock Transparent Pixels"),
@@ -45,13 +82,22 @@ public sealed partial class MainWindow
             (LayerLocks.Position, "move", "Lock Position"), (LayerLocks.All, "lock", "Lock Layer"),
         })
         {
-            var button = new ToggleButton { Content = new PanelGlyph(icon), Width = 26, Height = 28, Padding = new Thickness(3) };
+            var button = new ToggleButton
+            {
+                Content = new PanelGlyph(icon),
+                Width = 26,
+                Height = 24,
+                Padding = new Thickness(2),
+                CornerRadius = new CornerRadius(2),
+                Background = Brushes.Transparent,
+                BorderBrush = Skin.BorderControlBrush,
+            };
             ToolTip.SetTip(button, Localize.Text(label));
             Avalonia.Automation.AutomationProperties.SetName(button, Localize.Text(label));
             button.Click += (_, _) => { if (!_showingAppearance) ToggleLockFlag(flag); };
             _lockButtons[flag] = button; locks.Children.Add(button);
         }
-        locks.Children.Add(new TextBlock { Text = Localize.Text("Fill:"), Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+        locks.Children.Add(new TextBlock { Text = Localize.Text("Fill:"), FontSize = 11, Foreground = Skin.SecondaryBrush, Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
         _fill.ValueChanged += (_, _) =>
         {
             if (_showingAppearance || _document is not { } doc) return;
@@ -63,7 +109,7 @@ public sealed partial class MainWindow
         };
         locks.Children.Add(_fill); top.Children.Add(locks);
         DockPanel.SetDock(top, Dock.Top); layers.Children.Add(top);
-        var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, Margin = new Thickness(8) };
+        var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, Margin = new Thickness(8, 4, 8, 6) };
         footer.Children.Add(PanelButton("link", "Link / Unlink Layers", LinkLayers));
         footer.Children.Add(PanelButton("fx", "Layer Effects", () => ShowEffectsMenu(footer)));
         footer.Children.Add(PanelButton("mask", "Add Layer Mask", () => AddMask(true)));
@@ -72,8 +118,8 @@ public sealed partial class MainWindow
         footer.Children.Add(PanelButton("add", "New Layer (Ctrl+Shift+N)", NewBlankLayer));
         footer.Children.Add(PanelButton("delete", "Delete Layer or Selected Mask", DeletePanelTarget));
         DockPanel.SetDock(footer, Dock.Bottom); layers.Children.Add(footer); layers.Children.Add(_layers);
-        _panelTabs.Items.Add(new TabItem { Header = Localize.Text("Layers"), FontSize = 13, Content = layers });
-        _panelTabs.Items.Add(new TabItem { Header = Localize.Text("Channels"), FontSize = 13, Content = BuildChannelsPanel() });
+        _panelTabs.Items.Add(new TabItem { Header = Localize.Text("Layers"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Content = layers });
+        _panelTabs.Items.Add(new TabItem { Header = Localize.Text("Channels"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Content = BuildChannelsPanel() });
         _panelTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _panelTabs) && _panelTabs.SelectedIndex == 1) RefreshChannels(); };
         _panelTabs.SelectedIndex = 0;
         return BuildInspector(_panelTabs);
@@ -81,7 +127,16 @@ public sealed partial class MainWindow
 
     private static Button PanelButton(string icon, string label, Action action)
     {
-        var button = new Button { Content = new PanelGlyph(icon), Width = 32, Height = 28, Padding = new Thickness(4), Background = Brushes.Transparent };
+        var button = new Button
+        {
+            Content = new PanelGlyph(icon),
+            Width = 32,
+            Height = 26,
+            Padding = new Thickness(2),
+            CornerRadius = new CornerRadius(2),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+        };
         ToolTip.SetTip(button, Localize.Text(label));
         Avalonia.Automation.AutomationProperties.SetName(button, Localize.Text(label));
         button.Click += (_, _) => action(); return button;
@@ -250,19 +305,29 @@ internal sealed class PanelGlyph(string kind) : Control
     {
         var path = kind switch
         {
-            "selection" => "M1,1 L6,1 M10,1 L15,1 M19,1 L19,6 M19,10 L19,15 M19,19 L14,19 M10,19 L5,19 M1,19 L1,14 M1,10 L1,5",
-            "lock" => "M5,9 L5,6 C5,0 15,0 15,6 L15,9 M3,9 L17,9 L17,19 L3,19 Z M10,12 L10,16",
-            "folder" => "M1,5 L8,5 L10,8 L19,8 L19,18 L1,18 Z",
-            "add" => "M2,2 L18,2 L18,18 L2,18 Z M10,5 L10,15 M5,10 L15,10",
-            "delete" => "M4,6 L16,6 L15,19 L5,19 Z M2,3 L18,3 M7,1 L13,1 M8,9 L8,16 M12,9 L12,16",
-            "mask" => "M1,3 L19,3 L19,17 L1,17 Z M14,10 A4,4 0 1 1 6,10 A4,4 0 1 1 14,10",
-            "move" => "M10,1 L10,19 M1,10 L19,10 M7,4 L10,1 L13,4 M7,16 L10,19 L13,16 M4,7 L1,10 L4,13 M16,7 L19,10 L16,13",
-            "link" => "M8,5 L5,5 C0,5 0,15 5,15 L8,15 M12,5 L15,5 C20,5 20,15 15,15 L12,15 M6,10 L14,10",
-            "transparency" => "M2,2 L18,2 L18,18 L2,18 Z M2,7 L18,7 M2,13 L18,13 M7,2 L7,18 M13,2 L13,18",
-            "brush" => "M7,14 L15,2 L19,5 L10,16 Z M7,13 Q1,12 2,19 Q9,20 10,16",
-            "adjust" => "M10,1 A9,9 0 1 1 10,19 A9,9 0 1 1 10,1 M10,1 L10,19",
-            _ => "M4,19 L8,2 L15,2 M2,8 L12,8 M12,10 L19,18 M19,10 L12,18",
+            "selection" => "M10,2 A8,8 0 0 1 18,10 M18,10 A8,8 0 0 1 10,18 M10,18 A8,8 0 0 1 2,10 M2,10 A8,8 0 0 1 10,2",
+            "lock" => "M6,8 L6,5 C6,1.5 14,1.5 14,5 L14,8 M4,8 L16,8 L16,18 L4,18 Z M10,11 L10,14",
+            "folder" => "M2,4 L7,4 L9,7 L18,7 L18,17 L2,17 Z",
+            "add" => "M4,2 L16,2 L16,12 L12,16 L4,16 Z M12,12 L16,12 L12,16 Z",
+            "delete" => "M8,2 L12,2 M3,4 L17,4 M5,6 L15,6 L14,18 L6,18 Z M8,8 L8,15 M12,8 L12,15",
+            "mask" => "M2,3 L18,3 L18,17 L2,17 Z M14,10 A4,4 0 1 1 6,10 A4,4 0 1 1 14,10",
+            "move" => "M10,2 L10,18 M2,10 L18,10 M7,5 L10,2 L13,5 M7,15 L10,18 L13,15 M5,7 L2,10 L5,13 M15,7 L18,10 L15,13",
+            "link" => "M8,5 L6,5 C2.5,5 2.5,15 6,15 L8,15 M12,5 L14,5 C17.5,5 17.5,15 14,15 L12,15 M6,10 L14,10",
+            "transparency" => "M3,3 L17,3 L17,17 L3,17 Z M3,7 L17,7 M3,11 L17,11 M3,15 L17,15 M7,3 L7,17 M11,3 L11,17 M15,3 L15,17",
+            "brush" => "M13,3 L17,7 L10,14 L7,14 L7,11 Z M7,14 C4,14 3,16 3,17 C5,17 7,16 7,14",
+            "adjust" => "M10,2 A8,8 0 1 1 10,18 A8,8 0 1 1 10,2 Z M10,2 L10,18",
+            "fx" => "M7,4 C5,4 4,5.5 4,8 L4,16 M2,9 L7,9 M10,8 L16,16 M16,8 L10,16",
+            _ => "M7,4 C5,4 4,5.5 4,8 L4,16 M2,9 L7,9 M10,8 L16,16 M16,8 L10,16",
         };
-        context.DrawGeometry(null, new Pen(Skin.LabelBrush, 1.5), StreamGeometry.Parse(path));
+        var pen = new Pen(Skin.LabelBrush, 1.3) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        if (kind == "selection")
+            pen = new Pen(Skin.LabelBrush, 1.2) { DashStyle = new DashStyle([2.5, 2], 0) };
+        context.DrawGeometry(null, pen, StreamGeometry.Parse(path));
+        if (kind == "adjust")
+        {
+            // Fill the left half of the adjustment layer icon (classic Photoshop half-filled circle)
+            var halfCircle = StreamGeometry.Parse("M10,2 A8,8 0 0 0 10,18 Z");
+            context.DrawGeometry(Skin.LabelBrush, null, halfCircle);
+        }
     }
 }

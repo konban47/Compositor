@@ -23,7 +23,7 @@ public sealed partial class MainWindow
     private Control BuildChannelsPanel()
     {
         var panel = new DockPanel();
-        var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(8) };
+        var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(8, 4, 8, 6) };
         footer.Children.Add(PanelButton("selection", "Load Channel as Selection", LoadChannelSelection));
         footer.Children.Add(PanelButton("mask", "Save Selection as Channel", () => NewAlpha(true)));
         footer.Children.Add(PanelButton("add", "New Alpha Channel", () => NewAlpha(false)));
@@ -118,19 +118,19 @@ public sealed partial class MainWindow
 
     private ListBoxItem ChannelRow(object tag, string name, string key, bool visible, SKBitmap? thumbnail, Action toggle)
     {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("28,42,*,65"), MinHeight = 50 };
-        var eye = new Button { Content = new LayerEye(visible) { Width = 20, Height = 20 }, Width = 28,
-            Padding = new Thickness(3), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Focusable = false };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("28,42,*,65"), MinHeight = 44 };
+        var eye = new Button { Content = new LayerEye(visible) { Width = 20, Height = 20 }, Width = 26, Height = 28,
+            Padding = new Thickness(2), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Focusable = false };
         ToolTip.SetTip(eye, Localize.Text("Channel Visibility")); eye.Click += (_, _) => toggle(); grid.Children.Add(eye);
         if (thumbnail is not null)
         {
             var image = CanvasView.ToImage(thumbnail); _channelImages.Add(image);
-            var view = new Image { Source = image, Width = 38, Height = 38, Stretch = Stretch.Uniform };
-            var frame = new Border { Background = Skin.Checker, Child = view, Width = 38, Height = 38, BorderBrush = Skin.SecondaryBrush, BorderThickness = new Thickness(1) };
+            var view = new Image { Source = image, Width = 36, Height = 36, Stretch = Stretch.Uniform };
+            var frame = new Border { Background = Skin.Checker, Child = view, Width = 36, Height = 36, BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(1) };
             Grid.SetColumn(frame, 1); grid.Children.Add(frame);
         }
-        var label = new TextBlock { Text = tag is Guid ? name : Localize.Text(name), Margin = new Thickness(7, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        var label = new TextBlock { Text = tag is Guid ? name : Localize.Text(name), Margin = new Thickness(8, 0, 0, 0),
+            FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
         Grid.SetColumn(label, 2); grid.Children.Add(label);
         var shortcut = new TextBlock { Text = key, FontSize = 11, Foreground = Skin.SecondaryBrush, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(shortcut, 3); grid.Children.Add(shortcut);

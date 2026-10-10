@@ -24,7 +24,18 @@ internal sealed class ShortcutDialog : DialogWindow
     private readonly Dictionary<string, ShortcutChord> _draft;
     /// <summary>The table the sheet opened with, which Restore Defaults puts back.</summary>
     private readonly Dictionary<string, ShortcutChord> _opened;
-    private readonly TextBox _search = new() { PlaceholderText = Localize.Text("Search shortcuts"), Width = 400 };
+    private readonly TextBox _search = new()
+    {
+        PlaceholderText = Localize.Text("Search shortcuts"),
+        Width = 400,
+        Height = 26,
+        FontSize = 12,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.SurfaceDarkBrush,
+        BorderBrush = Skin.BorderControlBrush,
+        Foreground = Skin.LabelBrush,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
     private readonly StackPanel _list = new() { Spacing = 2 };
     /// <summary>What scrolls the list, kept so that the check can take the list out of it to be drawn.</summary>
     private readonly ScrollViewer _scroller = new() { Margin = new Thickness(0, 6, 0, 6) };
@@ -34,7 +45,20 @@ internal sealed class ShortcutDialog : DialogWindow
         TextWrapping = TextWrapping.Wrap,
         IsVisible = false,
     };
-    private readonly Button _save = new() { Content = Localize.Text("Save"), IsDefault = true };
+    private readonly Button _save = new()
+    {
+        Content = Localize.Text("Save"),
+        IsDefault = true,
+        MinWidth = 76,
+        Height = 26,
+        FontSize = 12,
+        CornerRadius = new CornerRadius(2),
+        Background = Skin.AccentBrush,
+        BorderBrush = Skin.AccentBrush,
+        BorderThickness = new Thickness(1),
+        Foreground = Brushes.White,
+        HorizontalContentAlignment = HorizontalAlignment.Center,
+    };
     /// <summary>The row being recorded, or null when the keys are the sheet's own again.</summary>
     private string? _recording;
     private Dictionary<string, ShortcutChord>? _result;
@@ -49,8 +73,32 @@ internal sealed class ShortcutDialog : DialogWindow
         _opened = new Dictionary<string, ShortcutChord>(_draft);
         _search.TextChanged += (_, _) => ShowRows();
 
-        var restore = new Button { Content = Localize.Text("Restore Defaults"), HorizontalAlignment = HorizontalAlignment.Left };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        var restore = new Button
+        {
+            Content = Localize.Text("Restore Defaults"),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         restore.Click += (_, _) => RestoreDefaults();
         cancel.Click += (_, _) => Close();
         _save.Click += (_, _) => Keep();
@@ -75,6 +123,8 @@ internal sealed class ShortcutDialog : DialogWindow
                 {
                     Text = Localize.Text("Click a shortcut, then press the desired keys. Backspace clears it; Escape stops recording. Save to apply changes."),
                     TextWrapping = TextWrapping.Wrap,
+                    FontSize = 11,
+                    Foreground = Skin.SecondaryBrush,
                 },
                 _search,
                 _complaint,
@@ -127,14 +177,27 @@ internal sealed class ShortcutDialog : DialogWindow
         {
             Content = _recording == definition.ID ? Localize.Text("Press keys…") : chord.IsBound ? chord.Label : "—",
             Width = 150,
+            Height = 24,
+            FontSize = 11.5,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            Foreground = Skin.LabelBrush,
             HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
         };
         button.Click += (_, _) =>
         {
             _recording = definition.ID;
             ShowRows();
         };
-        var name = new TextBlock { Text = Localize.Text(definition.Title), VerticalAlignment = VerticalAlignment.Center };
+        var name = new TextBlock
+        {
+            Text = Localize.Text(definition.Title),
+            FontSize = 12,
+            Foreground = Skin.LabelBrush,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
         Grid.SetColumn(button, 1);
         return new Grid
         {

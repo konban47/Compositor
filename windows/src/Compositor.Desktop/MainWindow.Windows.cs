@@ -126,7 +126,20 @@ public sealed partial class MainWindow
             Width = 380, CanResize = false, SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
-        var stop = new Button { Content = Localize.Text("Cancel"), IsCancel = true, HorizontalAlignment = HorizontalAlignment.Right };
+        var stop = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
         stop.Click += (_, _) => cancel.Cancel();
         progress.Content = new StackPanel
         {

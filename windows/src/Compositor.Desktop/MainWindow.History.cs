@@ -75,19 +75,42 @@ public sealed partial class MainWindow
                     _historyPreviews[snapshot.ID] = Compositor.Core.Rendering.DocumentRenderer.Preview(saved, 48);
                 var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children =
                 {
-                    new LayerThumbnail(() => _historyPreviews.GetValueOrDefault(snapshot.ID), "▣") { Width = 40, Height = 32 },
-                    new TextBlock { Text = snapshot.Name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis },
+                    new LayerThumbnail(() => _historyPreviews.GetValueOrDefault(snapshot.ID), "▣") { Width = 36, Height = 28 },
+                    new TextBlock { Text = snapshot.Name, FontSize = 11.5, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis },
                 } };
-                items.Add(new ListBoxItem { Content = HistoryRow(content, snapshot.State.Document, snapshot.Name, snapshot.State.Revision), HorizontalContentAlignment = HorizontalAlignment.Stretch, Tag = new HistoryTarget(snapshot.State.Revision, snapshot.ID) });
+                items.Add(new ListBoxItem
+                {
+                    Content = HistoryRow(content, snapshot.State.Document, snapshot.Name, snapshot.State.Revision),
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                    Tag = new HistoryTarget(snapshot.State.Revision, snapshot.ID),
+                    Padding = new Thickness(4, 2),
+                });
             }
             ListBoxItem? current = null;
             foreach (var state in _history.States(document, Selected))
             {
-                var item = new ListBoxItem { Content = HistoryRow(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7, Children = {
-                    new InspectorGlyph("history") { Width = 22, Height = 22 }, new TextBlock { Text = Localize.Text(state.Name),
-                    VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = state.IsFuture ? Skin.SecondaryBrush : Skin.LabelBrush } } },
-                    state.Snapshot.Document, Localize.Text(state.Name), state.Snapshot.Revision), HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                    Tag = new HistoryTarget(state.Snapshot.Revision), Opacity = state.IsFuture ? .6 : 1 };
+                var textBlock = new TextBlock
+                {
+                    Text = (state.IsCurrent ? "▸  " : "   ") + Localize.Text(state.Name),
+                    FontSize = 11.5,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    Foreground = state.IsFuture ? Skin.SecondaryBrush : Skin.LabelBrush,
+                };
+                var rowContent = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 6,
+                    Children = { new InspectorGlyph("history") { Width = 20, Height = 20 }, textBlock },
+                };
+                var item = new ListBoxItem
+                {
+                    Content = HistoryRow(rowContent, state.Snapshot.Document, Localize.Text(state.Name), state.Snapshot.Revision),
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                    Tag = new HistoryTarget(state.Snapshot.Revision),
+                    Opacity = state.IsFuture ? .6 : 1,
+                    Padding = new Thickness(4, 2),
+                };
                 items.Add(item); if (state.IsCurrent) current = item;
             }
             _historyRows.ItemsSource = items;

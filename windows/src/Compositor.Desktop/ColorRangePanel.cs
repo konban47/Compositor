@@ -49,7 +49,19 @@ internal sealed class ColorRangePanel : DialogWindow
         var modes = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         foreach (var mode in Enum.GetValues<ColorRangeSession.Picking>())
         {
-            var button = new Button { Content = mode.ToString() };
+            var button = new Button
+            {
+                Content = mode.ToString(),
+                Height = 24,
+                FontSize = 11.5,
+                CornerRadius = new CornerRadius(2),
+                Padding = new Thickness(8, 2),
+                Background = Skin.SurfaceControlBrush,
+                BorderBrush = Skin.BorderControlBrush,
+                BorderThickness = new Thickness(1),
+                Foreground = Skin.LabelBrush,
+                VerticalContentAlignment = VerticalAlignment.Center,
+            };
             var picked = mode;
             button.Click += (_, _) =>
             {
@@ -81,7 +93,11 @@ internal sealed class ColorRangePanel : DialogWindow
             _readout.Text = Localize.Format($"{session.Fuzziness:0}");
             Changed?.Invoke();
         };
+        _readout.FontSize = 11;
+        _readout.Foreground = Skin.SecondaryBrush;
         _readout.Text = Localize.Format($"{session.Fuzziness:0}");
+        _invert.FontSize = 11.5;
+        _invert.Foreground = Skin.LabelBrush;
         _invert.IsChecked = session.Invert;
         _invert.IsCheckedChanged += (_, _) =>
         {
@@ -90,8 +106,34 @@ internal sealed class ColorRangePanel : DialogWindow
             Changed?.Invoke();
         };
 
-        var ok = new Button { Content = Localize.Text("OK"), IsDefault = true };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        var ok = new Button
+        {
+            Content = Localize.Text("OK"),
+            IsDefault = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         ok.Click += (_, _) =>
         {
             _done = true;
@@ -122,7 +164,7 @@ internal sealed class ColorRangePanel : DialogWindow
                     Spacing = 8,
                     Children =
                     {
-                        new TextBlock { Text = Localize.Text("Fuzziness"), Width = 70, VerticalAlignment = VerticalAlignment.Center },
+                        new TextBlock { Text = Localize.Text("Fuzziness"), Width = 70, FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center },
                         _fuzziness,
                         _readout,
                     },
@@ -173,7 +215,10 @@ internal sealed class ColorRangePanel : DialogWindow
     {
         foreach (var (mode, button) in _modes)
         {
-            button.Background = mode == _session.Mode ? Skin.TabFront : Brushes.Transparent;
+            var active = mode == _session.Mode;
+            button.Background = active ? Skin.SurfaceControlPressedBrush : Skin.SurfaceControlBrush;
+            button.BorderBrush = active ? Skin.AccentBrush : Skin.BorderControlBrush;
+            button.BorderThickness = new Thickness(1);
         }
     }
 

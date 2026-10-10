@@ -19,8 +19,34 @@ internal sealed class ConfirmDialog : DialogWindow
         SizeToContent = SizeToContent.Height;
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var keep = new Button { Content = Localize.Text(no), IsCancel = true };
-        var go = new Button { Content = Localize.Text(yes), IsDefault = false };
+        var keep = new Button
+        {
+            Content = Localize.Text(no),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var go = new Button
+        {
+            Content = Localize.Text(yes),
+            IsDefault = false,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         keep.Click += (_, _) => Close();
         go.Click += (_, _) =>
         {

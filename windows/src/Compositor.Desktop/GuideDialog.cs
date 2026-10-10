@@ -24,10 +24,53 @@ internal sealed class GuideDialog : DialogWindow
         _axis.ItemsSource = new[] { "Horizontal (across)", "Vertical (up and down)" };
         _axis.SelectedIndex = 0;
         _axis.Width = 180;
-        _position = new TextBox { Text = (height / 2).ToString(), Width = 100 };
+        _axis.Height = 24;
+        _axis.FontSize = 11.5;
+        _axis.CornerRadius = new CornerRadius(2);
+        _axis.Background = Skin.SurfaceControlBrush;
+        _axis.BorderBrush = Skin.BorderControlBrush;
+        _axis.VerticalContentAlignment = VerticalAlignment.Center;
+        _position = new TextBox
+        {
+            Text = (height / 2).ToString(),
+            Width = 100,
+            Height = 24,
+            FontSize = 11.5,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceDarkBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            Foreground = Skin.LabelBrush,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
 
-        var ok = new Button { Content = Localize.Text("OK"), IsDefault = true };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        var ok = new Button
+        {
+            Content = Localize.Text("OK"),
+            IsDefault = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         ok.Click += (_, _) => Accept(width, height);
         cancel.Click += (_, _) => Close();
 
@@ -43,6 +86,8 @@ internal sealed class GuideDialog : DialogWindow
                 {
                     Text = Localize.Format($"The canvas is {width} x {height}. A guide may sit outside it, out in the pasteboard."),
                     TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                    FontSize = 11,
+                    Foreground = Skin.SecondaryBrush,
                 },
                 new StackPanel
                 {
@@ -67,7 +112,7 @@ internal sealed class GuideDialog : DialogWindow
         Spacing = 8,
         Children =
         {
-            new TextBlock { Text = Localize.Text(label), Width = 120, VerticalAlignment = VerticalAlignment.Center },
+            new TextBlock { Text = Localize.Text(label), Width = 120, FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center },
             control,
         },
     };

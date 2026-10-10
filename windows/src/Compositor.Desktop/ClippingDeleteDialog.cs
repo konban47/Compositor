@@ -13,9 +13,46 @@ internal sealed class ClippingDeleteDialog : DialogWindow
         Title = Localize.Text("Delete clipping source"); Width = 560;
         SizeToContent = SizeToContent.Height; CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var bake = new Button { Content = Localize.Text("Bake and Delete") };
-        var release = new Button { Content = Localize.Text("Remove Links and Delete") };
-        var cancel = new Button { Content = Localize.Text("Cancel"), IsCancel = true };
+        var bake = new Button
+        {
+            Content = Localize.Text("Bake and Delete"),
+            MinWidth = 80,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var release = new Button
+        {
+            Content = Localize.Text("Remove Links and Delete"),
+            MinWidth = 80,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            IsCancel = true,
+            MinWidth = 80,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         bake.Click += (_, _) => { _choice = ClippingDeleteChoice.Bake; Close(); };
         release.Click += (_, _) => { _choice = ClippingDeleteChoice.Release; Close(); };
         cancel.Click += (_, _) => Close();

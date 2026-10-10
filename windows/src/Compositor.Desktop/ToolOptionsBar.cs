@@ -29,18 +29,25 @@ internal enum WandSetting
 /// </summary>
 internal sealed class ToolOptionsBar : Border
 {
-    /// <summary>How tall the strip is, which is the Mac's own tool header.</summary>
-    private const double StripHeight = 42;
+    /// <summary>How tall the strip is, matching Photoshop's compact tool options bar (36 points).</summary>
+    private const double StripHeight = 36;
 
     private readonly ToolOptions _options;
     private readonly TextBlock _title = new()
     {
         VerticalAlignment = VerticalAlignment.Center,
         FontWeight = FontWeight.SemiBold,
-        Margin = new Thickness(0, 0, 16, 0),
+        FontSize = 11.5,
+        Foreground = Skin.LabelBrush,
+        Margin = new Thickness(0, 0, 14, 0),
     };
-    private readonly TextBlock _zoom = new() { VerticalAlignment = VerticalAlignment.Center };
-    private readonly StackPanel _cells = new() { Orientation = Orientation.Horizontal, Spacing = 16 };
+    private readonly TextBlock _zoom = new()
+    {
+        VerticalAlignment = VerticalAlignment.Center,
+        FontSize = 11,
+        Foreground = Skin.SecondaryBrush,
+    };
+    private readonly StackPanel _cells = new() { Orientation = Orientation.Horizontal, Spacing = 12 };
 
     /// <summary>Every row, by the name of the tools it belongs to: a name may cover several controls.</summary>
     private readonly Dictionary<string, List<Control>> _named = [];
@@ -76,6 +83,8 @@ internal sealed class ToolOptionsBar : Border
         _options = options;
         Height = StripHeight;
         Background = Skin.ChromeBrush;
+        BorderBrush = Skin.BorderSubtleBrush;
+        BorderThickness = new Thickness(0, 0, 0, 1);
         Padding = new Thickness(10, 0, 10, 0);
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         row.Children.Add(_title);
@@ -262,6 +271,38 @@ internal sealed class ToolOptionsBar : Border
         [Tool.Path] = "Path",
     };
 
+    private static void StyleOptionButton(Button button)
+    {
+        button.Height = 24;
+        button.Padding = new Thickness(7, 2);
+        button.FontSize = 11;
+        button.CornerRadius = new CornerRadius(2);
+        button.Background = Skin.SurfaceControlBrush;
+        button.BorderBrush = Skin.BorderControlBrush;
+        button.BorderThickness = new Thickness(1);
+        button.Foreground = Skin.LabelBrush;
+        button.VerticalContentAlignment = VerticalAlignment.Center;
+    }
+
+    private static void StyleOptionCombo(ComboBox combo)
+    {
+        combo.Height = 24;
+        combo.FontSize = 11;
+        combo.CornerRadius = new CornerRadius(2);
+        combo.Background = Skin.SurfaceControlBrush;
+        combo.BorderBrush = Skin.BorderControlBrush;
+        combo.BorderThickness = new Thickness(1);
+        combo.VerticalContentAlignment = VerticalAlignment.Center;
+    }
+
+    private static void StyleOptionCheck(CheckBox check)
+    {
+        check.FontSize = 11;
+        check.Foreground = Skin.LabelBrush;
+        check.VerticalAlignment = VerticalAlignment.Center;
+        check.Margin = new Thickness(0, 0, 4, 0);
+    }
+
     private void Build()
     {
         // The brush's own amounts, each a button showing its value that opens the window's own prompt.
@@ -272,6 +313,7 @@ internal sealed class ToolOptionsBar : Border
                  })
         {
             var which = setting;
+            StyleOptionButton(button);
             button.Click += (_, _) => BrushSettingAsked?.Invoke(which);
         }
         foreach (var (setting, button) in new (WandSetting, Button)[]
@@ -280,19 +322,27 @@ internal sealed class ToolOptionsBar : Border
                  })
         {
             var which = setting;
+            StyleOptionButton(button);
             button.Click += (_, _) => WandSettingAsked?.Invoke(which);
         }
+        StyleOptionButton(_corner);
+        StyleOptionButton(_lineWidth);
         _corner.Click += (_, _) => ShapeSettingAsked?.Invoke(ShapeSetting.CornerRadius);
         _lineWidth.Click += (_, _) => ShapeSettingAsked?.Invoke(ShapeSetting.LineWidth);
         _fill.Click += (_, _) => ColourAsked?.Invoke(true);
         _gradientFill.Click += (_, _) => ColourAsked?.Invoke(false);
 
+        StyleOptionCombo(_brushMode);
         _brushMode.ItemsSource = new[] { "Paint", "Erase" };
         _brushMode.SelectedIndex = 0;
         _brushMode.SelectionChanged += (_, _) => Set(ref _options.Erase, _brushMode.SelectedIndex == 1);
+
+        StyleOptionCombo(_maskPaint);
         _maskPaint.ItemsSource = new[] { "Paint Black · Hide", "Paint White · Reveal" };
         _maskPaint.SelectedIndex = 0;
         _maskPaint.SelectionChanged += (_, _) => Set(ref _options.PaintOnMask, _maskPaint.SelectedIndex == 1);
+
+        StyleOptionCombo(_healMode);
         _healMode.ItemsSource = new[] { "Content-Aware", "Create Texture", "Proximity Match" };
         _healMode.SelectedIndex = 0;
         _healMode.SelectionChanged += (_, _) =>
@@ -300,17 +350,24 @@ internal sealed class ToolOptionsBar : Border
             var healed = _options.Brush with { Healing = (HealingMode)Math.Max(0, _healMode.SelectedIndex) };
             Set(ref _options.Brush, healed);
         };
+
+        StyleOptionCheck(_aligned);
         _aligned.IsCheckedChanged += (_, _) =>
         {
             var brush = _options.Brush with { CloneAligned = _aligned.IsChecked == true };
             Set(ref _options.Brush, brush);
         };
+        StyleOptionCheck(_antialias);
         _antialias.IsChecked = _options.SelectionAntialiased;
         _antialias.IsCheckedChanged += (_, _) =>
             Set(ref _options.SelectionAntialiased, _antialias.IsChecked == true);
+
+        StyleOptionCheck(_sampleRing);
         _sampleRing.IsChecked = _options.ShowsSampleRing;
         _sampleRing.IsCheckedChanged += (_, _) =>
             Set(ref _options.ShowsSampleRing, _sampleRing.IsChecked == true);
+
+        StyleOptionCombo(_cloneAll);
         _cloneAll.ItemsSource = new[] { "Sample: This Layer", "Sample: All Layers" };
         _cloneAll.SelectedIndex = 0;
         _cloneAll.SelectionChanged += (_, _) =>
@@ -319,6 +376,7 @@ internal sealed class ToolOptionsBar : Border
             Set(ref _options.Brush, brush);
         };
 
+        StyleOptionCombo(_marqueeShape);
         _marqueeShape.ItemsSource = new[] { "Rectangle", "Ellipse" };
         _marqueeShape.SelectedIndex = 0;
         _marqueeShape.SelectionChanged += (_, _) =>
@@ -327,6 +385,8 @@ internal sealed class ToolOptionsBar : Border
             _marqueeEllipse = _marqueeShape.SelectedIndex == 1;
             MarqueeShapeChosen?.Invoke(_marqueeEllipse);
         };
+
+        StyleOptionCombo(_lassoKind);
         _lassoKind.ItemsSource = new[] { "Freehand", "Polygonal" };
         _lassoKind.SelectedIndex = 0;
         _lassoKind.SelectionChanged += (_, _) =>
@@ -334,36 +394,64 @@ internal sealed class ToolOptionsBar : Border
             if (_loading) return;
             LassoKindChosen?.Invoke(_lassoKind.SelectedIndex == 1);
         };
+
+        StyleOptionCheck(_contiguous);
         _contiguous.IsCheckedChanged += (_, _) =>
         {
             var wand = _options.Wand with { Contiguous = _contiguous.IsChecked == true };
             Set(ref _options.Wand, wand);
         };
+
+        StyleOptionCombo(_wandAll);
         _wandAll.ItemsSource = new[] { "Sample: This Layer", "Sample: All Layers" };
         _wandAll.SelectedIndex = 0;
         _wandAll.SelectionChanged += (_, _) => Set(ref _options.WandAllLayers, _wandAll.SelectedIndex == 1);
 
+        StyleOptionCombo(_shapeKind);
         _shapeKind.ItemsSource = ShapeTools.Select(t => Localize.Text(ToolCatalog.Title(t))).ToArray();
         _shapeKind.SelectedIndex = 0;
         _shapeKind.SelectionChanged += (_, _) =>
         {
             if (!_loading && _shapeKind.SelectedIndex >= 0) ShapeToolChosen?.Invoke(ShapeTools[_shapeKind.SelectedIndex]);
         };
+
+        StyleOptionCombo(_gradientKind);
         _gradientKind.ItemsSource = new[] { "Linear", "Radial", "Angle", "Reflected", "Diamond" };
         _gradientKind.SelectedIndex = 0;
         _gradientKind.SelectionChanged += (_, _) => Set(ref _options.Gradient, (GradientShape)Math.Max(0, _gradientKind.SelectedIndex));
+
+        StyleOptionCombo(_gradientTo);
         _gradientTo.ItemsSource = new[] { "To nothing", "To the background color" };
         _gradientTo.SelectedIndex = 0;
         _gradientTo.SelectionChanged += (_, _) => Set(ref _options.GradientToBackground, _gradientTo.SelectedIndex == 1);
+
+        StyleOptionCheck(_gradientReversed);
         _gradientReversed.IsCheckedChanged += (_, _) => Set(ref _options.GradientReversed, _gradientReversed.IsChecked == true);
 
+        StyleOptionCombo(_cropRatio);
         _cropRatio.SelectionChanged += (_, _) => CropRatioChosen?.Invoke(_cropRatio.SelectedIndex);
+
+        StyleOptionButton(_cropApply);
+        _cropApply.Background = Skin.AccentBrush;
+        _cropApply.Foreground = Brushes.White;
         _cropApply.Click += (_, _) => CropApplied?.Invoke();
+
+        StyleOptionButton(_cropCancel);
         _cropCancel.Click += (_, _) => CropCancelled?.Invoke();
+
+        StyleOptionButton(_flipH);
         _flipH.Click += (_, _) => FlipAsked?.Invoke(true);
+
+        StyleOptionButton(_flipV);
         _flipV.Click += (_, _) => FlipAsked?.Invoke(false);
+
+        StyleOptionButton(_editText);
         _editText.Click += (_, _) => TextAsked?.Invoke();
+
+        StyleOptionButton(_historySource);
         _historySource.Click += (_, _) => HistorySourceAsked?.Invoke();
+
+        StyleOptionButton(_pathHint);
         _pathHint.Click += (_, _) => PathAsked?.Invoke();
 
         Cell("brush", _size);
@@ -470,11 +558,13 @@ internal sealed class ToolOptionsBar : Border
     {
         public Swatch()
         {
-            Width = 52;
+            Width = 44;
             Height = 22;
             Padding = new Thickness(0);
+            CornerRadius = new CornerRadius(2);
             BorderThickness = new Thickness(1);
-            BorderBrush = new SolidColorBrush(Colors.White, 0.35);
+            BorderBrush = Skin.BorderControlBrush;
+            VerticalAlignment = VerticalAlignment.Center;
         }
 
         public void Show(double red, double green, double blue) => Background = new SolidColorBrush(

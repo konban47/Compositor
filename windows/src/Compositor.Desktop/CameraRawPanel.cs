@@ -487,9 +487,45 @@ internal sealed class CameraRawPanel
         _glowStyle.SelectedIndex = start.GlowStyle;
         _vignetteStyle.SelectedIndex = start.VignetteStyle;
 
-        var ok = new Button { Content = Localize.Text("Apply") };
-        var cancel = new Button { Content = Localize.Text("Cancel") };
-        var reset = new Button { Content = Localize.Text("Reset") };
+        var ok = new Button
+        {
+            Content = Localize.Text("Apply"),
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Avalonia.Media.Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var cancel = new Button
+        {
+            Content = Localize.Text("Cancel"),
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var reset = new Button
+        {
+            Content = Localize.Text("Reset"),
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.SurfaceControlBrush,
+            BorderBrush = Skin.BorderControlBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Skin.LabelBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         ok.Click += (_, _) => Apply();
         cancel.Click += (_, _) => Cancel();
         reset.Click += (_, _) => Reset();

@@ -19,7 +19,21 @@ internal sealed class UpdateDialog : DialogWindow
         SizeToContent = SizeToContent.Height;
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var close = new Button { Content = Localize.Text("Close"), IsCancel = true, IsDefault = true };
+        var close = new Button
+        {
+            Content = Localize.Text("Close"),
+            IsCancel = true,
+            IsDefault = true,
+            MinWidth = 76,
+            Height = 26,
+            FontSize = 12,
+            CornerRadius = new CornerRadius(2),
+            Background = Skin.AccentBrush,
+            BorderBrush = Skin.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Foreground = Brushes.White,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
         close.Click += (_, _) => Close();
         var buttons = new StackPanel
         {
@@ -29,7 +43,19 @@ internal sealed class UpdateDialog : DialogWindow
         };
         if (page is not null)
         {
-            var open = new Button { Content = Localize.Text("What changed…") };
+            var open = new Button
+            {
+                Content = Localize.Text("What changed…"),
+                MinWidth = 76,
+                Height = 26,
+                FontSize = 12,
+                CornerRadius = new CornerRadius(2),
+                Background = Skin.SurfaceControlBrush,
+                BorderBrush = Skin.BorderControlBrush,
+                BorderThickness = new Thickness(1),
+                Foreground = Skin.LabelBrush,
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+            };
             open.Click += (_, _) => Open(page);
             buttons.Children.Add(open);
         }
