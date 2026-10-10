@@ -70,13 +70,13 @@ public sealed partial class MainWindow
         footer.Children.Add(PanelButton("adjust", "New Adjustment Layer", () => ShowAdjustmentMenu(footer)));
         footer.Children.Add(PanelButton("folder", "New Group (Ctrl+G)", () => { if (SelectedLayers.Count > 0) GroupSelected(); else NewFolder(); }));
         footer.Children.Add(PanelButton("add", "New Layer (Ctrl+Shift+N)", NewBlankLayer));
-        footer.Children.Add(PanelButton("delete", "Delete Layer", DeleteLayer));
+        footer.Children.Add(PanelButton("delete", "Delete Layer or Selected Mask", DeletePanelTarget));
         DockPanel.SetDock(footer, Dock.Bottom); layers.Children.Add(footer); layers.Children.Add(_layers);
         _panelTabs.Items.Add(new TabItem { Header = Localize.Text("Layers"), FontSize = 13, Content = layers });
         _panelTabs.Items.Add(new TabItem { Header = Localize.Text("Channels"), FontSize = 13, Content = BuildChannelsPanel() });
         _panelTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _panelTabs) && _panelTabs.SelectedIndex == 1) RefreshChannels(); };
         _panelTabs.SelectedIndex = 0;
-        return _panelTabs;
+        return BuildInspector(_panelTabs);
     }
 
     private static Button PanelButton(string icon, string label, Action action)
@@ -214,8 +214,10 @@ public sealed partial class MainWindow
 
 internal sealed class LayerThumbnail(Func<SKBitmap?> source, string kind = "") : Control
 {
+    public Func<bool>? Active { get; init; }
     public override void Render(DrawingContext context)
     {
+        if (Active?.Invoke() == true) context.DrawRectangle(null, new Pen(Skin.AccentBrush, 2), new Rect(1, 1, Math.Max(0, Bounds.Width - 2), Math.Max(0, Bounds.Height - 2)));
         if (kind == "folder")
         {
             using (context.PushTransform(Matrix.CreateTranslation(4, 6)))
@@ -237,6 +239,7 @@ internal sealed class LayerThumbnail(Func<SKBitmap?> source, string kind = "") :
                 new Typeface("Segoe UI"), 20, Skin.LabelBrush);
             context.DrawText(text, new Point((Bounds.Width - text.Width) / 2, (Bounds.Height - text.Height) / 2));
         }
+        if (Active?.Invoke() == true) context.DrawRectangle(null, new Pen(Skin.AccentBrush, 2), new Rect(1, 1, Math.Max(0, Bounds.Width - 2), Math.Max(0, Bounds.Height - 2)));
     }
 }
 

@@ -66,6 +66,16 @@ public static class ImageEdits
                     var coverage = Resample(carried.Asset.Image, layer.Transform, sx, sy, box, sampling, gray: true);
                     if (coverage is null) return false;
                     maskResult = carried.Replacing(ImportedImage.Create(coverage, carried.Asset.Name));
+                    if (carried.VectorPath is { } vector)
+                    {
+                        using var path = SKPath.ParseSvgPathData(vector);
+                        if (path is not null && BrushEdits.PixelToDocument(transform, coverage.Width, coverage.Height).TryInvert(out var inverse))
+                        {
+                            var mapping = SKMatrix.Concat(inverse, SKMatrix.Concat(SKMatrix.CreateScale((float)sx, (float)sy),
+                                BrushEdits.PixelToDocument(layer.MaskTransform, carried.Asset.Width, carried.Asset.Height)));
+                            path.Transform(mapping); maskResult.VectorPath = path.ToSvgPathData();
+                        }
+                    }
                 }
             }
             Model.LayerTransform? placement = layer.Mask?.Placement is { } placed

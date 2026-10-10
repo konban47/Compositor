@@ -61,3 +61,23 @@ Windows 1.4.8.1 reads versions 1–12. The retained macOS implementation still r
 - Root `channels`: optional ordered array of up to 64 alpha channels. Each contains `id` (unique nonempty UUID), `name` (nonempty UTF-8, max 16 KiB), `imageFile` (`channel-<UPPERCASE-UUID>.png`). Images live under `images/`, are 8-bit gray PNGs exactly the canvas dimensions, and count toward the mask pixel budget. White means selected, black unselected; intermediate gray values preserve partial coverage.
 
 RGB visibility, active editing channel, layer search and collapsed rows are viewport state and are not serialized. Alpha channels are preserved by document undo and transformed with canvas crop, resize, rotation and flips. Selections themselves remain transient, as in earlier versions; save one to an alpha channel to retain it in a project.
+
+## Windows extension version 13
+
+Windows **1.4.8.2 Preview** reads versions 1–13. It writes v13 when any layer has non-default mask appearance, a vector mask path, or the text options below. Otherwise it writes v12 when the version-12 fields are needed, or v11. Windows 1.4.8.1 rejects v13; the retained macOS implementation still supports only versions 1–11. The original macOS format constant is intentionally unchanged.
+
+New optional layer fields require `maskFile` and version 13:
+
+| Field | Validation and behavior |
+| --- | --- |
+| `maskDensity` | Finite 0–1, default 1. Coverage becomes `1 - (1 - coverage) * density`, including outside the placed mask. |
+| `maskFeather` | Finite 0–1000, default 0, in document pixels. Gaussian feathering uses a padded coverage surface so adjacent render tiles agree. |
+| `maskVectorPath` | Nonempty SVG path string, at most 1,000,000 characters, parsed by Skia. Coordinates are in the saved mask raster's pixel grid, then placed through `maskPlacement` or the layer transform. Rendering redraws the path at the target scale. The required `.mask.png` remains its grayscale fallback. |
+
+New optional `text` booleans `bold`, `italic`, `underline`, `strikethrough` require v13; absent means false. Bold and italic are synthetic font treatments. The editable metadata and layer PNG both carry the resulting appearance. The property panel displays point size using `fontSize * 72 / resolution`; persisted `fontSize`, `tracking`, and `leading` remain layer pixels.
+
+Mask state and metadata are copied independently for history snapshots; pixel assets remain shared until edited. Linking an offset mask carries its existing placement along with the layer. Unlinking freezes its placement while moving the layer. A selected unlinked mask can transform without moving layer pixels. Group masks move when the group is selected, not when one child is moved independently.
+
+Replacing mask pixels clears `maskVectorPath` unless the pixels are unchanged; image resizing transforms retained path coordinates to the new raster grid. Pixel operations such as inversion, brush painting, smoothing and edge shifting produce a raster mask. Density and feather remain separate metadata until applying the mask to layer pixels.
+
+Properties panel position, active image/mask target, navigator visibility, history steps and snapshots are session state and are **not saved** in `.comp`. A document can have either one raster or one vector mask per layer, not both simultaneously. To preserve a selection between sessions, use the v12 alpha-channel mechanism. New copies from history receive a new document ID and independently owned pixel assets.

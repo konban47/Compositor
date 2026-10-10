@@ -98,6 +98,7 @@ internal sealed class TextDialog : DialogWindow
             },
             Tracking = original.Tracking,
             Leading = original.Leading,
+            Bold = original.Bold, Italic = original.Italic, Underline = original.Underline, Strikethrough = original.Strikethrough,
             BoxSize = original.BoxSize,
             ColorRuns = original.ColorRuns,
             FontRuns = original.FontRuns,

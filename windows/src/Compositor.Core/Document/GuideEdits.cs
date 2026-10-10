@@ -89,5 +89,12 @@ public static class GuideEdits
     /// A guide may sit anywhere the store would read back, which is well past the canvas on either side: a
     /// guide out in the pasteboard is where something is being lined up to, not a mistake.
     /// </summary>
+    public static (double X1, double Y1, double X2, double Y2) WorkspaceLine(CanvasGuide guide,
+        double width, double height, double zoom, double originX, double originY)
+    {
+        var at = (guide.Position - (guide.Axis == GuideAxis.Vertical ? originX : originY)) * zoom;
+        return guide.Axis == GuideAxis.Vertical ? (at, 0, at, height) : (0, at, width, at);
+    }
+
     private static bool Allowed(double position) => double.IsFinite(position) && Math.Abs(position) <= 1_000_000;
 }

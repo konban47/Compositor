@@ -90,7 +90,7 @@ public sealed class ImageLayer : IDisposable
             Opacity = Opacity,
             BlendMode = BlendMode,
             MaskSourceID = maskSourceID,
-            Mask = Mask,
+            Mask = Mask?.Clone(),
             Adjustment = Adjustment,
             Shape = Shape,
             Effects = Effects,
@@ -115,7 +115,8 @@ public sealed class ImageLayer : IDisposable
         left is null ? right is null
         : right is not null && ReferenceEquals(left.Asset.Image, right.Asset.Image)
             && left.IsEnabled == right.IsEnabled && left.IsLinked == right.IsLinked
-            && left.Placement == right.Placement;
+            && left.Placement == right.Placement && left.Density == right.Density && left.Feather == right.Feather
+            && left.VectorPath == right.VectorPath;
 
     public double EffectiveOpacity(IReadOnlyDictionary<Guid, ImageLayer> byID) =>
         LayerOpacity.Effective(this, byID);

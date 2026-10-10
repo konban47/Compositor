@@ -25,7 +25,7 @@ public static class CanvasRotation
             layer.Transform = Turn(layer.Transform);
             // Masks are shared with undo snapshots: replace the wrapper before changing placement.
             if (layer.Mask is { Placement: { } placement } mask)
-                layer.Mask = new Model.LayerMask(mask.Asset, mask.IsEnabled, Turn(placement), mask.IsLinked);
+                layer.Mask = new Model.LayerMask(mask.Asset, mask.IsEnabled, Turn(placement), mask.IsLinked, mask.Density, mask.Feather, mask.VectorPath);
         }
         for (var i = 0; i < document.Guides.Count; i++)
         {

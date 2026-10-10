@@ -11,6 +11,11 @@ public sealed class LayerTextStyle
     public double Blue { get; set; }
     public TextAlignment Alignment { get; set; } = TextAlignment.Left;
     public double Tracking { get; set; }
+    public bool? Bold { get; set; }
+    public bool? Italic { get; set; }
+    public bool? Underline { get; set; }
+    public bool? Strikethrough { get; set; }
+    public bool HasTypography => Bold is not null || Italic is not null || Underline is not null || Strikethrough is not null;
 
     /// <summary>Baseline to baseline, in layer pixels. 0 is Auto: 120% of the font size.</summary>
     public double Leading { get; set; }

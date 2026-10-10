@@ -81,6 +81,7 @@ public static class LiveMaskGraph
         Adjustment = layer.Adjustment,
         MaskPlacement = layer.MaskPlacement,
         MaskLinked = layer.MaskLinked,
+        MaskDensity = layer.MaskDensity, MaskFeather = layer.MaskFeather, MaskVectorPath = layer.MaskVectorPath,
         Shape = layer.Shape,
         Effects = layer.Effects,
         Text = layer.Text,

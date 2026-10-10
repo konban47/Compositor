@@ -208,6 +208,7 @@ public sealed partial class MainWindow : Window
         public CanvasDocument? Document { get; set; }
 
         public DocumentHistory History { get; } = new();
+        public int SnapshotNumber { get; set; }
         public Task<bool>? Saving { get; set; }
 
         /// <summary>Where this project was opened from, so Save writes back to it.</summary>
@@ -262,6 +263,7 @@ public sealed partial class MainWindow : Window
 
     /// <summary>The layer a transform drag is editing, while the pointer is down.</summary>
     private Guid? _transforming;
+    private bool _transformMaskOnly;
 
     /// <summary>What the box was when the drag began, and where every layer it moves was.</summary>
     private LayerTransform? _transformBox;
@@ -421,7 +423,7 @@ public sealed partial class MainWindow : Window
         _addMask.Items.Add(Command("_Reveal All (White)", () => AddMask(revealing: true)));
         _addMask.Items.Add(Command("_Hide All (Black)", () => AddMask(revealing: false)));
         _lockLayer.Click += (_, _) => ToggleLayerLock();
-        _layers.SelectionChanged += (_, _) => { UpdateLayerMenu(); ShowTransformBox(); _canvas.InvalidateVisual(); };
+        _layers.SelectionChanged += (_, _) => { SyncMaskTarget(); UpdateLayerMenu(); ShowTransformBox(); _canvas.InvalidateVisual(); };
         InitializeInteraction();
         _tabs.Add(_open);
         Content = Layout();
@@ -679,6 +681,8 @@ public sealed partial class MainWindow : Window
                         _showTransform,
                         _pixelGrid,
                         NavigatorMenu(),
+                        Command("Properties", () => OpenInspector(0)),
+                        Command("History", () => OpenInspector(1)),
                         _snapping,
                         Command("_Grid Settings…", () => _ = GridSettings()),
                         _snapToCanvas,
@@ -2945,17 +2949,13 @@ public sealed partial class MainWindow : Window
     private void Undo()
     {
         if (_document is not { } document || _history.Undo() is not { } snapshot || snapshot.Document is null) return;
-        document.Adopt(snapshot.Document);
-        ShowLayers(document);
-        Refresh();
+        _chosenSnapshot = null; RestoreHistory(snapshot);
     }
 
     private void Redo()
     {
         if (_document is not { } document || _history.Redo() is not { } snapshot || snapshot.Document is null) return;
-        document.Adopt(snapshot.Document);
-        ShowLayers(document);
-        Refresh();
+        _chosenSnapshot = null; RestoreHistory(snapshot);
     }
 
     /// <summary>
@@ -3065,13 +3065,14 @@ public sealed partial class MainWindow : Window
         _visibility.IsEnabled = layer is not null;
         ShowAppearance(layer);
         ShowPanelState(layer);
+        RefreshInspector();
         _clipping.Header = Localize.Text(layer?.MaskSourceID is not null ? "Release _Clipping Mask" : "Create _Clipping Mask");
         _clipping.IsEnabled = document is not null && layer is not null && LayerMaskEdits.CanToggle(document, layer.ID);
         _addMask.IsEnabled = layer is { Mask: null };
         _maskToggle.Header = Localize.Text(layer?.Mask?.IsEnabled == false ? "_Enable Mask" : "_Disable Mask");
         _maskToggle.IsEnabled = layer?.Mask is not null;
         _maskLink.Header = Localize.Text(layer?.Mask?.IsLinked == false ? "Li_nk Mask" : "Un_link Mask");
-        _maskLink.IsEnabled = layer is { IsGroup: false, Mask: not null };
+        _maskLink.IsEnabled = layer is { Mask: not null };
     }
 
     /// <summary>Rebuilds the panel and puts the selection back on a given layer.</summary>
@@ -3229,12 +3230,7 @@ public sealed partial class MainWindow : Window
         Reselect(id);
     }
 
-    private void DeleteMask()
-    {
-        if (_document is not { } document || Selected is not { } id) return;
-        Edit("Delete Layer Mask", () => LayerMaskEdits.Remove(document, id));
-        Reselect(id);
-    }
+    private void DeleteMask() => _ = ConfirmDeleteMask();
 
     private void ToggleMaskLink()
     {
@@ -4785,7 +4781,9 @@ public sealed partial class MainWindow : Window
     /// undoes in one, and a Cancel puts the selection there was back and leaves no step behind at all.
     /// </para>
     /// </summary>
-    private void ColorRange()
+    private void ColorRange() => ColorRange(null);
+
+    private void ColorRange(Guid? maskTarget)
     {
         if (_document is not { } document) return;
         if (_colorRange is not null)
@@ -4800,29 +4798,34 @@ public sealed partial class MainWindow : Window
         }
         _colorRange = session;
         _colorRangeWas = document.Selection;
-        _history.Begin("Color Range", document, Selected);
+        var originalSelection = document.Selection;
+        var history = _history;
+        history.Begin(maskTarget is null ? "Color Range" : "Color Range Mask", document, Selected);
         var panel = new ColorRangePanel(session);
         panel.Changed += () =>
         {
             // An amount or a switch moved: the selection is built again from the colours picked and shown.
-            if (_document is { } current) ShowColorRange(current, session.Rebuild(current));
+            if (ReferenceEquals(document, _document)) ShowColorRange(document, session.Rebuild(document));
         };
         panel.Applied += () =>
         {
-            if (_document is { } current) _history.End(current, Selected);
+            if (maskTarget is { } maskID && session.Include.Count > 0)
+            {
+                MaskProperties.FromSelection(document, maskID);
+                document.Selection = originalSelection;
+            }
+            history.End(document, Selected);
             CloseColorRange();
+            if (maskTarget is not null && ReferenceEquals(document, _document)) ShowLayers(document);
             Refresh();
             Say($"Selected what is near {session.Include.Count} color(s) within {session.Fuzziness:0}");
         };
         panel.Cancelled += () =>
         {
-            if (_document is { } current)
-            {
-                current.Selection = _colorRangeWas ?? DocumentSelection.All;
-                // Ends as it began: the history drops a step whose document is what it started from.
-                _history.End(current, Selected);
-                _canvas.InvalidateVisual();
-            }
+            document.Selection = originalSelection;
+            // Ends as it began: the history drops a step whose document is what it started from.
+            history.End(document, Selected);
+            _canvas.InvalidateVisual();
             CloseColorRange();
         };
         _colorRangePanel = panel;
@@ -5172,8 +5175,11 @@ public sealed partial class MainWindow : Window
     /// <summary>Where a brush stroke goes: the layer's pixels, or its mask.</summary>
     private void SetPaintingMask(bool mask)
     {
+        mask = mask && PropertyLayer?.Mask is not null;
+        _maskTargetLayer = mask ? Selected : null; _maskTargetTab = mask ? _open : null;
         _options.PaintOnMask = mask;
         _paintOnMask.IsChecked = mask;
+        ShowTransformBox(); RefreshOptionsBar(); RefreshInspector();
         Say(mask
             ? "The brush paints on the layer's mask — white reveals, and Erase paints black"
             : "The brush paints on the layer's pixels");
@@ -5584,10 +5590,10 @@ public sealed partial class MainWindow : Window
             return;
         }
         // One box around everything the transform moves, which for one layer is its own.
-        _canvas.TransformBox = TransformEdits.GroupBox(document, SelectedLayers);
+        _canvas.TransformBox = MaskTarget && PropertyLayer?.Mask?.IsLinked == false ? PropertyLayer.MaskTransform : TransformEdits.GroupBox(document, SelectedLayers);
         // A corner can be dragged on its own whenever the box stands for something with pixels: a box around
         // several layers resamples each of them into the shape the box is dragged into.
-        _canvas.DistortEnabled = _canvas.TransformBox is not null;
+        _canvas.DistortEnabled = _canvas.TransformBox is not null && !MaskTarget;
     }
 
     /// <summary>
@@ -5598,11 +5604,12 @@ public sealed partial class MainWindow : Window
     {
         if (_open.ActiveAlpha is not null) return;
         if (_document is not { } document || Selected is not { } id) return;
-        if (TransformEdits.GroupBox(document, SelectedLayers) is not { } box) return;
+        _transformMaskOnly = MaskTarget && PropertyLayer?.Mask?.IsLinked == false;
+        if ((_transformMaskOnly ? PropertyLayer?.MaskTransform : TransformEdits.GroupBox(document, SelectedLayers)) is not { } box) return;
+        if (!LayerProtection.CanMove(document, id)) return;
         _transforming = id;
         _transformBox = box;
-        _transformOriginals = TransformEdits.GroupMembers(document, SelectedLayers)
-            .ToDictionary(layer => layer.ID, layer => layer.Transform);
+        _transformOriginals = TransformEdits.Originals(document, SelectedLayers);
         _history.Begin(_transformOriginals.Count > 1 ? "Transform Layers" : "Transform", document, id);
     }
 
@@ -5621,7 +5628,8 @@ public sealed partial class MainWindow : Window
             out var lineX, out var lineY, _snappingOn ? _snapTo : SnapTo.None, _gridVisible ? _grid : null);
         _canvas.SnapLines = (lineX, lineY);
         // Every layer is carried along by the box's own move, so several keep the shape they had.
-        TransformEdits.Carry(document, _transformOriginals, from, placed);
+        if (_transformMaskOnly && PropertyLayer?.Mask is { } movingMask) movingMask.Placement = placed;
+        else TransformEdits.Carry(document, _transformOriginals, from, placed);
         _canvas.TransformBox = placed;
         Refresh();
     }
@@ -5630,6 +5638,7 @@ public sealed partial class MainWindow : Window
     {
         if (_document is not { } document || _transforming is not { } id) return;
         _transforming = null;
+        _transformMaskOnly = false;
         _transformBox = null;
         _transformOriginals.Clear();
         _canvas.SnapLines = (null, null);
@@ -5653,6 +5662,7 @@ public sealed partial class MainWindow : Window
 
     private void ShowLayers(CanvasDocument document)
     {
+        _refreshingLayerRows = true;
         var selectedIds = SelectedLayers.ToHashSet();
         _layerThumbnails.Clear();
         var models = document.Layers.ToDictionary(layer => layer.ID);
@@ -5693,6 +5703,7 @@ public sealed partial class MainWindow : Window
             _layers.SelectedItems?.Clear();
             foreach (var row in retained) _layers.SelectedItems?.Add(row);
         }
+        _refreshingLayerRows = false; SyncMaskTarget();
     }
 
     /// <summary>
@@ -5790,7 +5801,8 @@ public sealed partial class MainWindow : Window
     private MenuItem NavigatorMenu()
     {
         var item = new MenuItem { Header = Localize.Text("Navigator"), ToggleType = MenuItemToggleType.CheckBox };
-        item.Click += (_, _) => { _canvas.NavigatorEnabled = item.IsChecked; _canvas.InvalidateVisual(); };
+        item.IsChecked = _canvas.NavigatorEnabled;
+        item.Click += (_, _) => { _canvas.NavigatorEnabled = !_canvas.NavigatorEnabled; item.IsChecked = _canvas.NavigatorEnabled; _canvas.InvalidateVisual(); };
         return item;
     }
 

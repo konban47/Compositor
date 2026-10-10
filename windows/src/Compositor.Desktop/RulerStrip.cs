@@ -79,6 +79,7 @@ internal sealed class RulerStrip : Control
         var height = Bounds.Height;
         context.FillRectangle(Face, new Rect(0, 0, width, height));
         if (Scale <= 0 || width <= 0 || height <= 0) return;
+        using var clip = context.PushClip(new Rect(0, 0, width, height));
         var across = Axis == GuideAxis.Horizontal;
         var length = across ? width : height;
         var last = Origin + length / Scale;
@@ -99,12 +100,12 @@ internal sealed class RulerStrip : Control
                 FlowDirection.LeftToRight, Digits, 9, Label);
             if (across)
             {
-                context.DrawText(text, new Point(at + 2, 0));
+                context.DrawText(text, new Point(Math.Clamp(at + 2, 0, Math.Max(0, width - text.Width - 1)), 0));
                 continue;
             }
             // Down the side the numbers read downwards, so the strip is turned a quarter turn to write them.
-            using (context.PushTransform(Matrix.CreateTranslation(1, at + text.Width + 2)
-                * Matrix.CreateRotation(-Math.PI / 2)))
+            using (context.PushTransform(Matrix.CreateRotation(-Math.PI / 2)
+                * Matrix.CreateTranslation(1, Math.Min(height - 1, at + text.Width + 2))))
             {
                 context.DrawText(text, new Point(0, 0));
             }

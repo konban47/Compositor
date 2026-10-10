@@ -265,10 +265,11 @@ public static class DocumentRenderer
             using var mixed = Mix(original, adjusted, (float)opacity, null, default, Coverage.Gray);
             SKBitmap? masked = null;
             var painted = mixed;
-            if (layer.Mask is { } mask && mask.EnabledImage is { } maskPixels)
+            if (layer.Mask is { IsEnabled: true } mask)
             {
-                var local = Shift(Bounds(layer.MaskTransform, 0), target.Origin);
-                masked = Mix(original, mixed, 1f, maskPixels, local, Coverage.Gray);
+                using var maskPixels = Document.MaskProperties.Coverage(mask, layer.MaskTransform,
+                    new Model.LayerTransform(target.Origin.X, target.Origin.Y, width, height), width, height);
+                masked = Mix(original, mixed, 1f, maskPixels, SKRectI.Create(0, 0, width, height), Coverage.Gray);
                 painted = masked;
             }
             var region = SKRectI.Create(target.Origin.X, target.Origin.Y, width, height);
@@ -398,7 +399,8 @@ public static class DocumentRenderer
             }
             foreach (var (mask, transform) in Masks(layer, includeOwn: true))
             {
-                var restricted = Restrict(content, bounds, mask, Bounds(transform, 0), luminance: true);
+                using var coverage = Document.MaskProperties.Coverage(mask, transform, new Model.LayerTransform(bounds.Left, bounds.Top, bounds.Width, bounds.Height), bounds.Width, bounds.Height);
+                var restricted = Restrict(content, bounds, coverage, bounds, luminance: true);
                 content.Dispose();
                 content = restricted;
             }
@@ -424,7 +426,8 @@ public static class DocumentRenderer
             }
             foreach (var (mask, maskTransform) in Masks(layer, includeOwn: false))
             {
-                var restricted = Restrict(content, bounds, mask, Bounds(maskTransform, 0), luminance: true);
+                using var coverage = Document.MaskProperties.Coverage(mask, maskTransform, new Model.LayerTransform(bounds.Left, bounds.Top, bounds.Width, bounds.Height), bounds.Width, bounds.Height);
+                var restricted = Restrict(content, bounds, coverage, bounds, luminance: true);
                 content.Dispose();
                 content = restricted;
             }
@@ -458,8 +461,9 @@ public static class DocumentRenderer
                 using var source = SKImage.FromBitmap(asset.Image);
                 canvas.DrawImage(source, SKRect.Create(0, 0, asset.Width, asset.Height), OneToOne, paint);
             }
-            if (layer.Mask is { } mask && mask.EnabledImage is { } maskPixels)
+            if (layer.Mask is { IsEnabled: true } mask)
             {
+                using var maskPixels = Document.MaskProperties.Coverage(mask, layer.MaskTransform, layer.Transform, asset.Width, asset.Height);
                 var restricted = Restrict(image, bounds, maskPixels, bounds, luminance: true);
                 image.Dispose();
                 image = restricted;
@@ -468,16 +472,16 @@ public static class DocumentRenderer
         }
 
         /// <summary>The layer's own enabled mask, then each enclosing folder's, innermost first.</summary>
-        private IEnumerable<(SKBitmap Image, Model.LayerTransform Transform)> Masks(ImageLayer layer, bool includeOwn)
+        private IEnumerable<(Model.LayerMask Mask, Model.LayerTransform Transform)> Masks(ImageLayer layer, bool includeOwn)
         {
-            if (includeOwn && layer.Mask is { } mask && mask.EnabledImage is { } own) yield return (own, layer.MaskTransform);
+            if (includeOwn && layer.Mask is { IsEnabled: true } mask) yield return (mask, layer.MaskTransform);
             var parent = layer.ParentID;
             for (var depth = 0; parent is { } id && depth < 64; depth++)
             {
                 if (!_byID.TryGetValue(id, out var folder)) break;
-                if (folder.Mask is { } folderMask && folderMask.EnabledImage is { } pixels)
+                if (folder.Mask is { IsEnabled: true } folderMask)
                 {
-                    yield return (pixels, folderMask.Placement ?? folder.Transform);
+                    yield return (folderMask, folderMask.Placement ?? folder.Transform);
                 }
                 parent = folder.ParentID;
             }

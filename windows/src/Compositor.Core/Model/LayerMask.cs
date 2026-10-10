@@ -8,12 +8,13 @@ namespace Compositor.Core.Model;
 /// </summary>
 public sealed class LayerMask : IDisposable
 {
-    public LayerMask(ImportedImage asset, bool isEnabled = true, LayerTransform? placement = null, bool isLinked = true)
+    public LayerMask(ImportedImage asset, bool isEnabled = true, LayerTransform? placement = null, bool isLinked = true, double density = 1, double feather = 0, string? vectorPath = null)
     {
         Asset = asset;
         IsEnabled = isEnabled;
         Placement = placement;
         IsLinked = isLinked;
+        Density = density; Feather = feather; VectorPath = vectorPath;
     }
 
     public ImportedImage Asset { get; private set; }
@@ -24,6 +25,11 @@ public sealed class LayerMask : IDisposable
 
     /// <summary>Linked, layer and mask move together; unlinked, each transforms on its own.</summary>
     public bool IsLinked { get; set; }
+
+    public double Density { get; set; } = 1;
+    public double Feather { get; set; }
+    public string? VectorPath { get; set; }
+    public LayerMask Clone() => new(Asset, IsEnabled, Placement, IsLinked, Density, Feather, VectorPath);
 
     public SKBitmap? EnabledImage => IsEnabled ? Asset.Image : null;
 
@@ -39,11 +45,11 @@ public sealed class LayerMask : IDisposable
     {
         if (!IsValid(image)) throw new IO.ProjectException(IO.ProjectError.Invalid);
         var (width, height) = ImportedImage.ThumbnailSize(image.Width, image.Height);
-        return new LayerMask(new ImportedImage(image, Bitmaps.DrawAsMask(image, width, height), "Layer Mask"));
+        return new LayerMask(new ImportedImage(image, Bitmaps.Scale(image, width, height), "Layer Mask"));
     }
 
     /// <summary>The same mask with new pixels, still enabled or not, linked or not, and where it sits.</summary>
-    public LayerMask Replacing(ImportedImage asset) => new(asset, IsEnabled, Placement, IsLinked);
+    public LayerMask Replacing(ImportedImage asset) => new(asset, IsEnabled, Placement, IsLinked, Density, Feather, ReferenceEquals(asset.Image, Asset.Image) ? VectorPath : null);
 
     /// <summary>
     /// Where the mask sits once its layer moves: carried along when linked, left where it was when

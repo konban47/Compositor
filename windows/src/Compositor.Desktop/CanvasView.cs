@@ -622,7 +622,7 @@ public sealed partial class CanvasView : Control
         var bottom = (int)Math.Ceiling(_origin.Y + size.Height / _zoom);
         var region = SKRectI.Intersect(SKRectI.Create(left, top, right - left, bottom - top),
             SKRectI.Create(0, 0, document.Width, document.Height));
-        if (region.Width <= 0 || region.Height <= 0) { DrawNavigator(context); return; }
+        if (region.Width <= 0 || region.Height <= 0) { if (ShowsGuides) DrawGuides(context, document); DrawNavigator(context); return; }
 
         if (_composite is null || _compositeDirty || !ReferenceEquals(document, _compositeDocument) || region != _compositeRegion)
         {
@@ -805,7 +805,7 @@ public sealed partial class CanvasView : Control
     {
         foreach (var guide in document.Guides)
         {
-            var (x1, y1, x2, y2) = GuideEdits.ScreenLine(guide, document.Width, document.Height,
+            var (x1, y1, x2, y2) = GuideEdits.WorkspaceLine(guide, Bounds.Width, Bounds.Height,
                 _zoom, _origin.X, _origin.Y);
             context.DrawLine(Skin.GuidePen, new Point(x1, y1), new Point(x2, y2));
         }

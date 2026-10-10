@@ -260,6 +260,16 @@ public static class TransformEdits
             .ToList();
     }
 
+    public static Dictionary<Guid, LayerTransform> Originals(CanvasDocument document, IReadOnlyCollection<Guid> ids)
+    {
+        var members = GroupMembers(document, ids).ToDictionary(layer => layer.ID, layer => layer.Transform);
+        var selected = ids.ToHashSet();
+        foreach (var folder in document.Layers.Where(layer => layer.IsGroup && layer.Mask is not null
+            && Inside(document, layer, selected) && LayerProtection.CanMove(document, layer.ID)))
+            members[folder.ID] = folder.Transform;
+        return members;
+    }
+
     /// <summary>
     /// The upright box around a group's members, which is the rectangle the handles sit on and the one a drag
     /// takes from where it was to where it goes. Null when nothing is being transformed.
@@ -309,15 +319,27 @@ public static class TransformEdits
     public static bool Carry(CanvasDocument document, IReadOnlyDictionary<Guid, LayerTransform> originals,
         LayerTransform from, LayerTransform to)
     {
-        if (from == to) return false;
         var changed = false;
         foreach (var (id, original) in originals)
         {
             if (document.Layers.FirstOrDefault(layer => layer.ID == id) is not { } layer) continue;
-            layer.Transform = Following(original, from, to);
+            var next = Following(original, from, to);
+            if (next == layer.Transform) continue;
+            SetPlacement(layer, next);
             changed = true;
         }
         return changed;
+    }
+
+    public static void SetPlacement(ImageLayer layer, LayerTransform placed)
+    {
+        if (!placed.IsValid) return;
+        if (layer.Mask is { } mask)
+        {
+            if (!mask.IsLinked) mask.Placement ??= layer.Transform;
+            else if (mask.Placement is { } at) mask.Placement = Following(at, layer.Transform, placed);
+        }
+        layer.Transform = placed;
     }
 
     /// <summary>The unit square placed on the document as this transform places a layer.</summary>

@@ -11,6 +11,9 @@ public sealed class LayerMask
     public bool? MaskEnabled { get; set; }
     public LayerTransform? MaskPlacement { get; set; }
     public bool? MaskLinked { get; set; }
+    public double? MaskDensity { get; set; }
+    public double? MaskFeather { get; set; }
+    public string? MaskVectorPath { get; set; }
 
     public static LayerMask FromRecord(ProjectLayerRecord layer) => new()
     {
@@ -18,6 +21,7 @@ public sealed class LayerMask
         MaskEnabled = layer.MaskEnabled,
         MaskPlacement = layer.MaskPlacement,
         MaskLinked = layer.MaskLinked,
+        MaskDensity = layer.MaskDensity, MaskFeather = layer.MaskFeather, MaskVectorPath = layer.MaskVectorPath,
     };
 
     public void ApplyTo(ProjectLayerRecord layer)
@@ -26,6 +30,7 @@ public sealed class LayerMask
         layer.MaskEnabled = MaskEnabled;
         layer.MaskPlacement = MaskPlacement;
         layer.MaskLinked = MaskLinked;
+        layer.MaskDensity = MaskDensity; layer.MaskFeather = MaskFeather; layer.MaskVectorPath = MaskVectorPath;
     }
 
     /// <summary>The only filename a layer's mask may use.</summary>
@@ -54,6 +59,18 @@ public sealed class LayerMask
         }
         if (MaskEnabled is not null && MaskFile is null) return false;
         if (MaskPlacement is not null && (MaskFile is null || !MaskPlacement.ToRuntime().IsValid)) return false;
+        if (MaskDensity is not null || MaskFeather is not null || MaskVectorPath is not null)
+        {
+            if (version < 13 || MaskFile is null) return false;
+            if (MaskDensity is { } density && (!double.IsFinite(density) || density < 0 || density > 1)) return false;
+            if (MaskFeather is { } feather && (!double.IsFinite(feather) || feather < 0 || feather > 1000)) return false;
+            if (MaskVectorPath is { } path)
+            {
+                if (path.Length == 0 || path.Length > 1_000_000) return false;
+                using var parsed = SkiaSharp.SKPath.ParseSvgPathData(path);
+                if (parsed is null) return false;
+            }
+        }
         return true;
     }
 

@@ -84,6 +84,7 @@ public sealed partial class MainWindow
     private void SelectMoveTarget(SKPoint point, KeyModifiers modifiers)
     {
         if (_document is not { } document) return;
+        if (MaskTarget && PropertyLayer?.Mask?.IsLinked == false && PropertyLayer.MaskTransform.Contains(point)) return;
         // Handles retain the current transform. Interior clicks pick the top visible pixel, including overlapping layers.
         if (_canvas.TransformBox is { } box && _transformShown &&
             TransformEdits.HandleAt(box, point, TransformEdits.Grab / _canvas.Zoom,
@@ -129,7 +130,7 @@ public sealed partial class MainWindow
             Edit("Layer Visibility", () => LayerEdits.SetVisible(document, current.ID, !current.IsVisible));
             ShowLayers(document);
         };
-        var panel = new Grid { ColumnDefinitions = new ColumnDefinitions("28,Auto,Auto,Auto,*,24"), MinHeight = 42 };
+        var panel = new Grid { ColumnDefinitions = new ColumnDefinitions("28,Auto,Auto,Auto,Auto,*,24"), MinHeight = 42 };
         panel.Children.Add(eye);
         var arrow = new Button { Content = layer.IsGroup ? (_open.Collapsed.Contains(layer.ID) ? "▸" : "▾") : "",
             Width = 18, Height = 28, Margin = new Thickness(depth * 10, 0, 0, 0), Padding = new Thickness(0),
@@ -143,25 +144,29 @@ public sealed partial class MainWindow
         Grid.SetColumn(arrow, 1); panel.Children.Add(arrow);
         var thumbnail = new LayerThumbnail(() => Current()?.LiveText is not null ? null : Current()?.Asset?.Thumbnail,
             layer.IsGroup ? "folder" : layer.LiveText is not null ? "T" : layer.Adjustment is not null ? "◐" : "")
-            { Width = 32, Height = 32, Margin = new Thickness(layer.IsGroup ? 0 : depth * 12, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center };
+            { Width = 32, Height = 32, Margin = new Thickness(layer.IsGroup ? 0 : depth * 12, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Active = () => Selected == layer.ID && !MaskTarget };
         _layerThumbnails.Add(thumbnail);
         thumbnail.PointerPressed += (_, e) =>
         {
             if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
             { SelectLayerRow(layer.ID); SelectLayerPixels(); e.Handled = true; }
-            else { SetPaintingMask(false); }
+            else { SelectLayerRow(layer.ID); SetPaintingMask(false); e.Handled = true; }
         };
         Grid.SetColumn(thumbnail, 2); panel.Children.Add(thumbnail);
         if (layer.Mask is not null)
         {
-            var mask = new LayerThumbnail(() => Current()?.Mask?.Asset.Thumbnail) { Width = 30, Height = 30, Margin = new Thickness(3) };
+            var link = PanelButton("link", layer.Mask.IsLinked ? "Unlink Layer Mask" : "Link Layer Mask", () => { SelectLayerRow(layer.ID); ToggleMaskLink(); });
+            link.Width = 21; link.Padding = new Thickness(1); link.Tag = "mask-link";
+            if (!layer.Mask.IsLinked) link.Content = null;
+            Grid.SetColumn(link, 3); panel.Children.Add(link);
+            var mask = new LayerThumbnail(() => Current()?.Mask?.Asset.Thumbnail) { Width = 30, Height = 30, Margin = new Thickness(3), Active = () => Selected == layer.ID && MaskTarget };
             _layerThumbnails.Add(mask); ToolTip.SetTip(mask, Localize.Text("Edit Layer Mask"));
             mask.PointerPressed += (_, e) => { SelectLayerRow(layer.ID); SetPaintingMask(true); e.Handled = true; };
-            Grid.SetColumn(mask, 3); panel.Children.Add(mask);
+            Grid.SetColumn(mask, 4); panel.Children.Add(mask);
         }
         var name = new TextBlock { Text = layer.Name + (layer.LinkID is not null ? "  ↔" : ""), Foreground = Ink,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 2, 0), TextTrimming = TextTrimming.CharacterEllipsis };
-        ToolTip.SetTip(name, layer.Name + notes); Grid.SetColumn(name, 4); panel.Children.Add(name);
+        ToolTip.SetTip(name, layer.Name + notes); Grid.SetColumn(name, 5); panel.Children.Add(name);
         if (layer.Locks != LayerLocks.None || _document is { } doc && LayerProtection.Effective(doc, layer.ID) != LayerLocks.None)
         {
             var unlock = PanelButton("lock", "Unlock Layer", () =>
@@ -171,7 +176,7 @@ public sealed partial class MainWindow
                 ShowLayers(current);
             });
             unlock.Width = 24; unlock.IsEnabled = layer.Locks != LayerLocks.None;
-            Grid.SetColumn(unlock, 5); panel.Children.Add(unlock);
+            Grid.SetColumn(unlock, 6); panel.Children.Add(unlock);
         }
         return panel;
     }

@@ -269,5 +269,6 @@ public sealed class TextSession
         BoxSize = style.BoxSize,
         ColorRuns = style.ColorRuns,
         FontRuns = style.FontRuns,
+        Bold = style.Bold, Italic = style.Italic, Underline = style.Underline, Strikethrough = style.Strikethrough,
     };
 }

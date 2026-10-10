@@ -47,8 +47,7 @@ public static class LayerEdits
         foreach (var layer in members)
         {
             var flipped = layer.Transform.Mirrored(horizontally, axis);
-            if (layer.Mask is { } mask) mask.Placement = mask.PlacementMoving(layer.Transform, flipped);
-            layer.Transform = flipped;
+            TransformEdits.SetPlacement(layer, flipped);
         }
         return true;
     }
@@ -79,7 +78,7 @@ public static class LayerEdits
     public static bool Move(CanvasDocument document, Guid layerID, double dx, double dy)
     {
         if (Find(document, layerID) is not { } layer || !LayerProtection.CanMove(document, layerID)) return false;
-        layer.Transform = layer.Transform with { X = layer.Transform.X + dx, Y = layer.Transform.Y + dy };
+        TransformEdits.SetPlacement(layer, layer.Transform with { X = layer.Transform.X + dx, Y = layer.Transform.Y + dy });
         return true;
     }
 

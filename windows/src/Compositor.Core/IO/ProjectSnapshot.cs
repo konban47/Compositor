@@ -30,7 +30,7 @@ public sealed class ProjectSnapshot : IDisposable
     {
         if (layer.MaskFile is null || !Masks.TryGetValue(layer.ID, out var asset)) return null;
         return new Model.LayerMask(asset, layer.MaskEnabled ?? true,
-            layer.MaskPlacement?.ToRuntime(), layer.MaskLinked ?? true);
+            layer.MaskPlacement?.ToRuntime(), layer.MaskLinked ?? true, layer.MaskDensity ?? 1, layer.MaskFeather ?? 0, layer.MaskVectorPath);
     }
 
     /// <summary>The rows the layers panel draws, and the layers a renderer draws, in document order.</summary>
@@ -83,8 +83,9 @@ public sealed class ProjectSnapshot : IDisposable
     {
         var manifest = new ProjectManifest
         {
-            Version = document.Channels.Count > 0 || document.Layers.Any(layer => layer.Locks != LayerLocks.None
-                || layer.FillOpacity != 1 || layer.LinkID is not null) ? ProjectManifest.Current : 11,
+            Version = document.Layers.Any(layer => layer.LiveText?.HasTypography == true || layer.Mask is { } mask && (mask.Density != 1 || mask.Feather != 0 || mask.VectorPath is not null)) ? 13
+                : document.Channels.Count > 0 || document.Layers.Any(layer => layer.Locks != LayerLocks.None
+                || layer.FillOpacity != 1 || layer.LinkID is not null) ? 12 : 11,
             DocumentID = document.ID,
             Width = document.Width,
             Height = document.Height,

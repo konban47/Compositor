@@ -58,6 +58,7 @@ public static class ProjectStore
                 if (!text.IsValid
                     || (text.ColorRuns is not null && version < 10)
                     || (text.FontRuns is not null && version < 11)
+                    || (text.HasTypography && version < 13)
                     || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null)
                 {
                     throw new ProjectException(ProjectError.Invalid);

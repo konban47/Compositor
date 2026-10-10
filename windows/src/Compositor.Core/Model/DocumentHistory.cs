@@ -6,7 +6,7 @@ namespace Compositor.Core.Model;
 /// Undo and redo as value snapshots. A document is copied when an edit begins and again when it ends, and
 /// the copies share the same pixels, so a step costs a list of layer records rather than a set of images.
 /// </summary>
-public sealed class DocumentHistory
+public sealed partial class DocumentHistory
 {
     public readonly record struct Snapshot(CanvasDocument? Document, Guid? ActiveLayerID, Guid Revision);
 
@@ -52,6 +52,8 @@ public sealed class DocumentHistory
 
     public void Reset()
     {
+        _snapshots.Clear();
+        _initialSnapshotMade = false;
         _past.Clear();
         _future.Clear();
         _pending = null;
@@ -129,6 +131,10 @@ public sealed class DocumentHistory
                 }
             }
         }
+        foreach (var snapshot in _snapshots)
+        foreach (var (image, thumbnail) in Assets(snapshot.State.Document))
+        foreach (var bitmap in new[] { image, thumbnail })
+            if (!live.Contains(bitmap) && seen.Add(bitmap)) bytes += (long)bitmap.RowBytes * bitmap.Height;
         return bytes;
     }
 
@@ -148,6 +154,7 @@ public sealed class DocumentHistory
         {
             if (_past.Count > 0) _past.RemoveAt(0);
             else if (_future.Count > 0) _future.RemoveAt(0);
+            else if (_snapshots.Count > 0) _snapshots.RemoveAt(0);
             else break;
         }
     }

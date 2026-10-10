@@ -64,8 +64,12 @@ public static class TextEdits
         foreach (var piece in pieces)
         {
             paint.Color = piece.Colour;
-            using var font = new SKFont(piece.Typeface, (float)style.FontSize);
+            using var font = new SKFont(piece.Typeface, (float)style.FontSize) { Embolden = style.Bold == true, SkewX = style.Italic == true ? -.25f : 0 };
             canvas.DrawText(piece.Text, piece.X, piece.Y, SKTextAlign.Left, font, paint);
+            paint.StrokeWidth = Math.Max(1, (float)style.FontSize / 16);
+            var advance = (float)Advance(piece.Text, piece.Typeface, style);
+            if (style.Underline == true) canvas.DrawLine(piece.X, piece.Y + (float)style.FontSize * .1f, piece.X + advance, piece.Y + (float)style.FontSize * .1f, paint);
+            if (style.Strikethrough == true) canvas.DrawLine(piece.X, piece.Y - (float)style.FontSize * .3f, piece.X + advance, piece.Y - (float)style.FontSize * .3f, paint);
         }
         return image;
     }
@@ -239,7 +243,7 @@ public static class TextEdits
     /// <summary>The advance of one character: what it measures, plus the tracking, as Core Text adds it.</summary>
     private static double Advance(string text, SKTypeface typeface, LayerTextStyle style)
     {
-        using var font = new SKFont(typeface, (float)style.FontSize);
+        using var font = new SKFont(typeface, (float)style.FontSize) { Embolden = style.Bold == true, SkewX = style.Italic == true ? -.25f : 0 };
         return font.MeasureText(text) + style.Tracking;
     }
 

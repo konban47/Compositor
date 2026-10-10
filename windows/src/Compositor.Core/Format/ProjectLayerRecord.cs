@@ -27,6 +27,9 @@ public sealed class ProjectLayerRecord
 
     /// <summary>Nil (older projects) is linked.</summary>
     public bool? MaskLinked { get; set; }
+    public double? MaskDensity { get; set; }
+    public double? MaskFeather { get; set; }
+    public string? MaskVectorPath { get; set; }
 
     /// <summary>A shape layer's shape, drawn again when the layer is scaled.</summary>
     public LayerShapeStyle? Shape { get; set; }
