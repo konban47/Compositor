@@ -129,7 +129,10 @@ public sealed partial class MainWindow
         Reselect(document.Layers[^1].ID); OpenInspector(0); Pump();
         var bold = _properties.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().Single(button => button.Content?.ToString() == Localize.Text("Bold"));
         bold.IsChecked = true; bold.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
-        Check(PropertyLayer?.LiveText?.Bold == true, "Bold text property did not commit."); Save("text");
+        Check(PropertyLayer?.LiveText?.Bold == true, "Bold text property did not commit.");
+        _properties.Children.OfType<Expander>().Single(section => section.Header?.ToString() == Localize.Text("Transform")).IsExpanded = false;
+        Save("text");
+        using (var finalFrame = this.CaptureRenderedFrame()) finalFrame!.Save(output, new PngBitmapEncoderOptions());
         Check(!Localize.IsChinese || _inspectorTabs.Items.OfType<TabItem>().Select(item => item.Header?.ToString()).SequenceEqual(new[] { "属性", "历史记录" }), "Inspector headings are untranslated.");
     }
 }
