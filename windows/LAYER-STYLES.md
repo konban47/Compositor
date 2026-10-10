@@ -21,7 +21,7 @@
 
 “混合颜色带”选择灰色或 RGB 分量，分别调整“当前图层”和“下一图层”的黑／白范围。**Alt 拖动**三角拆分过渡，箭头键微调，Shift+箭头步进 10，Tab 切换手柄。不同分量的范围可同时保留。
 
-“新建样式”存入 `%APPDATA%\CompositorWindows\layer-styles.json`；“样式”页可应用、删除或存储／载入 JSON 预设。最多保留 100 个预设，不包含图层图像、名称或位置；不兼容 Photoshop `.asl`。
+“新建样式”存入 `%APPDATA%\CompositorWindows\layer-styles.json`；“样式”页可应用、删除或存储／载入 JSON 预设。最多保留 100 个预设，库文件最多 16 MB；超限会提示保存失败并保留磁盘上已有的库。不包含图层图像、名称或位置；不兼容 Photoshop `.asl`。
 
 ## 截图中的右键菜单
 

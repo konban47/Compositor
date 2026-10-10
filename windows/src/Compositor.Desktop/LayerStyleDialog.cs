@@ -284,7 +284,12 @@ internal sealed class LayerStyleDialog : DialogWindow
         catch { return []; }
     }
     private void StorePresets()
-    { Directory.CreateDirectory(AppPaths.SettingsDirectory); var temp = PresetPath + ".tmp"; File.WriteAllText(temp, JsonSerializer.Serialize(_presets)); File.Move(temp, PresetPath, true); }
+    {
+        var json = JsonSerializer.Serialize(_presets);
+        if (System.Text.Encoding.UTF8.GetByteCount(json) > 16_000_000) throw new InvalidDataException("Style library exceeds its size limit.");
+        Directory.CreateDirectory(AppPaths.SettingsDirectory); var temp = PresetPath + ".tmp";
+        File.WriteAllText(temp, json); File.Move(temp, PresetPath, true);
+    }
     private async Task SavePreset()
     {
         var name = await TextPrompt.Ask(this, "New Style", "Name", Localize.Text("Style") + " " + (_presets.Count + 1));
