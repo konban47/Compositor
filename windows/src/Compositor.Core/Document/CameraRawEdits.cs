@@ -114,6 +114,24 @@ public sealed class CameraRawSettings
 
     /// <summary>−100 to 100: how much of the curve's bend is held off the colours that are already saturated.</summary>
     public double RefineSaturation { get; set; }
+    public double CurveShadows { get; set; }
+    public double CurveDarks { get; set; }
+    public double CurveLights { get; set; }
+    public double CurveHighlights { get; set; }
+    public double CurveShadowSplit { get; set; } = 25;
+    public double CurveDarkSplit { get; set; } = 50;
+    public double CurveLightSplit { get; set; } = 75;
+    public bool MeasuredCurve => CurveShadowSplit == 25 && CurveDarkSplit == 50 && CurveLightSplit == 75 && RefineSaturation == 0;
+    private Format.CurvesSettings ParametricCurve()
+    {
+        static double Bend(double v, double lower, double low, double upper, double high) =>
+            v < lower && lower > 0 ? lower * Math.Pow(v / lower, Math.Pow(2, -low / 100 * 1.66))
+            : v > upper && upper < 1 ? 1 - (1 - upper) * Math.Pow((1 - v) / (1 - upper), Math.Pow(2, high / 100 * 1.66)) : v;
+        var curve = new Format.CurvesSettings();
+        curve.Channels[0] = Enumerable.Range(0, 33).Select(i => { var tone = i / 32.0;
+            return new Format.CurvePoint { X = tone * 255, Y = 255 * Bend(Bend(tone, CurveShadowSplit / 100, CurveShadows, CurveLightSplit / 100, CurveHighlights), CurveDarkSplit / 100, CurveDarks, CurveDarkSplit / 100, CurveLights) }; }).ToList();
+        return curve;
+    }
 
     /// <summary>Colour grading: what each of the three tonal ranges is pushed towards, and the whole picture.
     /// The hue is a place on the wheel in degrees, the amount 0 to 100, and the lightness −100 to 100.</summary>
@@ -191,7 +209,7 @@ public sealed class CameraRawSettings
 
     /// <summary>Whether the curve or what is held off it asks for anything.</summary>
     public bool AdjustsCurve =>
-        RefineSaturation != 0 || CurveMoves || AdjustsMixer || AdjustsPointColor;
+        CurveShadows != 0 || CurveDarks != 0 || CurveLights != 0 || CurveHighlights != 0 || RefineSaturation != 0 || CurveMoves || AdjustsMixer || AdjustsPointColor;
 
     /// <summary>Whether the grading asks for anything.</summary>
     public bool AdjustsGrading =>
@@ -213,9 +231,10 @@ public sealed class CameraRawSettings
         var red = new float[256];
         var green = new float[256];
         var blue = new float[256];
+        var parametric = ParametricCurve();
         for (var value = 0; value < 256; value++)
         {
-            luma[value] = (float)(Pixels.AdjustmentOperators.CurvesValue(Curve, 0, value) / 255);
+            luma[value] = (float)(Pixels.AdjustmentOperators.CurvesValue(Curve, 0, MeasuredCurve ? value : Pixels.AdjustmentOperators.CurvesValue(parametric, 0, value)) / 255);
             red[value] = (float)(Pixels.AdjustmentOperators.CurvesValue(Curve, 1, value) / 255);
             green[value] = (float)(Pixels.AdjustmentOperators.CurvesValue(Curve, 2, value) / 255);
             blue[value] = (float)(Pixels.AdjustmentOperators.CurvesValue(Curve, 3, value) / 255);
@@ -316,6 +335,8 @@ public sealed class CameraRawSettings
         && Within(GreenHue, -100, 100) && Within(GreenSaturation, -100, 100)
         && Within(BlueHue, -100, 100) && Within(BlueSaturation, -100, 100)
         && Within(RefineSaturation, -100, 100) && Curve.IsValid
+        && Within(CurveShadows, -100, 100) && Within(CurveDarks, -100, 100) && Within(CurveLights, -100, 100) && Within(CurveHighlights, -100, 100)
+        && Within(CurveShadowSplit, 0, 100) && Within(CurveDarkSplit, CurveShadowSplit, 100) && Within(CurveLightSplit, CurveDarkSplit, 100)
         && Within(ShadowHue, 0, 360) && Within(ShadowSaturation, 0, 100) && Within(ShadowLuminance, -100, 100)
         && Within(MidtoneHue, 0, 360) && Within(MidtoneSaturation, 0, 100) && Within(MidtoneLuminance, -100, 100)
         && Within(HighlightHue, 0, 360) && Within(HighlightSaturation, 0, 100) && Within(HighlightLuminance, -100, 100)
@@ -435,22 +456,23 @@ public static class CameraRawEdits
         if (settings.AdjustsCalibration)
         {
             AdjustPixels.CameraRawCalibration(pixels, width, height, stride,
-                settings.ShadowTint, settings.RedHue, settings.RedSaturation,
-                settings.GreenHue, settings.GreenSaturation, settings.BlueHue, settings.BlueSaturation,
+                settings.ShadowTint, 0, 0,
+                0, 0, 0, 0,
                 settings.ProcessVersion);
         }
-        if (settings.AdjustsLight || settings.AdjustsColor)
+        var folded = !settings.AdjustsPointColor && settings.RefineSaturation == 0;
+        if (settings.AdjustsLight || settings.AdjustsColor || settings.AdjustsCalibration || settings.AdjustsCurve || settings.AdjustsGrading)
         {
-            AdjustPixels.CameraRawMeasured(pixels, width, height, stride, settings);
+            AdjustPixels.CameraRawMeasured(pixels, width, height, stride, settings, folded);
         }
-        if (settings.AdjustsCurve || settings.AdjustsGrading)
+        if (!folded && (settings.AdjustsCurve || settings.AdjustsGrading))
         {
             var (luma, red, green, blue) = settings.Curves();
             // The kernel indexes the mixer and the grade whether or not anything is asked for, which is why
             // both are always given in full; the points are read only up to their count.
             AdjustPixels.CameraRawCurveColor(pixels, width, height, stride, luma, red, green, blue,
-                settings.RefineSaturation / 100, settings.MixerFloats(), settings.Points.Count, settings.PointFloats(),
-                settings.Grade, settings.GradeBlending / 100, settings.GradeBalance / 100, -1);
+                settings.RefineSaturation / 100, new float[24], settings.Points.Count, settings.PointFloats(),
+                new float[12], settings.GradeBlending / 100, settings.GradeBalance / 100, -1, CameraRawTables.MixerTable(settings), CameraRawTables.GradingTable(settings));
         }
         if (settings.AdjustsEffects)
         {

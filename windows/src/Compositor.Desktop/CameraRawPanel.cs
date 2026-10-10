@@ -252,6 +252,9 @@ internal sealed class CameraRawPanel
             Points = [.. Points()],
         };
         foreach (var (slider, set, _, _) in _rows) set(settings, slider.Value);
+        settings.CurveShadowSplit = Math.Clamp(settings.CurveShadowSplit, 5, 90);
+        settings.CurveDarkSplit = Math.Clamp(settings.CurveDarkSplit, settings.CurveShadowSplit + 2, 95);
+        settings.CurveLightSplit = Math.Clamp(settings.CurveLightSplit, settings.CurveDarkSplit + 2, 98);
         settings.Geometry.Guides.AddRange(_guides);
         return settings;
     }
@@ -400,6 +403,14 @@ internal sealed class CameraRawPanel
         Add(groups, "Blue saturation", -100, 100, start.BlueSaturation, (s, v) => s.BlueSaturation = v);
 
         groups.Children.Add(Heading("Curve"));
+        Add(groups, "Curve Shadows", -100, 100, start.CurveShadows, (s, v) => s.CurveShadows = v);
+        Add(groups, "Curve Darks", -100, 100, start.CurveDarks, (s, v) => s.CurveDarks = v);
+        Add(groups, "Curve Lights", -100, 100, start.CurveLights, (s, v) => s.CurveLights = v);
+        Add(groups, "Curve Highlights", -100, 100, start.CurveHighlights, (s, v) => s.CurveHighlights = v);
+        Add(groups, "Curve Shadow Split", 0, 100, start.CurveShadowSplit, (s, v) => s.CurveShadowSplit = v);
+        Add(groups, "Curve Dark Split", 0, 100, start.CurveDarkSplit, (s, v) => s.CurveDarkSplit = v);
+        Add(groups, "Curve Light Split", 0, 100, start.CurveLightSplit, (s, v) => s.CurveLightSplit = v);
+
         _curveChannel.ItemsSource = new[] { "Whole picture", "Red", "Green", "Blue" };
         _curveChannel.SelectedIndex = Math.Clamp((int)start.Curve.Channel, 0, 3);
         _curveChannel.Width = 160;

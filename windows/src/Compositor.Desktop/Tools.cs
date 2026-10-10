@@ -27,6 +27,15 @@ internal enum Tool
     Gradient,
     HistoryBrush,
     Path,
+    PathSelection,
+    ShapeEllipse,
+    Triangle,
+    PolygonShape,
+    Star,
+    Line,
+    CustomShape,
+    RotateView,
+    Zoom,
 }
 
 /// <summary>Which of the brush's amounts was asked for, by the Tools menu or the options bar.</summary>

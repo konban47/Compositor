@@ -581,8 +581,9 @@ public sealed partial class CanvasView : Control
     public void Fit()
     {
         if (_document is null || Bounds.Width <= 0 || Bounds.Height <= 0) return;
-        var across = Bounds.Width / _document.Width;
-        var down = Bounds.Height / _document.Height;
+        var radians = ViewAngle * Math.PI / 180;
+        var across = Bounds.Width / (Math.Abs(Math.Cos(radians)) * _document.Width + Math.Abs(Math.Sin(radians)) * _document.Height);
+        var down = Bounds.Height / (Math.Abs(Math.Sin(radians)) * _document.Width + Math.Abs(Math.Cos(radians)) * _document.Height);
         SetZoom(Math.Min(across, down));
         _origin = new SKPoint(
             (float)((_document.Width - Bounds.Width / _zoom) / 2),
@@ -609,7 +610,8 @@ public sealed partial class CanvasView : Control
         if (!double.IsFinite(factor) || factor <= 0) return;
         var before = ToDocument(pointer);
         SetZoom(_zoom * factor);
-        _origin = new SKPoint((float)(before.X - pointer.X / _zoom), (float)(before.Y - pointer.Y / _zoom));
+        var local = Unrotate(pointer);
+        _origin = new SKPoint((float)(before.X - local.X / _zoom), (float)(before.Y - local.Y / _zoom));
         Moved();
     }
 
@@ -636,8 +638,10 @@ public sealed partial class CanvasView : Control
     }
 
     public bool CanvasOnly { get; set; }
-    public ColorChannels DisplayChannels { get; set; } = ColorChannels.RGB;
-    public SKBitmap? AlphaDisplay { get; set; }
+    private ColorChannels _displayChannels = ColorChannels.RGB;
+    public ColorChannels DisplayChannels { get => _displayChannels; set { if (_displayChannels == value) return; _displayChannels = value; _compositeDirty = true; InvalidateVisual(); } }
+    private SKBitmap? _alphaDisplay;
+    public SKBitmap? AlphaDisplay { get => _alphaDisplay; set { if (ReferenceEquals(_alphaDisplay, value)) return; _alphaDisplay = value; _compositeDirty = true; InvalidateVisual(); } }
 
     public override void Render(DrawingContext context)
     {
@@ -646,13 +650,20 @@ public sealed partial class CanvasView : Control
         // What is drawn is the preview while a panel is showing one, and the document itself otherwise.
         if ((PreviewDocument ?? _document) is not { } document) return;
 
-        var left = (int)Math.Floor(_origin.X);
-        var top = (int)Math.Floor(_origin.Y);
-        var right = (int)Math.Ceiling(_origin.X + size.Width / _zoom);
-        var bottom = (int)Math.Ceiling(_origin.Y + size.Height / _zoom);
+        var corners = new[] { ToDocument(default), ToDocument(new Point(size.Width, 0)), ToDocument(new Point(0, size.Height)), ToDocument(new Point(size.Width, size.Height)) };
+        var left = (int)Math.Floor(corners.Min(p => p.X));
+        var top = (int)Math.Floor(corners.Min(p => p.Y));
+        var right = (int)Math.Ceiling(corners.Max(p => p.X));
+        var bottom = (int)Math.Ceiling(corners.Max(p => p.Y));
         var region = SKRectI.Intersect(SKRectI.Create(left, top, right - left, bottom - top),
             SKRectI.Create(0, 0, document.Width, document.Height));
-        if (region.Width <= 0 || region.Height <= 0) { if (ShowsGuides) DrawGuides(context, document); DrawNavigator(context); return; }
+        if (region.Width <= 0 || region.Height <= 0)
+        {
+            _drawingScene = true;
+            try { using (context.PushTransform(ViewRotation)) if (ShowsGuides) DrawGuides(context, document); }
+            finally { _drawingScene = false; }
+            DrawNavigator(context); return;
+        }
 
         if (_composite is null || _compositeDirty || !ReferenceEquals(document, _compositeDocument) || region != _compositeRegion)
         {
@@ -684,6 +695,10 @@ public sealed partial class CanvasView : Control
             (region.Top - _origin.Y) * _zoom,
             region.Width * _zoom,
             region.Height * _zoom);
+        _drawingScene = true;
+        try
+        {
+        using var rotation = context.PushTransform(ViewRotation);
         DrawPaperShadow(context, destination);
         // The checkerboard under the picture, so transparent pixels show through it as they do on the Mac.
         context.DrawRectangle(Paper, null, destination);
@@ -695,8 +710,10 @@ public sealed partial class CanvasView : Control
         DrawSelection(context);
         DrawUprightGuides(context);
         DrawStroke(context);
-        DrawSampleRing(context);
         DrawFloating(context);
+        }
+        finally { _drawingScene = false; }
+        DrawSampleRing(context);
         DrawNavigator(context);
     }
 
@@ -837,6 +854,9 @@ public sealed partial class CanvasView : Control
         {
             var (x1, y1, x2, y2) = GuideEdits.WorkspaceLine(guide, Bounds.Width, Bounds.Height,
                 _zoom, _origin.X, _origin.Y);
+            var extent = Math.Sqrt(Bounds.Width * Bounds.Width + Bounds.Height * Bounds.Height);
+            if (guide.Axis == Format.GuideAxis.Vertical) { y1 = -extent; y2 = extent; }
+            else { x1 = -extent; x2 = extent; }
             context.DrawLine(Skin.GuidePen, new Point(x1, y1), new Point(x2, y2));
         }
     }
@@ -1185,6 +1205,8 @@ public sealed partial class CanvasView : Control
     }
 
     /// <summary>The nodes and handles of the vector outline being edited, as Photoshop's Path tool shows them.</summary>
+    public bool SelectWholePath { get; set; }
+    private SKPoint _wholePathOffset;
     private void DrawNodes(DrawingContext context)
     {
         if (!PathEnabled || PathNodes is not { } nodes || PathToDocument is not { } map) return;
@@ -1360,8 +1382,11 @@ public sealed partial class CanvasView : Control
         }
     }
 
-    private Point ToScreen(SKPoint document) =>
-        new((document.X - _origin.X) * _zoom, (document.Y - _origin.Y) * _zoom);
+    internal Point ToScreen(SKPoint document)
+    {
+        var point = new Point((document.X - _origin.X) * _zoom, (document.Y - _origin.Y) * _zoom);
+        return _drawingScene ? point : ViewRotation.Transform(point);
+    }
 
     /// <summary>
     /// Where a document point is drawn in this control. The checks that drive a pointer at the canvas aim
@@ -1373,8 +1398,11 @@ public sealed partial class CanvasView : Control
     /// is what the ruler strips use to turn a point on themselves into a guide's position.</summary>
     internal SKPoint InDocument(Point inView) => ToDocument(inView);
 
-    private SKPoint ToDocument(Point screen) =>
-        new((float)(_origin.X + screen.X / _zoom), (float)(_origin.Y + screen.Y / _zoom));
+    internal SKPoint ToDocument(Point screen)
+    {
+        var point = Unrotate(screen);
+        return new((float)(_origin.X + point.X / _zoom), (float)(_origin.Y + point.Y / _zoom));
+    }
 
     /// <summary>A copy of a rendered piece in the order the screen wants: blue before red, premultiplied.</summary>
     internal static WriteableBitmap ToImage(SKBitmap source)
@@ -1414,7 +1442,7 @@ public sealed partial class CanvasView : Control
     {
         Focus();
         var properties = e.GetCurrentPoint(this).Properties;
-        if (NavigatorPress(e)) return;
+        if (NavigatorPress(e) || ViewToolPress(e)) return;
         if (properties.IsMiddleButtonPressed || (PanEnabled && properties.IsLeftButtonPressed && !UprightDrawing && !EyedropperOnClick))
         {
             _dragging = e.GetPosition(this);
@@ -1529,7 +1557,17 @@ public sealed partial class CanvasView : Control
         {
             e.Handled = true;
             var point = ToDocument(e.GetPosition(this));
-            if (NodeGrabAt(editable, place, point) is { } grabbed)
+            if (SelectWholePath && DocumentToPath is { } unmap && editable.NodeCount > 0)
+            {
+                var at = unmap(point);
+                using var outline = SKPath.ParseSvgPathData(editable.ToSvg());
+                if (outline?.Contains(at.X, at.Y) == true || NodeGrabAt(editable, place, point) is not null)
+                {
+                    _nodeGrab = (0, 0, false, false); _wholePathOffset = at - editable.Subpaths[0].Nodes[0].Point;
+                    _nodeDragging = true; NodeDragStarted?.Invoke(); e.Pointer.Capture(this);
+                }
+            }
+            else if (NodeGrabAt(editable, place, point) is { } grabbed)
             {
                 SelectedNode = (grabbed.Subpath, grabbed.Node);
                 if (e.ClickCount > 1)
@@ -1632,6 +1670,7 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
+        _rotatingView = false;
         _dragging = null; _zoomDragging = false; _navigatorDragging = false;
         Cursor = PanEnabled ? new Cursor(StandardCursorType.Hand) : null;
         base.OnPointerCaptureLost(e);
@@ -1657,11 +1696,12 @@ public sealed partial class CanvasView : Control
         var now = e.GetPosition(this);
         // Every move is reported, whatever the drag in hand is, so a readout that follows the pointer does not
         // stop while a stroke is being painted.
+        if (ViewToolMove(e)) return;
         PointerMovedAt?.Invoke(ToDocument(now));
         // Dragging a vector outline's node or handle: where it has been put, in the outline's own pixels.
         if (_nodeDragging && _nodeGrab is { } grab && DocumentToPath is { } toOutline)
         {
-            NodeMoved?.Invoke(grab.Subpath, grab.Node, grab.Handle, grab.Outgoing, toOutline(ToDocument(now)));
+            NodeMoved?.Invoke(grab.Subpath, grab.Node, grab.Handle, grab.Outgoing, toOutline(ToDocument(now)) - (SelectWholePath ? _wholePathOffset : default));
             InvalidateVisual();
             e.Handled = true;
             return;
@@ -1796,9 +1836,11 @@ public sealed partial class CanvasView : Control
         if (_dragging is { } last)
         {
             if (_zoomDragging) ZoomAt(Math.Pow(2, (last.Y - now.Y) / 100), _zoomAnchor);
-            else _origin = new SKPoint(
-                (float)(_origin.X - (now.X - last.X) / _zoom),
-                (float)(_origin.Y - (now.Y - last.Y) / _zoom));
+            else
+            {
+                var delta = Unrotate(now) - Unrotate(last);
+                _origin = new SKPoint((float)(_origin.X - delta.X / _zoom), (float)(_origin.Y - delta.Y / _zoom));
+            }
             _dragging = now;
             Moved();
         }
@@ -1926,6 +1968,7 @@ public sealed partial class CanvasView : Control
             InvalidateVisual();
             return;
         }
+        _rotatingView = false;
         _dragging = null; _zoomDragging = false; _navigatorDragging = false;
         Cursor = PanEnabled ? new Cursor(StandardCursorType.Hand) : null;
         e.Pointer.Capture(null);

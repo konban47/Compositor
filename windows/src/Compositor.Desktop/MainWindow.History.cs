@@ -10,6 +10,7 @@ public sealed partial class MainWindow
 {
     private readonly ListBox _historyRows = new();
     private bool _showingHistory;
+    private Guid? _historyBrushRevision;
     private Guid? _chosenSnapshot;
     private readonly CheckBox _nonLinearHistory = new() { Content = Localize.Text("Non-linear History"), FontSize = 11, Margin = new Avalonia.Thickness(8, 0, 0, 0) };
     private readonly Dictionary<Guid, SkiaSharp.SKBitmap> _historyPreviews = [];
@@ -18,13 +19,24 @@ public sealed partial class MainWindow
         Closed += (_, _) => { foreach (var bitmap in _historyPreviews.Values) bitmap.Dispose(); _historyPreviews.Clear(); };
         _nonLinearHistory.IsCheckedChanged += (_, _) => _history.AllowNonLinear = _nonLinearHistory.IsChecked == true;
         var panel = new DockPanel();
-        var footer = new WrapPanel { Margin = new Thickness(6), Orientation = Orientation.Horizontal };
-        footer.Children.Add(PropertyAction("New Document from State", NewDocumentFromHistory));
-        footer.Children.Add(PropertyAction("Create Snapshot", MakeSnapshot));
-        footer.Children.Add(PropertyAction("History Brush Source", () => _ = SetHistoryBrushSource()));
+        var footer = new StackPanel { Margin = new Thickness(6), Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 6 };
+        footer.Children.Add(InspectorButton("new-document", "New Document from State", NewDocumentFromHistory));
+        footer.Children.Add(InspectorButton("snapshot", "Create Snapshot", MakeSnapshot));
         footer.Children.Add(PanelButton("delete", "Delete History State", () => _ = DeleteHistoryTarget()));
-        footer.Children.Add(PropertyAction("Clear History", () => _ = ClearHistorySteps()));
-        footer.Children.Add(_nonLinearHistory);
+        var options = InspectorButton("more", "History Options", () => { });
+        options.Click += (_, _) =>
+        {
+            var menu = new ContextMenu();
+            menu.Items.Add(Command("Create Snapshot", MakeSnapshot));
+            menu.Items.Add(Command("New Document from State", NewDocumentFromHistory));
+            menu.Items.Add(Command("History Brush Source", () => _ = SetHistoryBrushSource()));
+            menu.Items.Add(Command("Clear History", () => _ = ClearHistorySteps()));
+            var nonlinear = new MenuItem { Header = Localize.Text("Non-linear History"), ToggleType = MenuItemToggleType.CheckBox, IsChecked = _history.AllowNonLinear };
+            nonlinear.Click += (_, _) => { _history.AllowNonLinear = nonlinear.IsChecked; _nonLinearHistory.IsChecked = nonlinear.IsChecked; };
+            menu.Items.Add(nonlinear); menu.Open(options);
+        };
+        var top = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Children = { options } };
+        DockPanel.SetDock(top, Dock.Top); panel.Children.Add(top);
         DockPanel.SetDock(footer, Dock.Bottom); panel.Children.Add(footer); panel.Children.Add(_historyRows);
         _historyRows.SelectionChanged += (_, _) =>
         {
@@ -66,13 +78,15 @@ public sealed partial class MainWindow
                     new LayerThumbnail(() => _historyPreviews.GetValueOrDefault(snapshot.ID), "▣") { Width = 40, Height = 32 },
                     new TextBlock { Text = snapshot.Name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis },
                 } };
-                items.Add(new ListBoxItem { Content = content, Tag = new HistoryTarget(snapshot.State.Revision, snapshot.ID) });
+                items.Add(new ListBoxItem { Content = HistoryRow(content, snapshot.State.Document, snapshot.Name, snapshot.State.Revision), HorizontalContentAlignment = HorizontalAlignment.Stretch, Tag = new HistoryTarget(snapshot.State.Revision, snapshot.ID) });
             }
             ListBoxItem? current = null;
             foreach (var state in _history.States(document, Selected))
             {
-                var item = new ListBoxItem { Content = new TextBlock { Text = (state.IsCurrent ? "▸  " : "   ") + Localize.Text(state.Name),
-                    TextTrimming = TextTrimming.CharacterEllipsis, Foreground = state.IsFuture ? Skin.SecondaryBrush : Skin.LabelBrush },
+                var item = new ListBoxItem { Content = HistoryRow(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7, Children = {
+                    new InspectorGlyph("history") { Width = 22, Height = 22 }, new TextBlock { Text = Localize.Text(state.Name),
+                    VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = state.IsFuture ? Skin.SecondaryBrush : Skin.LabelBrush } } },
+                    state.Snapshot.Document, Localize.Text(state.Name), state.Snapshot.Revision), HorizontalContentAlignment = HorizontalAlignment.Stretch,
                     Tag = new HistoryTarget(state.Snapshot.Revision), Opacity = state.IsFuture ? .6 : 1 };
                 items.Add(item); if (state.IsCurrent) current = item;
             }
@@ -82,6 +96,26 @@ public sealed partial class MainWindow
             if (selected is null) _chosenSnapshot = null;
         }
         finally { _showingHistory = false; }
+    }
+    private Control HistoryRow(Control content, CanvasDocument? source, string name, Guid revision)
+    {
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("28,*") };
+        void SetSource()
+        {
+            if (source is null) return;
+            _historyBrushSource?.Dispose(); _historyBrushSource = Compositor.Core.Rendering.DocumentRenderer.Render(source);
+            _historyBrushLabel = name; _historyBrushRevision = revision;
+            _optionsBar.ShowHistorySource(name); RefreshHistory();
+        }
+        var sourceButton = PanelButton("brush", "Set History Brush Source", SetSource);
+        sourceButton.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (!e.GetCurrentPoint(sourceButton).Properties.IsLeftButtonPressed) return;
+            e.Handled = true; SetSource();
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        sourceButton.Width = 24; sourceButton.Opacity = _historyBrushRevision == revision ? 1 : .22;
+        sourceButton.IsEnabled = source is not null;
+        grid.Children.Add(sourceButton); Grid.SetColumn(content, 1); grid.Children.Add(content); return grid;
     }
     private void RestoreHistory(DocumentHistory.Snapshot? snapshot)
     {

@@ -94,12 +94,12 @@ public sealed class PathNodes
                     lastCubicControl = lastQuadControl = null;
                     break;
                 case 'H':
-                    current = new SKPoint(current.X + Number(), current.Y);
+                    current = new SKPoint((relative ? current.X : 0) + Number(), current.Y);
                     subpath?.Nodes.Add(new Node { Point = current });
                     lastCubicControl = lastQuadControl = null;
                     break;
                 case 'V':
-                    current = new SKPoint(current.X, current.Y + Number());
+                    current = new SKPoint(current.X, (relative ? current.Y : 0) + Number());
                     subpath?.Nodes.Add(new Node { Point = current });
                     lastCubicControl = lastQuadControl = null;
                     break;

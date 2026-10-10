@@ -148,6 +148,17 @@ public sealed class LayerEffects
     public OuterGlowEffect? OuterGlow { get; set; }
     public InnerGlowEffect? InnerGlow { get; set; }
 
+    public LayerEffects Scaled(double scale)
+    {
+        var copy = System.Text.Json.JsonSerializer.Deserialize<LayerEffects>(System.Text.Json.JsonSerializer.Serialize(this))!;
+        if (copy.Stroke is { } stroke) stroke.Size = Math.Clamp(stroke.Size * scale, 0, StrokeEffect.MaxSize);
+        if (copy.Shadow is { } shadow) { shadow.Distance = Math.Clamp(shadow.Distance * scale, 0, 5000); shadow.Blur = Math.Clamp(shadow.Blur * scale, 0, 500); }
+        if (copy.InnerShadow is { } inner) { inner.Distance = Math.Clamp(inner.Distance * scale, 0, 5000); inner.Blur = Math.Clamp(inner.Blur * scale, 0, 500); }
+        if (copy.OuterGlow is { } outerGlow) outerGlow.Size = Math.Clamp(outerGlow.Size * scale, 0, 500);
+        if (copy.InnerGlow is { } innerGlow) innerGlow.Size = Math.Clamp(innerGlow.Size * scale, 0, 500);
+        return copy;
+    }
+
     public bool IsEmpty =>
         Stroke is null && Shadow is null && ColorOverlay is null && InnerShadow is null && OuterGlow is null && InnerGlow is null;
 

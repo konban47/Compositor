@@ -119,6 +119,26 @@ public static class ShapeEdits
         return image;
     }
 
+    public static bool SetPath(CanvasDocument document, Guid id, string svg)
+    {
+        var layer = document.Layers.FirstOrDefault(item => item.ID == id);
+        if (layer?.LiveShape is not { } current || !LayerProtection.CanPaint(document, id) || !LayerProtection.CanMove(document, id)) return false;
+        using var path = SKPath.ParseSvgPathData(svg);
+        if (path is null || path.IsEmpty || path.TightBounds is not { Width: > 0, Height: > 0 } bounds) return false;
+        var style = System.Text.Json.JsonSerializer.Deserialize<LayerShapeStyle>(System.Text.Json.JsonSerializer.Serialize(current))!;
+        style.Kind = ShapeKind.Path; style.Path = ShapeTemplates.Normalize(svg);
+        var old = layer.Transform;
+        var matrix = BrushEdits.PixelToDocument(old, 1, 1);
+        var center = matrix.MapPoint(bounds.MidX, bounds.MidY);
+        var width = old.Width * bounds.Width; var height = old.Height * bounds.Height;
+        if (!double.IsFinite(width + height) || TooLarge((int)Math.Ceiling(width), (int)Math.Ceiling(height))) return false;
+        var placement = old with { X = center.X - width / 2, Y = center.Y - height / 2, Width = width, Height = height };
+        if (!placement.IsValid || Image(style, (int)Math.Ceiling(width), (int)Math.Ceiling(height)) is not { } pixels) return false;
+        if (layer.Mask is { Placement: null } mask) mask.Placement = layer.MaskTransform;
+        layer.Transform = placement; layer.Asset = ImportedImage.Create(pixels, layer.Name); layer.Shape = new LayerShape(style, pixels);
+        return true;
+    }
+
     private static SKPoint End(JsonPoint? stored, int width, int height, float fallbackX, float fallbackY) =>
         stored is { } point
             ? new SKPoint((float)(point.X * width), (float)(point.Y * height))

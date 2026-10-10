@@ -180,7 +180,8 @@ public static class Shortcuts
 
         // The File menu, then Edit, then Layer, then the view's own switches — the Mac's order.
         Menu("Find Command", "F", Ctrl);
-        Menu("Canvas Only", "F");
+        Menu("Canvas Only", "F", Shift);
+        Menu("Full Screen with Tools", "F");
         Menu("Select Subject", "A", Ctrl | Alt);
         Menu("Remove Background");
         Menu("Undo", "Z", Ctrl);
@@ -249,13 +250,18 @@ public static class Shortcuts
         Canvas("Magic wand", "W");
         Canvas("Brush tool", "B");
         Canvas("Clone Stamp", "S");
-        Canvas("Blur / Smudge / Liquify", "R");
+        Canvas("Blur / Smudge / Liquify", "K");
         Canvas("Spot Healing", "J");
         Canvas("Eyedropper tool", "I");
         Canvas("Type tool", "T");
         Canvas("Crop tool", "C");
         Canvas("Shape tool", "U");
         Canvas("Gradient tool", "G");
+        Canvas("History brush tool", "Y");
+        Canvas("Path selection tool", "A");
+        Canvas("Rotate view tool", "R");
+        Canvas("Zoom tool", "Z");
+        Canvas("Quick Mask", "Q");
         Canvas("Swap foreground/background", "X");
         Canvas("Reset colors", "D");
         Canvas("Temporary Hand tool (hold)", "Space");

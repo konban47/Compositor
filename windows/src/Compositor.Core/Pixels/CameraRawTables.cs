@@ -4,10 +4,10 @@ using SkiaSharp;
 
 namespace Compositor.Core.Pixels;
 
-/// <summary>Upstream 75147a2's measured 17³ tables composed onto a 33³ grid.</summary>
+/// <summary>Upstream 1.4.9's measured 17³ tables composed onto a 33³ grid.</summary>
 public static class CameraRawTables
 {
-    private const int Size = 17, Grid = 33, Cells = 4913, Entries = Cells * 3, Count = 285;
+    private const int Size = 17, Grid = 33, Cells = 4913, Entries = Cells * 3, Count = 763;
     private static readonly byte[] Tables = Load();
     private readonly record struct Stage(int[] Tables, double[] Weights);
     private static readonly object Gate = new();
@@ -16,8 +16,8 @@ public static class CameraRawTables
     private static byte[] Load()
     {
         using var stream = typeof(CameraRawTables).Assembly.GetManifestResourceStream("Compositor.CameraRawTables.bin") ?? throw new InvalidDataException("Missing Camera Raw tables.");
-        Span<byte> header = stackalloc byte[8]; stream.ReadExactly(header);
-        if (!header[..4].SequenceEqual("CRT2"u8) || BitConverter.ToUInt16(header[4..6]) != Size || BitConverter.ToUInt16(header[6..]) != Count) throw new InvalidDataException("Invalid Camera Raw tables.");
+        Span<byte> header = stackalloc byte[10]; stream.ReadExactly(header);
+        if (!header[..4].SequenceEqual("WRT3"u8) || BitConverter.ToUInt16(header[4..6]) != Size || BitConverter.ToUInt16(header[6..8]) != Count || BitConverter.ToUInt16(header[8..]) != 3) throw new InvalidDataException("Invalid Camera Raw tables.");
         using var deflate = new DeflateStream(stream, CompressionMode.Decompress);
         var planes = new byte[Count * Entries]; deflate.ReadExactly(planes);
         if (deflate.ReadByte() != -1) throw new InvalidDataException("Unexpected Camera Raw table data.");
@@ -29,7 +29,7 @@ public static class CameraRawTables
             {
                 running = unchecked((byte)(running + planes[(table * 3 + channel) * Cells + cell]));
                 var axis = channel == 0 ? cell / (Size * Size) : channel == 1 ? cell / Size % Size : cell % Size;
-                tables[table * Entries + cell * 3 + channel] = unchecked((byte)(running + (byte)Math.Round(axis * 255.0 / 16)));
+                tables[table * Entries + cell * 3 + channel] = (byte)Math.Clamp(Math.Round(axis * 255.0 / 16, MidpointRounding.AwayFromZero) + unchecked((sbyte)running) * 3, 0, 255);
             }
         }
         return tables;
@@ -60,6 +60,10 @@ public static class CameraRawTables
             var dr = corner >> 2; var dg = corner >> 1 & 1; var db = corner & 1;
             var weight = stage.Weights[t] * (dr == 1 ? rf : 1 - rf) * (dg == 1 ? gf : 1 - gf) * (db == 1 ? bf : 1 - bf);
             if (weight == 0) continue;
+            if (stage.Tables[t] < 0)
+            {
+                red += weight * (ri + dr) / 16.0 * 255; green += weight * (gi + dg) / 16.0 * 255; blue += weight * (bi + db) / 16.0 * 255; continue;
+            }
             var at = stage.Tables[t] * Entries + (((ri + dr) * Size + gi + dg) * Size + bi + db) * 3;
             red += weight * Tables[at]; green += weight * Tables[at + 1]; blue += weight * Tables[at + 2];
         }
@@ -110,14 +114,15 @@ public static class CameraRawTables
         var (column, across) = Find(value, [-100, -50, -25, 0, 25, 50, 100]); var at = start + row * 7 + column;
         return new Stage([at, at + 1, at + 7, at + 8], [(1 - down) * (1 - across), (1 - down) * across, down * (1 - across), down * across]);
     }
-    public static float[]? Compose(CameraRawSettings s, Brightness brightness)
+    public static float[]? Compose(CameraRawSettings s, Brightness brightness, bool foldColor = false)
     {
-        var key = string.Join("|", s.Exposure, s.Temperature, s.Tint, s.Contrast, s.Highlights, s.Shadows,
-            s.Whites, s.Blacks, s.Saturation, s.Vibrance, brightness.Brightest, brightness.Luminance, brightness.LogBrightest);
+        var key = System.Text.Json.JsonSerializer.Serialize(s) + $"|{brightness}|{foldColor}";
         lock (Gate)
         {
             if (_key == key) return _cached;
             var stages = new List<Stage>();
+            var calibration = new[] { s.RedHue, s.RedSaturation, s.GreenHue, s.GreenSaturation, s.BlueHue, s.BlueSaturation };
+            for (var i = 0; i < calibration.Length; i++) if (calibration[i] != 0) stages.Add(Slider(405 + i * 5, calibration[i], -100, 50, 5));
             if (s.Exposure != 0) stages.Add(Slider(81, s.Exposure, -5, .5, 21));
             if (s.Temperature != 0 || s.Tint != 0) stages.Add(WhiteBalance(s.Temperature, s.Tint));
             if (s.Contrast != 0) stages.Add(Adaptive(138, s.Contrast, brightness.Brightest));
@@ -127,8 +132,81 @@ public static class CameraRawTables
             if (s.Blacks != 0) stages.Add(Slider(111, s.Blacks));
             if (s.Saturation != 0) stages.Add(Slider(120, s.Saturation));
             if (s.Vibrance != 0) stages.Add(Slider(129, s.Vibrance));
-            _cached = Compose(stages); _key = key; return _cached;
+            if (s.MeasuredCurve)
+            {
+                var amounts = new[] { s.CurveShadows, s.CurveDarks, s.CurveLights, s.CurveHighlights };
+                for (var i = 0; i < amounts.Length; i++) if (amounts[i] != 0) stages.Add(Slider(435 + i * 5, amounts[i], -100, 50, 5));
+            }
+            _cached = Compose(stages);
+            if (foldColor && (s.AdjustsCurve || s.AdjustsGrading)) _cached = FoldColor(_cached, s);
+            _key = key; return _cached;
         }
+    }
+    private static List<Stage> MixerStages(CameraRawSettings s)
+    {
+        var stages = new List<Stage>();
+        for (var kind = 0; kind < 3; kind++)
+        for (var color = 0; color < 8; color++)
+        {
+            var value = s.Mixer[(2 - kind) * 8 + color];
+            if (value != 0) stages.Add(Slider(285 + (kind * 8 + color) * 5, value, -100, 50, 5));
+        }
+        return stages;
+    }
+    private static List<Stage> GradingStages(CameraRawSettings s)
+    {
+        var stages = new List<Stage>();
+        var luminance = new[] { s.ShadowLuminance, s.MidtoneLuminance, s.HighlightLuminance, s.GlobalLuminance };
+        for (var i = 0; i < 4; i++) if (luminance[i] != 0) stages.Add(Slider(743 + i * 5, luminance[i], -100, 50, 5));
+        var balance = s.GradeBalance / 100;
+        var highlightShare = Math.Max(0, balance < 0 ? 1 + 1.4 * balance : 1 + 2 * balance);
+        var shadowShare = Math.Max(0, balance < 0 ? 1 - 1.2 * balance : 1 - 1.4 * balance);
+        var (blendLow, blendUp) = Between(s.GradeBlending, 0, 50, 3);
+        foreach (var (wheel, hue, saturation, share, blends) in new[] {
+            (3, s.GlobalHue, s.GlobalSaturation, 1.0, false), (2, s.MidtoneHue, s.MidtoneSaturation, 1.0, false),
+            (1, s.HighlightHue, s.HighlightSaturation, highlightShare, true), (0, s.ShadowHue, s.ShadowSaturation, shadowShare, true) })
+        {
+            var sat = Math.Clamp(saturation * share, 0, 100); if (sat <= 0) continue;
+            var around = (hue % 360 + 360) % 360 / 30; var first = (int)around; around -= first;
+            var level = sat <= 25 ? 0 : sat <= 50 ? 1 : 2;
+            var low = level == 0 ? 0 : level == 1 ? 25 : 50; var high = level == 0 ? 25 : level == 1 ? 50 : 100;
+            var up = (sat - low) / (high - low);
+            var tables = new List<int>(); var weights = new List<double>();
+            foreach (var (blend, blendWeight) in blends ? new[] { (blendLow, 1 - blendUp), (blendLow + 1, blendUp) } : new[] { (1, 1.0) })
+            foreach (var (h, hueWeight) in new[] { (first, 1 - around), ((first + 1) % 12, around) })
+            foreach (var (saturationIndex, weight) in new[] { (level, 1 - up), (level + 1, up) })
+            {
+                var section = 455 + (blend == 0 ? 0 : blend == 1 ? 72 : 216) + wheel * 36;
+                tables.Add(saturationIndex == 0 ? -1 : section + h * 3 + saturationIndex - 1);
+                weights.Add(blendWeight * hueWeight * weight);
+            }
+            stages.Add(new(tables.ToArray(), weights.ToArray()));
+        }
+        return stages;
+    }
+    public static float[]? MixerTable(CameraRawSettings s) => Compose(MixerStages(s));
+    public static float[]? GradingTable(CameraRawSettings s) => Compose(GradingStages(s));
+    private static float[] FoldColor(float[]? source, CameraRawSettings s)
+    {
+        var result = new float[Grid * Grid * Grid * 3];
+        var curves = s.Curves(); var stages = MixerStages(s).Concat(GradingStages(s)).ToArray();
+        Parallel.For(0, Grid, r =>
+        {
+            for (var g = 0; g < Grid; g++) for (var b = 0; b < Grid; b++)
+            {
+                var at = ((r * Grid + g) * Grid + b) * 3;
+                double red = source?[at] ?? r / 32f, green = source?[at + 1] ?? g / 32f, blue = source?[at + 2] ?? b / 32f;
+                AdjustPixels.CameraCurve(ref red, ref green, ref blue, curves.Luma, curves.Red, curves.Green, curves.Blue);
+                var color = (R: red, G: green, B: blue);
+                foreach (var stage in stages) color = StageColor(stage, color);
+                result[at] = (float)color.R; result[at + 1] = (float)color.G; result[at + 2] = (float)color.B;
+            }
+        });
+        return result;
+    }
+    internal static void ExposureAt(ref double r, ref double g, ref double b, double stops)
+    {
+        (r, g, b) = StageColor(Slider(81, stops, -5, .5, 21), (r, g, b));
     }
     internal static void Lookup(float[]? table, ref double r, ref double g, ref double b)
     {
@@ -182,9 +260,9 @@ public static class CameraRawTables
 
 public static partial class AdjustPixels
 {
-    public static void CameraRawMeasured(Span<byte> rgba, int width, int height, int stride, CameraRawSettings settings)
+    public static void CameraRawMeasured(Span<byte> rgba, int width, int height, int stride, CameraRawSettings settings, bool foldColor = false)
     {
-        var table = CameraRawTables.Compose(settings, CameraRawTables.Statistics(rgba, width, height, stride));
+        var table = CameraRawTables.Compose(settings, CameraRawTables.Statistics(rgba, width, height, stride), foldColor);
         for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
         {
             var p = y * stride + x * 4; double alpha = rgba[p + 3]; if (alpha == 0) continue;

@@ -40,10 +40,7 @@ public sealed partial class CanvasView
         {
             context.DrawRectangle(Paper, null, picture); context.DrawImage(_navigatorImage, picture);
             var scale = picture.Width / _document.Width;
-            var view = new Rect(picture.X + _origin.X * scale, picture.Y + _origin.Y * scale,
-                Bounds.Width / _zoom * scale, Bounds.Height / _zoom * scale);
-            context.DrawRectangle(null, new Pen(Brushes.White, 3), view);
-            context.DrawRectangle(null, new Pen(Brushes.Red, 1), view);
+            DrawNavigatorViewport(context, picture, scale);
         }
     }
     private void NavigateTo(Point point)

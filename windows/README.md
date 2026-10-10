@@ -1,13 +1,13 @@
 # Compositor for Windows — 简体中文 / English
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.4.8.2 Preview**。
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.4.9.1 Preview**。
 
 [下载 Windows 发行包](https://github.com/konban47/Compositor/releases) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
 
 ## 使用
 
 - 目标平台：Windows 10 1809 及以上、Windows 11，**x64**。不提供 32 位或原生 ARM64 包。
-- 安装版：运行 `Compositor-Windows-1.4.8.2-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
+- 安装版：运行 `Compositor-Windows-1.4.9.1-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
 - 免安装版：解压整个 `*-portable.zip`，运行文件夹中的 `Compositor.exe`。自带 .NET 运行时，无需安装 .NET SDK。若系统缺少 Visual C++ 2015–2022 x64 运行库，先运行随包提供的 `redist/vc_redist.x64.exe`。
 - 程序与安装包目前未做商业代码签名。只从本仓库下载；`SHA256SUMS.txt` 可用于校验文件完整性。
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
@@ -17,11 +17,21 @@
 - 可将项目文件夹或图像路径作为参数：`Compositor.exe "D:\图片\项目.comp"`。
 - 设置保存在 `%APPDATA%\CompositorWindows`。卸载不会删除项目文件和个人设置。
 
-## 1.4.8.2 更新与面板使用
+## 1.4.9.1 工作区更新
+
+- 开始前将 GitHub `windows-port` 快进至 `b1113f6`，保留高级 OpenType／双向排版、历史记录画笔、非线性历史和路径编辑；合并上游 1.4.9 至 `b4bfdea87f9dc0cbc9eabfa63683eb1b9c2bca60`。
+- F 切换带完整工具栏的全屏；Shift+F 切换仅画布；Esc 恢复。自定义工具栏支持工具／组拖放排序、附加工具、显示开关和 JSON 预设。组内工具用右键或长按展开，提示与预设列表显示实际快捷键。
+- 形状扩展为矩形、椭圆、三角形、多边形、星形、直线和自定形状；A 切换路径选择／直接选择，可移动整个轮廓或编辑节点。R 旋转视图，Z 缩放；旋转后鼠标定位、对象移动和缩放锚点保持一致。Q 提供快速蒙版。
+- 变换、对齐与分布、历史记录按参考图采用图标布局，悬停显示中文说明。新增边缘／中心分布、等间距分布，以及画布／所选图层／选区基准。历史记录左栏设置画笔源，底部新建文档、快照、删除；其他操作放在面板菜单。
+- 生成式工作区：配置兼容 Images API 的地址、模型与密钥，输入提示词生成；支持取消、预览、保存、导入图层或新建文档。密钥默认仅在会话中使用，可选 Windows 当前用户加密存储；项目图像不会上传。服务费用由所选服务决定。
+- Camera Raw 使用上游新版 763 张测量表与 33³ 合成 LUT，补齐颜色混合器／校准／参数曲线／颜色分级与暗角更新。图片重采样会栅格化文字和形状，图层样式按缩放倍数同步缩放；裁剪／画布大小／仅分辨率变更仍保留可编辑文字与样式。
+- [完整工作区使用说明](WORKSPACE.md) · [1.4.9.1 上游对照与验证](UPDATES-1.4.9.1.md)。
+
+## 属性、蒙版与历史记录
 
 - 参考线贯穿画布之外的整个编辑工作区；修正标尺末端数字及竖向标尺的裁切。导航器在 100% 等任意缩放比例下可见，通过“视图 → 导航器”开关。
 - 右上增加“属性／历史记录”，右下保留“图层／通道”；拖动中间分隔条调整高度。属性内容可以滚动；可从“视图”菜单切换面板。
-- 像素／组／多选属性：宽、高、X、Y、约束比例、旋转／重置、水平／垂直翻转；对齐与分布。单选相对画布对齐，多选相对所选对象边界对齐，三个及以上对象支持中心等距分布。锁定图层继续受到保护。
+- 像素／组／多选属性：宽、高、X、Y、约束比例、旋转／重置、水平／垂直翻转；对齐与分布。自动基准下单选相对画布、多选相对所选对象；可显式选择画布、所选图层或选区。支持六种边缘／中心对齐、六种边缘／中心分布与水平／垂直等间距分布。所选图层基准分布需要三项，画布／选区基准需要两项。锁定图层继续受到保护。
 - 文字属性：字体、字号（点，按文档分辨率换算）、行距／字距（像素）、十六进制颜色、仿粗体／仿斜体／下划线／删除线、左／中／右段落对齐、文字编辑、项目符号／编号和大小写转换。设置字体或颜色作用于整层，会清除对应字符运行；项目符号／编号是文字前缀。形状支持填充色、圆角和线宽；调整图层可打开对应参数。
 - 快速操作：选择主体、删除背景、选择图层像素、从选区增加像素／矢量蒙版、栅格化文字／形状。未选择图层的空文档显示画布尺寸、分辨率及图像／画布大小入口。
 - 图像和蒙版缩略图之间显示链条，点击切换连接；断开后链条消失，原位置仍可点击重连。选中缩略图显示边框，选择图像可独立移动图像，选择断开链接的蒙版可独立移动蒙版。组蒙版随组选中变换，单独移动子图层不会移动组蒙版。
@@ -47,12 +57,12 @@
 
 ## 功能与迁移范围
 
-保留 `.comp` 格式版本 1–11 的读写并增加 Windows 扩展 v12/v13、图层与组、24 种混合模式、蒙版和剪贴蒙版、调整图层、图层样式、选区、绘画/仿制/修复/涂抹/液化、可编辑文字和形状、裁剪/变换、参考线、色阶/曲线/色相饱和度、Camera Raw 调整、仿色、内容识别填充、导出以及撤销/重做。
+保留 `.comp` 格式版本 1–11 的读写并增加 Windows 扩展 v12/v13/v14、图层与组、24 种混合模式、蒙版和剪贴蒙版、调整图层、图层样式、选区、绘画/仿制/修复/涂抹/液化、可编辑文字和形状、裁剪/变换、参考线、色阶/曲线/色相饱和度、Camera Raw 调整、仿色、内容识别填充、导出以及撤销/重做。
 
 在已有 MIT Windows 移植基础上增加：
 
 - 离线 U²-NetP 主体识别：选择主体、单击对象选择、移除背景。移除背景生成可撤销图层蒙版；图片不上传到服务器。
-- 查找命令（Ctrl+F，中英文搜索）、仅画布模式（F）、画布 90° 旋转、新建画布单位/背景内容。
+- 查找命令（Ctrl+F，中英文搜索）、全屏工作区（F）、仅画布模式（Shift+F）、画布 90° 旋转、新建画布单位/背景内容。
 - 修复 PSD/PSB 图层导入入口，增加 RAW 显影预览。
 - 异步保存与修订号跟踪，防止保存期间的后续编辑被误标为已保存；关闭窗口和标签页检查未保存内容。
 - 对齐上游 1.4.6 的颜色降噪和半透明颜色叠加规则。
@@ -70,9 +80,9 @@
 - 通道限 RGB 和最多 64 个 Alpha 通道，不提供 CMYK/Lab、专色、多通道计算及完整 Photoshop 面板功能。Alpha 为全画布灰度图，单通道受 200 MP 和文档资源预算限制；导出预览同样受单表面限制，大画布仍可用分块“导出 PNG”。扫描线光晕使用 CPU 全分辨率模糊，与 macOS 缩小预览算法存在轻微差异。
 - 属性面板现提供 OpenType 特性开关（连字、字距调整和 `dlig`／`onum`／`frac`／`ss01` 等特性标签）、小型大写、全部大写、上标、下标、自动／从左到右／从右到左方向、动态文字标记（`{width}`、`{date}` 等），以及“转换为框架”和“转换为矢量形状”。文字以 Skia 加 HarfBuzz 塑形，阿拉伯语、希伯来语及诸多印度语系文字获得连写、上下文形变和从右到左排序；拉丁、中文等无上下文形变的文字仍逐字排版以保留逐字颜色与字体。
 - 东亚排版加入避头尾（行首禁则、行尾禁则）与最简标点挤压；`Wrap` 对 CJK 逐字断行并对拉丁按词断行。双向排版使用完整的 Unicode 双向算法（UAX #9，规则 P1–P3／X1–X9／W1–W7／N0–N2／I1–I2／L1–L4），含配对括号、NSM、孤立符与镜像，字形类别取自 Unicode 18.0.0 数据。逐行按嵌入级重排后交由 HarfBuzz 按各段方向塑形，混排阿拉伯语、希伯来语、拉丁与数字均按规范排序；仅个别含嵌套显式方向覆盖符（U+202A–U+202E）与括号的极端用例可能与参考实现差一级。
-- 文字“转换为矢量形状”用字形轮廓生成标准化 SVG 路径的形状图层；“转换为框架”把点文字变为段落框。矢量蒙版从选区路径创建并按路径重绘、保存 PNG 回退。**路径工具**可拖动矢量蒙版的节点与手柄，双击加点、Alt 单击删点；节点编辑支持 M/L/C/Q/Z 命令，弧线路径不可编辑。反相、画笔、平滑和移动边缘仍会栅格化矢量蒙版；羽化与密度保持可调元数据。
-- 历史面板新增**历史记录画笔**与**非线性历史**：勾选“非线性历史”在回退后继续编辑会保留其后的重做分支；历史记录画笔从所选状态或快照取源（会话内有效），在图层像素上绘制回该状态。跨会话快照、超过 8 MP 快照缩略图仍不提供，以避免阻塞编辑。
-- 字体名称跨系统不一定存在；使用回退字体后，重新编辑文字的排版可能变化。已有项目的图层 PNG 仍用于未编辑内容的显示。阿拉伯文/印度文字的复杂塑形不在此次中文支持范围内。
+- 文字“转换为矢量形状”用字形轮廓生成标准化 SVG 路径的形状图层；“转换为框架”把点文字变为段落框。矢量蒙版从选区路径创建并按路径重绘、保存 PNG 回退。**路径选择／直接选择工具**可移动形状或矢量蒙版的整个路径、拖动节点与手柄，双击加点、Alt 单击删点；节点编辑支持 M/L/C/Q/Z 命令，弧线路径不可编辑。反相、画笔、平滑和移动边缘仍会栅格化矢量蒙版；羽化与密度保持可调元数据。
+- 历史面板新增**历史记录画笔**与**非线性历史**：在面板“历史记录选项”中勾选“非线性历史”在回退后继续编辑会保留其后的重做分支；历史记录画笔从所选状态或快照取源（会话内有效），在图层像素上绘制回该状态。跨会话快照、超过 8 MP 快照缩略图仍不提供，以避免阻塞编辑。
+- 字体名称跨系统不一定存在；使用回退字体后，重新编辑文字的排版可能变化。已有项目的图层 PNG 仍用于未编辑内容的显示。复杂文字塑形与字体实际包含的字形及 OpenType 特性有关。
 - **实机验证环境为 Windows 11 Pro 10.0.26200。Windows 10 实机、真实输入法候选窗口、多显示器/数位板压力及超大项目仍需人工验收。** GitHub 的 Windows Server 2022/2025 测试不能替代 Windows 10 实机验收。因此首发标记为 Preview。
 
 ## 从源码构建
@@ -91,13 +101,13 @@ dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --windo
 
 构建脚本会从微软官网下载签名有效的 C++ 运行库，**不会在构建机安装它**。GitHub Actions 使用已有 Inno Setup 编译器构建安装包，并在临时 runner 上验证安装/卸载。
 
-核心测试当前为 **930 项**；还提供 `--clicks`、`--tabs`、`--tools`、`--shortcuts`、`--camera-raw`、`--dialogs`、`--windows-checks`、`--interaction-checks`、`--panel-checks`、`--inspector-checks` 窗口测试，每项参数后跟截图路径。旧窗口断言用 `COMPOSITOR_LANGUAGE=en`；新增测试覆盖 en 和 zh-CN。测试设置目录应与个人配置分开。`windows/scripts/check-docs.ps1` 检查应用／安装包／文档版本、格式字段及当前功能说明，CI 在构建前执行以减少文档漂移。
+核心测试当前为 **975 项**；还提供 `--clicks`、`--tabs`、`--tools`、`--shortcuts`、`--camera-raw`、`--dialogs`、`--windows-checks`、`--interaction-checks`、`--panel-checks`、`--inspector-checks`、`--workspace-checks` 窗口测试，每项参数后跟截图路径。旧窗口断言用 `COMPOSITOR_LANGUAGE=en`；新增测试覆盖 en 和 zh-CN。测试设置目录应与个人配置分开。`windows/scripts/check-docs.ps1` 检查应用／安装包／文档版本、格式字段及当前功能说明，CI 在构建前执行以减少文档漂移。
 
 CLI 位于包内 `cli/Compositor.Cli.exe`，运行 `--help` 查看命令。
 
 ## English
 
-An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, updated through upstream macOS 1.4.8 and commit 75147a2, with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
+An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, updated through upstream macOS 1.4.9 and commit b4bfdea, with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 

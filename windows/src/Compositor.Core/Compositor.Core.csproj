@@ -22,7 +22,7 @@
     <Content Include="../../models/u2netp.onnx" Link="models/u2netp.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="../../../Compositor/Resources/CameraRawTables.bin" LogicalName="Compositor.CameraRawTables.bin" />
+    <EmbeddedResource Include="Resources/CameraRawTables.deflate" LogicalName="Compositor.CameraRawTables.bin" />
   </ItemGroup>
 
   <ItemGroup>

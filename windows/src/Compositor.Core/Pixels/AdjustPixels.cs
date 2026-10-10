@@ -636,14 +636,25 @@ public static partial class AdjustPixels
                                         double highlights, int style)
     {
         if (amount == 0 || width == 0 || height == 0) return;
-        double mask = VignetteMask(x, y, width, height, midpoint, roundness, feather);
-        double effect = amount / 100.0 * mask;
-        // Highlight Priority eases a darkening vignette off bright pixels. The other styles do not.
-        if (effect < 0 && style == 0)
+        double mask = VignetteMask(x, y, width, height, midpoint + 5.9, Math.Min(100, 100 + roundness), feather);
+        if (style == 0 && mask > 0)
         {
-            double bright = CameraClamp((Rec709(r, g, b) - 0.45) / 0.55);
-            effect *= 1.0 - highlights / 100.0 * bright;
+            r = SrgbToLinear(r); g = SrgbToLinear(g); b = SrgbToLinear(b);
+            if (amount < 0)
+            {
+                var bright = CameraClamp((Rec709(r, g, b) - .45) / .55);
+                var ease = (1 - .3 * bright) * (1 - highlights / 100 * bright);
+                var gain = Math.Exp(-5.8 * Math.Pow(-amount / 100, 1.43) * mask * ease);
+                r *= gain; g *= gain; b *= gain;
+            }
+            else
+            {
+                var a = amount / 100; var toward = Math.Pow(a, .85) * Math.Pow(mask, 1 + 1.5 * (1 - a));
+                r += (1 - r) * toward; g += (1 - g) * toward; b += (1 - b) * toward;
+            }
+            r = LinearToSrgb(r); g = LinearToSrgb(g); b = LinearToSrgb(b); return;
         }
+        double effect = amount / 100.0 * mask;
         if (effect < 0)
         {
             double factor = 1.0 + effect;
@@ -1056,7 +1067,7 @@ public static partial class AdjustPixels
                                            ReadOnlySpan<float> greenLut, ReadOnlySpan<float> blueLut,
                                            double refineSaturation, ReadOnlySpan<float> mixer, int pointCount,
                                            ReadOnlySpan<float> points, ReadOnlySpan<float> grade,
-                                           double blending, double balance, int visualize)
+                                           double blending, double balance, int visualize, float[]? mixerTable = null, float[]? gradeTable = null)
     {
         var weights = new double[4];
         for (int y = 0; y < height; ++y)
@@ -1069,20 +1080,25 @@ public static partial class AdjustPixels
                 if (alpha == 0) continue;
                 double r = Math.Min(1.0, rgba[p] / alpha), g = Math.Min(1.0, rgba[p + 1] / alpha),
                        b = Math.Min(1.0, rgba[p + 2] / alpha);
-                double tone = Rec709(r, g, b);
-                double mapped = LutAt(lumaLut, tone);
-                ScaleLuminance(ref r, ref g, ref b, mapped);
-                if (refineSaturation != 0 && tone > 1e-4)
+                double crvR = LutAt(lumaLut, r), crvG = LutAt(lumaLut, g), crvB = LutAt(lumaLut, b);
+                if (refineSaturation < 0)
                 {
-                    double factor = 1 + refineSaturation * (mapped / tone - 1);
-                    double lum = Rec709(r, g, b);
-                    r = CameraClamp(lum + (r - lum) * factor);
-                    g = CameraClamp(lum + (g - lum) * factor);
-                    b = CameraClamp(lum + (b - lum) * factor);
+                    double br = r, bg = g, bb = b;
+                    ScaleLuminance(ref br, ref bg, ref bb, LutAt(lumaLut, Rec709(r, g, b)));
+                    crvR += (br - crvR) * -refineSaturation; crvG += (bg - crvG) * -refineSaturation; crvB += (bb - crvB) * -refineSaturation;
                 }
+                else if (refineSaturation > 0)
+                {
+                    double lum = Rec709(crvR, crvG, crvB), factor = 1 + refineSaturation;
+                    crvR = CameraClamp(lum + (crvR - lum) * factor);
+                    crvG = CameraClamp(lum + (crvG - lum) * factor);
+                    crvB = CameraClamp(lum + (crvB - lum) * factor);
+                }
+                r = crvR; g = crvG; b = crvB;
                 r = LutAt(redLut, r);
                 g = LutAt(greenLut, g);
                 b = LutAt(blueLut, b);
+                CameraRawTables.Lookup(mixerTable, ref r, ref g, ref b);
                 RgbToHsl(r, g, b, out double h, out double s, out double l);
                 double sourceHue = h, sourceSat = s, sourceLum = l;
                 double hueDelta = 0, satDelta = 0, lumDelta = 0, weightSum = 0;
@@ -1119,6 +1135,7 @@ public static partial class AdjustPixels
                 if (h < 0) h += 1;
                 if (h >= 1) h -= 1;
                 HslToRgb(h, s, l, out r, out g, out b);
+                CameraRawTables.Lookup(gradeTable, ref r, ref g, ref b);
                 // Balance moves the crossover between the shadow and highlight wheels. Toward highlights
                 // it has to move down, so more of the picture counts as highlight and the shadow wheel
                 // loses its hold; the other sign strengthened the shadow tint it was meant to weaken.
@@ -1159,6 +1176,11 @@ public static partial class AdjustPixels
                 WritePremultiplied(rgba, p, r, g, b, alpha);
             }
         }
+    }
+
+    internal static void CameraCurve(ref double r, ref double g, ref double b, float[] tone, float[] red, float[] green, float[] blue)
+    {
+        r = LutAt(red, LutAt(tone, r)); g = LutAt(green, LutAt(tone, g)); b = LutAt(blue, LutAt(tone, b));
     }
 
     private static double DetailRadius(double slider, double scale)
@@ -1490,26 +1512,9 @@ public static partial class AdjustPixels
                                               int width, int height, double amount, double midpoint)
     {
         if (amount == 0 || width == 0 || height == 0) return;
-        double nx = (x + 0.5) / width * 2.0 - 1.0;
-        double ny = (y + 0.5) / height * 2.0 - 1.0;
-        double dist = Hypot(nx, ny) / Math.Sqrt(2.0);
-        double start = midpoint / 100.0 * 0.85;
-        double t = CameraClamp((dist - start) / 0.35);
-        double mask = t * t * (3.0 - 2.0 * t);
-        double lift = amount / 100.0 * mask;
-        if (lift > 0)
-        {
-            r = CameraClamp(r + (1.0 - r) * lift);
-            g = CameraClamp(g + (1.0 - g) * lift);
-            b = CameraClamp(b + (1.0 - b) * lift);
-        }
-        else
-        {
-            double factor = 1.0 + lift;
-            r *= factor;
-            g *= factor;
-            b *= factor;
-        }
+        var distance = Hypot(x + .5 - width / 2.0, y + .5 - height / 2.0) / Hypot(width / 2.0, height / 2.0) * (1 + (50 - midpoint) / 100);
+        var stops = Math.Sign(amount) * Math.Pow(Math.Abs(amount) / 100, 1.15) * 1.98 * Math.Pow(distance, 4.3);
+        CameraRawTables.ExposureAt(ref r, ref g, ref b, stops);
     }
 
     /// <summary>

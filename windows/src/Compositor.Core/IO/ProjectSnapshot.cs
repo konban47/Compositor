@@ -81,12 +81,13 @@ public sealed class ProjectSnapshot : IDisposable
     /// </summary>
     public static ProjectSnapshot FromDocument(CanvasDocument document)
     {
+        var channels = document.Channels.Where(c => !c.IsTemporary).ToArray();
         var manifest = new ProjectManifest
         {
             Version = document.Layers.Any(layer => layer.LiveText?.HasAdvancedTypography == true
                     || layer.LiveShape?.Kind == Format.ShapeKind.Path) ? 14
                 : document.Layers.Any(layer => layer.LiveText?.HasTypography == true || layer.Mask is { } mask && (mask.Density != 1 || mask.Feather != 0 || mask.VectorPath is not null)) ? 13
-                : document.Channels.Count > 0 || document.Layers.Any(layer => layer.Locks != LayerLocks.None
+                : channels.Length > 0 || document.Layers.Any(layer => layer.Locks != LayerLocks.None
                 || layer.FillOpacity != 1 || layer.LinkID is not null) ? 12 : 11,
             DocumentID = document.ID,
             Width = document.Width,
@@ -95,11 +96,11 @@ public sealed class ProjectSnapshot : IDisposable
             ActiveLayerID = document.Layers.Count > 0 ? document.Layers[^1].ID : null,
             Layers = [.. document.Layers.Select(CanvasDocument.Record)],
             Guides = document.Guides.Count > 0 ? [.. document.Guides] : null,
-            Channels = document.Channels.Count == 0 ? null : document.Channels.Select(channel => new ProjectChannelRecord
+            Channels = channels.Length == 0 ? null : channels.Select(channel => new ProjectChannelRecord
                 { ID = channel.ID, Name = channel.Name, ImageFile = ProjectChannelRecord.FileName(channel.ID) }).ToList(),
         };
         var snapshot = new ProjectSnapshot(manifest);
-        foreach (var channel in document.Channels) snapshot.Channels[channel.ID] = channel.Asset;
+        foreach (var channel in channels) snapshot.Channels[channel.ID] = channel.Asset;
         foreach (var layer in document.Layers)
         {
             if (layer.Asset is { } asset) snapshot.Images[layer.ID] = asset;

@@ -110,21 +110,23 @@ internal sealed class ToolOptionsBar : Border
             On("wand", tool == Tool.Wand);
             On("selectionSample", tool is Tool.Wand or Tool.Object);
                 On("gradient", tool == Tool.Gradient);
-            On("shape", tool == Tool.Shape);
-            On("corner", tool == Tool.Shape && _options.Shape != ShapeKind.Line);
-            On("linewidth", tool == Tool.Shape && _options.Shape == ShapeKind.Line);
+            On("shape", ToolCatalog.IsShape(tool));
+            On("viewRotation", tool == Tool.RotateView);
+            On("corner", ToolCatalog.IsShape(tool) && _options.Shape == ShapeKind.Rectangle);
+            On("linewidth", ToolCatalog.IsShape(tool) && _options.Shape == ShapeKind.Line);
             On("crop", tool == Tool.Crop);
             On("transform", tool == Tool.Move && hasDocument);
             On("type", tool == Tool.Type);
             On("history", tool == Tool.HistoryBrush && hasDocument);
-            On("path", tool == Tool.Path && hasDocument);
-            On("zoom", tool == Tool.Pan);
-            _title.Text = Localize.Text(Names.TryGetValue(tool, out var name) ? name : "");
+            On("path", tool is Tool.Path or Tool.PathSelection && hasDocument);
+            On("zoom", tool is Tool.Pan or Tool.Zoom or Tool.RotateView);
+            _title.Text = Localize.Text(Names.TryGetValue(tool, out var name) ? name : ToolCatalog.Title(tool));
             // The marquee's shape and the lasso's kind *are* the tool in hand, so the bar follows the tool
             // rather than the other way round: picking one here asks for the tool the window already has.
             _marqueeShape.SelectedIndex = tool == Tool.Ellipse ? 1 : 0;
             _lassoKind.SelectedIndex = tool == Tool.Polygon ? 1 : 0;
             Refresh();
+            _shapeKind.SelectedIndex = Array.IndexOf(ShapeTools, tool);
         }
         finally
         {
@@ -170,7 +172,6 @@ internal sealed class ToolOptionsBar : Border
         _antialias.IsChecked = _options.SelectionAntialiased;
         _sampleRing.IsChecked = _options.ShowsSampleRing;
         _wandAll.SelectedIndex = _options.WandAllLayers ? 1 : 0;
-        _shapeKind.SelectedIndex = (int)_options.Shape;
         _gradientKind.SelectedIndex = (int)_options.Gradient;
         _gradientTo.SelectedIndex = _options.GradientToBackground ? 1 : 0;
         _gradientReversed.IsChecked = _options.GradientReversed;
@@ -342,16 +343,11 @@ internal sealed class ToolOptionsBar : Border
         _wandAll.SelectedIndex = 0;
         _wandAll.SelectionChanged += (_, _) => Set(ref _options.WandAllLayers, _wandAll.SelectedIndex == 1);
 
-        _shapeKind.ItemsSource = new[] { "Rectangle", "Ellipse", "Line" };
+        _shapeKind.ItemsSource = ShapeTools.Select(t => Localize.Text(ToolCatalog.Title(t))).ToArray();
         _shapeKind.SelectedIndex = 0;
         _shapeKind.SelectionChanged += (_, _) =>
         {
-            var shape = (ShapeKind)Math.Max(0, _shapeKind.SelectedIndex);
-            Set(ref _options.Shape, shape);
-            // The corner radius belongs to a rectangle and the width to a line, so which of the two shows
-            // follows the kind that was just picked.
-            On("corner", shape != ShapeKind.Line);
-            On("linewidth", shape == ShapeKind.Line);
+            if (!_loading && _shapeKind.SelectedIndex >= 0) ShapeToolChosen?.Invoke(ShapeTools[_shapeKind.SelectedIndex]);
         };
         _gradientKind.ItemsSource = new[] { "Linear", "Radial", "Angle", "Reflected", "Diamond" };
         _gradientKind.SelectedIndex = 0;
@@ -396,6 +392,10 @@ internal sealed class ToolOptionsBar : Border
         Cell("gradient", _gradientFill);
         Cell("gradient", _gradientReversed);
         Cell("shape", _shapeKind);
+        var shapeOptions = new Button { Content = Localize.Text("Shape Options…") };
+        shapeOptions.Click += (_, _) => ShapeOptionsAsked?.Invoke(); Cell("shape", shapeOptions);
+        var resetView = new Button { Content = Localize.Text("Reset View Rotation") };
+        resetView.Click += (_, _) => ResetViewAsked?.Invoke(); Cell("viewRotation", resetView);
         Cell("corner", _corner);
         Cell("linewidth", _lineWidth);
         Cell("crop", _cropRatio);
@@ -414,6 +414,9 @@ internal sealed class ToolOptionsBar : Border
 
     /// <summary>The Path tool asked for a vector mask to edit on the current layer.</summary>
     public event Action? PathAsked;
+    public event Action<Tool>? ShapeToolChosen;
+    public event Action? ShapeOptionsAsked, ResetViewAsked;
+    private static readonly Tool[] ShapeTools = [Tool.Shape, Tool.ShapeEllipse, Tool.Line, Tool.Triangle, Tool.PolygonShape, Tool.Star, Tool.CustomShape];
 
     /// <summary>Shows what the History Brush is painting back from.</summary>
     public void ShowHistorySource(string label) => _historySource.Content = Localize.Format($"Source: {label}");

@@ -227,7 +227,8 @@ public sealed partial class MainWindow : Window
         public int SelectedRow { get; set; }
 
         /// <summary>What the tab is called: the project's name, or what it is until it is saved.</summary>
-        public string Name => Path is { } path ? System.IO.Path.GetFileName(path) : Localize.Text("Untitled");
+        public int UntitledNumber { get; set; } = 1;
+        public string Name => Path is { } path ? System.IO.Path.GetFileName(path) : Localize.Text("Untitled") + (UntitledNumber == 1 ? "" : " " + UntitledNumber);
     }
 
     private readonly List<Tab> _tabs = [];
@@ -284,6 +285,7 @@ public sealed partial class MainWindow : Window
     /// <summary>The vector outline being edited by the Path tool, and the layer whose mask it is.</summary>
     private PathNodes? _pathNodes;
     private Guid? _pathLayerID;
+    private bool _shapePath;
 
     /// <summary>The shortcut keys as they were left last time, which the table in force is built from.</summary>
     private readonly ShortcutDefaults _shortcutSettings = ShortcutDefaults.Load(ShortcutDefaults.DefaultPath);
@@ -375,6 +377,7 @@ public sealed partial class MainWindow : Window
         _rail.ShowColours(BrushColour(), BackgroundColour());
         // The options bar is a face on the same settings the Tools menu moves, so either one marks the other.
         _optionsBar = new ToolOptionsBar(_options);
+        WireWorkspaceTools();
         _optionsBar.Changed += OptionsChanged;
         _optionsBar.BrushSettingAsked += which => _ = SetBrush(which);
         _optionsBar.WandSettingAsked += which => _ = SetWand(which);
@@ -631,7 +634,20 @@ public sealed partial class MainWindow : Window
                         ToolItem("_Shape (drag out a rectangle, ellipse or line)", Tool.Shape, "Shape tool"),
                         ToolItem("_Gradient (drag the line it runs along)", Tool.Gradient, "Gradient tool"),
                         ToolItem("_History brush (paint back a state)", Tool.HistoryBrush),
-                        ToolItem("_Path (drag a vector mask's nodes)", Tool.Path),
+                        ToolItem("Direct Selection Tool", Tool.Path),
+                        ToolItem("Path Selection Tool", Tool.PathSelection, "Path selection tool"),
+                        ToolItem("Ellipse Tool", Tool.ShapeEllipse),
+                        ToolItem("Triangle Tool", Tool.Triangle),
+                        ToolItem("Polygon Tool", Tool.PolygonShape),
+                        ToolItem("Star Tool", Tool.Star),
+                        ToolItem("Line Tool", Tool.Line),
+                        ToolItem("Custom Shape Tool", Tool.CustomShape),
+                        ToolItem("Rotate View Tool", Tool.RotateView, "Rotate view tool"),
+                        ToolItem("Zoom Tool", Tool.Zoom, "Zoom tool"),
+                        Command("Customize Toolbar…", () => _ = CustomizeToolbar()),
+                        Command("Shape Tool Options…", () => _ = ShapeOptions()),
+                        Command("Quick Mask", ToggleQuickMask),
+                        Command("Generative Workspace…", () => _ = OpenGenerativeWorkspace()),
                         new Separator(),
                         _gradientMenu,
                         new Separator(),
@@ -684,6 +700,7 @@ public sealed partial class MainWindow : Window
                     Header = Localize.Text("_View"),
                     Items =
                     {
+                        Command("_Full Screen with Tools", ToggleEditingFullscreen, "Full Screen with Tools"),
                         Command("_Canvas Only", ToggleCanvasOnly, "Canvas Only"),
                         Command("Zoom _in", () => { _canvas.ZoomBy(1.25); Say(); }, "Zoom In"),
                         Command("Zoom _out", () => { _canvas.ZoomBy(1 / 1.25); Say(); }, "Zoom Out"),
@@ -993,14 +1010,14 @@ public sealed partial class MainWindow : Window
     {
         // The Windows key is Windows', and a chord made with it is not one the table can hold.
         if (e.Handled || e.KeyModifiers.HasFlag(KeyModifiers.Meta)) return;
-        if (!Typing() && e.Key == Key.Escape && _canvasOnly) { ToggleCanvasOnly(); e.Handled = true; return; }
+        if (!Typing() && e.Key == Key.Escape && (_canvasOnly || _editingFullscreen)) { ExitScreenMode(); e.Handled = true; return; }
         if (!Typing() && e.Key is Key.Delete or Key.Back && e.KeyModifiers == KeyModifiers.None
             && (_document?.Selection.Path is not null || _open.ActiveAlpha is not null))
         {
             ClearPixels(); e.Handled = true; return;
         }
         if (!Typing() && e.Key == Key.Tab && e.KeyModifiers == KeyModifiers.None && _tool is Tool.Wand or Tool.Object)
-        { SetTool(_tool == Tool.Wand ? Tool.Object : Tool.Wand); e.Handled = true; return; }
+        { ChooseTool(Tool.Wand, Tool.Object); e.Handled = true; return; }
         var held = ShortcutKeys.Held(e.KeyModifiers);
         if (Typing() && (held is ShortcutModifiers.None or ShortcutModifiers.Shift
             || TypingIn() is not null && FieldKeepsIt(e)))
@@ -1012,6 +1029,7 @@ public sealed partial class MainWindow : Window
         // only the canvas takes it, which is where the Mac build's own nudges live.
         if (Arrows(chord) && !_canvas.IsFocused) return;
         if (!_byKey.TryGetValue(chord, out var id) || !_verbs.TryGetValue(id, out var verb)) return;
+        if (ShortcutIsHidden(id)) return;
         LastDelivered = id;
         // Two digits in a row make one exact opacity, and anything else starts the count again.
         if (!_opacityRows.Contains(id)) _opacityTyped = "";
@@ -1047,6 +1065,7 @@ public sealed partial class MainWindow : Window
         Does("Open Project", OpenProject);
         Does("Find Command", () => _ = FindCommand());
         Does("Canvas Only", ToggleCanvasOnly);
+        Does("Full Screen with Tools", ToggleEditingFullscreen);
         Does("Select Subject", () => _ = DetectSubject(false));
         Does("Remove Background", () => _ = DetectSubject(true));
         Does("Save", Save);
@@ -1114,8 +1133,13 @@ public sealed partial class MainWindow : Window
         Does("Eyedropper tool", () => SetTool(Tool.Eyedropper), Shortcuts.Canvas);
         Does("Type tool", () => SetTool(Tool.Type), Shortcuts.Canvas);
         Does("Crop tool", () => SetTool(Tool.Crop), Shortcuts.Canvas);
-        Does("Shape tool", () => SetTool(Tool.Shape), Shortcuts.Canvas);
+        Does("Shape tool", PickShapeTool, Shortcuts.Canvas);
         Does("Gradient tool", () => SetTool(Tool.Gradient), Shortcuts.Canvas);
+        Does("History brush tool", () => SetTool(Tool.HistoryBrush), Shortcuts.Canvas);
+        Does("Path selection tool", () => ChooseTool(Tool.PathSelection, Tool.Path), Shortcuts.Canvas);
+        Does("Rotate view tool", () => SetTool(Tool.RotateView), Shortcuts.Canvas);
+        Does("Zoom tool", () => SetTool(Tool.Zoom), Shortcuts.Canvas);
+        Does("Quick Mask", ToggleQuickMask, Shortcuts.Canvas);
         Does("Swap foreground/background", SwapColours, Shortcuts.Canvas);
         Does("Reset colors", ResetColours, Shortcuts.Canvas);
         When("Temporary Hand tool (hold)", TakeHand, Shortcuts.Canvas);
@@ -1155,6 +1179,8 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ChooseTool(params Tool[] family)
     {
+        if (_rail.Layout.DisableExtraShortcuts) family = family.Where(t => !_rail.Layout.Extras.Contains(t.ToString())).ToArray();
+        if (family.Length == 0) return;
         var at = Array.IndexOf(family, _tool);
         SetTool(at < 0 ? family[0] : family[(at + 1) % family.Length]);
     }
@@ -1271,9 +1297,10 @@ public sealed partial class MainWindow : Window
     /// <summary>Steps to the next shape the Shape tool draws.</summary>
     private bool CycleShapeKind()
     {
-        var kinds = Enum.GetValues<ShapeKind>();
-        var at = Array.IndexOf(kinds, _options.Shape);
-        SetShapeKind(kinds[(at + 1) % kinds.Length]);
+        var kinds = Enum.GetValues<Tool>().Where(ToolCatalog.IsShape).Where(t => !_rail.Layout.DisableExtraShortcuts || !_rail.Layout.Extras.Contains(t.ToString())).ToArray();
+        if (kinds.Length == 0) return false;
+        var at = Array.IndexOf(kinds, _tool);
+        SetTool(kinds[(at + 1) % kinds.Length]);
         Say($"Shape: {_options.Shape}");
         return true;
     }
@@ -2756,9 +2783,11 @@ public sealed partial class MainWindow : Window
     private Tab TabForNew()
     {
         CommitText();
-        if (_open.Document is not null)
+        if (_open.Document is not null || _tabs.Count > 1)
         {
-            var made = new Tab();
+            var numbers = _tabs.Where(t => t.Path is null).Select(t => t.UntitledNumber).ToHashSet();
+            var number = 1; while (numbers.Contains(number)) number++;
+            var made = new Tab { UntitledNumber = number };
             _tabs.Insert(_tabs.IndexOf(_open) + 1, made);
             _open = made;
         }
@@ -2822,6 +2851,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private async Task CloseTab(Tab tab)
     {
+        if (_tabs.Count == 1 && tab.Document is null && tab.Path is null) return;
         if (ReferenceEquals(tab, _open)) CommitText();
         if (!await MayReplace(tab)) return;
         var at = _tabs.IndexOf(tab);
@@ -2857,6 +2887,7 @@ public sealed partial class MainWindow : Window
             {
                 Content = Localize.Text("×"), Padding = new Thickness(4, 0, 4, 0), Tag = tab, Background = Brushes.Transparent,
             };
+            close.IsVisible = _tabs.Count > 1 || tab.Document is not null || tab.Path is not null;
             close.Click += (_, _) => _ = CloseTab(tab);
             // A tab is a capsule, as the Mac draws one: the one in front the brighter of the two.
             var front = ReferenceEquals(tab, _open);
@@ -3311,9 +3342,12 @@ public sealed partial class MainWindow : Window
 
     private void SetTool(Tool tool)
     {
-        if (_open.ActiveAlpha is not null && tool is Tool.Move or Tool.Type or Tool.Shape)
+        if (_open.ActiveAlpha is not null && (tool is Tool.Move or Tool.Type or Tool.Path or Tool.PathSelection || ToolCatalog.IsShape(tool)))
         { Say("Select RGB to use this command."); return; }
         _tool = tool;
+        if (ToolCatalog.IsShape(tool)) ConfigureShapeTool(tool);
+        _canvas.RotateViewEnabled = tool == Tool.RotateView;
+        _canvas.ZoomToolEnabled = tool == Tool.Zoom;
         _canvas.PanEnabled = tool == Tool.Pan;
         if (!_canvas.IsPanning) _canvas.Cursor = tool == Tool.Pan ? new Cursor(StandardCursorType.Hand) : null;
         _canvas.SampleSourceOnClick = tool == Tool.Clone;
@@ -3323,7 +3357,7 @@ public sealed partial class MainWindow : Window
         _canvas.TypeOnClick = tool == Tool.Type;
         if (tool != Tool.Type) CommitText();
         _canvas.CropEnabled = tool == Tool.Crop;
-        _canvas.ShapeEnabled = tool == Tool.Shape;
+        _canvas.ShapeEnabled = ToolCatalog.IsShape(tool);
         _canvas.GradientEnabled = tool == Tool.Gradient;
         // A crop frame belongs to the tool: leaving the tool lets go of it.
         if (tool != Tool.Crop) _cropFrame = null;
@@ -3338,7 +3372,7 @@ public sealed partial class MainWindow : Window
         }
         ShowCropBox();
         _canvas.TransformEnabled = tool == Tool.Move;
-        _canvas.ShapePreviewFor = tool == Tool.Shape ? dragged => ShapePlan(dragged) : null;
+        _canvas.ShapePreviewFor = ToolCatalog.IsShape(tool) ? dragged => ShapePlan(dragged) : null;
         _canvas.GuidesDraggable = tool == Tool.Move;
         ShowTransformBox();
         _canvas.PaintEnabled = tool is Tool.Brush or Tool.Clone or Tool.Blur or Tool.Liquify or Tool.Smudge or Tool.Heal or Tool.HistoryBrush;
@@ -3680,6 +3714,7 @@ public sealed partial class MainWindow : Window
     {
         _options.Shape = kind;
         foreach (var (which, item) in _shapeKindItems) item.IsChecked = which == kind;
+        if (ToolCatalog.IsShape(_tool)) SetTool(kind switch { ShapeKind.Rectangle => Tool.Shape, ShapeKind.Ellipse => Tool.ShapeEllipse, ShapeKind.Line => Tool.Line, _ => Tool.CustomShape });
     }
 
     /// <summary>Asks for one of the two numbers that shape a shape.</summary>
@@ -3717,6 +3752,7 @@ public sealed partial class MainWindow : Window
             Green = _options.Brush.Green,
             Blue = _options.Brush.Blue,
             CornerRadius = _options.ShapeCornerRadius,
+            Path = _options.Shape == ShapeKind.Path ? ShapeToolPath() : null,
         };
         var target = box;
         if (_options.Shape == ShapeKind.Line)
@@ -3736,6 +3772,13 @@ public sealed partial class MainWindow : Window
         }
         _history.Begin(_options.Shape.ToString(), document, Selected);
         var made = ShapeEdits.Add(document, style, target, Selected);
+        if (made is { } named && Localize.IsChinese)
+        {
+            var prefix = Localize.Text(ToolCatalog.Title(_tool)).Replace("工具", "");
+            var layer = document.Layers.First(item => item.ID == named); var number = 1;
+            while (document.Layers.Any(item => item.ID != named && item.Name == $"{prefix} {number}")) number++;
+            layer.Name = $"{prefix} {number}";
+        }
         _history.End(document, Selected);
         if (made is null)
         {
@@ -4719,6 +4762,7 @@ public sealed partial class MainWindow : Window
             Green = _options.Brush.Green,
             Blue = _options.Brush.Blue,
             CornerRadius = _options.ShapeCornerRadius,
+            Path = _options.Shape == ShapeKind.Path ? ShapeToolPath() : null,
         };
         if (_options.Shape != ShapeKind.Line) return (style, box);
         // A line's layer is the box around it with room for the stroke's own thickness and its round ends.
@@ -5410,7 +5454,7 @@ public sealed partial class MainWindow : Window
             var message = release is null ? "No Windows release is published yet."
                 : release.Version > running ? $"Windows version {release.Version} is available. This copy is {running}."
                 : $"This Windows copy ({running}) is up to date.";
-            await UpdateDialog.Ask(this, "Windows Updates", message, release?.Page ?? WindowsReleases.Page);
+            await UpdateDialog.Ask(this, "Windows Updates", message, release?.Page ?? WindowsReleases.Page, release?.Notes);
         }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
         {
@@ -5653,24 +5697,30 @@ public sealed partial class MainWindow : Window
     /// <summary>Loads the selected layer's vector mask nodes so the Path tool can show and drag them.</summary>
     private void SyncPathNodes()
     {
-        var layer = _tool == Tool.Path && _document is { } document && Selected is { } id
+        var layer = _tool is Tool.Path or Tool.PathSelection && _document is { } document && Selected is { } id
             ? document.Layers.FirstOrDefault(item => item.ID == id) : null;
-        if (layer?.Mask?.VectorPath is null || MaskProperties.VectorNodes(_document!, layer.ID) is not { } nodes)
+        _shapePath = layer?.LiveShape is not null && !MaskTarget;
+        PathNodes? nodes = null;
+        if (_shapePath && layer?.LiveShape is { } shape)
+        {
+            using var outline = new SKPathBuilder();
+            if (shape.Kind == ShapeKind.Rectangle) outline.AddRoundRect(SKRect.Create(1, 1), (float)(shape.CornerRadius / layer.Transform.Width), (float)(shape.CornerRadius / layer.Transform.Height));
+            else if (shape.Kind == ShapeKind.Ellipse) outline.AddOval(SKRect.Create(1, 1));
+            using var outlinePath = outline.Detach();
+            nodes = PathNodes.Parse(shape.Path ?? outlinePath.ToSvgPathData());
+        }
+        else if (layer?.Mask?.VectorPath is not null) nodes = MaskProperties.VectorNodes(_document!, layer.ID);
+        if (layer is null || nodes is null || !LayerProtection.CanPaint(_document!, layer.ID) || !LayerProtection.CanMove(_document!, layer.ID))
         {
             _canvas.PathEnabled = false; _canvas.PathNodes = null; _pathNodes = null; _pathLayerID = null;
             return;
         }
-        _pathNodes = nodes;
-        _pathLayerID = layer.ID;
-        _canvas.PathNodes = nodes;
-        _canvas.PathEnabled = true;
-        var mask = layer.Mask;
-        var toDocument = BrushEdits.PixelToDocument(layer.MaskTransform, mask.Asset.Width, mask.Asset.Height);
+        _pathNodes = nodes; _pathLayerID = layer.ID;
+        _canvas.PathNodes = nodes; _canvas.PathEnabled = true; _canvas.SelectWholePath = _tool == Tool.PathSelection;
+        var toDocument = _shapePath ? BrushEdits.PixelToDocument(layer.Transform, 1, 1)
+            : BrushEdits.PixelToDocument(layer.MaskTransform, layer.Mask!.Asset.Width, layer.Mask.Asset.Height);
         _canvas.PathToDocument = point => toDocument.MapPoint(point.X, point.Y);
-        if (toDocument.TryInvert(out var inverse))
-            _canvas.DocumentToPath = point => inverse.MapPoint(point.X, point.Y);
-        else
-            _canvas.DocumentToPath = null;
+        _canvas.DocumentToPath = toDocument.TryInvert(out var inverse) ? point => inverse.MapPoint(point.X, point.Y) : null;
     }
 
     /// <summary>The Path tool asked for something to edit: make a vector mask from the selection if needed.</summary>
@@ -5692,7 +5742,13 @@ public sealed partial class MainWindow : Window
     private void MovePathNode(int subpath, int node, bool handle, bool outgoing, SKPoint point)
     {
         if (_pathNodes is not { } nodes || subpath < 0 || subpath >= nodes.Subpaths.Count) return;
-        if (handle) nodes.MoveHandle(subpath, node, outgoing, point);
+        if (_tool == Tool.PathSelection)
+        {
+            var current = nodes.Subpaths[subpath].Nodes[node].Point; var delta = point - current;
+            for (var s = 0; s < nodes.Subpaths.Count; s++)
+                for (var n = 0; n < nodes.Subpaths[s].Nodes.Count; n++) nodes.MoveNode(s, n, delta);
+        }
+        else if (handle) nodes.MoveHandle(subpath, node, outgoing, point);
         else
         {
             if (node < 0 || node >= nodes.Subpaths[subpath].Nodes.Count) return;
@@ -5705,10 +5761,13 @@ public sealed partial class MainWindow : Window
     private void EndPathDrag()
     {
         if (_document is { } document && _pathLayerID is { } id && _pathNodes is { } nodes)
-            MaskProperties.SetVectorPath(document, id, nodes.ToSvg());
+            ApplyEditedPath(document, id, nodes.ToSvg());
         _history.End(_document, Selected);
         Refresh();
     }
+
+    private bool ApplyEditedPath(CanvasDocument document, Guid id, string svg) =>
+        _shapePath ? ShapeEdits.SetPath(document, id, svg) : MaskProperties.SetVectorPath(document, id, svg);
 
     private void EditPathNode(int subpath, int node, bool add)
     {
@@ -5716,7 +5775,7 @@ public sealed partial class MainWindow : Window
         Edit("Edit Path", () =>
         {
             if (!(add ? nodes.InsertAfter(subpath, node) : nodes.RemoveAt(subpath, node))) return false;
-            return _pathLayerID is { } id && MaskProperties.SetVectorPath(document, id, nodes.ToSvg());
+            return _pathLayerID is { } id && ApplyEditedPath(document, id, nodes.ToSvg());
         });
         SyncPathNodes();
         _canvas.InvalidateVisual();

@@ -45,6 +45,7 @@ public sealed partial class MainWindow
 
     private void SelectColorChannel(ColorChannels channel)
     {
+        if (_document?.Channels.Any(c => c.IsTemporary) == true) ToggleQuickMask();
         _open.ActiveAlpha = null; _open.VisibleChannels = channel;
         if (_document is { } document) document.EditChannels = channel;
         _panelTabs.SelectedIndex = 1;
@@ -53,6 +54,7 @@ public sealed partial class MainWindow
 
     private void UpdateChannelView()
     {
+        if (_document?.Channels.FirstOrDefault(c => c.IsTemporary) is { } quick) { _open.ActiveAlpha = quick.ID; _open.VisibleChannels = ColorChannels.RGB; }
         if (_open.ActiveAlpha is { } id && _document?.Channels.All(channel => channel.ID != id) != false) { _open.ActiveAlpha = null; _open.VisibleChannels = ColorChannels.RGB; }
         _canvas.DisplayChannels = _open.VisibleChannels;
         _canvas.AlphaDisplay = _document?.Channels.FirstOrDefault(channel => channel.ID == _open.ActiveAlpha)?.Asset.Image;

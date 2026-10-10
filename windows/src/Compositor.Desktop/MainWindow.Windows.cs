@@ -15,7 +15,21 @@ public sealed partial class MainWindow
     private Menu? _mainMenu;
     private Control[] _chrome = [];
     private bool[] _chromeVisibility = [];
-    private bool _canvasOnly;
+    private bool _canvasOnly, _editingFullscreen;
+    private WindowState _beforeEditingFullscreen;
+    private void ToggleEditingFullscreen()
+    {
+        if (_canvasOnly) { ToggleCanvasOnly(); return; }
+        if (!_editingFullscreen) { _beforeEditingFullscreen = WindowState; WindowState = WindowState.FullScreen; }
+        else WindowState = _beforeEditingFullscreen;
+        _editingFullscreen = !_editingFullscreen;
+        _canvas.Focus();
+    }
+    private void ExitScreenMode()
+    {
+        if (_canvasOnly) ToggleCanvasOnly();
+        if (_editingFullscreen) ToggleEditingFullscreen();
+    }
     private WindowState _previousWindowState;
     private bool _confirmingClose;
     private bool _closeApproved;

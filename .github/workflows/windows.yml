@@ -36,7 +36,7 @@ jobs:
           New-Item -ItemType Directory artifacts/screenshots -Force | Out-Null
           $env:COMPOSITOR_LANGUAGE = 'en'
           $env:COMPOSITOR_SETTINGS_DIR = Join-Path $env:RUNNER_TEMP 'compositor-en-tests'
-          foreach ($check in @('clicks', 'tabs', 'tools', 'shortcuts', 'camera-raw', 'dialogs', 'windows-checks', 'interaction-checks', 'panel-checks', 'inspector-checks')) {
+          foreach ($check in @('clicks', 'tabs', 'tools', 'shortcuts', 'camera-raw', 'dialogs', 'windows-checks', 'interaction-checks', 'panel-checks', 'inspector-checks', 'workspace-checks')) {
             dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll "--$check" "artifacts/screenshots/$check.png"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
@@ -49,6 +49,8 @@ jobs:
           dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --panel-checks artifacts/screenshots/chinese-panels.png
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --inspector-checks artifacts/screenshots/chinese-inspector.png
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --workspace-checks artifacts/screenshots/chinese-workspace.png
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         if: always()
@@ -82,6 +84,8 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "Published panel checks failed: $($process.ExitCode)" }
           $process = Start-Process -FilePath $app -ArgumentList @('--inspector-checks', "$env:RUNNER_TEMP/published-inspector.png") -WindowStyle Hidden -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Published inspector checks failed: $($process.ExitCode)" }
+          $process = Start-Process -FilePath $app -ArgumentList @('--workspace-checks', "$env:RUNNER_TEMP/published-workspace.png") -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Published workspace checks failed: $($process.ExitCode)" }
           $installer = Get-Item artifacts/*-setup.exe
           $destination = Join-Path $env:RUNNER_TEMP 'Compositor-Install-Test'
           $process = Start-Process -FilePath $installer.FullName -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$destination") -WindowStyle Hidden -Wait -PassThru

@@ -443,7 +443,7 @@
   },
   {
     "package": "HarfBuzzSharp",
-    "version": "14.2.0",
+    "version": "14.2.1.201",
     "authors": {
       "text": "Microsoft"
     },
@@ -463,8 +463,8 @@
     "repository": {
       "type": "git",
       "url": "https://go.microsoft.com/fwlink/?linkid=868515",
-      "branch": "release/4.148.0",
-      "commit": "4e4ce7af7ea8702593af5aeb25d05c65ffb74e90",
+      "branch": "release/4.152.1",
+      "commit": "47f1630989b6d4d5c347b01dcfc10f0fb49cce74",
       "text": ""
     }
   },
@@ -497,7 +497,7 @@
   },
   {
     "package": "HarfBuzzSharp.NativeAssets.macOS",
-    "version": "14.2.0",
+    "version": "14.2.1.201",
     "authors": {
       "text": "Microsoft"
     },
@@ -517,8 +517,8 @@
     "repository": {
       "type": "git",
       "url": "https://go.microsoft.com/fwlink/?linkid=868515",
-      "branch": "release/4.148.0",
-      "commit": "4e4ce7af7ea8702593af5aeb25d05c65ffb74e90",
+      "branch": "release/4.152.1",
+      "commit": "47f1630989b6d4d5c347b01dcfc10f0fb49cce74",
       "text": ""
     }
   },
@@ -551,7 +551,7 @@
   },
   {
     "package": "HarfBuzzSharp.NativeAssets.Win32",
-    "version": "14.2.0",
+    "version": "14.2.1.201",
     "authors": {
       "text": "Microsoft"
     },
@@ -571,8 +571,8 @@
     "repository": {
       "type": "git",
       "url": "https://go.microsoft.com/fwlink/?linkid=868515",
-      "branch": "release/4.148.0",
-      "commit": "4e4ce7af7ea8702593af5aeb25d05c65ffb74e90",
+      "branch": "release/4.152.1",
+      "commit": "47f1630989b6d4d5c347b01dcfc10f0fb49cce74",
       "text": ""
     }
   },
@@ -784,6 +784,33 @@
   },
   {
     "package": "SkiaSharp",
+    "version": "4.152.1",
+    "authors": {
+      "text": "Microsoft"
+    },
+    "license": {
+      "type": "expression",
+      "text": "MIT"
+    },
+    "licenseUrl": {
+      "text": "https://licenses.nuget.org/MIT"
+    },
+    "projectUrl": {
+      "text": "https://go.microsoft.com/fwlink/?linkid=868515"
+    },
+    "copyright": {
+      "text": "© Microsoft Corporation. All rights reserved."
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://go.microsoft.com/fwlink/?linkid=868515",
+      "branch": "release/4.152.1",
+      "commit": "47f1630989b6d4d5c347b01dcfc10f0fb49cce74",
+      "text": ""
+    }
+  },
+  {
+    "package": "SkiaSharp.HarfBuzz",
     "version": "4.152.1",
     "authors": {
       "text": "Microsoft"
@@ -1070,6 +1097,32 @@
       "type": "git",
       "url": "https://github.com/dotnet/runtime",
       "commit": "9d5a6a9aa463d6d10b0b0ba6d5982cc82f363dc3",
+      "text": ""
+    }
+  },
+  {
+    "package": "System.Security.Cryptography.ProtectedData",
+    "version": "10.0.0",
+    "authors": {
+      "text": "Microsoft"
+    },
+    "license": {
+      "type": "expression",
+      "text": "MIT"
+    },
+    "licenseUrl": {
+      "text": "https://licenses.nuget.org/MIT"
+    },
+    "projectUrl": {
+      "text": "https://dot.net/"
+    },
+    "copyright": {
+      "text": "© Microsoft Corporation. All rights reserved."
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/dotnet/dotnet",
+      "commit": "b0f34d51fccc69fd334253924abd8d6853fad7aa",
       "text": ""
     }
   },

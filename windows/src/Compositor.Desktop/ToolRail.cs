@@ -1,5 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Compositor.Core.IO;
 using Avalonia.Layout;
 using Avalonia.Media;
 using SkiaSharp;
@@ -17,8 +20,54 @@ internal sealed class ToolRail : Grid
     private const double RailWidth = 56;
 
     private readonly Dictionary<Tool, Button> _buttons = [];
-    private readonly Glyph _foreground = new() { Kind = Tool.Brush };
-    private readonly Glyph _background = new() { Kind = Tool.Brush };
+    private readonly Dictionary<Button, List<Tool>> _groups = [];
+    private IReadOnlyDictionary<string, ShortcutChord> _shortcuts = new Dictionary<string, ShortcutChord>();
+    private ToolbarLayout _layout = ToolCatalog.Defaults();
+    public event Action? CustomizeRequested, QuickMaskRequested, ScreenModeRequested, GenerativeRequested;
+    internal ToolbarLayout Layout => _layout;
+    internal static Control Icon(Tool tool) => new Glyph { Kind = tool, Width = 22, Height = 22 };
+    public void ApplyLayout(ToolbarLayout layout)
+    {
+        _layout = layout.Copy(); _buttons.Clear(); _groups.Clear(); Children.Clear();
+        _foreground = new Glyph { Kind = Tool.Brush }; _background = new Glyph { Kind = Tool.Brush };
+        _front = _back = null; ShowColours(_foregroundColour, _backgroundColour);
+        RowDefinitions = new RowDefinitions("*,Auto");
+        var tools = new ScrollViewer { Content = Tools(), HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
+        Children.Add(tools);
+        var footer = new StackPanel();
+        if (layout.ShowExtras)
+        {
+            var extra = new Button { Content = new InspectorGlyph("more"), Width = 44, Height = 28, Tag = "Extra Tools" };
+            ToolTip.SetTip(extra, Localize.Text("Extra Tools / Customize Toolbar"));
+            extra.Click += (_, _) =>
+            {
+                var menu = new ContextMenu();
+                foreach (var id in _layout.Extras)
+                {
+                    var tool = Enum.Parse<Tool>(id);
+                    var item = new MenuItem { Header = Localize.Text(ToolCatalog.Title(tool)), Icon = Icon(tool) };
+                    item.Click += (_, _) => Chosen?.Invoke(tool); menu.Items.Add(item);
+                }
+                if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+                var customize = new MenuItem { Header = Localize.Text("Customize Toolbar…") };
+                customize.Click += (_, _) => CustomizeRequested?.Invoke(); menu.Items.Add(customize); menu.Open(extra);
+            };
+            footer.Children.Add(extra);
+        }
+        if (layout.ShowColors) footer.Children.Add(Colours());
+        void Footer(string icon, string name, Action fire)
+        {
+            var button = new Button { Content = icon == "mask" ? new PanelGlyph("mask") : new InspectorGlyph(icon), Width = 44, Height = 28, Tag = name, Padding = new Thickness(11, 3) };
+            ToolTip.SetTip(button, Localize.Text(name)); button.Click += (_, _) => fire(); footer.Children.Add(button);
+        }
+        if (layout.ShowQuickMask) Footer("mask", "Quick Mask (Q)", () => QuickMaskRequested?.Invoke());
+        if (layout.ShowScreenMode) Footer("screen", "Screen Mode (F)", () => ScreenModeRequested?.Invoke());
+        if (layout.ShowGenerative) Footer("generate", "Generative Workspace", () => GenerativeRequested?.Invoke());
+        SetRow(footer, 1); Children.Add(footer);
+        Mark(_marked); ShowShortcuts(_shortcuts);
+    }
+    private Glyph _foreground = new() { Kind = Tool.Brush };
+    private Glyph _background = new() { Kind = Tool.Brush };
     private Button? _front;
     private Button? _back;
     private Tool _marked = Tool.Pan;
@@ -40,24 +89,19 @@ internal sealed class ToolRail : Grid
     public ToolRail()
     {
         Width = RailWidth;
-        // The tools take whatever height is left and scroll when they do not fit; the colours sit under them.
-        RowDefinitions = new RowDefinitions("*,Auto");
-        var tools = new ScrollViewer { Content = Tools(), Margin = new Thickness(0, 4, 0, 0) };
-        var colours = Colours();
-        SetRow(tools, 0);
-        SetRow(colours, 1);
-        Children.Add(tools);
-        Children.Add(colours);
+        ApplyLayout(ToolCatalog.Load());
     }
 
     /// <summary>Marks the tool in hand, which is the only one lit.</summary>
     public void Mark(Tool tool)
     {
         _marked = tool;
-        foreach (var (which, button) in _buttons)
+        foreach (var (button, tools) in _groups)
         {
-            button.Background = which == tool ? Skin.TabFront : Brushes.Transparent;
+            button.Background = tools.Contains(tool) ? Skin.TabFront : Brushes.Transparent;
+            if (tools.Contains(tool)) { button.Tag = tool; button.Content = GroupIcon(tool, tools.Count > 1); }
         }
+        ShowShortcuts(_shortcuts);
     }
 
     /// <summary>
@@ -83,22 +127,14 @@ internal sealed class ToolRail : Grid
 
     public void ShowShortcuts(IReadOnlyDictionary<string, Compositor.Core.IO.ShortcutChord> shortcuts)
     {
-        foreach (var (tool, button) in _buttons)
+        _shortcuts = shortcuts;
+        foreach (var (button, _) in _groups)
         {
-            var title = tool switch
-            {
-                Tool.Pan => "Hand tool", Tool.Move => "Move / Transform tool",
-                Tool.Marquee or Tool.Ellipse => "Marquee tool", Tool.Lasso or Tool.Polygon => "Lasso tool",
-                Tool.Wand or Tool.Object => "Magic wand", Tool.Brush => "Brush tool", Tool.Clone => "Clone Stamp",
-                Tool.Blur or Tool.Smudge or Tool.Liquify => "Blur / Smudge / Liquify", Tool.Heal => "Spot Healing",
-                Tool.Eyedropper => "Eyedropper tool", Tool.Type => "Type tool", Tool.Crop => "Crop tool",
-                Tool.Shape => "Shape tool", _ => "Gradient tool",
-            };
-            var key = shortcuts.TryGetValue($"{Compositor.Core.IO.Shortcuts.Canvas}:{title}", out var chord) ? chord.Label : "";
-            if (tool == Tool.Object) key += ", Tab";
-            var text = Localize.Text(Names[tool]);
-            var parts = text.Split('—', 2, StringSplitOptions.TrimEntries);
-            var tip = parts[0] + (key.Length > 0 ? $"({key})" : "")
+            var tool = button.Tag is Tool picked ? picked : Tool.Pan;
+            var key = shortcuts.TryGetValue($"{Shortcuts.Canvas}:{ToolCatalog.Shortcut(tool)}", out var chord) ? chord.Label : "";
+            var description = tool == Tool.Zoom ? "Zoom — click to zoom in; Alt-click to zoom out; double-click for 100%" : tool == Tool.RotateView ? "Rotate View — drag to rotate; Shift snaps to 15°; double-click to reset" : Names.GetValueOrDefault(tool, ToolCatalog.Title(tool));
+            var parts = Localize.Text(description).Split('—', 2, StringSplitOptions.TrimEntries);
+            var tip = Localize.Text(ToolCatalog.Title(tool)) + (key.Length > 0 ? $"({key})" : "")
                 + (parts.Length > 1 ? ": " + parts[1] : "");
             ToolTip.SetTip(button, tip);
             Avalonia.Automation.AutomationProperties.SetName(button, tip);
@@ -124,27 +160,44 @@ internal sealed class ToolRail : Grid
     private static IBrush Colour(SKColor colour) => new SolidColorBrush(
         Color.FromArgb(colour.Alpha, colour.Red, colour.Green, colour.Blue));
 
+    private static Control GroupIcon(Tool tool, bool grouped)
+    {
+        var icon = new Grid { Width = 24, Height = 24 }; icon.Children.Add(Icon(tool));
+        if (grouped) icon.Children.Add(new TextBlock { Text = "◢", FontSize = 7, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom });
+        return icon;
+    }
     private Control Tools()
     {
         var column = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
-        foreach (var tool in Enum.GetValues<Tool>())
+        foreach (var ids in _layout.Groups)
         {
-            var glyph = new Glyph { Kind = tool };
-            var button = new Button
+            var group = ids.Select(Enum.Parse<Tool>).ToList(); if (group.Count == 0) continue;
+            var button = new Button { Content = GroupIcon(group[0], group.Count > 1), Tag = group[0], Width = 44, Height = 34, Padding = new Thickness(8, 5),
+                Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
+            var heldOpen = false;
+            void OpenGroup()
             {
-                Content = glyph,
-                Width = 44,
-                Height = 36,
-                Padding = new Thickness(0),
-                HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                VerticalContentAlignment = VerticalAlignment.Stretch,
-                Background = tool == Tool.Pan ? Skin.TabFront : Brushes.Transparent,
-                BorderThickness = new Thickness(0),
-            };
-            ToolTip.SetTip(button, Localize.Text(Names[tool]));
-            var picked = tool;
-            button.Click += (_, _) => Chosen?.Invoke(picked);
-            _buttons[tool] = button;
+                if (group.Count < 2) return;
+                heldOpen = true; var menu = new ContextMenu();
+                foreach (var tool in group)
+                {
+                    var item = new MenuItem { Header = Localize.Text(ToolCatalog.Title(tool)), Icon = Icon(tool) };
+                    item.Click += (_, _) => Chosen?.Invoke(tool); menu.Items.Add(item);
+                }
+                menu.Open(button);
+            }
+            var hold = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            hold.Tick += (_, _) => { hold.Stop(); OpenGroup(); };
+            button.AddHandler(PointerPressedEvent, (_, e) =>
+            {
+                if (e.GetCurrentPoint(button).Properties.IsRightButtonPressed) { OpenGroup(); e.Handled = true; }
+                else { heldOpen = false; hold.Start(); }
+            }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+            button.AddHandler(PointerReleasedEvent, (_, _) => hold.Stop(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
+            button.PointerCaptureLost += (_, _) => hold.Stop();
+            button.Click += (_, _) => { hold.Stop(); if (!heldOpen && button.Tag is Tool tool) Chosen?.Invoke(tool); heldOpen = false; };
+            _groups[button] = group;
+            foreach (var tool in group) _buttons[tool] = button;
             column.Children.Add(button);
         }
         return column;
@@ -376,6 +429,23 @@ internal sealed class ToolRail : Grid
                     Line(7, 4, 7, 16);
                     Line(7, 16, 19, 16);
                     break;
+                case Tool.ShapeEllipse:
+                    context.DrawEllipse(null, pen, At(11, 11), 8, 6); break;
+                case Tool.Triangle:
+                    context.DrawGeometry(null, pen, Path([(11,3),(20,19),(2,19)], At, true)); break;
+                case Tool.PolygonShape:
+                    context.DrawGeometry(null, pen, Path([(6,3),(16,3),(21,11),(16,19),(6,19),(1,11)], At, true)); break;
+                case Tool.Star:
+                    context.DrawGeometry(null, pen, Path([(11,2),(14,8),(21,8),(16,13),(18,20),(11,16),(4,20),(6,13),(1,8),(8,8)], At, true)); break;
+                case Tool.Line: Line(3,19,19,3); break;
+                case Tool.CustomShape:
+                    context.DrawGeometry(null, pen, Path([(11,19),(2,10),(3,4),(7,2),(11,6),(15,2),(19,4),(20,10)], At, true)); break;
+                case Tool.Zoom:
+                    context.DrawEllipse(null, pen, At(9,9),6,6); Line(14,14,20,20); Line(6,9,12,9); Line(9,6,9,12); break;
+                case Tool.RotateView:
+                    context.DrawEllipse(null, pen, At(11,11),8,8); Line(2,2,2,8); Line(2,8,8,8); break;
+                case Tool.PathSelection:
+                    context.DrawGeometry(Soft, pen, Path([(4,2),(17,12),(11,13),(8,20)], At,true)); break;
                 case Tool.Shape:
                     context.DrawRectangle(null, pen, new Rect(At(4, 4), At(14, 14)));
                     context.DrawEllipse(null, pen, At(13, 13), 5, 5);

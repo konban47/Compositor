@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace Compositor.Core.IO;
 
-public sealed record WindowsRelease(Version Version, string Page, bool Prerelease);
+public sealed record WindowsRelease(Version Version, string Page, bool Prerelease, string? Notes = null);
 
 /// <summary>The Windows release channel never offers upstream's macOS installer.</summary>
 public static class WindowsReleases
@@ -25,7 +25,8 @@ public static class WindowsReleases
             if (release.TryGetProperty("draft", out var draft) && draft.GetBoolean()) continue;
             var page = release.TryGetProperty("html_url", out var url) ? url.GetString() : null;
             if (page is null || !page.StartsWith(Page + "/tag/windows-v", StringComparison.Ordinal)) continue;
-            releases.Add(new(version, page, release.TryGetProperty("prerelease", out var pre) && pre.GetBoolean()));
+            var notes = release.TryGetProperty("body", out var body) ? body.GetString() : null;
+            releases.Add(new(version, page, release.TryGetProperty("prerelease", out var pre) && pre.GetBoolean(), notes is { Length: > 20000 } ? notes[..20000] : notes));
         }
         return releases.OrderByDescending(release => release.Version).FirstOrDefault();
     }

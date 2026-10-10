@@ -4,14 +4,14 @@
 
 本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
 
-[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.4.8.2) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.4.8.2.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
+[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.4.9.1) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.4.9.1.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
 
 ## 安装
 
 目标系统：Windows 10 1809 及以上、Windows 11，64 位 x64。
 
-- **安装版**：运行 `Compositor-Windows-1.4.8.2-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.4.8.2-x64-portable.zip`，运行 `Compositor.exe`。
+- **安装版**：运行 `Compositor-Windows-1.4.9.1-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.4.9.1-x64-portable.zip`，运行 `Compositor.exe`。
 - 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
 - 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
 
@@ -39,11 +39,19 @@
 | 局部修饰 | 先建立选区，再使用液化、涂抹、污点修复、仿制图章或画笔 |
 | 重复上次滤镜 | Ctrl+Alt+F；使用上次应用的参数，可撤销 |
 | 搜索命令 | Ctrl+F，可搜索中文或英文名称 |
-| 仅显示画布 | F 进入，F 或 Esc 返回 |
+| 带工具栏全屏 | F 进入／退出，保留工具栏、选项栏、图层与属性面板；Esc 返回 |
+| 仅显示画布 | Shift+F 进入／退出，Esc 返回 |
+| 自定义工具栏 | “工具 → 自定义工具栏”；拖动工具分组、排序或放入附加工具，支持存储／载入预设 |
+| 旋转视图／缩放 | R 拖动旋转视图，双击复位；Z 单击放大，Alt 单击缩小 |
+| 形状与路径 | U／Shift+U 切换七种形状，A 切换路径选择与直接选择；选项栏设置多边形／星形和自定形状 |
+| 快速蒙版 | Q 进入后用灰度绘制覆盖率，再按 Q 转回选区 |
+| 生成式工作区 | 工具栏底部图像图标或“工具 → 生成式工作区”；配置 API 地址、密钥和模型后生成并导入 |
 
 `.comp` 项目是文件夹，需保留整个文件夹及其中的 `manifest.json` 和图层资源。普通图像可导出 PNG/JPEG/PDF（PDF 为合成图像页面），PSD/PSB 支持导入并显示转换报告。
 
 ## 功能
+
+新增工具与 API 配置见 [工作区使用说明](windows/WORKSPACE.md)，上游对应关系与验证见 [1.4.9.1 更新说明](windows/UPDATES-1.4.9.1.md)。
 
 - 图层缩略图、搜索和类型筛选、锁定、分组折叠、链接、不透明度与填充；24 种混合模式、蒙版、调整图层和图层样式。
 - RGB 分通道显示与编辑、Alpha 通道新建／复制／重命名／删除、选区存取及灰度绘制。
@@ -58,7 +66,7 @@
 
 ## 验证与当前状态
 
-**1.4.8.2 Preview** 增加属性和历史记录面板、蒙版链接与独立变换，修复参考线和导航器。继续对齐上游 1.4.8，并移植其后至 `75147a2` 的 Camera Raw 自适应调整。核心测试 930 项，另有中英文窗口、图层／通道、鼠标中心缩放、导出预览、文件拖入、选区、安装和卸载检查。[持续集成](https://github.com/konban47/Compositor/actions/workflows/windows.yml)
+**1.4.9.1 Preview** 修正 F 全屏，新增自定义工具栏、七种形状、旋转视图、快速蒙版、可配置 API 的生成式工作区；对齐与分布、变换和历史记录采用带说明的图标布局。开始前已同步 GitHub 的 `b1113f6`，保留高级文字、历史画笔与路径编辑；再合并上游 **1.4.9 / `b4bfdea`**。核心测试 **975 项**，另有 11 组英文及 5 组中文界面检查，并验证安装、卸载和发布程序。[持续集成](https://github.com/konban47/Compositor/actions/workflows/windows.yml)
 
 本机验证环境为 Windows 11；Windows 10 实机、真实输入法候选窗、多显示器和数位板仍需人工验收。使用 CPU/Skia 与 U²-NetP，渲染、主体识别及 RAW 显影与 Apple 原生实现存在差异；应用和安装包尚未进行商业代码签名。高级 OpenType 特性、小型大写／上下标、动态文字、东亚避头尾与标点挤压、阿拉伯语／希伯来语等中东与复杂文字塑形与从右到左排版、文字转框架与文字转矢量字形、历史记录画笔、非线性历史及矢量路径节点编辑均已提供，用法与兼容范围见下文。[完整已知差异](windows/README.md#已知差异和验收边界)
 

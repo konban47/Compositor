@@ -23,6 +23,7 @@ public sealed partial class MainWindow
     private Guid? _maskTargetLayer;
     private Tab? _maskTargetTab;
     private bool _proportionLocked = true, _propertiesPending;
+    private AlignmentTarget _alignmentTarget = AlignmentTarget.Auto;
     private string _propertiesKey = "";
     private ImageLayer? PropertyLayer => _document?.Layers.FirstOrDefault(layer => layer.ID == Selected);
     private bool MaskTarget => _options.PaintOnMask && PropertyLayer?.Mask is not null;
@@ -115,7 +116,23 @@ public sealed partial class MainWindow
     {
         var button = new Button { Content = Localize.Text(text), HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Center, MinHeight = 28, Padding = new Thickness(7, 3), Tag = text };
+        ToolTip.SetTip(button, Localize.Text(text));
         button.Click += (_, _) => action(); return button;
+    }
+    private static Button InspectorButton(string icon, string text, Action action)
+    {
+        var button = new Button { Content = new InspectorGlyph(icon), Width = 34, Height = 30, Padding = new Thickness(5, 4),
+            Background = Brushes.Transparent, Tag = text };
+        ToolTip.SetTip(button, Localize.Text(text));
+        Avalonia.Automation.AutomationProperties.SetName(button, Localize.Text(text));
+        button.Click += (_, _) => action(); return button;
+    }
+    private static Control InlineProperty(string label, Control input)
+    {
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("24,*") };
+        row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Foreground = Skin.SecondaryBrush });
+        input.MinHeight = 28;
+        Grid.SetColumn(input, 1); row.Children.Add(input); return row;
     }
     private void Section(string title, params Control[] contents)
     {
@@ -153,7 +170,8 @@ public sealed partial class MainWindow
     {
         var box = SelectedLayers.Count > 1 || layer.IsGroup ? TransformEdits.GroupBox(_document!, SelectedLayers) : layer.Transform;
         if (box is not { } transform) return;
-        var locked = new CheckBox { Content = Localize.Text("Constrain Proportions"), IsChecked = _proportionLocked, FontSize = 12 };
+        var locked = new ToggleButton { Content = new InspectorGlyph("link"), IsChecked = _proportionLocked, Width = 30, Height = 34, Padding = new Thickness(4), Tag = "Constrain Proportions" };
+        ToolTip.SetTip(locked, Localize.Text("Constrain Proportions"));
         locked.IsCheckedChanged += (_, _) => _proportionLocked = locked.IsChecked == true;
         NumericUpDown Number(string axis, double v, double min, double max) => PropertyNumber("transform-" + axis, v, min, max, next =>
         {
@@ -165,14 +183,21 @@ public sealed partial class MainWindow
             };
             SetPropertyTransform(draft);
         });
-        var actions = PropertyPair(PropertyAction("Flip Horizontal", () => SetPropertyTransform(transform with { FlipX = !transform.FlipX })),
-            PropertyAction("Flip Vertical", () => SetPropertyTransform(transform with { FlipY = !transform.FlipY })));
-        var controls = new StackPanel { Spacing = 7, IsEnabled = LayerProtection.CanMove(_document!, layer.ID) };
-        controls.Children.Add(locked);
-        controls.Children.Add(PropertyPair(PropertyField("W (px)", Number("width", transform.Width, 1, 300000)), PropertyField("X (px)", Number("x", transform.X, -1000000, 1000000))));
-        controls.Children.Add(PropertyPair(PropertyField("H (px)", Number("height", transform.Height, 1, 300000)), PropertyField("Y (px)", Number("y", transform.Y, -1000000, 1000000))));
-        controls.Children.Add(PropertyPair(PropertyField("Rotation (°)", Number("rotation", transform.Rotation, -36000, 36000)), PropertyAction("Reset Rotation", () => SetPropertyTransform(transform with { Rotation = 0 }))));
-        controls.Children.Add(actions); Section("Transform", controls);
+        var controls = new Grid { ColumnDefinitions = new ColumnDefinitions("34,*,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), IsEnabled = LayerProtection.CanMove(_document!, layer.ID) };
+        controls.Children.Add(locked); Grid.SetRowSpan(locked, 2);
+        void Put(Control control, int row, int column) { control.Margin = new Thickness(3); Grid.SetRow(control, row); Grid.SetColumn(control, column); controls.Children.Add(control); }
+        Put(InlineProperty("W", Number("width", transform.Width, 1, 300000)), 0, 1);
+        Put(InlineProperty("X", Number("x", transform.X, -1000000, 1000000)), 0, 2);
+        Put(InlineProperty("H", Number("height", transform.Height, 1, 300000)), 1, 1);
+        Put(InlineProperty("Y", Number("y", transform.Y, -1000000, 1000000)), 1, 2);
+        Put(new InspectorGlyph("rotation"), 2, 0);
+        var angle = Number("rotation", transform.Rotation, -36000, 36000);
+        ToolTip.SetTip(angle, Localize.Text("Rotation in degrees — Enter to apply")); Put(angle, 2, 1);
+        var flips = new StackPanel { Orientation = Orientation.Horizontal };
+        flips.Children.Add(InspectorButton("flip-x", "Flip Horizontal", () => SetPropertyTransform(transform with { FlipX = !transform.FlipX })));
+        flips.Children.Add(InspectorButton("flip-y", "Flip Vertical", () => SetPropertyTransform(transform with { FlipY = !transform.FlipY })));
+        flips.Children.Add(InspectorButton("reset", "Reset Rotation", () => SetPropertyTransform(transform with { Rotation = 0 })));
+        Put(flips, 2, 2); Section("Transform", controls);
     }
     private void SetPropertyTransform(LayerTransform draft)
     {
@@ -187,18 +212,46 @@ public sealed partial class MainWindow
 
     private void BuildAlignmentProperties()
     {
-        var controls = new WrapPanel { Orientation = Orientation.Horizontal };
-        foreach (var label in new[] { "Align Left", "Align H Center", "Align Right", "Align Top", "Align V Center", "Align Bottom", "Distribute Horizontally", "Distribute Vertically" })
+        var all = new StackPanel { Spacing = 9 };
+        Control Row(params string[] labels)
         {
-            var button = PropertyAction(label, () => AlignProperties(label)); button.Margin = new Thickness(2); button.FontSize = 11;
-            button.IsEnabled = !label.StartsWith("Distribute") || SelectedLayers.Count >= 3; controls.Children.Add(button);
+            var row = new UniformGrid { Columns = labels.Length, HorizontalAlignment = HorizontalAlignment.Left };
+            foreach (var label in labels)
+            {
+                var button = InspectorButton(label, label, () => AlignProperties(label));
+                button.IsEnabled = !label.StartsWith("Distribute") || SelectedLayers.Count >= (_alignmentTarget is AlignmentTarget.Canvas or AlignmentTarget.Selection ? 2 : 3);
+                row.Children.Add(button);
+            }
+            return row;
         }
-        Section("Align and Distribute", PropertyLabel(SelectedLayers.Count > 1 ? "Align to selected layers" : "Align to canvas"), controls);
+        all.Children.Add(PropertyLabel("Align:"));
+        all.Children.Add(Row("Align Left", "Align H Center", "Align Right", "Align Top", "Align V Center", "Align Bottom"));
+        all.Children.Add(new Separator());
+        all.Children.Add(PropertyLabel("Distribute:"));
+        all.Children.Add(Row("Distribute Top", "Distribute Vertically", "Distribute Bottom", "Distribute Left", "Distribute Horizontally", "Distribute Right"));
+        all.Children.Add(new Separator());
+        var target = new ComboBox { ItemsSource = new[] { Localize.Text("Automatic"), Localize.Text("Selected Layers"), Localize.Text("Canvas"), Localize.Text("Selection") },
+            SelectedIndex = (int)_alignmentTarget, MinWidth = 130, Tag = "alignment-target" };
+        ToolTip.SetTip(target, Localize.Text("Reference bounds for alignment and distribution"));
+        target.SelectionChanged += (_, _) => { _alignmentTarget = (AlignmentTarget)Math.Max(0, target.SelectedIndex); BuildProperties(); };
+        all.Children.Add(PropertyPair(PropertyField("Distribute Spacing:", Row("Distribute Vertical Spacing", "Distribute Horizontal Spacing")), PropertyField("Align to:", target)));
+        var more = InspectorButton("more", "Alignment Options", () => { });
+        more.HorizontalAlignment = HorizontalAlignment.Right;
+        more.Click += (_, _) =>
+        {
+            var menu = new ContextMenu();
+            menu.Items.Add(Command("Select All Layers", () => { _layers.SelectAll(); BuildProperties(); }));
+            menu.Items.Add(Command("Align to Selection", () => { _alignmentTarget = AlignmentTarget.Selection; BuildProperties(); }));
+            menu.Items.Add(Command("Align to Canvas", () => { _alignmentTarget = AlignmentTarget.Canvas; BuildProperties(); }));
+            menu.Open(more);
+        };
+        all.Children.Add(more); Section("Align and Distribute", all);
     }
     private void AlignProperties(string operation)
     {
         if (_document is not { } document) return;
-        Edit(operation, () => LayerAlignment.Apply(document, SelectedLayers, operation));
+        if (_alignmentTarget == AlignmentTarget.Selection && document.Selection.Path is not { IsEmpty: false }) { Say("Create a selection to use it as the alignment reference."); return; }
+        Edit(operation, () => LayerAlignment.Apply(document, SelectedLayers, operation, _alignmentTarget));
     }
 
     private void BuildTextProperties(Guid id, LayerTextStyle text)

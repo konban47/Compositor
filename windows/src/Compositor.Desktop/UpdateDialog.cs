@@ -7,19 +7,12 @@ using Compositor.Core.IO;
 
 namespace Compositor.Desktop;
 
-/// <summary>
-/// Help ▸ Check for Updates: reads the app's update feed and says whether there is anything newer.
-/// <para>
-/// The feed is the one the Mac build publishes, which points at a Mac download, so what this can honestly offer
-/// is the news — a new version exists, and where to read what changed — rather than an installer for this
-/// machine. Making the Windows build from this repository is what actually updates it.
-/// </para>
-/// </summary>
+/// <summary>A compact Windows update notice with expandable release notes and a link to the release.</summary>
 internal sealed class UpdateDialog : DialogWindow
 {
     private static readonly IBrush Ink = Skin.LabelBrush;
 
-    private UpdateDialog(string title, string message, string? page)
+    private UpdateDialog(string title, string message, string? page, string? notes)
     {
         Title = Localize.Text(title);
         Width = 460;
@@ -51,6 +44,10 @@ internal sealed class UpdateDialog : DialogWindow
                 buttons,
             },
         };
+        if (!string.IsNullOrWhiteSpace(notes) && Content is StackPanel panel)
+        {
+            panel.Children.Insert(1, new Expander { Header = Localize.Text("What's New"), IsExpanded = true, Content = new ScrollViewer { MaxHeight = 180, Content = new TextBlock { Text = notes, TextWrapping = TextWrapping.Wrap } } });
+        }
         Opened += (_, _) => close.Focus();
     }
 
@@ -67,9 +64,9 @@ internal sealed class UpdateDialog : DialogWindow
         }
     }
 
-    public static async Task Ask(Window owner, string title, string message, string? page = null)
+    public static async Task Ask(Window owner, string title, string message, string? page = null, string? notes = null)
     {
-        await new UpdateDialog(title, message, page).ShowDialog(owner);
+        await new UpdateDialog(title, message, page, notes).ShowDialog(owner);
     }
 
     /// <summary>The version this build is: the one in the project file, read back off the assembly.</summary>

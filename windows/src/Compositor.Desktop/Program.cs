@@ -23,6 +23,7 @@ internal static partial class Program
     {
         if (args is ["--windows-checks", var windowsOutput]) return WindowsChecks(windowsOutput);
         if (args is ["--panel-checks", var panelOutput]) return PanelChecks(panelOutput);
+        if (args is ["--workspace-checks", var workspaceOutput]) return WorkspaceChecks(workspaceOutput);
         if (args is ["--inspector-checks", var inspectorOutput]) return InspectorChecks(inspectorOutput);
         // Draws the canvas control straight to a PNG, so the interface can be checked without a window.
         // `--grid` turns the layout grid on for the render, which is how that drawing is checked.

@@ -23,4 +23,19 @@ if (!$formatDoc.Contains("## Windows extension version $format")) { throw 'Curre
 foreach ($field in @('maskDensity','maskFeather','maskVectorPath','bold','italic','underline','strikethrough','smallCaps','allCaps','superscript','subscript','ligatures','kerning','features','direction','complexShaping','language','dynamic','path')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented persisted field: $field" }
 }
+$workspace = Read-Repo 'windows/WORKSPACE.md'
+foreach ($feature in @('自定义工具栏','生成式工作区','Shift+F','images/generations','DPAPI')) {
+    if (!$workspace.Contains($feature)) { throw "Workspace manual is missing $feature." }
+}
+if ((Read-Repo 'README.md') -match '仅显示画布 \| F 进入') { throw 'Homepage still assigns F to canvas-only mode.' }
+$keys = Read-Repo 'windows/src/Compositor.Core/IO/Shortcuts.cs'
+if (!$keys.Contains('Menu("Full Screen with Tools", "F")') -or !$keys.Contains('Menu("Canvas Only", "F", Shift)')) { throw 'Screen mode documentation and shortcuts differ.' }
+if (!(Read-Repo $updates).Contains('b4bfdea87f9dc0cbc9eabfa63683eb1b9c2bca60')) { throw 'Upstream baseline is missing.' }
+$table = Join-Path $repo 'Compositor/Resources/CameraRawTables.bin'
+$converted = Join-Path $repo 'windows/src/Compositor.Core/Resources/CameraRawTables.deflate'
+foreach ($asset in @($table,$converted)) {
+    $hash = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLower()
+    if (!(Read-Repo $updates).Contains($hash)) { throw "Camera Raw data changed without updated provenance: $asset" }
+}
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--workspace-checks')) { throw 'Workspace UI checks are missing from CI.' }
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

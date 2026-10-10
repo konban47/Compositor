@@ -4,4 +4,8 @@ namespace Compositor.Core.Model;
 public enum ColorChannels { None = 0, Red = 1, Green = 2, Blue = 4, RGB = 7 }
 
 /// <summary>Full-canvas grayscale selection data. Pixel assets are immutable and shared by undo snapshots.</summary>
-public sealed record AlphaChannel(Guid ID, string Name, ImportedImage Asset);
+public sealed record AlphaChannel(Guid ID, string Name, ImportedImage Asset)
+{
+    /// <summary>Quick Mask is session-only selection editing and never a saved channel.</summary>
+    public bool IsTemporary { get; init; }
+}
