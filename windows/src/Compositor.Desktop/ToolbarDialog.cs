@@ -23,7 +23,7 @@ internal sealed class ToolbarDialog : DialogWindow
     {
         Draft = current.Copy();
         Title = Localize.Text("Customize Toolbar"); Width = 1000; Height = 740; MinWidth = 760; MinHeight = 500;
-        var layout = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,160"), RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), Margin = new Thickness(18) };
+        var layout = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,200"), RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), Margin = new Thickness(18) };
         var explanation = new TextBlock { Text = Localize.Text("Drag tools or group headings to reorder. Drop onto a group to join it; drop below the list to create a group. Extra tools remain available in the … menu."), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(0, 0, 12, 14) };
         Grid.SetColumnSpan(explanation, 2); layout.Children.Add(explanation);
         Control List(string title, ListBox list)
