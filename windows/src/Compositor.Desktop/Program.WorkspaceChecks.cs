@@ -103,6 +103,9 @@ public sealed partial class MainWindow
         var shapeOptions = new ShapeSettingsDialog(7,.45,ShapeTemplates.Presets["Heart"],null); shapeOptions.Show(this); Pump(); Save(shapeOptions,"shape-options"); shapeOptions.Close();
         doc.Selection=DocumentSelection.All; SetTool(Tool.Move); OpenInspector(0); Pump(); Save(this,"properties");
         Check(_properties.GetVisualDescendants().OfType<Button>().Count(b=>b.Tag is string s && (s.StartsWith("Align ")||s.StartsWith("Distribute ")))>=14,"Alignment/distribution buttons missing.");
+        foreach(var section in _properties.Children.OfType<Expander>()) section.IsExpanded=section.Header?.ToString()==Localize.Text("Align and Distribute");
+        Pump(); var alignLeft=_properties.GetVisualDescendants().OfType<Button>().Single(b=>Equals(b.Tag,"Align Left")); alignLeft.BringIntoView(); Pump();
+        Click(this,alignLeft); Check(Math.Abs(PropertyLayer!.Transform.X)<.01,"Alignment icon did not move the selected layer to the canvas edge."); Save(this,"alignment");
         OpenInspector(1); Pump(); var revision=_history.CurrentRevision;
         var source=_historyRows.GetVisualDescendants().OfType<Button>().Last(b=>b.IsEffectivelyVisible && ToolTip.GetTip(b)?.ToString()==Localize.Text("Set History Brush Source"));
         Click(this,source); Check(_historyBrushSource is not null && _history.CurrentRevision==revision,"Source column changed the active history state."); Save(this,"history");
@@ -120,6 +123,7 @@ public sealed partial class MainWindow
         new GenerationSettings { Endpoint="https://example.invalid/v1",Model="mock-model" }.Save("test-only",true);
         var settings=GenerationSettings.Load(); Check(settings.Key()=="test-only" && settings.ProtectedKey!="test-only","Windows key encryption did not round trip.");
         new GenerationSettings().Save("",false); _rail.ApplyLayout(ToolCatalog.Defaults()); OpenInspector(0); Save(this,"final");
+        using(var finalFrame=this.CaptureRenderedFrame()) finalFrame!.Save(output,new PngBitmapEncoderOptions());
         if(Localize.IsChinese) Check(Localize.Text("Customize Toolbar")=="自定义工具栏" && Localize.Text("Generative Workspace")=="生成式工作区","New workspace labels are not Chinese.");
     }
 }
