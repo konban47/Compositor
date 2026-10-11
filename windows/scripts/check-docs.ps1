@@ -24,6 +24,7 @@ foreach ($field in @('maskDensity','maskFeather','maskVectorPath','bold','italic
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented persisted field: $field" }
 }
 $workspace = Read-Repo 'windows/WORKSPACE.md'
+if (!($workspace.Split("`n")[0]).Contains($version)) { throw 'Workspace manual version is stale.' }
 foreach ($feature in @('自定义工具栏','生成式工作区','Shift+F','images/generations','DPAPI')) {
     if (!$workspace.Contains($feature)) { throw "Workspace manual is missing $feature." }
 }
@@ -49,6 +50,7 @@ if (!(Read-Repo 'windows/scripts/package.ps1').Contains('LAYER-STYLES.md')) { th
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--layer-style-checks')) { throw 'Layer style UI checks missing from CI.' }
 if (!$keys.Contains('Menu("Merge Visible", "E", Ctrl | Shift)')) { throw 'Merge Visible shortcut documentation is stale.' }
 $editing = Read-Repo 'windows/EDITING-TOOLS.md'
+if (!$editing.Contains("**$version Preview**")) { throw 'Editing manual version is stale.' }
 foreach ($feature in @('置入','跨文档','钢笔','直排','图案图章','历史记录艺术画笔','魔术橡皮擦','海绵','单色','v16')) {
     if (!$editing.Contains($feature)) { throw "Editing tool manual is missing $feature." }
 }
