@@ -94,7 +94,7 @@ internal sealed partial class ToolOptionsBar : Border
             Content = row, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
         };
-        Build(); BuildExtended();
+        Build(); BuildExtended(); BuildProfessional();
     }
 
     /// <summary>
@@ -103,21 +103,24 @@ internal sealed partial class ToolOptionsBar : Border
     /// </summary>
     public void Show(Tool tool, bool hasDocument, bool maskSelected)
     {
-        var brush = ToolCatalog.IsBrush(tool);
+        var brush = ToolCatalog.HasRoundCursor(tool);
         _loading = true;
         try
         {
             On("brush", brush && hasDocument);
-            On("opacity", (brush || tool is Tool.Bucket or Tool.MagicEraser) && hasDocument);
+            _hardness.IsVisible = ToolCatalog.IsBrush(tool) && tool != Tool.Pencil && hasDocument;
+            _fill.IsVisible = ToolCatalog.IsBrush(tool) && hasDocument;
+            On("opacity", (brush && tool != Tool.QuickSelection || tool is Tool.Bucket or Tool.MagicEraser) && hasDocument);
             On("mode", tool == Tool.Brush);
             On("heal", tool == Tool.Heal);
-            On("clone", tool == Tool.Clone);
+            On("clone", tool is Tool.Clone or Tool.HealingBrush);
             On("mask", tool == Tool.Brush && maskSelected);
             On("blur", tool == Tool.Blur);
             On("marqueeShape", tool is Tool.Marquee or Tool.Ellipse);
             On("lasso", tool is Tool.Lasso or Tool.Polygon);
             On("eye", tool == Tool.Eyedropper);
-            On("wand", tool == Tool.Wand);
+            On("wand", tool is Tool.Wand or Tool.QuickSelection);
+            _sampleSize.IsVisible = _contiguous.IsVisible = tool == Tool.Wand;
             On("selectionSample", tool is Tool.Wand or Tool.Object);
                 On("gradient", tool == Tool.Gradient);
             On("shape", ToolCatalog.IsShape(tool));
@@ -126,7 +129,7 @@ internal sealed partial class ToolOptionsBar : Border
             On("linewidth", ToolCatalog.IsPen(tool) || ToolCatalog.IsShape(tool) && _options.Shape == ShapeKind.Line);
             On("crop", tool == Tool.Crop);
             On("transform", tool == Tool.Move && hasDocument);
-            On("type", ToolCatalog.IsType(tool)); ShowExtended(tool);
+            On("type", ToolCatalog.IsType(tool)); ShowExtended(tool); ShowProfessional(tool);
             On("history", tool is Tool.HistoryBrush or Tool.ArtHistory && hasDocument);
             On("path", ToolCatalog.IsPathEditor(tool) && hasDocument);
             On("zoom", tool is Tool.Pan or Tool.Zoom or Tool.RotateView);

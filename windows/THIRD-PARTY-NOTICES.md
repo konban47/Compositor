@@ -10,6 +10,8 @@ The application code and original icon are distributed under the repository's [M
 
 ## Bundled model and font
 
+Windows 1.4.9.4 directly ports the MIT-licensed `CloneStampToolIcon`, `GradientToolIcon`, `PolygonalLassoToolIcon` and `ObjectSelectionToolIcon` drawing code from upstream `Compositor/UI/BrushControls.swift`, `GradientControls.swift` and `LassoControls.swift` into `UpstreamArtwork.cs`. Tool button dimensions, spacing, corner radius and selected-state opacities come from upstream `ContentView.swift`. Source revision and normalized SHA-256 hashes are recorded in [UPSTREAM-UI.json](UPSTREAM-UI.json) and checked by `scripts/check-upstream-ui.ps1`. The repository MIT notice applies to these ports. Other upstream symbols call Apple's SF Symbols and native SwiftUI/AppKit controls; the repository contains no corresponding Windows-loadable assets. Windows vector counterparts and new-tool icons are independently drawn in `EditorIcon.cs`; no Apple symbol-font files are bundled.
+
 | Asset | Upstream / license | SHA-256 |
 |---|---|---|
 | `models/u2netp.onnx` | [U²-Net](https://github.com/xuebinqin/U-2-Net), Apache-2.0; [ONNX distribution](https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx) | `309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8` |

@@ -1,13 +1,13 @@
 # Compositor for Windows — 简体中文 / English
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.4.9.3 Preview**。
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.4.9.4 Preview**。
 
 [下载 Windows 发行包](https://github.com/konban47/Compositor/releases) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
 
 ## 使用
 
 - 目标平台：Windows 10 1809 及以上、Windows 11，**x64**。不提供 32 位或原生 ARM64 包。
-- 安装版：运行 `Compositor-Windows-1.4.9.3-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
+- 安装版：运行 `Compositor-Windows-1.4.9.4-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
 - 免安装版：解压整个 `*-portable.zip`，运行文件夹中的 `Compositor.exe`。自带 .NET 运行时，无需安装 .NET SDK。若系统缺少 Visual C++ 2015–2022 x64 运行库，先运行随包提供的 `redist/vc_redist.x64.exe`。
 - 程序与安装包目前未做商业代码签名。只从本仓库下载；`SHA256SUMS.txt` 可用于校验文件完整性。
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
@@ -16,6 +16,15 @@
 - 普通图像、PSD/PSB、相机 RAW 通过“文件 → 导入图像”打开；PSD 转换限制会在导入报告中显示。PNG/JPEG/PDF 通过“导出为”菜单输出；PDF 为单页合成图像。
 - 可将项目文件夹或图像路径作为参数：`Compositor.exe "D:\图片\项目.comp"`。
 - 设置保存在 `%APPDATA%\CompositorWindows`。卸载不会删除项目文件和个人设置。
+
+## 1.4.9.4 光标、网格与工具更新
+
+- 修复 Alt 取样反馈、画笔作用范围圆圈、文字 I 形光标、快捷键窗口文字裁切与右下角网格缺失。布局网格覆盖整个工作区，包括旋转视图。
+- 新增 19 个工具：选区画笔、磁性套索、快速选择、透视裁剪、切片／切片选择、图框、颜色取样器、标尺、注释、计数、移除、修复画笔、修补、内容感知移动、红眼、铅笔、颜色替换与混合器画笔。
+- 新工具接入实际画布操作、选项栏、快捷键分组、中文提示、选区限制、锁定、撤销和保存。K 改为图框，模糊工具组默认无按键，可自定义。
+- 直接移植上游四个自绘图标和工具按钮参数。上游调用的 SF Symbols／SwiftUI 系统资源没有可供 Windows 直接引用的文件，采用同风格矢量对应图形，来源清单与校验随包提供。
+- 读取 v1–v17；含切片、测量或标注的项目使用 v17，其余保存为最低必要格式。核心测试 1038 项、14 组英文与 8 组中文 UI 回归；Windows Server 2022／2025 CI 和安装／卸载测试。
+- [本版工具与使用边界](PROFESSIONAL-TOOLS.md) · [变更和验证](UPDATES-1.4.9.4.md)。下方各版本段落为历史摘要。
 
 ## 1.4.9.3 置入、复制与工具更新
 

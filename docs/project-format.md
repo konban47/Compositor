@@ -1,4 +1,4 @@
-# Compositor project format, versions 1–11 and Windows extensions 12–15
+# Compositor project format, versions 1–11 and Windows extensions 12–17
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
@@ -141,3 +141,25 @@ Windows **1.4.9.3 Preview** reads v1–v16. A document uses v16 when a text laye
 - The layer clipboard captures a self-contained package of selected records/assets. Paste remaps layer, parent, clip and link identifiers and owns fresh decoded images. It does not alter the on-disk clipboard or project schema.
 
 Version 15 and older readers reject v16. This is a Windows extension; it does not imply macOS or PSD write-back compatibility.
+
+## Windows extension version 17
+
+Windows **1.4.9.4 Preview** reads v1–v17. Nonempty document `marks` requires v17; a document without annotations still uses the lowest required v11–v16 format. Old Windows readers and the upstream macOS reader reject unsupported versions.
+
+`marks` is an optional array of non-printing document annotations, at most 10,000. Each record has:
+
+| Field | Meaning / default |
+| --- | --- |
+| `id` | Required, unique nonempty UUID. |
+| `kind` | Required enum string: `Slice`, `Note`, `Count`, `Sampler`, `Measure`. |
+| `x`, `y` | Required finite document-pixel coordinates of the anchor. |
+| `width`, `height` | Default 1. Slice dimensions must be positive; for a measure these are signed endpoint offsets. Other kinds use the anchor. |
+| `name`, `text` | Name up to 256 characters; note text up to 8,192. Default empty strings. |
+| `group` | Count group name, up to 256 characters; default `1`. Numbering follows record order within a group. |
+| `url` | Slice metadata, up to 2,048 characters; default empty. It is never executed or automatically requested. |
+| `color` | Unsigned 32-bit ARGB display color; default `0xFFFFB74D` (stored as a JSON number). |
+| `visible` | Overlay visibility, default true. Does not affect exported art. |
+
+Coordinates and dimensions have absolute values at most 1,000,000, and the existing 4 MiB manifest limit still applies. Invalid enum values, null strings, invalid coordinates or duplicate IDs are rejected. Missing `marks` means an empty list. Annotation records are immutable for undo snapshots. Canvas/image geometry also transforms the annotations; slices remain axis-aligned bounding rectangles, while measurements keep transformed endpoints.
+
+Marks never enter composite image/PDF output or the layer clipboard. Slice export renders the intersection with the canvas as PNG plus a JSON manifest of filenames, rectangles and URL metadata. Full document copies keep marks. Tool settings, source-sampling points for brushes, in-progress crop/selection gestures and cursor state remain session-only. These annotations are not PSD metadata and do not imply Photoshop interchange support.

@@ -31,6 +31,7 @@ public sealed class CanvasDocument : IDisposable
 
     /// <summary>Saved with the project; undo covers them.</summary>
     public List<CanvasGuide> Guides { get; } = [];
+    public List<DocumentMark> Marks { get; } = [];
 
     /// <summary>What an edit may touch. Part of the document so undo covers it; not saved to disk.</summary>
     public DocumentSelection Selection { get; set; } = DocumentSelection.All;
@@ -50,6 +51,7 @@ public sealed class CanvasDocument : IDisposable
         var copy = new CanvasDocument(ID, Width, Height, Resolution) { _ownsPixels = false };
         copy.Layers.AddRange(Layers.Select(layer => layer.Clone()));
         copy.Selection = Selection;
+        copy.Marks.AddRange(Marks);
         copy.Channels.AddRange(Channels);
         copy.EditChannels = EditChannels;
         // Guides are objects, so they are copied rather than shared: a snapshot has to keep the positions it
@@ -86,6 +88,7 @@ public sealed class CanvasDocument : IDisposable
         Guides.Clear();
         Guides.AddRange(other.Guides);
         Selection = other.Selection;
+        Marks.Clear(); Marks.AddRange(other.Marks);
         Channels.Clear(); Channels.AddRange(other.Channels);
     }
 
@@ -94,7 +97,7 @@ public sealed class CanvasDocument : IDisposable
     {
         if (ID != other.ID || Width != other.Width || Height != other.Height || Resolution != other.Resolution
             || Layers.Count != other.Layers.Count || Guides.Count != other.Guides.Count || !Channels.SequenceEqual(other.Channels)
-            || !Selection.Matches(other.Selection)) return false;
+            || !Marks.SequenceEqual(other.Marks) || !Selection.Matches(other.Selection)) return false;
         for (var index = 0; index < Layers.Count; index++)
         {
             if (!Layers[index].SameAs(other.Layers[index])) return false;

@@ -58,6 +58,7 @@ public static class LayerEdits
     /// </summary>
     public static void FlipCanvas(CanvasDocument document, bool horizontally)
     {
+        DocumentMarks.Transform(document, horizontally ? new SkiaSharp.SKMatrix(-1, 0, document.Width, 0, 1, 0, 0, 0, 1) : new SkiaSharp.SKMatrix(1, 0, 0, 0, -1, document.Height, 0, 0, 1));
         ChannelEdits.Transform(document, document.Width, document.Height, horizontally
             ? new SkiaSharp.SKMatrix(-1, 0, document.Width, 0, 1, 0, 0, 0, 1)
             : new SkiaSharp.SKMatrix(1, 0, 0, 0, -1, document.Height, 0, 0, 1));

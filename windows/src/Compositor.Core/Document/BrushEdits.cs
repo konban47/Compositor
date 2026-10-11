@@ -26,6 +26,7 @@ public enum BrushMode
     /// </summary>
     History,
     Pattern, ArtHistory, BackgroundErase, Sharpen, Dodge, Burn, Sponge,
+    HealingSample, ColorReplacement, Mixer,
 }
 
 /// <summary>How Spot Healing works out what to put in the painted area.</summary>
@@ -89,7 +90,9 @@ public sealed record BrushSettings(
     bool ContinuousSampling = false,
     SKBitmap? Pattern = null,
     double PatternScale = 1,
-    int ArtStyle = 0);
+    int ArtStyle = 0,
+    int ReplaceMode = 0,
+    double MixerWet = .5, double MixerLoad = 1, double MixerMix = .5, double MixerFlow = 1);
 
 /// <summary>
 /// Painting a stroke into a layer's own pixels. Mouse samples arrive in document coordinates, so they are
@@ -152,7 +155,7 @@ public static class BrushEdits
         if (points.Count == 0 || settings.Diameter <= 0 || settings.Opacity <= 0) return false;
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { Asset: { } asset } layer) return false;
         if (layer.IsGroup) return false;
-        if (settings.Mode == BrushMode.Clone && settings.CloneFrom is null) return false;
+        if (settings.Mode is BrushMode.Clone or BrushMode.HealingSample && settings.CloneFrom is null) return false;
         var width = asset.Width;
         var height = asset.Height;
         if (width <= 0 || height <= 0) return false;
@@ -165,7 +168,7 @@ public static class BrushEdits
         // Taken once, so going over an area again within a stroke does not blur what it has just painted.
         SKBitmap? sample = null;
         SKBitmap? owned = null;
-        if (settings.Mode is BrushMode.Clone or BrushMode.Blur)
+        if (settings.Mode is BrushMode.Clone or BrushMode.Blur or BrushMode.HealingSample)
         {
             owned = Sampled(document, layer, settings);
             if (owned is null) return false;
@@ -187,7 +190,7 @@ public static class BrushEdits
             canvas.DrawImage(source, SKRect.Create(0, 0, width, height), new SKSamplingOptions(SKFilterMode.Nearest), paint);
         }
         var paintedNow = settings.Mode >= BrushMode.Pattern
-            ? RetouchBrush.Apply(painted, coverage, settings, toDocument, toPixel.MapPoint(points[0]), points)
+            ? RetouchBrush.Apply(painted, coverage, settings, toDocument, toPixel.MapPoint(points[0]), points, sample)
             : sample is not null
             ? ApplySampled(painted, coverage, settings, sample, toDocument)
             : settings.Mode == BrushMode.Heal ? Heal(painted, coverage, settings) : Apply(painted, coverage, settings);
@@ -417,7 +420,8 @@ public static class BrushEdits
             sample = DocumentRenderer.Allocate(document.Width, document.Height);
             using (var canvas = new SKCanvas(sample))
             {
-                if (settings.Mode == BrushMode.Clone && settings.CloneAllLayers) return Composite(document);
+                if (settings.Mode is BrushMode.Clone or BrushMode.HealingSample && settings.CloneAllLayers)
+                { using var composite = Composite(document); canvas.DrawBitmap(composite, new SKPoint(), new SKSamplingOptions(SKFilterMode.Nearest)); return sample; }
                 DocumentRenderer.DrawLayerPixels(canvas, layer);
             }
             if (settings.Mode == BrushMode.Blur)

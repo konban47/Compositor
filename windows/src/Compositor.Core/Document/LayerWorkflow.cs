@@ -18,7 +18,7 @@ public static class LayerWorkflow
         .All(id => LayerProtection.Effective(document, id) == LayerLocks.None);
     public static CanvasDocument Subset(CanvasDocument document, IEnumerable<Guid> ids)
     {
-        var keep = Members(document, ids); var clone = document.Clone(); clone.Layers.RemoveAll(l => !keep.Contains(l.ID));
+        var keep = Members(document, ids); var clone = document.Clone(); clone.Marks.Clear(); clone.Layers.RemoveAll(l => !keep.Contains(l.ID));
         foreach (var layer in clone.Layers)
         {
             if (layer.ParentID is { } parent && !keep.Contains(parent)) layer.ParentID = null;

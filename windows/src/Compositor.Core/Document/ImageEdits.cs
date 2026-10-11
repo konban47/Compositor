@@ -82,6 +82,7 @@ public static class ImageEdits
             made.Add((layer, replacement, maskResult, transform, placement));
         }
 
+        DocumentMarks.Transform(document, SKMatrix.CreateScale((float)sx, (float)sy));
         foreach (var guide in document.Guides)
         {
             guide.Position *= guide.Axis == GuideAxis.Vertical ? sx : sy;

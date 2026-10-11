@@ -4,14 +4,14 @@
 
 本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
 
-[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.4.9.3) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.4.9.3.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
+[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.4.9.4) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.4.9.4.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
 
 ## 安装
 
 目标系统：Windows 10 1809 及以上、Windows 11，64 位 x64。
 
-- **安装版**：运行 `Compositor-Windows-1.4.9.3-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.4.9.3-x64-portable.zip`，运行 `Compositor.exe`。
+- **安装版**：运行 `Compositor-Windows-1.4.9.4-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.4.9.4-x64-portable.zip`，运行 `Compositor.exe`。
 - 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
 - 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
 
@@ -22,7 +22,9 @@
 | 导入图像 | 拖动桌面／资源管理器文件到画布，或“文件 → 导入图像” |
 | 置入图片 | 拖入画布后在顶部或右键调整变换，Enter 置入、Esc 取消；支持透视／扭曲和拆分变形 |
 | 跨文档复制图层 | 无像素选区时 Ctrl+C/X，切换标签后 Ctrl+V；保留组、蒙版、样式和可编辑文字／路径 |
-| 新增修饰与钢笔工具 | S/Y/E/G/K/O/P/T 切换对应工具组；详见[工具手册](windows/EDITING-TOOLS.md) |
+| 新增修饰与钢笔工具 | S/Y/E/G/O/P/T 切换对应工具组；详见[工具手册](windows/EDITING-TOOLS.md) |
+| 新增选区、辅助与修复工具 | L/W/C/I/J/B 切换对应组，K 图框；见[工具使用说明](windows/PROFESSIONAL-TOOLS.md) |
+| 取样与画笔光标 | 仿制图章／修复画笔 Alt 取样时显示靶心；画笔圆圈随大小和缩放变化，文字使用 I 形光标 |
 | 移动对象 | 按 V，选择图层或单击对象后拖动；支持多选图层变换 |
 | 平移画布 | 按 H，或按住空格，或按住鼠标中键拖动 |
 | 以鼠标为中心缩放 | 滚动鼠标滚轮；Ctrl＋中键上下拖动也可缩放 |
@@ -57,7 +59,7 @@
 
 ## 功能
 
-置入、复制、新工具及按钮／图标说明见[新增编辑工具手册](windows/EDITING-TOOLS.md)。工作区与 API 配置见 [工作区使用说明](windows/WORKSPACE.md)，上游对应关系与验证见 [1.4.9.3 更新说明](windows/UPDATES-1.4.9.3.md)。
+本版光标、网格、19 个新增工具及上游 UI 复用见[工具使用说明](windows/PROFESSIONAL-TOOLS.md)。置入、复制、其他工具及按钮／图标说明见[新增编辑工具手册](windows/EDITING-TOOLS.md)。工作区与 API 配置见 [工作区使用说明](windows/WORKSPACE.md)，上游对应关系与验证见 [1.4.9.4 更新说明](windows/UPDATES-1.4.9.4.md)。
 
 - 图层缩略图、搜索和类型筛选、锁定、分组折叠、链接、不透明度与填充；24 种混合模式、蒙版、调整图层和图层样式。
 - RGB 分通道显示与编辑、Alpha 通道新建／复制／重命名／删除、选区存取及灰度绘制。
@@ -68,11 +70,11 @@
 - 多标签页、撤销／重做、历史快照、从状态新建独立文档、异步保存、未保存关闭保护和独立 Windows 更新频道。
 - 中文界面使用 Photoshop 常见术语，提供中文输入法接口、随包中文字体和中文换行。
 
-本版读取 v1–v16 项目。直排文字和开放路径描边使用 **Windows 扩展格式 v16**；新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 **Windows 扩展格式 v15**；使用高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，或使用任意轮廓形状时保存为 **Windows 扩展格式 v14**；使用非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式时保存为 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时保存为 v12，其余为 v11。旧版不接受超出其支持范围的版本；macOS 原版当前仅支持至 v11。[文件格式与兼容性](docs/project-format.md#windows-extension-version-15)
+本版读取 v1–v17 项目。切片、注释、计数、颜色取样点和测量使用 **Windows 扩展格式 v17**；直排文字和开放路径描边使用 **Windows 扩展格式 v16**；新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 **Windows 扩展格式 v15**；使用高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，或使用任意轮廓形状时保存为 **Windows 扩展格式 v14**；使用非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式时保存为 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时保存为 v12，其余为 v11。旧版不接受超出其支持范围的版本；macOS 原版当前仅支持至 v11。[文件格式与兼容性](docs/project-format.md#windows-extension-version-17)
 
 ## 验证与当前状态
 
-**1.4.9.3 Preview** 新增拖入图片后的置入变换栏和右键菜单、变形拆分网格、完整图层／组跨文档复制粘贴，补齐图案图章、艺术画笔、橡皮擦组、油漆桶、锐化、调整画笔、减淡／加深／海绵、钢笔组与直排／蒙版文字工具。按钮和图标参照上游统一为圆角、淡色选中态与单色线条标识。开始前核对 GitHub 与本地均为 `af83b64`，上游仍为 **1.4.9 / `b4bfdea`**。核心测试 **1021 项**，13 组英文及 7 组中文界面检查；安装、卸载和发布程序由双 Windows Server CI 验证。[持续集成](https://github.com/konban47/Compositor/actions/workflows/windows.yml)
+**1.4.9.4 Preview** 修复仿制取样反馈、画笔／文字光标、快捷键文字裁切和工作区网格，新增截图中的选区、透视裁剪、切片、图框、测量标注、修复及绘画工具。直接移植上游四个自绘图标与工具按钮参数；SF Symbols／SwiftUI 使用 Windows 矢量和控件对应实现。开始前 GitHub 与本地均为 `ef97e92`，上游仍为 **1.4.9 / `b4bfdea`**。核心测试 **1038 项**，14 组英文及 8 组中文界面检查；安装、卸载和发布程序由双 Windows Server CI 验证。[持续集成](https://github.com/konban47/Compositor/actions/workflows/windows.yml)
 
 [图层样式与右键菜单使用说明](windows/LAYER-STYLES.md)记录每个菜单项、快捷键、格式和 Photoshop 差异。样式使用 CPU 近似渲染；遮住所有对象采用离线显著性连通区域，不是 Adobe 实例识别；智能对象保存本应用图层源，不提供 PSD 智能对象往返。
 

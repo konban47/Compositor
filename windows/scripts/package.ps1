@@ -1,6 +1,6 @@
 param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\dist'),
-    [string]$Version = '1.4.9.3',
+    [string]$Version = '1.4.9.4',
     [string]$Dotnet = 'dotnet',
     [switch]$Installer
 )
@@ -17,7 +17,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Desktop publish failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'CLI publish failed.' }
 Copy-Item -LiteralPath "$repo\LICENSE" -Destination "$bundle\LICENSE.txt"
 Copy-Item -LiteralPath "$repo\windows\README.md" -Destination "$bundle\README.md"
-Copy-Item -LiteralPath "$repo\windows\THIRD-PARTY-NOTICES.md", "$repo\windows\RESEARCH.md", "$repo\windows\UPDATES-1.4.7.1.md", "$repo\windows\UPDATES-1.4.8.1.md", "$repo\windows\UPDATES-1.4.8.2.md", "$repo\windows\UPDATES-1.4.9.1.md", "$repo\windows\UPDATES-1.4.9.2.md", "$repo\windows\UPDATES-1.4.9.3.md", "$repo\windows\EDITING-TOOLS.md", "$repo\windows\LAYER-STYLES.md", "$repo\windows\WORKSPACE.md" -Destination $bundle
+Copy-Item -LiteralPath "$repo\windows\THIRD-PARTY-NOTICES.md", "$repo\windows\RESEARCH.md", "$repo\windows\UPDATES-1.4.7.1.md", "$repo\windows\UPDATES-1.4.8.1.md", "$repo\windows\UPDATES-1.4.8.2.md", "$repo\windows\UPDATES-1.4.9.1.md", "$repo\windows\UPDATES-1.4.9.2.md", "$repo\windows\UPDATES-1.4.9.3.md", "$repo\windows\UPDATES-1.4.9.4.md", "$repo\windows\PROFESSIONAL-TOOLS.md", "$repo\windows\UPSTREAM-UI.json", "$repo\windows\EDITING-TOOLS.md", "$repo\windows\LAYER-STYLES.md", "$repo\windows\WORKSPACE.md" -Destination $bundle
 Copy-Item -LiteralPath "$repo\windows\licenses" -Destination $bundle -Recurse
 New-Item -ItemType Directory -Path "$bundle\redist" -Force | Out-Null
 $runtime = "$bundle\redist\vc_redist.x64.exe"

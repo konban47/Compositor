@@ -32,6 +32,8 @@ public sealed partial class MainWindow
     {
         _canvas.CustomPressed = CanvasActionPressed;
         _canvas.CustomMoved = CanvasActionMoved;
+        _canvas.CustomHover = (at, keys) => { if (_tool == Tool.MagneticLasso) ProfessionalMoved(at, keys); };
+        _optionsBar.ProfessionalAsked += async action => await ProfessionalAction(action);
         _canvas.CustomReleased = CanvasActionReleased;
         _canvas.EditingOverlay = DrawEditingOverlay;
         var menu = new ContextMenu(); _canvas.ContextMenu = menu;

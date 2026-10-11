@@ -13,7 +13,7 @@ internal static class EditorTheme
     {
         // Upstream ContentView: 7-point tool corners, translucent white selection and a quiet hairline.
         var buttons = new Style(s => s.OfType<Button>());
-        buttons.Setters.Add(new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(7)));
+        buttons.Setters.Add(new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(UpstreamArtwork.ButtonRadius)));
         buttons.Setters.Add(new Setter(TemplatedControl.FontSizeProperty, 12d));
         buttons.Setters.Add(new Setter(TemplatedControl.BorderThicknessProperty, new Thickness(1)));
         buttons.Setters.Add(new Setter(TemplatedControl.BorderBrushProperty, Skin.BorderControlBrush));

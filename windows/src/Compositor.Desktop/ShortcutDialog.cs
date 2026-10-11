@@ -27,8 +27,9 @@ internal sealed class ShortcutDialog : DialogWindow
     private readonly TextBox _search = new()
     {
         PlaceholderText = Localize.Text("Search shortcuts"),
-        Width = 400,
-        Height = 26,
+        MinWidth = 280,
+        MinHeight = 30,
+        Padding = new Thickness(8, 4),
         FontSize = 12,
         CornerRadius = new CornerRadius(7),
         Background = Skin.SurfaceDarkBrush,
@@ -38,7 +39,7 @@ internal sealed class ShortcutDialog : DialogWindow
     };
     private readonly StackPanel _list = new() { Spacing = 2 };
     /// <summary>What scrolls the list, kept so that the check can take the list out of it to be drawn.</summary>
-    private readonly ScrollViewer _scroller = new() { Margin = new Thickness(0, 6, 0, 6) };
+    private readonly ScrollViewer _scroller = new() { Margin = new Thickness(0, 6, 0, 6), HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
     private readonly TextBlock _complaint = new()
     {
         Foreground = Brushes.Orange,
@@ -50,7 +51,7 @@ internal sealed class ShortcutDialog : DialogWindow
         Content = Localize.Text("Save"),
         IsDefault = true,
         MinWidth = 76,
-        Height = 26,
+        MinHeight = 32, Padding = new Thickness(10, 4),
         FontSize = 12,
         CornerRadius = new CornerRadius(7),
         Background = Skin.AccentBrush,
@@ -66,8 +67,9 @@ internal sealed class ShortcutDialog : DialogWindow
     internal ShortcutDialog(IReadOnlyDictionary<string, ShortcutChord> overrides)
     {
         Title = Localize.Text("Keyboard Shortcuts");
-        Width = 660;
-        Height = 560;
+        Width = 820;
+        Height = 640;
+        MinWidth = 580; MinHeight = 400;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _draft = Shortcuts.Effective(overrides);
         _opened = new Dictionary<string, ShortcutChord>(_draft);
@@ -77,7 +79,7 @@ internal sealed class ShortcutDialog : DialogWindow
         {
             Content = Localize.Text("Restore Defaults"),
             HorizontalAlignment = HorizontalAlignment.Left,
-            Height = 26,
+            MinHeight = 32, Padding = new Thickness(10, 4),
             FontSize = 12,
             CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceControlBrush,
@@ -90,7 +92,7 @@ internal sealed class ShortcutDialog : DialogWindow
             Content = Localize.Text("Cancel"),
             IsCancel = true,
             MinWidth = 76,
-            Height = 26,
+            MinHeight = 32, Padding = new Thickness(10, 4),
             FontSize = 12,
             CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceControlBrush,
@@ -176,8 +178,9 @@ internal sealed class ShortcutDialog : DialogWindow
         var button = new Button
         {
             Content = _recording == definition.ID ? Localize.Text("Press keys…") : chord.IsBound ? chord.Label : "—",
-            Width = 150,
-            Height = 24,
+            MinWidth = 185,
+            MinHeight = 30,
+            Padding = new Thickness(8, 4),
             FontSize = 11.5,
             CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceControlBrush,
@@ -194,6 +197,8 @@ internal sealed class ShortcutDialog : DialogWindow
         var name = new TextBlock
         {
             Text = Localize.Text(definition.Title),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 5, 12, 5),
             FontSize = 12,
             Foreground = Skin.LabelBrush,
             VerticalAlignment = VerticalAlignment.Center,
@@ -201,7 +206,7 @@ internal sealed class ShortcutDialog : DialogWindow
         Grid.SetColumn(button, 1);
         return new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("*,160"),
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
             Margin = new Thickness(0, 1, 0, 1),
             Children = { name, button },
         };

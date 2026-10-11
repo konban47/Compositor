@@ -74,6 +74,7 @@ public sealed class ProjectSnapshot : IDisposable
         var document = new CanvasDocument(Manifest.DocumentID, Manifest.Width, Manifest.Height, Manifest.Resolution ?? 72);
         document.Layers.AddRange(RuntimeLayers());
         document.Guides.AddRange(Manifest.Guides ?? []);
+        document.Marks.AddRange(Manifest.Marks ?? []);
         foreach (var channel in Manifest.Channels ?? [])
             document.Channels.Add(new AlphaChannel(channel.ID, channel.Name, Channels[channel.ID]));
         return document;
@@ -88,7 +89,7 @@ public sealed class ProjectSnapshot : IDisposable
         var channels = document.Channels.Where(c => !c.IsTemporary).ToArray();
         var manifest = new ProjectManifest
         {
-            Version = document.Layers.Any(layer => layer.LiveText?.Vertical is not null || layer.LiveShape is { Kind: ShapeKind.Path, LineWidth: not null }) ? 16
+            Version = document.Marks.Count > 0 ? 17 : document.Layers.Any(layer => layer.LiveText?.Vertical is not null || layer.LiveShape is { Kind: ShapeKind.Path, LineWidth: not null }) ? 16
                 : document.Layers.Any(layer => layer.Blending is not null || layer.Effects?.Items is not null
                     || layer.Effects?.Enabled == false || layer.IsGroup && (layer.Effects is not null || layer.BlendMode != LayerBlendMode.Normal)
                     || layer.Label != LayerLabel.None || layer.Container != LayerContainer.Group || layer.SmartObject is not null) ? 15
@@ -104,6 +105,7 @@ public sealed class ProjectSnapshot : IDisposable
             ActiveLayerID = document.Layers.Count > 0 ? document.Layers[^1].ID : null,
             Layers = [.. document.Layers.Select(CanvasDocument.Record)],
             Guides = document.Guides.Count > 0 ? [.. document.Guides] : null,
+            Marks = document.Marks.Count > 0 ? [.. document.Marks] : null,
             Channels = channels.Length == 0 ? null : channels.Select(channel => new ProjectChannelRecord
                 { ID = channel.ID, Name = channel.Name, ImageFile = ProjectChannelRecord.FileName(channel.ID) }).ToList(),
         };

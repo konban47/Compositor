@@ -4,13 +4,14 @@ using Avalonia.Media;
 
 namespace Compositor.Desktop;
 
-/// <summary>Original platform-independent line symbols, using the upstream toolbar's compact monochrome visual language.</summary>
+/// <summary>Upstream drawings first, then portable counterparts for system symbols and Windows-only tools.</summary>
 internal sealed class EditorIcon(string kind) : Control
 {
     protected override Size MeasureOverride(Size availableSize) => new(22, 22);
     public override void Render(DrawingContext context) => Draw(context, kind, Bounds.Size);
     internal static bool Draw(DrawingContext context, string kind, Size size)
     {
+        if (UpstreamArtwork.Draw(context, kind, size)) return true;
         if (!Paths.TryGetValue(kind, out var data)) return false;
         var side = Math.Max(1, Math.Min(size.Width, size.Height)); var scale = side / 24;
         using var fit = context.PushTransform(Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation((size.Width - side) / 2, (size.Height - side) / 2));
@@ -26,6 +27,25 @@ internal sealed class EditorIcon(string kind) : Control
     private const string Eye = "M2,12 Q12,0 22,12 Q12,24 2,12 Z M15,12 A3,3 0 1 1 9,12 A3,3 0 1 1 15,12";
     private static readonly Dictionary<string, string> Paths = new(StringComparer.Ordinal)
     {
+        ["SelectionBrush"] = "M3,10 A7,7 0 1 1 12,19 M3,14 L3,15 M6,18 L7,19 M10,17 L18,6 Q20,4 22,6 L14,18 Q7,24 7,20 Z",
+        ["QuickSelection"] = "M3,8 L3,3 L8,3 M13,3 L14,3 M3,12 L3,13 M4,17 L5,18 M10,17 L18,6 Q20,4 22,6 L14,18 Q7,24 7,20 Z",
+        ["MagneticLasso"] = "M3,12 L6,3 L21,5 L19,14 L8,18 Z M8,18 L5,22 M10,10 L10,14 Q10,20 15,20 Q20,20 20,14 L20,10 L17,10 L17,14 Q17,17 15,17 Q13,17 13,14 L13,10 Z",
+        ["PerspectiveCrop"] = "M4,2 L4,20 L21,20 M1,6 L19,6 L19,23 M7,8 L16,10 L16,17 L7,18 Z M11,9 L11,18 M7,13 L16,14",
+        ["Slice"] = "M3,20 L9,11 L13,15 Z M9,11 L19,3 L23,7 L13,15 M3,3 L7,3 M3,6 L5,6",
+        ["SliceSelect"] = "M2,18 L8,9 L12,13 Z M8,9 L18,1 L22,5 L12,13 M15,13 L22,19 L18,19 L17,23 Z",
+        ["Frame"] = "M3,4 L21,4 L21,20 L3,20 Z M3,4 L21,20 M21,4 L3,20",
+        ["ColorSampler"] = "M13,8 L18,3 Q20,1 22,3 Q24,5 21,7 L17,11 M12,6 L19,13 M14,9 L6,17 L3,19 L5,15 L13,7 M3,3 L3,9 M0,6 L6,6",
+        ["Ruler"] = "M2,7 L22,7 L22,18 L2,18 Z M6,7 L6,12 M10,7 L10,15 M14,7 L14,12 M18,7 L18,15",
+        ["Note"] = "M3,3 L21,3 L21,16 L15,22 L3,22 Z M15,22 L15,16 L21,16 M7,7 L17,7 M7,11 L17,11",
+        ["Count"] = "M2,5 L5,3 L5,14 M2,14 L8,14 M10,12 Q10,8 14,8 Q19,9 14,14 L10,18 L18,18 M19,3 Q24,1 23,5 L20,7 Q26,7 23,11",
+        ["Remove"] = Brush + " M3,1 L3,7 M0,4 L6,4 M19,16 L19,22 M16,19 L22,19",
+        ["HealingBrush"] = "M4,14 L14,4 Q20,-1 23,6 L10,20 Q3,24 1,18 Z M8,9 L15,16 M11,7 L18,14 M10,11 L10,12 M13,12 L13,13",
+        ["Patch"] = "M5,5 L19,5 L19,19 L5,19 Z M2,8 L7,8 M2,12 L7,12 M2,16 L7,16 M17,8 L22,8 M17,12 L22,12 M17,16 L22,16 M8,2 L8,7 M12,2 L12,7 M16,2 L16,7 M8,17 L8,22 M12,17 L12,22 M16,17 L16,22",
+        ["ContentMove"] = "M2,8 L18,8 M14,3 L19,8 L14,13 M22,16 L6,16 M10,11 L5,16 L10,21",
+        ["RedEye"] = Eye + " M3,1 L3,7 M0,4 L6,4",
+        ["Pencil"] = "M3,21 L5,14 L17,2 L22,7 L10,19 Z M5,14 L10,19 M3,21 L6,20 M14,5 L19,10",
+        ["ColorReplacement"] = Brush + " M1,2 L8,2 L8,9 L1,9 Z M5,5 L10,5 L10,11",
+        ["MixerBrush"] = Brush + " M4,1 C2,5 0,7 1,9 C3,12 7,10 7,7 Z",
         ["Brush"] = Brush, ["brush"] = Brush, ["PatternStamp"] = Stamp + " M2,2 L2,5 M1,3.5 L4,3.5", ["Clone"] = Stamp,
         ["Move"] = "M12,2 L12,22 M2,12 L22,12 M8,6 L12,2 L16,6 M8,18 L12,22 L16,18 M6,8 L2,12 L6,16 M18,8 L22,12 L18,16",
         ["Marquee"] = "M3,5 L21,5 L21,19 L3,19 Z", ["Ellipse"] = "M21,12 A9,7 0 1 1 3,12 A9,7 0 1 1 21,12",

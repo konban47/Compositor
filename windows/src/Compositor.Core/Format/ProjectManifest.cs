@@ -6,7 +6,7 @@ namespace Compositor.Core.Format;
 public sealed class ProjectManifest
 {
     /// <summary>The format version new saves write.</summary>
-    public const int Current = 16;
+    public const int Current = 17;
 
     /// <summary>Every version <c>Load</c> accepts.</summary>
     public const int SupportedLower = 1;
@@ -30,6 +30,7 @@ public sealed class ProjectManifest
 
     /// <summary>Alignment guides. Missing on versions 1–7.</summary>
     public List<CanvasGuide>? Guides { get; set; }
+    public List<DocumentMark>? Marks { get; set; }
     public List<ProjectChannelRecord>? Channels { get; set; }
 
     public const string FormatIdentifier = "com.compositor.project";

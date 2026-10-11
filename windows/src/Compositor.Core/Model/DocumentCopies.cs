@@ -27,6 +27,7 @@ public static class DocumentCopies
             foreach (var channel in source.Channels)
                 copy.Channels.Add(new AlphaChannel(channel.ID, channel.Name, LayerMask.AssetFrom(channel.Asset.Image.Copy()).Asset));
             copy.Guides.AddRange(source.Guides.Select(guide => new Format.CanvasGuide { ID = guide.ID, Axis = guide.Axis, Position = guide.Position }));
+            copy.Marks.AddRange(source.Marks);
             copy.Selection = source.Selection; return copy;
         }
         catch { copy.Dispose(); throw; }

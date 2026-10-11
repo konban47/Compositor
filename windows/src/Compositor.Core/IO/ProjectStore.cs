@@ -37,6 +37,8 @@ public static class ProjectStore
         }
 
         var version = manifest.Version;
+        if (manifest.Marks is { } marks && (version < 17 || marks.Count > 10_000 || marks.Any(m => m is null || !m.IsValid)
+            || marks.Select(m => m.ID).Distinct().Count() != marks.Count)) throw new ProjectException(ProjectError.Invalid);
         var channelIDs = new HashSet<Guid>();
         if (manifest.Channels?.Count > 64) throw new ProjectException(ProjectError.TooLarge);
         foreach (var channel in manifest.Channels ?? [])

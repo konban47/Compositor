@@ -25,6 +25,7 @@ public sealed partial class MainWindow
     private bool CanvasActionPressed(SKPoint at, KeyModifiers modifiers, int clicks)
     {
         if (_placementTab is not null) return PlacementPressed(at);
+        if (ProfessionalPressed(at, modifiers, clicks)) return true;
         if (_tool is Tool.Bucket or Tool.MagicEraser) { PaintBucket(at, _tool == Tool.MagicEraser); return true; }
         if (ToolCatalog.IsPen(_tool))
         {
@@ -70,6 +71,7 @@ public sealed partial class MainWindow
     private void CanvasActionMoved(SKPoint at, KeyModifiers modifiers)
     {
         if (_placementTab is not null) { PlacementMoved(at, modifiers); return; }
+        if (ProfessionalMoved(at, modifiers)) return;
         if (_convertDrag is { } convert && _pathNodes is { } editable && _canvas.DocumentToPath is { } map)
         {
             var node = editable.Subpaths[convert.Subpath].Nodes[convert.Node]; var point = map(at);
@@ -92,6 +94,7 @@ public sealed partial class MainWindow
     }
     private void CanvasActionReleased()
     {
+        if (ProfessionalReleased()) return;
         if (_convertDrag is not null)
         {
             _convertDrag = null;
@@ -126,6 +129,7 @@ public sealed partial class MainWindow
     { if (_pen is null) return false; _pen = null; _penDrawing = false; _canvas.InvalidateVisual(); return true; }
     private void DrawEditingOverlay(DrawingContext context, Func<SKPoint, Point> screen)
     {
+        DrawProfessionalOverlay(context, screen);
         var pen = new Pen(Skin.AccentBrush, 1.25) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
         if (_placementTab is not null && _placePivotVisible && PropertyLayer is { } layer)
         {

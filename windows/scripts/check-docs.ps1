@@ -57,4 +57,16 @@ foreach ($feature in @('置入','跨文档','钢笔','直排','图案图章','�
 if (!(Read-Repo 'windows/scripts/package.ps1').Contains('EDITING-TOOLS.md')) { throw 'Editing guide missing from package.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--editing-checks')) { throw 'Editing UI checks missing from CI.' }
 if (!$formatDoc.Contains('`vertical`') -or !$formatDoc.Contains('`lineWidth`')) { throw 'New text/path fields undocumented.' }
+$professional = Read-Repo 'windows/PROFESSIONAL-TOOLS.md'
+if (!$professional.Contains("**$version Preview**")) { throw 'Professional tool guide version is stale.' }
+foreach ($feature in @('Alt','磁性套索','快速选择','透视裁剪','切片','颜色取样器','注释','计数','红眼','混合器','v17','SF Symbols')) {
+    if (!$professional.Contains($feature)) { throw "Professional guide is missing $feature." }
+}
+foreach ($field in @('marks','kind','group','url','visible')) {
+    if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v17 field: $field" }
+}
+if (!(Read-Repo 'windows/scripts/package.ps1').Contains('PROFESSIONAL-TOOLS.md')) { throw 'Professional guide missing from package.' }
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--professional-checks')) { throw 'Professional UI checks missing from CI.' }
+if (!$keys.Contains('Canvas("Frame tool", "K")')) { throw 'Frame shortcut documentation is stale.' }
+& (Join-Path $PSScriptRoot 'check-upstream-ui.ps1')
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

@@ -649,6 +649,25 @@ public sealed partial class MainWindow : Window
                         ToolItem("Custom Shape Tool", Tool.CustomShape),
                         ToolItem("Rotate View Tool", Tool.RotateView, "Rotate view tool"),
                         ToolItem("Zoom Tool", Tool.Zoom, "Zoom tool"),
+                        ToolItem("Selection Brush Tool", Tool.SelectionBrush),
+                        ToolItem("Magnetic Lasso Tool", Tool.MagneticLasso),
+                        ToolItem("Quick Selection Tool", Tool.QuickSelection),
+                        ToolItem("Perspective Crop Tool", Tool.PerspectiveCrop),
+                        ToolItem("Slice Tool", Tool.Slice),
+                        ToolItem("Slice Select Tool", Tool.SliceSelect),
+                        ToolItem("Frame Tool", Tool.Frame),
+                        ToolItem("Color Sampler Tool", Tool.ColorSampler),
+                        ToolItem("Ruler Tool", Tool.Ruler),
+                        ToolItem("Note Tool", Tool.Note),
+                        ToolItem("Count Tool", Tool.Count),
+                        ToolItem("Remove Tool", Tool.Remove),
+                        ToolItem("Healing Brush Tool", Tool.HealingBrush),
+                        ToolItem("Patch Tool", Tool.Patch),
+                        ToolItem("Content-Aware Move Tool", Tool.ContentMove),
+                        ToolItem("Red Eye Tool", Tool.RedEye),
+                        ToolItem("Pencil Tool", Tool.Pencil),
+                        ToolItem("Color Replacement Tool", Tool.ColorReplacement),
+                        ToolItem("Mixer Brush Tool", Tool.MixerBrush),
                         ToolItem("Pattern Stamp Tool", Tool.PatternStamp),
                         ToolItem("Art History Brush Tool", Tool.ArtHistory),
                         ToolItem("Eraser Tool", Tool.Eraser),
@@ -1067,13 +1086,14 @@ public sealed partial class MainWindow : Window
         // The Windows key is Windows', and a chord made with it is not one the table can hold.
         if (e.Handled || e.KeyModifiers.HasFlag(KeyModifiers.Meta)) return;
         if (!Typing() && e.Key == Key.Escape && (_canvasOnly || _editingFullscreen)) { ExitScreenMode(); e.Handled = true; return; }
+        if (!Typing() && ProfessionalKey(e)) { e.Handled = true; return; }
         if (!Typing() && e.Key is Key.Delete or Key.Back && e.KeyModifiers == KeyModifiers.None
             && (_document?.Selection.Path is not null || _open.ActiveAlpha is not null))
         {
             ClearPixels(); e.Handled = true; return;
         }
         if (!Typing() && e.Key == Key.Tab && e.KeyModifiers == KeyModifiers.None && _tool is Tool.Wand or Tool.Object)
-        { ChooseTool(Tool.Wand, Tool.Object); e.Handled = true; return; }
+        { ChooseTool(Tool.Wand, Tool.Object, Tool.QuickSelection); e.Handled = true; return; }
         var held = ShortcutKeys.Held(e.KeyModifiers);
         if (Typing() && (held is ShortcutModifiers.None or ShortcutModifiers.Shift
             || TypingIn() is not null && FieldKeepsIt(e)))
@@ -1186,15 +1206,16 @@ public sealed partial class MainWindow : Window
         Does("Hand tool", () => SetTool(Tool.Pan), Shortcuts.Canvas);
         Does("Move / Transform tool", () => SetTool(Tool.Move), Shortcuts.Canvas);
         Does("Marquee tool", () => ChooseTool(Tool.Marquee, Tool.Ellipse), Shortcuts.Canvas);
-        Does("Lasso tool", () => ChooseTool(Tool.Lasso, Tool.Polygon), Shortcuts.Canvas);
-        Does("Magic wand", () => ChooseTool(Tool.Wand, Tool.Object), Shortcuts.Canvas);
-        Does("Brush tool", () => SetTool(Tool.Brush), Shortcuts.Canvas);
+        Does("Lasso tool", () => ChooseTool(Tool.Lasso, Tool.Polygon, Tool.MagneticLasso, Tool.SelectionBrush), Shortcuts.Canvas);
+        Does("Magic wand", () => ChooseTool(Tool.Wand, Tool.Object, Tool.QuickSelection), Shortcuts.Canvas);
+        Does("Brush tool", () => ChooseTool(Tool.Brush, Tool.Pencil, Tool.ColorReplacement, Tool.MixerBrush), Shortcuts.Canvas);
         Does("Clone Stamp", () => ChooseTool(Tool.Clone, Tool.PatternStamp), Shortcuts.Canvas);
         Does("Blur / Smudge / Liquify", () => ChooseTool(Tool.Blur, Tool.Sharpen, Tool.Smudge, Tool.Liquify), Shortcuts.Canvas);
-        Does("Spot Healing", () => SetTool(Tool.Heal), Shortcuts.Canvas);
-        Does("Eyedropper tool", () => SetTool(Tool.Eyedropper), Shortcuts.Canvas);
+        Does("Spot Healing", () => ChooseTool(Tool.Heal, Tool.Remove, Tool.HealingBrush, Tool.Patch, Tool.ContentMove, Tool.RedEye), Shortcuts.Canvas);
+        Does("Eyedropper tool", () => ChooseTool(Tool.Eyedropper, Tool.ColorSampler, Tool.Ruler, Tool.Note, Tool.Count), Shortcuts.Canvas);
         Does("Type tool", () => ChooseTool(Tool.Type, Tool.VerticalType, Tool.VerticalTypeMask, Tool.TypeMask), Shortcuts.Canvas);
-        Does("Crop tool", () => SetTool(Tool.Crop), Shortcuts.Canvas);
+        Does("Frame tool", () => SetTool(Tool.Frame), Shortcuts.Canvas);
+        Does("Crop tool", () => ChooseTool(Tool.Crop, Tool.PerspectiveCrop, Tool.Slice, Tool.SliceSelect), Shortcuts.Canvas);
         Does("Shape tool", PickShapeTool, Shortcuts.Canvas);
         Does("Gradient tool", () => ChooseTool(Tool.Gradient, Tool.Bucket), Shortcuts.Canvas);
         Does("History brush tool", () => ChooseTool(Tool.HistoryBrush, Tool.ArtHistory), Shortcuts.Canvas);
@@ -1234,9 +1255,9 @@ public sealed partial class MainWindow : Window
             When($"Move selected pixels {direction} 10 px", () => MovePixels(dx * 10, dy * 10), Shortcuts.Canvas);
         }
         When("Apply Canvas Operation",
-            () => { if (_placementTab is not null) { FinishPlacement(true); return true; } if (FinishPen()) return true; if (_cropFrame is null) return false; ApplyCrop(); return true; }, Shortcuts.Canvas);
+            () => { if (_placementTab is not null) { FinishPlacement(true); return true; } if (FinishProfessionalDraft()) return true; if (FinishPen()) return true; if (_cropFrame is null) return false; ApplyCrop(); return true; }, Shortcuts.Canvas);
         When("Cancel Canvas Operation",
-            () => { if (_placementTab is not null) { FinishPlacement(false); return true; } if (CancelPen()) return true; if (_cropFrame is null) return false; CancelCrop(); return true; }, Shortcuts.Canvas);
+            () => { if (_placementTab is not null) { FinishPlacement(false); return true; } if (CancelProfessionalDraft()) return true; if (CancelPen()) return true; if (_cropFrame is null) return false; CancelCrop(); return true; }, Shortcuts.Canvas);
     }
 
     /// <summary>
@@ -2759,7 +2780,7 @@ public sealed partial class MainWindow : Window
             }
             if (_message.Length == 0) throw new InvalidOperationException($"{tool} left the status line empty");
             // The options bar shows the rows this tool can be told about, and nothing else.
-            if (_optionsBar.Shows("brush") != ToolCatalog.IsBrush(tool))
+            if (_optionsBar.Shows("brush") != ToolCatalog.HasRoundCursor(tool))
             {
                 throw new InvalidOperationException($"{tool} got the brush rows wrong");
             }
@@ -2848,7 +2869,7 @@ public sealed partial class MainWindow : Window
     private Tab TabForNew()
     {
         FinishPlacement(true);
-        FinishPen();
+        CancelProfessionalDraft(); FinishPen();
         CommitText();
         if (_open.Document is not null || _tabs.Count > 1)
         {
@@ -2871,7 +2892,7 @@ public sealed partial class MainWindow : Window
         if (_placementTab is not null && !ReferenceEquals(tab, _open)) FinishPlacement(true);
         if (!ReferenceEquals(tab, _open))
         {
-            FinishPen();
+            CancelProfessionalDraft(); FinishPen();
             _open.SelectedRow = _layers.SelectedIndex;
             StopPreview();
             _canvas.CancelDraft();
@@ -2888,6 +2909,8 @@ public sealed partial class MainWindow : Window
     /// <summary>The tab laid out: its document on the canvas, its layers in the panel, its folder watched.</summary>
     private void Show(Tab tab)
     {
+        _cloneSource = null; _cloneOffset = null; _canvas.CloneSource = null; _canvas.CloneOffset = null;
+        _selectedMark = null; _optionsBar.ProfessionalReadout("");
         // The Camera Raw panel belongs to the tab it was opened on, so a tab coming in front lets it go: every
         // way the front tab comes to change runs through here.
         CloseCameraRaw();
@@ -3463,6 +3486,9 @@ public sealed partial class MainWindow : Window
 
     private void SetTool(Tool tool)
     {
+        if (_tool != tool && !(_tool is Tool.Slice or Tool.SliceSelect && tool is Tool.Slice or Tool.SliceSelect))
+        { _selectedMark = null; _optionsBar.ProfessionalReadout(""); }
+        if (_tool != tool) CancelProfessionalDraft();
         if (_pen is not null && !ToolCatalog.IsPen(tool)) FinishPen();
         if (_placementTab is not null && tool != Tool.Move && tool != Tool.Pan) FinishPlacement(true);
         if (_open.ActiveAlpha is not null && (tool is Tool.Move or Tool.AdjustmentBrush || ToolCatalog.IsType(tool) || ToolCatalog.IsPen(tool) || ToolCatalog.IsPathEditor(tool) || ToolCatalog.IsShape(tool)))
@@ -3473,7 +3499,7 @@ public sealed partial class MainWindow : Window
         _canvas.ZoomToolEnabled = tool == Tool.Zoom;
         _canvas.PanEnabled = tool == Tool.Pan;
         if (!_canvas.IsPanning) _canvas.Cursor = tool == Tool.Pan ? new Cursor(StandardCursorType.Hand) : null;
-        _canvas.SampleSourceOnClick = tool == Tool.Clone;
+        _canvas.SampleSourceOnClick = tool is Tool.Clone or Tool.HealingBrush;
         // A colour range being picked takes the press whatever tool is in hand, so the canvas keeps sampling
         // until its panel is put away.
         _canvas.EyedropperOnClick = tool == Tool.Eyedropper || _colorRange is not null;
@@ -3499,6 +3525,8 @@ public sealed partial class MainWindow : Window
         _canvas.GuidesDraggable = tool == Tool.Move;
         ShowTransformBox();
         _canvas.PaintEnabled = ToolCatalog.IsBrush(tool);
+        _canvas.BrushOutlineEnabled = ToolCatalog.HasRoundCursor(tool);
+        _canvas.UpdateToolCursor();
         PushBrush();
         SyncPathNodes();
         _canvas.Selection = tool switch
@@ -3637,9 +3665,13 @@ public sealed partial class MainWindow : Window
     {
         _canvas.Brush = _options.Brush with
         {
+            Hardness = _tool == Tool.Pencil ? 1 : _options.Brush.Hardness,
+            Smoothing = _tool == Tool.Pencil ? 0 : _options.Brush.Smoothing,
+            Healing = _tool == Tool.Remove ? HealingMode.ContentAware : _options.Brush.Healing,
             Erasing = _tool == Tool.Eraser || _tool == Tool.Brush && _options.Erase,
             Mode = _tool switch
             {
+                Tool.HealingBrush => BrushMode.HealingSample, Tool.ColorReplacement => BrushMode.ColorReplacement, Tool.MixerBrush => BrushMode.Mixer, Tool.Remove => BrushMode.Heal,
                 Tool.PatternStamp => BrushMode.Pattern, Tool.ArtHistory => BrushMode.ArtHistory,
                 Tool.BackgroundEraser => BrushMode.BackgroundErase, Tool.Sharpen => BrushMode.Sharpen,
                 Tool.Dodge => BrushMode.Dodge, Tool.Burn => BrushMode.Burn, Tool.Sponge => BrushMode.Sponge,
@@ -5786,6 +5818,8 @@ public sealed partial class MainWindow : Window
             BrushEdits.EnsurePixels(document, id);
             return BrushEdits.Paint(document, id, stroke, settings);
         });
+        if (_tool == Tool.MixerBrush && Pro.CleanAfterStroke)
+        { _options.Brush = _options.Brush with { MixerLoad = 0 }; _optionsBar.RefreshProfessional(); PushBrush(); }
     }
 
     /// <summary>Which of the two push modes the tool in hand is.</summary>
@@ -5807,7 +5841,7 @@ public sealed partial class MainWindow : Window
             }
             return _canvas.Brush with { Mode = _tool == Tool.ArtHistory ? BrushMode.ArtHistory : BrushMode.History, History = history };
         }
-        if (_tool != Tool.Clone) return _canvas.Brush;
+        if (_tool is not (Tool.Clone or Tool.HealingBrush)) return _canvas.Brush;
         if (_cloneSource is not { } source)
         {
             Say("Alt-click where the Clone Stamp should copy from first");
@@ -5817,6 +5851,7 @@ public sealed partial class MainWindow : Window
         // worked out again each time; an aligned one keeps copying from where the last stroke did.
         var offset = new SKPointI((int)Math.Round(source.X - stroke[0].X), (int)Math.Round(source.Y - stroke[0].Y));
         _cloneOffset = _options.Brush.CloneAligned ? _cloneOffset ?? offset : offset;
+        _canvas.CloneOffset = _cloneOffset;
         return _canvas.Brush with { CloneFrom = _cloneOffset };
     }
 
@@ -5826,6 +5861,7 @@ public sealed partial class MainWindow : Window
         _cloneSource = point;
         // A new source starts a new alignment, as the Mac build's does.
         _cloneOffset = null;
+        _canvas.CloneSource = point; _canvas.CloneOffset = null; _canvas.InvalidateVisual();
         Say($"Clone stamp copying from {point.X:0},{point.Y:0} — drag on the canvas");
     }
 

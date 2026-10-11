@@ -51,7 +51,26 @@ public sealed record LayoutGrid(int Spacing = 64, int Subdivisions = 8)
     }
 
     /// <summary>Whether the line this far along the document is a major one.</summary>
-    public bool IsMajor(double documentPosition) => Math.Abs(documentPosition % Spacing) < 1e-9;
+    public bool IsMajor(double documentPosition) => Math.Abs(documentPosition - Math.Round(documentPosition / Spacing) * Spacing) < 1e-7;
+
+    public GridLines WorkspaceLines(double left, double top, double right, double bottom, double zoom, double originX, double originY)
+    {
+        (double[], double[]) Axis(double start, double end, double origin)
+        {
+            if (!double.IsFinite(start + end + zoom + origin) || zoom <= 0 || end <= start) return ([], []);
+            var fine = new List<double>(); var major = new List<double>();
+            // Coarsen subpixel grids evenly; never truncate one end of the viewport.
+            var step = Step * Math.Max(1, Math.Ceiling(2 / (Step * zoom)));
+            for (var at = Math.Floor((start / zoom + origin) / step) * step; at <= end / zoom + origin + step; at += step)
+                if (!IsMajor(at)) fine.Add((at - origin) * zoom);
+            var majorStep = Spacing * Math.Max(1, Math.Ceiling(2 / (Spacing * zoom)));
+            for (var at = Math.Floor((start / zoom + origin) / majorStep) * majorStep; at <= end / zoom + origin + majorStep; at += majorStep)
+                major.Add((at - origin) * zoom);
+            return (fine.ToArray(), major.ToArray());
+        }
+        var (vf, vm) = Axis(left, right, originX); var (hf, hm) = Axis(top, bottom, originY);
+        return new GridLines(vf, vm, hf, hm);
+    }
 
     private (double[] Fine, double[] Major) Along(int extent, double zoom, double origin)
     {

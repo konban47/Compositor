@@ -17,7 +17,7 @@ namespace Compositor.Desktop;
 internal sealed class ToolRail : Grid
 {
     /// <summary>How wide the rail is, which is the Mac's own 56 points.</summary>
-    private const double RailWidth = 56;
+    private const double RailWidth = UpstreamArtwork.RailWidth;
 
     private readonly Dictionary<Tool, Button> _buttons = [];
     private readonly Dictionary<Button, List<Tool>> _groups = [];
@@ -25,7 +25,7 @@ internal sealed class ToolRail : Grid
     private ToolbarLayout _layout = ToolCatalog.Defaults();
     public event Action? CustomizeRequested, QuickMaskRequested, ScreenModeRequested, GenerativeRequested;
     internal ToolbarLayout Layout => _layout;
-    internal static Control Icon(Tool tool) => new EditorIcon(tool.ToString()) { Width = 22, Height = 22 };
+    internal static Control Icon(Tool tool) => new EditorIcon(tool.ToString()) { Width = 18, Height = 18 };
     public void ApplyLayout(ToolbarLayout layout)
     {
         _layout = layout.Copy(); _buttons.Clear(); _groups.Clear(); Children.Clear();
@@ -99,8 +99,8 @@ internal sealed class ToolRail : Grid
         foreach (var (button, tools) in _groups)
         {
             var active = tools.Contains(tool);
-            button.Background = active ? new SolidColorBrush(Color.Parse("#1FFFFFFF")) : Brushes.Transparent;
-            button.BorderBrush = active ? new SolidColorBrush(Color.Parse("#24FFFFFF")) : Brushes.Transparent;
+            button.Background = active ? new SolidColorBrush(Color.FromArgb(UpstreamArtwork.SelectedFillAlpha, 255, 255, 255)) : Brushes.Transparent;
+            button.BorderBrush = active ? new SolidColorBrush(Color.FromArgb(UpstreamArtwork.SelectedBorderAlpha, 255, 255, 255)) : Brushes.Transparent;
             button.BorderThickness = new Thickness(active ? 1 : 0);
             if (active) { button.Tag = tool; button.Content = GroupIcon(tool, tools.Count > 1); }
         }
@@ -171,7 +171,7 @@ internal sealed class ToolRail : Grid
     }
     private Control Tools()
     {
-        var column = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
+        var column = new StackPanel { Orientation = Orientation.Vertical, Spacing = UpstreamArtwork.RailSpacing, Margin = new Thickness(0, 16, 0, 12), HorizontalAlignment = HorizontalAlignment.Center };
         foreach (var ids in _layout.Groups)
         {
             var group = ids.Select(Enum.Parse<Tool>).ToList(); if (group.Count == 0) continue;
@@ -180,9 +180,9 @@ internal sealed class ToolRail : Grid
             {
                 Content = GroupIcon(group[0], group.Count > 1),
                 Tag = group[0],
-                Width = 44,
-                Height = 34,
-                CornerRadius = new CornerRadius(7),
+                Width = UpstreamArtwork.ButtonSide,
+                Height = UpstreamArtwork.ButtonSide,
+                CornerRadius = new CornerRadius(UpstreamArtwork.ButtonRadius),
                 Padding = new Thickness(0),
                 HorizontalContentAlignment = HorizontalAlignment.Center,
                 VerticalContentAlignment = VerticalAlignment.Center,

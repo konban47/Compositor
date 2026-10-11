@@ -460,6 +460,7 @@ public sealed partial class CanvasView : Control
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        _sourceModifier = e.Key is Key.LeftAlt or Key.RightAlt || e.KeyModifiers.HasFlag(KeyModifiers.Alt); UpdateToolCursor();
         // Windows IME owns Enter, Escape, arrows and deletion while composing.
         if (TextEditing && _preedit.Length > 0) { e.Handled = true; return; }
         if (TextEditing)
@@ -660,9 +661,9 @@ public sealed partial class CanvasView : Control
         if (region.Width <= 0 || region.Height <= 0)
         {
             _drawingScene = true;
-            try { using (context.PushTransform(ViewRotation)) if (ShowsGuides) DrawGuides(context, document); }
+            try { using (context.PushTransform(ViewRotation)) { DrawGrid(context, document); DrawPixelGrid(context, document); if (ShowsGuides) DrawGuides(context, document); EditingOverlay?.Invoke(context, ToScreen); } }
             finally { _drawingScene = false; }
-            DrawNavigator(context); return;
+            DrawNavigator(context); DrawToolCursor(context); return;
         }
 
         if (_composite is null || _compositeDirty || !ReferenceEquals(document, _compositeDocument) || region != _compositeRegion)
@@ -715,6 +716,7 @@ public sealed partial class CanvasView : Control
         finally { _drawingScene = false; }
         DrawSampleRing(context);
         DrawNavigator(context);
+        DrawToolCursor(context);
     }
 
     /// <summary>The pixels a drag is carrying, drawn where the pointer has put them.</summary>
@@ -817,11 +819,13 @@ public sealed partial class CanvasView : Control
     private void DrawGrid(DrawingContext context, CanvasDocument document)
     {
         if (Grid is not { } grid) return;
-        var lines = grid.Lines(document.Width, document.Height, _zoom, _origin.X, _origin.Y);
-        foreach (var x in lines.VerticalFine) context.DrawLine(Skin.GridFinePen, new Point(x, 0), new Point(x, Bounds.Height));
-        foreach (var y in lines.HorizontalFine) context.DrawLine(Skin.GridFinePen, new Point(0, y), new Point(Bounds.Width, y));
-        foreach (var x in lines.VerticalMajor) context.DrawLine(Skin.GridPen, new Point(x, 0), new Point(x, Bounds.Height));
-        foreach (var y in lines.HorizontalMajor) context.DrawLine(Skin.GridPen, new Point(0, y), new Point(Bounds.Width, y));
+        var corners = new[] { Unrotate(new Point(0, 0)), Unrotate(new Point(Bounds.Width, 0)), Unrotate(new Point(0, Bounds.Height)), Unrotate(new Point(Bounds.Width, Bounds.Height)) };
+        var left = corners.Min(p => p.X); var right = corners.Max(p => p.X); var top = corners.Min(p => p.Y); var bottom = corners.Max(p => p.Y);
+        var lines = grid.WorkspaceLines(left, top, right, bottom, _zoom, _origin.X, _origin.Y);
+        foreach (var x in lines.VerticalFine) context.DrawLine(Skin.GridFinePen, new Point(x, top), new Point(x, bottom));
+        foreach (var y in lines.HorizontalFine) context.DrawLine(Skin.GridFinePen, new Point(left, y), new Point(right, y));
+        foreach (var x in lines.VerticalMajor) context.DrawLine(Skin.GridPen, new Point(x, top), new Point(x, bottom));
+        foreach (var y in lines.HorizontalMajor) context.DrawLine(Skin.GridPen, new Point(left, y), new Point(right, y));
     }
 
     /// <summary>
@@ -831,20 +835,11 @@ public sealed partial class CanvasView : Control
     private void DrawPixelGrid(DrawingContext context, CanvasDocument document)
     {
         if (!PixelGrid || _zoom < PixelGridZoom) return;
-        var left = (int)Math.Floor(_origin.X);
-        var top = (int)Math.Floor(_origin.Y);
-        var right = (int)Math.Ceiling(_origin.X + Bounds.Width / _zoom);
-        var bottom = (int)Math.Ceiling(_origin.Y + Bounds.Height / _zoom);
-        for (var x = Math.Max(0, left); x <= Math.Min(document.Width, right); x++)
-        {
-            var at = (x - _origin.X) * _zoom;
-            context.DrawLine(Skin.PixelGridPen, new Point(at, 0), new Point(at, Bounds.Height));
-        }
-        for (var y = Math.Max(0, top); y <= Math.Min(document.Height, bottom); y++)
-        {
-            var at = (y - _origin.Y) * _zoom;
-            context.DrawLine(Skin.PixelGridPen, new Point(0, at), new Point(Bounds.Width, at));
-        }
+        var corners = new[] { Unrotate(new Point(0, 0)), Unrotate(new Point(Bounds.Width, 0)), Unrotate(new Point(0, Bounds.Height)), Unrotate(new Point(Bounds.Width, Bounds.Height)) };
+        var left = corners.Min(p => p.X); var right = corners.Max(p => p.X); var top = corners.Min(p => p.Y); var bottom = corners.Max(p => p.Y);
+        var lines = new LayoutGrid(8, 8).WorkspaceLines(left, top, right, bottom, _zoom, _origin.X, _origin.Y);
+        foreach (var x in lines.VerticalFine.Concat(lines.VerticalMajor)) context.DrawLine(Skin.PixelGridPen, new Point(x, top), new Point(x, bottom));
+        foreach (var y in lines.HorizontalFine.Concat(lines.HorizontalMajor)) context.DrawLine(Skin.PixelGridPen, new Point(left, y), new Point(right, y));
     }
 
     /// <summary>The alignment guides, across the whole canvas at the place each one sits.</summary>
@@ -1442,6 +1437,7 @@ public sealed partial class CanvasView : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         Focus();
+        TrackToolPointer(e);
         var properties = e.GetCurrentPoint(this).Properties;
         if (properties.IsRightButtonPressed) ContextPoint = ToDocument(e.GetPosition(this));
         if (NavigatorPress(e) || ViewToolPress(e)) return;
@@ -1670,6 +1666,7 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerExited(PointerEventArgs e)
     {
+        _toolPointer = null; InvalidateVisual();
         PointerLeftCanvas?.Invoke();
         base.OnPointerExited(e);
     }
@@ -1679,7 +1676,7 @@ public sealed partial class CanvasView : Control
         if (_customDragging) { _customDragging = false; CustomReleased?.Invoke(); }
         _rotatingView = false;
         _dragging = null; _zoomDragging = false; _navigatorDragging = false;
-        Cursor = PanEnabled ? new Cursor(StandardCursorType.Hand) : null;
+        UpdateToolCursor();
         base.OnPointerCaptureLost(e);
     }
 
@@ -1700,8 +1697,10 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {
+        TrackToolPointer(e);
         var now = e.GetPosition(this);
         if (_customDragging) { CustomMoved?.Invoke(ToDocument(now), e.KeyModifiers); e.Handled = true; return; }
+        CustomHover?.Invoke(ToDocument(now), e.KeyModifiers);
         // Every move is reported, whatever the drag in hand is, so a readout that follows the pointer does not
         // stop while a stroke is being painted.
         if (ViewToolMove(e)) return;
@@ -1979,7 +1978,7 @@ public sealed partial class CanvasView : Control
         }
         _rotatingView = false;
         _dragging = null; _zoomDragging = false; _navigatorDragging = false;
-        Cursor = PanEnabled ? new Cursor(StandardCursorType.Hand) : null;
+        UpdateToolCursor();
         e.Pointer.Capture(null);
         base.OnPointerReleased(e);
     }

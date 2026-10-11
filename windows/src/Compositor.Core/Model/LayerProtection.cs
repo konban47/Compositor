@@ -50,7 +50,7 @@ public static class LayerProtection
         if (operation is "Layer Locks" or "Channel Edit" or "Restore Snapshot") return;
         // Canvas geometry operations move the document coordinate system, including protected layers.
         if (before.Width != after.Width || before.Height != after.Height
-            || operation is "Flip Canvas" or "Rotate Canvas") return;
+            || operation is "Flip Canvas" or "Rotate Canvas" or "Perspective Crop Tool") return;
         var originals = before.Layers.ToDictionary(layer => layer.ID);
         var current = after.Layers.ToDictionary(layer => layer.ID);
         // Adding or reparenting into a protected group is a layer edit too.

@@ -257,7 +257,8 @@ public static class Shortcuts
         Canvas("Magic wand", "W");
         Canvas("Brush tool", "B");
         Canvas("Clone Stamp", "S");
-        Canvas("Blur / Smudge / Liquify", "K");
+        Canvas("Blur / Smudge / Liquify", "");
+        Canvas("Frame tool", "K");
         Canvas("Spot Healing", "J");
         Canvas("Eyedropper tool", "I");
         Canvas("Type tool", "T");

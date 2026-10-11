@@ -1,0 +1,49 @@
+{
+  "upstream": "https://github.com/robbietilton/Compositor",
+  "commit": "b4bfdea87f9dc0cbc9eabfa63683eb1b9c2bca60",
+  "license": "MIT, copyright 2026 Wonder Assembly LLC",
+  "hashEncoding": "UTF-8 with LF line endings",
+  "files": [
+    {
+      "path": "Compositor/UI/BrushControls.swift",
+      "sha256": "cfeb09d23f468d12439306eff50f1f18eac8e64dccbdeb7d174ec846e74d0044"
+    },
+    {
+      "path": "Compositor/UI/GradientControls.swift",
+      "sha256": "a24ba69b2297b3e0d9e28dfa7a5e0834a7cfd22a071e14fec1e71b77f0c43b47"
+    },
+    {
+      "path": "Compositor/UI/LassoControls.swift",
+      "sha256": "0c597e0826ab2d74ef0d1772e65db0dc01c80c53ae750c3219a7029a65a8ba68"
+    },
+    {
+      "path": "Compositor/ContentView.swift",
+      "sha256": "a510b9b196222576c1e10dc68c1904061f7c3b8444a031bae6bc5fc58e958d2a"
+    },
+    {
+      "path": "Compositor/UI/ToolHeaderStyle.swift",
+      "sha256": "857e04a85f8d76711a169b547b037871e62b501ab40b0f65e58e83c2714153e2"
+    },
+    {
+      "path": "Compositor/Document/EditorSession.swift",
+      "sha256": "981ac92762cfdfa16c57c55e24d2c3075f2753d064ff03b9b90dd14e63026ec7"
+    }
+  ],
+  "directPorts": [
+    "CloneStampToolIcon",
+    "GradientToolIcon",
+    "PolygonalLassoToolIcon",
+    "ObjectSelectionToolIcon"
+  ],
+  "implementation": "windows/src/Compositor.Desktop/UpstreamArtwork.cs",
+  "toolButton": {
+    "width": 36,
+    "height": 36,
+    "cornerRadius": 7,
+    "railWidth": 56,
+    "spacing": 10,
+    "selectedFillOpacity": 0.12,
+    "selectedBorderOpacity": 0.14
+  },
+  "systemResources": "Other upstream symbols use Apple SF Symbols, and native buttons use SwiftUI/AppKit. No corresponding redistributable asset files exist in this repository; EditorIcon supplies Windows vector counterparts."
+}

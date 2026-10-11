@@ -3,6 +3,8 @@ using Compositor.Core.Document;
 using Compositor.Core.IO;
 using Compositor.Core.IO.PSD;
 using Compositor.Core.Model;
+using Compositor.Core.Format;
+using LayerTransform = Compositor.Core.Model.LayerTransform;
 using SkiaSharp;
 
 namespace Compositor.Desktop;
@@ -78,6 +80,8 @@ public sealed partial class MainWindow
             }
             if (!ImageImporter.LooksImportable(path)) throw new ImportException(ImportError.Unsupported);
             var target = importTarget ?? _open;
+            var frame = ReferenceEquals(target, _open) && Selected is { } selectedFrame
+                ? target.Document?.Layers.FirstOrDefault(l => l.ID == selectedFrame && l.Container == LayerContainer.Frame && LayerProtection.CanMove(target.Document, l.ID)) : null;
             var fitting = target.Document is { } fit ? new SKSizeI(fit.Width, fit.Height) : (SKSizeI?)null;
             var image = await Task.Run(() => ImageImporter.Decode(path, fitting));
             if (ImageImporter.IsRaw(path))
@@ -98,8 +102,14 @@ public sealed partial class MainWindow
             { image.Dispose(); throw new ImportException(ImportError.TooLarge); }
             var origin = new SKPoint((document.Width - image.Width) / 2f, (document.Height - image.Height) / 2f);
             target.History.Begin("Import Image", document, null);
-            document.Layers.Add(new ImageLayer(Guid.NewGuid(), image,
-                new LayerTransform(origin.X, origin.Y, image.Width, image.Height), image.Name));
+            var placement = new LayerTransform(origin.X, origin.Y, image.Width, image.Height);
+            if (frame is not null && document.Layers.Contains(frame))
+            {
+                var scale = Math.Max(frame.Transform.Width / image.Width, frame.Transform.Height / image.Height);
+                placement = new LayerTransform(frame.Transform.CenterX - image.Width * scale / 2, frame.Transform.CenterY - image.Height * scale / 2,
+                    image.Width * scale, image.Height * scale, frame.Transform.Rotation);
+            }
+            document.Layers.Add(new ImageLayer(Guid.NewGuid(), image, placement, image.Name) { ParentID = frame?.ID });
             target.History.End(document, document.Layers[^1].ID);
             if (ReferenceEquals(target, _open)) { Reselect(document.Layers[^1].ID); Refresh(); }
             RefreshTabs();
