@@ -88,7 +88,8 @@ public sealed class ProjectSnapshot : IDisposable
         var channels = document.Channels.Where(c => !c.IsTemporary).ToArray();
         var manifest = new ProjectManifest
         {
-            Version = document.Layers.Any(layer => layer.Blending is not null || layer.Effects?.Items is not null
+            Version = document.Layers.Any(layer => layer.LiveText?.Vertical is not null || layer.LiveShape is { Kind: ShapeKind.Path, LineWidth: not null }) ? 16
+                : document.Layers.Any(layer => layer.Blending is not null || layer.Effects?.Items is not null
                     || layer.Effects?.Enabled == false || layer.IsGroup && (layer.Effects is not null || layer.BlendMode != LayerBlendMode.Normal)
                     || layer.Label != LayerLabel.None || layer.Container != LayerContainer.Group || layer.SmartObject is not null) ? 15
                 : document.Layers.Any(layer => layer.LiveText?.HasAdvancedTypography == true

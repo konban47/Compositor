@@ -227,14 +227,42 @@ public sealed class PathNodes
 
     /// <summary>Adds a node in the middle of the segment after the given node.</summary>
     public bool InsertAfter(int subpath, int index)
+        => SplitSegment(subpath, index, .5f);
+
+    public bool InsertNearest(SKPoint point)
+    {
+        var best = (Sub: -1, Index: -1, T: 0f, Distance: float.MaxValue);
+        for (var s = 0; s < Subpaths.Count; s++)
+        {
+            var nodes = Subpaths[s].Nodes;
+            for (var i = 0; i < nodes.Count - (Subpaths[s].Closed ? 0 : 1); i++)
+            {
+                var a = nodes[i]; var b = nodes[(i + 1) % nodes.Count];
+                for (var step = 1; step < 100; step++)
+                {
+                    var t = step / 100f; var u = 1 - t;
+                    var at = PlacementMesh.Scale(a.Point, u * u * u) + PlacementMesh.Scale(a.Out ?? a.Point, 3 * u * u * t)
+                        + PlacementMesh.Scale(b.In ?? b.Point, 3 * u * t * t) + PlacementMesh.Scale(b.Point, t * t * t);
+                    var distance = SKPoint.Distance(point, at);
+                    if (distance < best.Distance) best = (s, i, t, distance);
+                }
+            }
+        }
+        return best.Sub >= 0 && SplitSegment(best.Sub, best.Index, best.T);
+    }
+    private bool SplitSegment(int subpath, int index, float t)
     {
         if (subpath < 0 || subpath >= Subpaths.Count) return false;
         var nodes = Subpaths[subpath].Nodes;
-        if (index < 0 || index >= nodes.Count - 1) return false;
+        if (index < 0 || index >= nodes.Count || nodes.Count < 2 || index == nodes.Count - 1 && !Subpaths[subpath].Closed) return false;
         var from = nodes[index];
-        var to = nodes[index + 1];
-        var middle = new SKPoint((from.Point.X + to.Point.X) / 2, (from.Point.Y + to.Point.Y) / 2);
-        nodes.Insert(index + 1, new Node { Point = middle });
+        var to = nodes[(index + 1) % nodes.Count];
+        SKPoint Lerp(SKPoint a, SKPoint b) => a + PlacementMesh.Scale(b - a, t);
+        var a = Lerp(from.Point, from.Out ?? from.Point); var b = Lerp(from.Out ?? from.Point, to.In ?? to.Point); var c = Lerp(to.In ?? to.Point, to.Point);
+        var d = Lerp(a, b); var e = Lerp(b, c); var middle = Lerp(d, e);
+        var curved = from.Out is not null || to.In is not null;
+        if (curved) { from.Out = a; to.In = c; }
+        nodes.Insert(index + 1, new Node { Point = middle, In = curved ? d : null, Out = curved ? e : null });
         return true;
     }
 

@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 function Read-Repo([string]$Path) { Get-Content -LiteralPath (Join-Path $repo $Path) -Raw -Encoding utf8 }
 [xml]$project = Read-Repo 'windows/src/Compositor.Desktop/Compositor.Desktop.csproj'
@@ -48,4 +48,11 @@ foreach ($feature in @('混合颜色带','智能对象','画框','画板','遮�
 if (!(Read-Repo 'windows/scripts/package.ps1').Contains('LAYER-STYLES.md')) { throw 'Layer guide missing from package.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--layer-style-checks')) { throw 'Layer style UI checks missing from CI.' }
 if (!$keys.Contains('Menu("Merge Visible", "E", Ctrl | Shift)')) { throw 'Merge Visible shortcut documentation is stale.' }
+$editing = Read-Repo 'windows/EDITING-TOOLS.md'
+foreach ($feature in @('置入','跨文档','钢笔','直排','图案图章','历史记录艺术画笔','魔术橡皮擦','海绵','单色','v16')) {
+    if (!$editing.Contains($feature)) { throw "Editing tool manual is missing $feature." }
+}
+if (!(Read-Repo 'windows/scripts/package.ps1').Contains('EDITING-TOOLS.md')) { throw 'Editing guide missing from package.' }
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--editing-checks')) { throw 'Editing UI checks missing from CI.' }
+if (!$formatDoc.Contains('`vertical`') -or !$formatDoc.Contains('`lineWidth`')) { throw 'New text/path fields undocumented.' }
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

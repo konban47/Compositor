@@ -35,7 +35,7 @@ internal sealed class ImageSizeDialog : DialogWindow
             Width = 100,
             Height = 24,
             FontSize = 11.5,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceDarkBrush,
             BorderBrush = Skin.BorderControlBrush,
             Foreground = Skin.LabelBrush,
@@ -47,7 +47,7 @@ internal sealed class ImageSizeDialog : DialogWindow
             Width = 100,
             Height = 24,
             FontSize = 11.5,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceDarkBrush,
             BorderBrush = Skin.BorderControlBrush,
             Foreground = Skin.LabelBrush,
@@ -59,7 +59,7 @@ internal sealed class ImageSizeDialog : DialogWindow
             Width = 100,
             Height = 24,
             FontSize = 11.5,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceDarkBrush,
             BorderBrush = Skin.BorderControlBrush,
             Foreground = Skin.LabelBrush,
@@ -70,7 +70,7 @@ internal sealed class ImageSizeDialog : DialogWindow
         _sampling.Width = 240;
         _sampling.Height = 24;
         _sampling.FontSize = 11.5;
-        _sampling.CornerRadius = new CornerRadius(2);
+        _sampling.CornerRadius = new CornerRadius(7);
         _sampling.Background = Skin.SurfaceControlBrush;
         _sampling.BorderBrush = Skin.BorderControlBrush;
         _sampling.VerticalContentAlignment = VerticalAlignment.Center;
@@ -94,7 +94,7 @@ internal sealed class ImageSizeDialog : DialogWindow
             MinWidth = 76,
             Height = 26,
             FontSize = 12,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.AccentBrush,
             BorderBrush = Skin.AccentBrush,
             BorderThickness = new Thickness(1),
@@ -108,7 +108,7 @@ internal sealed class ImageSizeDialog : DialogWindow
             MinWidth = 76,
             Height = 26,
             FontSize = 12,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceControlBrush,
             BorderBrush = Skin.BorderControlBrush,
             BorderThickness = new Thickness(1),

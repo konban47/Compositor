@@ -62,7 +62,7 @@ public static class ProjectStore
             if (layer.Text is { } text)
             {
                 // Per-letter colors arrived in version 10, per-letter faces in version 11.
-                if (!text.IsValid
+                if (!text.IsValid || text.Vertical is not null && version < 16
                     || (text.ColorRuns is not null && version < 10)
                     || (text.FontRuns is not null && version < 11)
                     || (text.HasTypography && version < 13)
@@ -74,7 +74,7 @@ public static class ProjectStore
             }
             if (layer.Shape is { } shape)
             {
-                if (!shape.IsValid || (shape.Kind == Format.ShapeKind.Path && version < 14)
+                if (!shape.IsValid || shape.Kind == Format.ShapeKind.Path && shape.LineWidth is not null && version < 16 || (shape.Kind == Format.ShapeKind.Path && version < 14)
                     || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null)
                 {
                     throw new ProjectException(ProjectError.Invalid);

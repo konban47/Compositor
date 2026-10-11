@@ -36,6 +36,27 @@ internal enum Tool
     CustomShape,
     RotateView,
     Zoom,
+    PatternStamp,
+    ArtHistory,
+    Eraser,
+    BackgroundEraser,
+    MagicEraser,
+    Bucket,
+    Sharpen,
+    AdjustmentBrush,
+    Dodge,
+    Burn,
+    Sponge,
+    Pen,
+    FreeformPen,
+    CurvaturePen,
+    AddAnchor,
+    DeleteAnchor,
+    ConvertAnchor,
+    VerticalType,
+    VerticalTypeMask,
+    TypeMask,
+
 }
 
 /// <summary>Which of the brush's amounts was asked for, by the Tools menu or the options bar.</summary>

@@ -17,7 +17,7 @@ internal sealed class CommandPalette : DialogWindow
         PlaceholderText = Localize.Text("Search commands and tools…"),
         Height = 28,
         FontSize = 12,
-        CornerRadius = new CornerRadius(2),
+        CornerRadius = new CornerRadius(7),
         Background = Skin.SurfaceDarkBrush,
         BorderBrush = Skin.BorderControlBrush,
         Foreground = Skin.LabelBrush,
@@ -28,7 +28,7 @@ internal sealed class CommandPalette : DialogWindow
         Background = Skin.SurfaceDarkBrush,
         BorderBrush = Skin.BorderControlBrush,
         BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(2),
+        CornerRadius = new CornerRadius(7),
         FontSize = 12,
     };
     private readonly IReadOnlyList<Entry> _entries;

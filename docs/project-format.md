@@ -129,3 +129,15 @@ Item fields: `enabled`, `blendMode`, `opacity`, `red`/`green`/`blue`, `red2`/`gr
 `blending` contains `red`/`green`/`blue` (all true by default), `knockout` (`None`, `Shallow`, `Deep`), `blendInteriorEffectsAsGroup` (false), `blendClippedLayersAsGroup` (true), `transparencyShapesLayer` (true), `layerMaskHidesEffects`/`vectorMaskHidesEffects` (false), and `ranges` (up to four unique channels). Each range contains `channel` (`Gray`, `Red`, `Green`, `Blue`), `source` and `underlying`. Each band stores `black`, `blackSplit`, `whiteSplit`, `white` with `0 ≤ black ≤ blackSplit ≤ whiteSplit ≤ white ≤ 255`; defaults 0,0,255,255. Split ranges linearly fade coverage. Band restrictions multiply. These CPU semantics are documented in the [layer-style guide](../windows/LAYER-STYLES.md), not a claim of Adobe pixel parity.
 
 An embedded smart ZIP contains its own `manifest.json` and the source image/mask/channel/smart files at the ZIP root under their manifest filenames. It is never extracted to disk. Each source and the aggregate source data in a project are limited to 128 MiB compressed; opening a source checks for duplicate entries, at most 30,001 entries, and at most 512 MiB total expanded bytes, plus the normal manifest and image limits. Nested sources remain lazy until opened. The parent PNG is the display fallback; opening contents restores editable layers. Saving contents updates matching source IDs; saving the parent persists the new source and cache together. No Adobe PSB, linked external file, or PSD smart-object round-trip is implied.
+
+
+## Windows extension version 16
+
+Windows **1.4.9.3 Preview** reads v1–v16. A document uses v16 when a text layer has a non-null `vertical` field, or a `shape.kind: path` has a non-null `lineWidth` (open pen-path stroke). Other documents continue to choose the lowest required version from v11–v15.
+
+- `text.vertical`: the optional `vertical` boolean, absent for horizontal text. When true, upright Unicode text elements are laid out top-to-bottom in columns running right-to-left. Font, color runs, tracking, leading, paragraph bounds and text content retain their existing semantics.
+- `shape.lineWidth` on `kind: path`: positive pixel width for an open SVG path stroke, with round caps/joins; null keeps a filled path. The stored `path` remains normalized to the layer unit square, with the cached PNG as raster fallback.
+- Placement mode, pivot, warp grid and toolbar settings are session state, not manifest fields. Confirmed distortion/warp becomes image pixels and a regular transform.
+- The layer clipboard captures a self-contained package of selected records/assets. Paste remaps layer, parent, clip and link identifiers and owns fresh decoded images. It does not alter the on-disk clipboard or project schema.
+
+Version 15 and older readers reject v16. This is a Windows extension; it does not imply macOS or PSD write-back compatibility.

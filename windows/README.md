@@ -1,13 +1,13 @@
 # Compositor for Windows — 简体中文 / English
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.4.9.2 Preview**。
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.4.9.3 Preview**。
 
 [下载 Windows 发行包](https://github.com/konban47/Compositor/releases) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
 
 ## 使用
 
 - 目标平台：Windows 10 1809 及以上、Windows 11，**x64**。不提供 32 位或原生 ARM64 包。
-- 安装版：运行 `Compositor-Windows-1.4.9.2-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
+- 安装版：运行 `Compositor-Windows-1.4.9.3-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
 - 免安装版：解压整个 `*-portable.zip`，运行文件夹中的 `Compositor.exe`。自带 .NET 运行时，无需安装 .NET SDK。若系统缺少 Visual C++ 2015–2022 x64 运行库，先运行随包提供的 `redist/vc_redist.x64.exe`。
 - 程序与安装包目前未做商业代码签名。只从本仓库下载；`SHA256SUMS.txt` 可用于校验文件完整性。
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
@@ -16,6 +16,15 @@
 - 普通图像、PSD/PSB、相机 RAW 通过“文件 → 导入图像”打开；PSD 转换限制会在导入报告中显示。PNG/JPEG/PDF 通过“导出为”菜单输出；PDF 为单页合成图像。
 - 可将项目文件夹或图像路径作为参数：`Compositor.exe "D:\图片\项目.comp"`。
 - 设置保存在 `%APPDATA%\CompositorWindows`。卸载不会删除项目文件和个人设置。
+
+## 1.4.9.3 置入、复制与工具更新
+
+- 拖入图片后进入可取消的置入变换，顶部有九宫格参考点、X/Y、W/H、比例约束、角度与确认／取消。右键提供缩放、旋转、斜切、透视、扭曲、拆分网格变形和翻转。
+- 无像素选区时 Ctrl+C/X 复制／剪切完整图层和组，切换文档后 Ctrl+V；蒙版、样式、智能对象、文字与路径保持可编辑，源标签关闭后也可粘贴。
+- 新增图中工具组，包含图案图章、历史记录艺术画笔、背景／魔术橡皮擦、油漆桶、锐化、调整画笔、减淡／加深／海绵、钢笔及锚点工具、直排文字和文字蒙版。
+- 全局按钮与图标参照上游使用圆角、单色矢量线条、统一选中／悬停状态。保留原面板布局与中文术语。
+- 读取 v1–v16；直排文字和开放路径描边需要 v16，其余特性沿用最低必要格式。1021 项核心测试、13 组英文与 7 组中文 UI 检查。
+- [置入与工具完整使用说明](EDITING-TOOLS.md) · [本版变更与验证](UPDATES-1.4.9.3.md)。
 
 ## 1.4.9.2 图层样式与菜单更新
 

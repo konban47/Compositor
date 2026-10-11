@@ -27,7 +27,7 @@ internal enum WandSetting
 /// as its name and its value and hands the asking back to the window, rather than growing a second set of
 /// sliders beside the first.
 /// </summary>
-internal sealed class ToolOptionsBar : Border
+internal sealed partial class ToolOptionsBar : Border
 {
     /// <summary>How tall the strip is, matching Photoshop's compact tool options bar (36 points).</summary>
     private const double StripHeight = 36;
@@ -94,7 +94,7 @@ internal sealed class ToolOptionsBar : Border
             Content = row, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
         };
-        Build();
+        Build(); BuildExtended();
     }
 
     /// <summary>
@@ -103,11 +103,12 @@ internal sealed class ToolOptionsBar : Border
     /// </summary>
     public void Show(Tool tool, bool hasDocument, bool maskSelected)
     {
-        var brush = tool is Tool.Brush or Tool.Clone or Tool.Blur or Tool.Liquify or Tool.Smudge or Tool.Heal or Tool.HistoryBrush;
+        var brush = ToolCatalog.IsBrush(tool);
         _loading = true;
         try
         {
             On("brush", brush && hasDocument);
+            On("opacity", (brush || tool is Tool.Bucket or Tool.MagicEraser) && hasDocument);
             On("mode", tool == Tool.Brush);
             On("heal", tool == Tool.Heal);
             On("clone", tool == Tool.Clone);
@@ -122,12 +123,12 @@ internal sealed class ToolOptionsBar : Border
             On("shape", ToolCatalog.IsShape(tool));
             On("viewRotation", tool == Tool.RotateView);
             On("corner", ToolCatalog.IsShape(tool) && _options.Shape == ShapeKind.Rectangle);
-            On("linewidth", ToolCatalog.IsShape(tool) && _options.Shape == ShapeKind.Line);
+            On("linewidth", ToolCatalog.IsPen(tool) || ToolCatalog.IsShape(tool) && _options.Shape == ShapeKind.Line);
             On("crop", tool == Tool.Crop);
             On("transform", tool == Tool.Move && hasDocument);
-            On("type", tool == Tool.Type);
-            On("history", tool == Tool.HistoryBrush && hasDocument);
-            On("path", tool is Tool.Path or Tool.PathSelection && hasDocument);
+            On("type", ToolCatalog.IsType(tool)); ShowExtended(tool);
+            On("history", tool is Tool.HistoryBrush or Tool.ArtHistory && hasDocument);
+            On("path", ToolCatalog.IsPathEditor(tool) && hasDocument);
             On("zoom", tool is Tool.Pan or Tool.Zoom or Tool.RotateView);
             _title.Text = Localize.Text(Names.TryGetValue(tool, out var name) ? name : ToolCatalog.Title(tool));
             // The marquee's shape and the lasso's kind *are* the tool in hand, so the bar follows the tool
@@ -276,7 +277,7 @@ internal sealed class ToolOptionsBar : Border
         button.Height = 24;
         button.Padding = new Thickness(7, 2);
         button.FontSize = 11;
-        button.CornerRadius = new CornerRadius(2);
+        button.CornerRadius = new CornerRadius(7);
         button.Background = Skin.SurfaceControlBrush;
         button.BorderBrush = Skin.BorderControlBrush;
         button.BorderThickness = new Thickness(1);
@@ -288,7 +289,7 @@ internal sealed class ToolOptionsBar : Border
     {
         combo.Height = 24;
         combo.FontSize = 11;
-        combo.CornerRadius = new CornerRadius(2);
+        combo.CornerRadius = new CornerRadius(7);
         combo.Background = Skin.SurfaceControlBrush;
         combo.BorderBrush = Skin.BorderControlBrush;
         combo.BorderThickness = new Thickness(1);
@@ -456,7 +457,7 @@ internal sealed class ToolOptionsBar : Border
 
         Cell("brush", _size);
         Cell("brush", _hardness);
-        Cell("brush", _opacity);
+        Cell("opacity", _opacity);
         Cell("brush", _fill);
         Cell("mode", _brushMode);
         Cell("mask", _maskPaint);
@@ -561,7 +562,7 @@ internal sealed class ToolOptionsBar : Border
             Width = 44;
             Height = 22;
             Padding = new Thickness(0);
-            CornerRadius = new CornerRadius(2);
+            CornerRadius = new CornerRadius(7);
             BorderThickness = new Thickness(1);
             BorderBrush = Skin.BorderControlBrush;
             VerticalAlignment = VerticalAlignment.Center;

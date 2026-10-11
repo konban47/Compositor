@@ -101,7 +101,7 @@ public static class ShapeEdits
                     using (outline)
                     {
                         outline.Transform(SKMatrix.CreateScale(width, height));
-                        using var fill = new SKPaint { Color = colour, IsAntialias = true, Style = SKPaintStyle.Fill };
+                        using var fill = new SKPaint { Color = colour, IsAntialias = true, Style = style.LineWidth is > 0 ? SKPaintStyle.Stroke : SKPaintStyle.Fill, StrokeWidth = (float)(style.LineWidth ?? 1), StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round };
                         canvas.DrawPath(outline, fill);
                     }
                 }
@@ -124,10 +124,15 @@ public static class ShapeEdits
         var layer = document.Layers.FirstOrDefault(item => item.ID == id);
         if (layer?.LiveShape is not { } current || !LayerProtection.CanPaint(document, id) || !LayerProtection.CanMove(document, id)) return false;
         using var path = SKPath.ParseSvgPathData(svg);
-        if (path is null || path.IsEmpty || path.TightBounds is not { Width: > 0, Height: > 0 } bounds) return false;
-        var style = System.Text.Json.JsonSerializer.Deserialize<LayerShapeStyle>(System.Text.Json.JsonSerializer.Serialize(current))!;
-        style.Kind = ShapeKind.Path; style.Path = ShapeTemplates.Normalize(svg);
+        if (path is null || path.IsEmpty) return false;
         var old = layer.Transform;
+        var bounds = path.TightBounds;
+        if (current.LineWidth is > 0)
+            bounds.Inflate((float)(current.LineWidth.Value / (2 * old.Width)), (float)(current.LineWidth.Value / (2 * old.Height)));
+        if (bounds.Width <= 0 || bounds.Height <= 0) return false;
+        var style = System.Text.Json.JsonSerializer.Deserialize<LayerShapeStyle>(System.Text.Json.JsonSerializer.Serialize(current))!;
+        path.Transform(new SKMatrix(1 / bounds.Width, 0, -bounds.Left / bounds.Width, 0, 1 / bounds.Height, -bounds.Top / bounds.Height, 0, 0, 1));
+        style.Kind = ShapeKind.Path; style.Path = path.ToSvgPathData();
         var matrix = BrushEdits.PixelToDocument(old, 1, 1);
         var center = matrix.MapPoint(bounds.MidX, bounds.MidY);
         var width = old.Width * bounds.Width; var height = old.Height * bounds.Height;

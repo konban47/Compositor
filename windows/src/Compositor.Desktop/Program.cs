@@ -21,6 +21,7 @@ internal static partial class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args is ["--editing-checks", var editingOutput]) return EditingChecks(editingOutput);
         if (args is ["--layer-style-checks", var styleOutput]) return LayerStyleChecks(styleOutput);
         if (args is ["--windows-checks", var windowsOutput]) return WindowsChecks(windowsOutput);
         if (args is ["--panel-checks", var panelOutput]) return PanelChecks(panelOutput);

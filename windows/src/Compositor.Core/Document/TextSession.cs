@@ -94,6 +94,7 @@ public sealed class TextSession
     public bool MoveCaret(TextMove move)
     {
         var content = _style.Content;
+        if (_style.Vertical == true) move = move switch { TextMove.Up => TextMove.Left, TextMove.Down => TextMove.Right, TextMove.Left => TextMove.Down, TextMove.Right => TextMove.Up, _ => move };
         var wanted = move switch
         {
             TextMove.Left => CaretIndex > 0 ? CaretIndex - (PairBefore(content, CaretIndex) ? 2 : 1) : 0,
@@ -118,8 +119,8 @@ public sealed class TextSession
         {
             var at = TextEdits.Caret(_style, index);
             // Only the lines the click is on are in the running, so the nearest place is measured across.
-            if (Math.Abs(box.Top + at.Y - point.Y) > _style.LineHeight) continue;
-            var distance = Math.Abs(box.Left + at.X - point.X);
+            if (_style.Vertical != true && Math.Abs(box.Top + at.Y - point.Y) > _style.LineHeight) continue;
+            var distance = _style.Vertical == true ? SKPoint.Distance(new SKPoint(box.Left + at.X, box.Top + at.Y), point) : Math.Abs(box.Left + at.X - point.X);
             if (distance >= nearest) continue;
             nearest = distance;
             best = index;
@@ -228,6 +229,7 @@ public sealed class TextSession
         var box = Box(document);
         var caret = TextEdits.Caret(_style, CaretIndex);
         var size = (float)_style.FontSize;
+        if (_style.Vertical == true) return SKRect.Create(box.Left + caret.X - size / 2, box.Top + caret.Y, size, 2);
         return SKRect.Create(box.Left + caret.X, box.Top + caret.Y - size * 0.8f, 2, size);
     }
 
@@ -272,6 +274,6 @@ public sealed class TextSession
         Bold = style.Bold, Italic = style.Italic, Underline = style.Underline, Strikethrough = style.Strikethrough,
         SmallCaps = style.SmallCaps, AllCaps = style.AllCaps, Superscript = style.Superscript, Subscript = style.Subscript,
         Ligatures = style.Ligatures, Kerning = style.Kerning, Features = style.Features, Direction = style.Direction,
-        ComplexShaping = style.ComplexShaping, Language = style.Language, Dynamic = style.Dynamic,
+        Vertical = style.Vertical, ComplexShaping = style.ComplexShaping, Language = style.Language, Dynamic = style.Dynamic,
     };
 }

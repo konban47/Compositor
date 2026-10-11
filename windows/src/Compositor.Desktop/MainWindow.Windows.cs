@@ -135,7 +135,7 @@ public sealed partial class MainWindow
             MinWidth = 76,
             Height = 26,
             FontSize = 12,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceControlBrush,
             BorderBrush = Skin.BorderControlBrush,
             BorderThickness = new Thickness(1),

@@ -30,7 +30,7 @@ internal sealed class CanvasSizeDialog : DialogWindow
             Width = 100,
             Height = 24,
             FontSize = 11.5,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceDarkBrush,
             BorderBrush = Skin.BorderControlBrush,
             Foreground = Skin.LabelBrush,
@@ -42,7 +42,7 @@ internal sealed class CanvasSizeDialog : DialogWindow
             Width = 100,
             Height = 24,
             FontSize = 11.5,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceDarkBrush,
             BorderBrush = Skin.BorderControlBrush,
             Foreground = Skin.LabelBrush,
@@ -59,7 +59,7 @@ internal sealed class CanvasSizeDialog : DialogWindow
         _anchor.Width = 140;
         _anchor.Height = 24;
         _anchor.FontSize = 11.5;
-        _anchor.CornerRadius = new CornerRadius(2);
+        _anchor.CornerRadius = new CornerRadius(7);
         _anchor.Background = Skin.SurfaceControlBrush;
         _anchor.BorderBrush = Skin.BorderControlBrush;
         _anchor.VerticalContentAlignment = VerticalAlignment.Center;
@@ -71,7 +71,7 @@ internal sealed class CanvasSizeDialog : DialogWindow
             MinWidth = 76,
             Height = 26,
             FontSize = 12,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.AccentBrush,
             BorderBrush = Skin.AccentBrush,
             BorderThickness = new Thickness(1),
@@ -85,7 +85,7 @@ internal sealed class CanvasSizeDialog : DialogWindow
             MinWidth = 76,
             Height = 26,
             FontSize = 12,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceControlBrush,
             BorderBrush = Skin.BorderControlBrush,
             BorderThickness = new Thickness(1),

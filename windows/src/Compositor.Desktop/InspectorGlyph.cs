@@ -10,7 +10,8 @@ internal sealed class InspectorGlyph(string kind) : Control
     protected override Size MeasureOverride(Size availableSize) => new(22, 22);
     public override void Render(DrawingContext context)
     {
-        var pen = new Pen(Skin.LabelBrush, 1.4);
+        if (EditorIcon.Draw(context, kind, Bounds.Size)) return;
+        var pen = new Pen(Skin.LabelBrush, 1.65) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
         void Line(double a, double b, double c, double d) => context.DrawLine(pen, new Point(a, b), new Point(c, d));
         if (kind.StartsWith("Align") || kind.StartsWith("Distribute"))
         {

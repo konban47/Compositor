@@ -23,7 +23,7 @@ public sealed partial class MainWindow
         Width = 145,
         Height = 24,
         FontSize = 11,
-        CornerRadius = new CornerRadius(2),
+        CornerRadius = new CornerRadius(7),
         Background = Skin.SurfaceDarkBrush,
         BorderBrush = Skin.BorderControlBrush,
         Foreground = Skin.LabelBrush,
@@ -34,7 +34,7 @@ public sealed partial class MainWindow
         Width = 115,
         Height = 24,
         FontSize = 11,
-        CornerRadius = new CornerRadius(2),
+        CornerRadius = new CornerRadius(7),
         Background = Skin.SurfaceControlBrush,
         BorderBrush = Skin.BorderControlBrush,
         SelectedIndex = 0,
@@ -48,7 +48,7 @@ public sealed partial class MainWindow
         Width = 70,
         Height = 24,
         FontSize = 11,
-        CornerRadius = new CornerRadius(2),
+        CornerRadius = new CornerRadius(7),
         Background = Skin.SurfaceDarkBrush,
         BorderBrush = Skin.BorderControlBrush,
         Foreground = Skin.LabelBrush,
@@ -88,7 +88,7 @@ public sealed partial class MainWindow
                 Width = 26,
                 Height = 24,
                 Padding = new Thickness(2),
-                CornerRadius = new CornerRadius(2),
+                CornerRadius = new CornerRadius(7),
                 Background = Brushes.Transparent,
                 BorderBrush = Skin.BorderControlBrush,
             };
@@ -133,7 +133,7 @@ public sealed partial class MainWindow
             Width = 32,
             Height = 26,
             Padding = new Thickness(2),
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
         };
@@ -300,6 +300,7 @@ internal sealed class PanelGlyph(string kind) : Control
     protected override Size MeasureOverride(Size availableSize) => new(20, 20);
     public override void Render(DrawingContext context)
     {
+        if (EditorIcon.Draw(context, kind, Bounds.Size)) return;
         var path = kind switch
         {
             "selection" => "M10,2 A8,8 0 0 1 18,10 M18,10 A8,8 0 0 1 10,18 M10,18 A8,8 0 0 1 2,10 M2,10 A8,8 0 0 1 10,2",

@@ -26,7 +26,7 @@ internal sealed class GuideDialog : DialogWindow
         _axis.Width = 180;
         _axis.Height = 24;
         _axis.FontSize = 11.5;
-        _axis.CornerRadius = new CornerRadius(2);
+        _axis.CornerRadius = new CornerRadius(7);
         _axis.Background = Skin.SurfaceControlBrush;
         _axis.BorderBrush = Skin.BorderControlBrush;
         _axis.VerticalContentAlignment = VerticalAlignment.Center;
@@ -36,7 +36,7 @@ internal sealed class GuideDialog : DialogWindow
             Width = 100,
             Height = 24,
             FontSize = 11.5,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceDarkBrush,
             BorderBrush = Skin.BorderControlBrush,
             Foreground = Skin.LabelBrush,
@@ -50,7 +50,7 @@ internal sealed class GuideDialog : DialogWindow
             MinWidth = 76,
             Height = 26,
             FontSize = 12,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.AccentBrush,
             BorderBrush = Skin.AccentBrush,
             BorderThickness = new Thickness(1),
@@ -64,7 +64,7 @@ internal sealed class GuideDialog : DialogWindow
             MinWidth = 76,
             Height = 26,
             FontSize = 12,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceControlBrush,
             BorderBrush = Skin.BorderControlBrush,
             BorderThickness = new Thickness(1),

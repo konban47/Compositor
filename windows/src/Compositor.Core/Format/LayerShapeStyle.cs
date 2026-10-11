@@ -24,7 +24,8 @@ public sealed class LayerShapeStyle
     public string? Path { get; set; }
 
     public bool IsValid =>
-        Kind != ShapeKind.Path || (Path is { Length: > 0 and <= 1_000_000 } && Parses(Path));
+        Kind != ShapeKind.Path || (Path is { Length: > 0 and <= 1_000_000 } && Parses(Path)
+            && (LineWidth is null || double.IsFinite(LineWidth.Value) && LineWidth is > 0 and <= 1000));
 
     private static bool Parses(string path) => SkiaSharp.SKPath.ParseSvgPathData(path) is not null;
 }

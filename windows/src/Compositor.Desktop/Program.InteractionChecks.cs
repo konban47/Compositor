@@ -124,7 +124,7 @@ public sealed partial class MainWindow
             Check(!_importingDrop && drop.Handled, "Shell drop did not finish.");
         }
         Check(document.Layers.Count == count + 2 && document.Layers[^1].Name == "桌面拖入", "Dropped files did not become image layers.");
-        Undo(); Undo();
+        Check(_placementTab is not null, "Drop did not enter placement mode."); FinishPlacement(true); Undo();
         SelectLayerRow(first.ID);
         var applying = ApplyFilter(FilterKind.Vignette);
         Dispatcher.UIThread.RunJobs();

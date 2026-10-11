@@ -268,6 +268,10 @@ public static class Shortcuts
         Canvas("Path selection tool", "A");
         Canvas("Rotate view tool", "R");
         Canvas("Zoom tool", "Z");
+        Canvas("Eraser tools", "E");
+        Canvas("Toning tools", "O");
+        Canvas("Pen tools", "P");
+        Canvas("Adjustment brush tool");
         Canvas("Quick Mask", "Q");
         Canvas("Swap foreground/background", "X");
         Canvas("Reset colors", "D");

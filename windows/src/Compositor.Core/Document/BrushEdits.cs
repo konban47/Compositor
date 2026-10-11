@@ -25,6 +25,7 @@ public enum BrushMode
     /// document-sized render supplied by the caller.
     /// </summary>
     History,
+    Pattern, ArtHistory, BackgroundErase, Sharpen, Dodge, Burn, Sponge,
 }
 
 /// <summary>How Spot Healing works out what to put in the painted area.</summary>
@@ -79,7 +80,16 @@ public sealed record BrushSettings(
     /// </summary>
     SKBitmap? History = null,
     /// <summary>Which way up the History Brush reads its source, so a rotated or flipped state still lines up.</summary>
-    SKPointI HistoryOffset = default);
+    SKPointI HistoryOffset = default,
+    double Strength = .5,
+    int ToneRange = 1,
+    bool Saturate = false,
+    double Tolerance = 32,
+    bool ProtectForeground = false,
+    bool ContinuousSampling = false,
+    SKBitmap? Pattern = null,
+    double PatternScale = 1,
+    int ArtStyle = 0);
 
 /// <summary>
 /// Painting a stroke into a layer's own pixels. Mouse samples arrive in document coordinates, so they are
@@ -161,7 +171,7 @@ public static class BrushEdits
             if (owned is null) return false;
             sample = owned;
         }
-        else if (settings.Mode == BrushMode.History)
+        else if (settings.Mode is BrushMode.History or BrushMode.ArtHistory)
         {
             sample = settings.History;
             if (sample is null || sample.Width < document.Width || sample.Height < document.Height) return false;
@@ -176,7 +186,9 @@ public static class BrushEdits
             using var source = SKImage.FromBitmap(asset.Image);
             canvas.DrawImage(source, SKRect.Create(0, 0, width, height), new SKSamplingOptions(SKFilterMode.Nearest), paint);
         }
-        var paintedNow = sample is not null
+        var paintedNow = settings.Mode >= BrushMode.Pattern
+            ? RetouchBrush.Apply(painted, coverage, settings, toDocument, toPixel.MapPoint(points[0]), points)
+            : sample is not null
             ? ApplySampled(painted, coverage, settings, sample, toDocument)
             : settings.Mode == BrushMode.Heal ? Heal(painted, coverage, settings) : Apply(painted, coverage, settings);
         if (!paintedNow)

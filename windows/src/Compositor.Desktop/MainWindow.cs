@@ -135,6 +135,7 @@ public sealed partial class MainWindow : Window
     private bool _showingAppearance;
     private bool _opacityDragging;
     private ClipboardImage? _clipboard;
+    private LayerClipboard? _layerClipboard;
     private FilterPreview? _preview;
     private DispatcherTimer? _previewTimer;
     private Func<CanvasDocument, bool>? _previewApply;
@@ -390,6 +391,10 @@ public sealed partial class MainWindow : Window
         _optionsBar.TextAsked += () => _ = EditText();
         _optionsBar.HistorySourceAsked += () => _ = SetHistoryBrushSource();
         _optionsBar.PathAsked += () => NewVectorMaskForPath();
+        _optionsBar.PatternAsked += () => _ = ChoosePattern();
+        _optionsBar.FinishPathAsked += () => FinishPen(); _optionsBar.CancelPathAsked += () => CancelPen();
+        _optionsBar.NewAdjustmentAsked += () => _adjustmentBrushLayer = null;
+        _optionsBar.AdjustmentBrushChanged += (kind, amount) => { _adjustmentBrushKind = kind; _adjustmentAmount = amount; };
         _canvas.NodeDragStarted = BeginPathDrag;
         _canvas.NodeMoved = MovePathNode;
         _canvas.NodeEdited = EditPathNode;
@@ -644,6 +649,26 @@ public sealed partial class MainWindow : Window
                         ToolItem("Custom Shape Tool", Tool.CustomShape),
                         ToolItem("Rotate View Tool", Tool.RotateView, "Rotate view tool"),
                         ToolItem("Zoom Tool", Tool.Zoom, "Zoom tool"),
+                        ToolItem("Pattern Stamp Tool", Tool.PatternStamp),
+                        ToolItem("Art History Brush Tool", Tool.ArtHistory),
+                        ToolItem("Eraser Tool", Tool.Eraser),
+                        ToolItem("Background Eraser Tool", Tool.BackgroundEraser),
+                        ToolItem("Magic Eraser Tool", Tool.MagicEraser),
+                        ToolItem("Paint Bucket Tool", Tool.Bucket),
+                        ToolItem("Sharpen Tool", Tool.Sharpen),
+                        ToolItem("Adjustment Brush Tool", Tool.AdjustmentBrush),
+                        ToolItem("Dodge Tool", Tool.Dodge),
+                        ToolItem("Burn Tool", Tool.Burn),
+                        ToolItem("Sponge Tool", Tool.Sponge),
+                        ToolItem("Pen Tool", Tool.Pen),
+                        ToolItem("Freeform Pen Tool", Tool.FreeformPen),
+                        ToolItem("Curvature Pen Tool", Tool.CurvaturePen),
+                        ToolItem("Add Anchor Point Tool", Tool.AddAnchor),
+                        ToolItem("Delete Anchor Point Tool", Tool.DeleteAnchor),
+                        ToolItem("Convert Point Tool", Tool.ConvertAnchor),
+                        ToolItem("Vertical Type Tool", Tool.VerticalType),
+                        ToolItem("Vertical Type Mask Tool", Tool.VerticalTypeMask),
+                        ToolItem("Horizontal Type Mask Tool", Tool.TypeMask),
                         Command("Customize Toolbar…", () => _ = CustomizeToolbar()),
                         Command("Shape Tool Options…", () => _ = ShapeOptions()),
                         Command("Quick Mask", ToggleQuickMask),
@@ -772,6 +797,7 @@ public sealed partial class MainWindow : Window
         DockPanel.SetDock(tabs, Dock.Top);
         // The options bar sits under the toolbar and over the canvas, as the Mac's tool header does.
         DockPanel.SetDock(_optionsBar, Dock.Top);
+        DockPanel.SetDock(_placementBar, Dock.Top);
         // Docking order is what decides which panel is outermost: the Camera Raw panel takes the window's own
         // right edge and the Layers panel steps aside while it is up, as the Mac's docked panel covers it.
         DockPanel.SetDock(_cameraRawHost, Dock.Right);
@@ -780,6 +806,7 @@ public sealed partial class MainWindow : Window
         root.Children.Add(menu);
         root.Children.Add(tabs);
         root.Children.Add(_optionsBar);
+        root.Children.Add(_placementBar);
         root.Children.Add(_cameraRawHost);
         root.Children.Add(_layersSide);
         root.Children.Add(statusBar);
@@ -791,7 +818,7 @@ public sealed partial class MainWindow : Window
         body.Children.Add(_rail);
         body.Children.Add(views);
         root.Children.Add(body);
-        _chrome = [menu, tabs, _optionsBar, _cameraRawHost, _layersSide, statusBar, _rail, _rulerAcross, _rulerDown, _rulerCorner];
+        _chrome = [menu, tabs, _optionsBar, _placementBar, _cameraRawHost, _layersSide, statusBar, _rail, _rulerAcross, _rulerDown, _rulerCorner];
         return root;
     }
 
@@ -803,11 +830,11 @@ public sealed partial class MainWindow : Window
     {
         var add = new Button
         {
-            Content = Localize.Text("＋"),
+            Content = new EditorIcon("plus") { Width = 16, Height = 16 },
             Height = 24,
             Width = 26,
             Padding = new Thickness(0),
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceControlBrush,
             BorderBrush = Skin.BorderControlBrush,
             BorderThickness = new Thickness(1),
@@ -848,10 +875,10 @@ public sealed partial class MainWindow : Window
     {
         var button = new Button
         {
-            Content = Localize.Text(text),
+            Content = text is "＋" or "−" ? new EditorIcon(text == "＋" ? "plus" : "minus") { Width = 16, Height = 16 } : Localize.Text(text),
             Height = 24,
             Padding = new Thickness(7, 2, 7, 2),
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceControlBrush,
             BorderBrush = Skin.BorderControlBrush,
             BorderThickness = new Thickness(1),
@@ -1162,18 +1189,22 @@ public sealed partial class MainWindow : Window
         Does("Lasso tool", () => ChooseTool(Tool.Lasso, Tool.Polygon), Shortcuts.Canvas);
         Does("Magic wand", () => ChooseTool(Tool.Wand, Tool.Object), Shortcuts.Canvas);
         Does("Brush tool", () => SetTool(Tool.Brush), Shortcuts.Canvas);
-        Does("Clone Stamp", () => SetTool(Tool.Clone), Shortcuts.Canvas);
-        Does("Blur / Smudge / Liquify", () => ChooseTool(Tool.Blur, Tool.Smudge, Tool.Liquify), Shortcuts.Canvas);
+        Does("Clone Stamp", () => ChooseTool(Tool.Clone, Tool.PatternStamp), Shortcuts.Canvas);
+        Does("Blur / Smudge / Liquify", () => ChooseTool(Tool.Blur, Tool.Sharpen, Tool.Smudge, Tool.Liquify), Shortcuts.Canvas);
         Does("Spot Healing", () => SetTool(Tool.Heal), Shortcuts.Canvas);
         Does("Eyedropper tool", () => SetTool(Tool.Eyedropper), Shortcuts.Canvas);
-        Does("Type tool", () => SetTool(Tool.Type), Shortcuts.Canvas);
+        Does("Type tool", () => ChooseTool(Tool.Type, Tool.VerticalType, Tool.VerticalTypeMask, Tool.TypeMask), Shortcuts.Canvas);
         Does("Crop tool", () => SetTool(Tool.Crop), Shortcuts.Canvas);
         Does("Shape tool", PickShapeTool, Shortcuts.Canvas);
-        Does("Gradient tool", () => SetTool(Tool.Gradient), Shortcuts.Canvas);
-        Does("History brush tool", () => SetTool(Tool.HistoryBrush), Shortcuts.Canvas);
+        Does("Gradient tool", () => ChooseTool(Tool.Gradient, Tool.Bucket), Shortcuts.Canvas);
+        Does("History brush tool", () => ChooseTool(Tool.HistoryBrush, Tool.ArtHistory), Shortcuts.Canvas);
         Does("Path selection tool", () => ChooseTool(Tool.PathSelection, Tool.Path), Shortcuts.Canvas);
         Does("Rotate view tool", () => SetTool(Tool.RotateView), Shortcuts.Canvas);
         Does("Zoom tool", () => SetTool(Tool.Zoom), Shortcuts.Canvas);
+        Does("Eraser tools", () => ChooseTool(Tool.Eraser, Tool.BackgroundEraser, Tool.MagicEraser), Shortcuts.Canvas);
+        Does("Toning tools", () => ChooseTool(Tool.Dodge, Tool.Burn, Tool.Sponge), Shortcuts.Canvas);
+        Does("Pen tools", () => ChooseTool(Tool.Pen, Tool.FreeformPen, Tool.CurvaturePen), Shortcuts.Canvas);
+        Does("Adjustment brush tool", () => SetTool(Tool.AdjustmentBrush), Shortcuts.Canvas);
         Does("Quick Mask", ToggleQuickMask, Shortcuts.Canvas);
         Does("Swap foreground/background", SwapColours, Shortcuts.Canvas);
         Does("Reset colors", ResetColours, Shortcuts.Canvas);
@@ -1203,9 +1234,9 @@ public sealed partial class MainWindow : Window
             When($"Move selected pixels {direction} 10 px", () => MovePixels(dx * 10, dy * 10), Shortcuts.Canvas);
         }
         When("Apply Canvas Operation",
-            () => { if (_cropFrame is null) return false; ApplyCrop(); return true; }, Shortcuts.Canvas);
+            () => { if (_placementTab is not null) { FinishPlacement(true); return true; } if (FinishPen()) return true; if (_cropFrame is null) return false; ApplyCrop(); return true; }, Shortcuts.Canvas);
         When("Cancel Canvas Operation",
-            () => { if (_cropFrame is null) return false; CancelCrop(); return true; }, Shortcuts.Canvas);
+            () => { if (_placementTab is not null) { FinishPlacement(false); return true; } if (CancelPen()) return true; if (_cropFrame is null) return false; CancelCrop(); return true; }, Shortcuts.Canvas);
     }
 
     /// <summary>
@@ -2728,8 +2759,7 @@ public sealed partial class MainWindow : Window
             }
             if (_message.Length == 0) throw new InvalidOperationException($"{tool} left the status line empty");
             // The options bar shows the rows this tool can be told about, and nothing else.
-            if (_optionsBar.Shows("brush") != (tool is Tool.Brush or Tool.Clone or Tool.Blur or Tool.Liquify
-                or Tool.Smudge or Tool.Heal or Tool.HistoryBrush))
+            if (_optionsBar.Shows("brush") != ToolCatalog.IsBrush(tool))
             {
                 throw new InvalidOperationException($"{tool} got the brush rows wrong");
             }
@@ -2817,6 +2847,8 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private Tab TabForNew()
     {
+        FinishPlacement(true);
+        FinishPen();
         CommitText();
         if (_open.Document is not null || _tabs.Count > 1)
         {
@@ -2836,8 +2868,10 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void Bring(Tab tab)
     {
+        if (_placementTab is not null && !ReferenceEquals(tab, _open)) FinishPlacement(true);
         if (!ReferenceEquals(tab, _open))
         {
+            FinishPen();
             _open.SelectedRow = _layers.SelectedIndex;
             StopPreview();
             _canvas.CancelDraft();
@@ -2886,8 +2920,9 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private async Task CloseTab(Tab tab)
     {
+        if (ReferenceEquals(tab, _placementTab)) FinishPlacement(true);
         if (_tabs.Count == 1 && tab.Document is null && tab.Path is null) return;
-        if (ReferenceEquals(tab, _open)) CommitText();
+        if (ReferenceEquals(tab, _open)) { FinishPen(); CommitText(); }
         if (!await MayReplace(tab)) return;
         var at = _tabs.IndexOf(tab);
         if (at < 0) return;
@@ -2932,7 +2967,7 @@ public sealed partial class MainWindow : Window
             name.Click += (_, _) => Bring(tab);
             var close = new Button
             {
-                Content = Localize.Text("×"),
+                Content = new EditorIcon("close") { Width = 12, Height = 12 },
                 Width = 16,
                 Height = 16,
                 Padding = new Thickness(0),
@@ -2968,7 +3003,7 @@ public sealed partial class MainWindow : Window
             Width = 20,
             Height = 20,
             Padding = new Thickness(0),
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceControlBrush,
             BorderBrush = Skin.BorderControlBrush,
             BorderThickness = new Thickness(1),
@@ -2987,6 +3022,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private async Task NewProject()
     {
+        FinishPlacement(true);
         if (await NewDocumentDialog.Ask(this) is not { } asked) return;
         var made = LayerPlacement.NewDocument(asked.Width, asked.Height, asked.Resolution);
         if (made is null)
@@ -3095,7 +3131,7 @@ public sealed partial class MainWindow : Window
         _blend.Width = 115;
         _blend.Height = 24;
         _blend.FontSize = 11;
-        _blend.CornerRadius = new CornerRadius(2);
+        _blend.CornerRadius = new CornerRadius(7);
         _blend.Background = Skin.SurfaceControlBrush;
         _blend.BorderBrush = Skin.BorderControlBrush;
         _blend.VerticalContentAlignment = VerticalAlignment.Center;
@@ -3417,16 +3453,19 @@ public sealed partial class MainWindow : Window
             Header = Localize.Text(header),
             ToggleType = MenuItemToggleType.CheckBox,
             IsChecked = tool == Tool.Pan,
+            Icon = ToolRail.Icon(tool),
         };
         item.Click += (_, _) => SetTool(tool);
         _toolItems[tool] = item;
-        ShowKey(item, key, Shortcuts.Canvas);
+        ShowKey(item, key ?? ToolCatalog.Shortcut(tool), Shortcuts.Canvas);
         return item;
     }
 
     private void SetTool(Tool tool)
     {
-        if (_open.ActiveAlpha is not null && (tool is Tool.Move or Tool.Type or Tool.Path or Tool.PathSelection || ToolCatalog.IsShape(tool)))
+        if (_pen is not null && !ToolCatalog.IsPen(tool)) FinishPen();
+        if (_placementTab is not null && tool != Tool.Move && tool != Tool.Pan) FinishPlacement(true);
+        if (_open.ActiveAlpha is not null && (tool is Tool.Move or Tool.AdjustmentBrush || ToolCatalog.IsType(tool) || ToolCatalog.IsPen(tool) || ToolCatalog.IsPathEditor(tool) || ToolCatalog.IsShape(tool)))
         { Say("Select RGB to use this command."); return; }
         _tool = tool;
         if (ToolCatalog.IsShape(tool)) ConfigureShapeTool(tool);
@@ -3438,8 +3477,8 @@ public sealed partial class MainWindow : Window
         // A colour range being picked takes the press whatever tool is in hand, so the canvas keeps sampling
         // until its panel is put away.
         _canvas.EyedropperOnClick = tool == Tool.Eyedropper || _colorRange is not null;
-        _canvas.TypeOnClick = tool == Tool.Type;
-        if (tool != Tool.Type) CommitText();
+        _canvas.TypeOnClick = ToolCatalog.IsType(tool);
+        if (!ToolCatalog.IsType(tool)) CommitText();
         _canvas.CropEnabled = tool == Tool.Crop;
         _canvas.ShapeEnabled = ToolCatalog.IsShape(tool);
         _canvas.GradientEnabled = tool == Tool.Gradient;
@@ -3455,11 +3494,11 @@ public sealed partial class MainWindow : Window
             if (CropEdits.Valid(held)) _cropFrame = held;
         }
         ShowCropBox();
-        _canvas.TransformEnabled = tool == Tool.Move;
+        _canvas.TransformEnabled = tool == Tool.Move && _placeMesh is null;
         _canvas.ShapePreviewFor = ToolCatalog.IsShape(tool) ? dragged => ShapePlan(dragged) : null;
         _canvas.GuidesDraggable = tool == Tool.Move;
         ShowTransformBox();
-        _canvas.PaintEnabled = tool is Tool.Brush or Tool.Clone or Tool.Blur or Tool.Liquify or Tool.Smudge or Tool.Heal or Tool.HistoryBrush;
+        _canvas.PaintEnabled = ToolCatalog.IsBrush(tool);
         PushBrush();
         SyncPathNodes();
         _canvas.Selection = tool switch
@@ -3504,7 +3543,8 @@ public sealed partial class MainWindow : Window
             Tool.Polygon => "Polygonal lasso — click each corner, double-click to close",
             Tool.Wand => "Magic wand — click a color; Tab switches to Object Selection",
             Tool.Object => "Object Selection — click a subject; Shift adds, Alt subtracts; Tab switches to Wand",
-            _ => "Pan — drag to scroll",
+            Tool.Pan => "Pan — drag to scroll",
+            _ => Localize.Text(ToolCatalog.Title(tool)),
         });
     }
 
@@ -3588,6 +3628,7 @@ public sealed partial class MainWindow : Window
             : null;
         _optionsBar.Show(_tool, _document is not null, layer?.Mask is not null);
         _optionsBar.ShowZoom(_canvas.Zoom * 100);
+        _optionsBar.IsVisible = _placementTab is null;
     }
 
     /// <summary>Puts the current brush, with the mode the tool in hand calls for, on the canvas. The rail's
@@ -3596,9 +3637,12 @@ public sealed partial class MainWindow : Window
     {
         _canvas.Brush = _options.Brush with
         {
-            Erasing = _options.Erase,
+            Erasing = _tool == Tool.Eraser || _tool == Tool.Brush && _options.Erase,
             Mode = _tool switch
             {
+                Tool.PatternStamp => BrushMode.Pattern, Tool.ArtHistory => BrushMode.ArtHistory,
+                Tool.BackgroundEraser => BrushMode.BackgroundErase, Tool.Sharpen => BrushMode.Sharpen,
+                Tool.Dodge => BrushMode.Dodge, Tool.Burn => BrushMode.Burn, Tool.Sponge => BrushMode.Sponge,
                 Tool.Clone => BrushMode.Clone,
                 Tool.Blur => BrushMode.Blur,
                 Tool.Heal => BrushMode.Heal,
@@ -4267,6 +4311,19 @@ public sealed partial class MainWindow : Window
     private void Copy()
     {
         if (_document is not { } document || Selected is not { } id) return;
+        CommitText();
+        if (document.Selection.Path is null)
+        {
+            try
+            {
+                var copiedLayers = LayerClipboard.Copy(document, SelectedLayers);
+                if (copiedLayers is null) return;
+                _layerClipboard = copiedLayers; _clipboard?.Dispose(); _clipboard = null;
+                Say("Layers copied. Switch to another document and paste.");
+            }
+            catch (Exception error) { Say($"Could not copy layers: {error.Message}"); }
+            return;
+        }
         var copied = SelectionClipboard.Copy(document, id);
         if (copied is null)
         {
@@ -4295,6 +4352,24 @@ public sealed partial class MainWindow : Window
     private void Cut()
     {
         if (_document is not { } document || Selected is not { } id) return;
+        if (document.Selection.Path is null)
+        {
+            var ids = LayerWorkflow.Members(document, SelectedLayers);
+            if (!LayerWorkflow.Editable(document, ids)) { Say("The layer is locked."); return; }
+            try
+            {
+                var copiedLayers = LayerClipboard.Copy(document, ids); if (copiedLayers is null) return;
+                if (!Edit("Cut Layers", () =>
+                {
+                    foreach (var layer in document.Layers.Where(l => !ids.Contains(l.ID)))
+                        if (layer.MaskSourceID is { } source && ids.Contains(source)) layer.MaskSourceID = null;
+                    return document.Layers.RemoveAll(l => ids.Contains(l.ID)) > 0;
+                })) return;
+                _layerClipboard = copiedLayers; _clipboard?.Dispose(); _clipboard = null; Refresh();
+            }
+            catch (Exception error) { Say($"Could not copy layers: {error.Message}"); }
+            return;
+        }
         ClipboardImage? copied;
         _history.Begin("Cut", document, Selected);
         try
@@ -4318,6 +4393,21 @@ public sealed partial class MainWindow : Window
     private void Paste()
     {
         if (_document is not { } document) return;
+        if (_layerClipboard is { } layers)
+        {
+            CommitText();
+            IReadOnlyList<Guid> madeLayers = [];
+            try
+            {
+                if (!Edit("Paste Layers", () => (madeLayers = layers.Paste(document, Selected)).Count > 0))
+                { Say("Could not paste layers. Check document limits and group locks."); return; }
+                Reselect(madeLayers[0]);
+                foreach (var madeID in madeLayers.Skip(1)) SelectLayerRow(madeID, true);
+                SetTool(Tool.Move); Say("Layers pasted with editable properties.");
+            }
+            catch (Exception error) { Say($"Could not paste layers: {error.Message}"); }
+            return;
+        }
         if (_clipboard is not { } clipboard)
         {
             Say("There is nothing to paste");
@@ -4368,6 +4458,7 @@ public sealed partial class MainWindow : Window
     /// <summary>The clipboard the window holds: one piece of the canvas at a time, as the Mac build keeps it.</summary>
     private void Adopt(ClipboardImage copied)
     {
+        _layerClipboard = null;
         _clipboard?.Dispose();
         _clipboard = copied;
     }
@@ -5186,7 +5277,9 @@ public sealed partial class MainWindow : Window
             return;
         }
         CommitText();
-        if (document.Layers.FirstOrDefault(layer => layer.Transform.Contains(origin) && layer.Text is not null)
+        _typeMaskSession = _tool is Tool.TypeMask or Tool.VerticalTypeMask;
+        _typeMaskPreviousLayer = _typeMaskSession ? Selected : null;
+        if (!_typeMaskSession && document.Layers.FirstOrDefault(layer => layer.Transform.Contains(origin) && layer.Text is not null)
             is { } target)
         {
             _text = TextSession.Editing(target);
@@ -5196,6 +5289,7 @@ public sealed partial class MainWindow : Window
         {
             _text = TextSession.New(new LayerTextStyle
             {
+                Vertical = _tool is Tool.VerticalType or Tool.VerticalTypeMask ? true : null,
                 Content = Localize.Text(""),
                 FontName = "Arial",
                 FontSize = 72,
@@ -5273,6 +5367,12 @@ public sealed partial class MainWindow : Window
         _canvas.EndText();
         if (_document is not { } document) return;
         var kept = session.Commit(document);
+        if (_typeMaskSession && kept is { } maskText)
+        {
+            SelectionEdits.SelectLayerPixels(document, maskText);
+            document.Layers.RemoveAll(l => l.ID == maskText); kept = _typeMaskPreviousLayer;
+        }
+        _typeMaskSession = false;
         _history.End(document, kept);
         if (kept is { } layer) Reselect(layer);
         else Refresh();
@@ -5283,7 +5383,7 @@ public sealed partial class MainWindow : Window
     private void CancelText()
     {
         if (_text is not { } session) return;
-        _text = null;
+        _text = null; _typeMaskSession = false;
         _canvas.EndText();
         if (_document is not { } document) return;
         session.Cancel(document);
@@ -5654,6 +5754,7 @@ public sealed partial class MainWindow : Window
         if (EditActiveAlpha("Paint Channel", (target, channel) => _tool is Tool.Liquify or Tool.Smudge
             ? WarpEdits.Warp(target, channel, stroke, Warp(_tool), settings)
             : BrushEdits.Paint(target, channel, stroke, settings))) return;
+        if (_tool == Tool.AdjustmentBrush) { PaintAdjustment(stroke); return; }
         if (Selected is not { } id) return;
         if (!LayerProtection.CanPaint(document, id)) { Say("The layer is locked."); return; }
         var name = _tool switch
@@ -5664,7 +5765,7 @@ public sealed partial class MainWindow : Window
             Tool.Smudge => "Smudge",
             Tool.Heal => "Spot Healing",
             Tool.HistoryBrush => "History Brush",
-            _ => "Brush",
+            _ => ToolCatalog.Title(_tool),
         };
         Edit(_options.PaintOnMask ? $"{name} on the mask" : name, () =>
         {
@@ -5672,7 +5773,7 @@ public sealed partial class MainWindow : Window
             {
                 // White reveals and black hides; the brush's Erase is what paints black, as the Mac build's
                 // paint-white switch does.
-                var value = _options.Erase ? 0 : 1;
+                var value = settings.Erasing ? 0 : 1;
                 return BrushEdits.PaintMask(document, id,
                     stroke, settings with { Red = value, Green = value, Blue = value, Erasing = false });
             }
@@ -5697,14 +5798,14 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private BrushSettings? BrushFor(IReadOnlyList<SKPoint> stroke)
     {
-        if (_tool == Tool.HistoryBrush)
+        if (_tool is Tool.HistoryBrush or Tool.ArtHistory)
         {
             if (_historyBrushSource is not { } history)
             {
                 Say("Choose a history state, then Set Source, before painting with the History Brush");
                 return null;
             }
-            return _canvas.Brush with { Mode = BrushMode.History, History = history };
+            return _canvas.Brush with { Mode = _tool == Tool.ArtHistory ? BrushMode.ArtHistory : BrushMode.History, History = history };
         }
         if (_tool != Tool.Clone) return _canvas.Brush;
         if (_cloneSource is not { } source)
@@ -5770,7 +5871,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Loads the selected layer's vector mask nodes so the Path tool can show and drag them.</summary>
     private void SyncPathNodes()
     {
-        var layer = _tool is Tool.Path or Tool.PathSelection && _document is { } document && Selected is { } id
+        var layer = ToolCatalog.IsPathEditor(_tool) && _document is { } document && Selected is { } id
             ? document.Layers.FirstOrDefault(item => item.ID == id) : null;
         _shapePath = layer?.LiveShape is not null && !MaskTarget;
         PathNodes? nodes = null;
@@ -5927,6 +6028,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Repaints the canvas and says where the history stands.</summary>
     private void Refresh()
     {
+        UpdatePlacementBar();
         UpdateChannelView();
         _canvas.InvalidateVisual();
         UpdateLayerMenu();

@@ -16,6 +16,7 @@ public sealed class DesktopApp : Application
         RequestedThemeVariant = ThemeVariant.Dark;
         _theme = new FluentTheme();
         Styles.Add(_theme);
+        EditorTheme.Apply(Styles);
     }
 
     private FluentTheme? _theme;

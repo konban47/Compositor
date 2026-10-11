@@ -1094,6 +1094,7 @@ public sealed partial class CanvasView : Control
         DrawDraft(context);
         DrawCrop(context);
         DrawTransform(context);
+        EditingOverlay?.Invoke(context, ToScreen);
         DrawNodes(context);
         if (_document?.Selection.Path is not { } path || path.IsEmpty) return;
         // A white line with a black dashed one over it, as the Mac's overlay draws the marching ants.
@@ -1442,6 +1443,7 @@ public sealed partial class CanvasView : Control
     {
         Focus();
         var properties = e.GetCurrentPoint(this).Properties;
+        if (properties.IsRightButtonPressed) ContextPoint = ToDocument(e.GetPosition(this));
         if (NavigatorPress(e) || ViewToolPress(e)) return;
         if (properties.IsMiddleButtonPressed || (PanEnabled && properties.IsLeftButtonPressed && !UprightDrawing && !EyedropperOnClick))
         {
@@ -1452,6 +1454,10 @@ public sealed partial class CanvasView : Control
             e.Pointer.Capture(this);
             e.Handled = true;
             return;
+        }
+        if (properties.IsLeftButtonPressed && CustomPressed?.Invoke(ToDocument(e.GetPosition(this)), e.KeyModifiers, e.ClickCount) == true)
+        {
+            _customDragging = true; e.Pointer.Capture(this); e.Handled = true; return;
         }
         // A Camera Raw guide comes before everything: the panel has asked to draw lines on the picture, and
         // nothing else the canvas does should happen while the pointer is down.
@@ -1670,6 +1676,7 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
+        if (_customDragging) { _customDragging = false; CustomReleased?.Invoke(); }
         _rotatingView = false;
         _dragging = null; _zoomDragging = false; _navigatorDragging = false;
         Cursor = PanEnabled ? new Cursor(StandardCursorType.Hand) : null;
@@ -1694,6 +1701,7 @@ public sealed partial class CanvasView : Control
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         var now = e.GetPosition(this);
+        if (_customDragging) { CustomMoved?.Invoke(ToDocument(now), e.KeyModifiers); e.Handled = true; return; }
         // Every move is reported, whatever the drag in hand is, so a readout that follows the pointer does not
         // stop while a stroke is being painted.
         if (ViewToolMove(e)) return;
@@ -1849,6 +1857,7 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
+        if (_customDragging) { _customDragging = false; CustomReleased?.Invoke(); e.Pointer.Capture(null); e.Handled = true; return; }
         if (_nodeDragging)
         {
             _nodeDragging = false;

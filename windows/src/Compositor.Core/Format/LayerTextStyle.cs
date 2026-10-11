@@ -3,6 +3,7 @@ namespace Compositor.Core.Format;
 /// <summary>An editable text layer's metadata; the PNG remains the display and export fallback.</summary>
 public sealed class LayerTextStyle
 {
+    public bool? Vertical { get; set; }
     public string Content { get; set; } = "Text";
     public string FontName { get; set; } = "Helvetica";
     public double FontSize { get; set; } = 72;

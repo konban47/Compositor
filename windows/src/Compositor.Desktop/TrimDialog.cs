@@ -31,7 +31,7 @@ internal sealed class TrimDialog : DialogWindow
         _basedOn.Width = 200;
         _basedOn.Height = 24;
         _basedOn.FontSize = 11.5;
-        _basedOn.CornerRadius = new CornerRadius(2);
+        _basedOn.CornerRadius = new CornerRadius(7);
         _basedOn.Background = Skin.SurfaceControlBrush;
         _basedOn.BorderBrush = Skin.BorderControlBrush;
         _basedOn.VerticalContentAlignment = VerticalAlignment.Center;
@@ -57,7 +57,7 @@ internal sealed class TrimDialog : DialogWindow
             MinWidth = 76,
             Height = 26,
             FontSize = 12,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.AccentBrush,
             BorderBrush = Skin.AccentBrush,
             BorderThickness = new Thickness(1),
@@ -71,7 +71,7 @@ internal sealed class TrimDialog : DialogWindow
             MinWidth = 76,
             Height = 26,
             FontSize = 12,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceControlBrush,
             BorderBrush = Skin.BorderControlBrush,
             BorderThickness = new Thickness(1),

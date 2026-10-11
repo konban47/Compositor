@@ -18,7 +18,7 @@ namespace Compositor.Core.Document;
 /// ligatures, kerning and right-to-left order come out as the font intends.
 /// </para>
 /// </summary>
-public static class TextEdits
+public static partial class TextEdits
 {
     /// <summary>The room left around the text inside its layer, as the Mac build leaves it.</summary>
     public const double Padding = 12;
@@ -303,6 +303,7 @@ public static class TextEdits
     private static List<Piece> Layout(LayerTextStyle style, TextVariables? variables,
         out double measuredWidth, out double measuredHeight, List<Stop>? stops = null)
     {
+        if (style.Vertical == true) return VerticalLayout(style, variables, out measuredWidth, out measuredHeight, stops);
         var pieces = new List<Piece>();
         var content = Content(style, variables);
         var colours = Colours(style, content.Length);

@@ -24,6 +24,7 @@ public sealed partial class MainWindow
 
     private void InitializeInteraction()
     {
+        InitializeEditing();
         _canvas.MoveTargetPressed = SelectMoveTarget;
         DragDrop.SetAllowDrop(_canvas, true);
         _canvas.AddHandler(DragDrop.DragOverEvent, CanvasDragOver);
@@ -66,8 +67,11 @@ public sealed partial class MainWindow
     {
         if (_importingDrop) return;
         _importingDrop = true;
+        FinishPlacement(true);
         CommitText();
         var target = _open;
+        var before = target.Document?.Clone(); var selected = Selected;
+        if (before is not null) target.History.Begin("Place Images", target.Document, selected);
         try
         {
             foreach (var path in paths.Where(CanDropPath))
@@ -78,11 +82,22 @@ public sealed partial class MainWindow
             }
         }
         catch (Exception error) { Say($"Could not import that image: {error.Message}"); }
-        finally { _importingDrop = false; }
+        finally
+        {
+            _importingDrop = false;
+            if (before is not null)
+            {
+                var old = before.Layers.Select(l => l.ID).ToHashSet();
+                var added = target.Document?.Layers.Where(l => !old.Contains(l.ID)).Select(l => l.ID).ToHashSet() ?? [];
+                if (added.Count > 0 && _tabs.Contains(target)) BeginPlacement(target, before, selected, added);
+                else target.History.End(target.Document, selected);
+            }
+        }
     }
 
     private void SelectMoveTarget(SKPoint point, KeyModifiers modifiers)
     {
+        if (_placementTab is not null) return;
         if (_document is not { } document) return;
         if (MaskTarget && PropertyLayer?.Mask?.IsLinked == false && PropertyLayer.MaskTransform.Contains(point)) return;
         // Handles retain the current transform. Interior clicks pick the top visible pixel, including overlapping layers.

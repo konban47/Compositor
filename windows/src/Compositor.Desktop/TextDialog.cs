@@ -18,7 +18,7 @@ internal sealed class TextDialog : DialogWindow
         AcceptsReturn = true,
         Height = 120,
         FontSize = 12,
-        CornerRadius = new CornerRadius(2),
+        CornerRadius = new CornerRadius(7),
         Background = Skin.SurfaceDarkBrush,
         BorderBrush = Skin.BorderControlBrush,
         Foreground = Skin.LabelBrush,
@@ -33,7 +33,7 @@ internal sealed class TextDialog : DialogWindow
     {
         Height = 24,
         FontSize = 11.5,
-        CornerRadius = new CornerRadius(2),
+        CornerRadius = new CornerRadius(7),
         Background = Skin.SurfaceControlBrush,
         BorderBrush = Skin.BorderControlBrush,
         VerticalContentAlignment = VerticalAlignment.Center,
@@ -44,7 +44,7 @@ internal sealed class TextDialog : DialogWindow
     {
         Height = 24,
         FontSize = 11.5,
-        CornerRadius = new CornerRadius(2),
+        CornerRadius = new CornerRadius(7),
         Background = Skin.SurfaceDarkBrush,
         BorderBrush = Skin.BorderControlBrush,
         Foreground = Skin.LabelBrush,
@@ -78,7 +78,7 @@ internal sealed class TextDialog : DialogWindow
             MinWidth = 76,
             Height = 26,
             FontSize = 12,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.AccentBrush,
             BorderBrush = Skin.AccentBrush,
             BorderThickness = new Thickness(1),
@@ -92,7 +92,7 @@ internal sealed class TextDialog : DialogWindow
             MinWidth = 76,
             Height = 26,
             FontSize = 12,
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             Background = Skin.SurfaceControlBrush,
             BorderBrush = Skin.BorderControlBrush,
             BorderThickness = new Thickness(1),
@@ -156,7 +156,10 @@ internal sealed class TextDialog : DialogWindow
             Bold = original.Bold, Italic = original.Italic, Underline = original.Underline, Strikethrough = original.Strikethrough,
             BoxSize = original.BoxSize,
             ColorRuns = original.ColorRuns,
-            FontRuns = original.FontRuns,
+            FontRuns = original.FontRuns, Vertical = original.Vertical,
+            SmallCaps = original.SmallCaps, AllCaps = original.AllCaps, Superscript = original.Superscript, Subscript = original.Subscript,
+            Ligatures = original.Ligatures, Kerning = original.Kerning, Features = original.Features, Direction = original.Direction,
+            ComplexShaping = original.ComplexShaping, Language = original.Language, Dynamic = original.Dynamic,
         };
         if (Number(_size.Text, 1, 2000) is not { } size) return;
         style.FontSize = size;

@@ -25,7 +25,7 @@ internal sealed class ToolRail : Grid
     private ToolbarLayout _layout = ToolCatalog.Defaults();
     public event Action? CustomizeRequested, QuickMaskRequested, ScreenModeRequested, GenerativeRequested;
     internal ToolbarLayout Layout => _layout;
-    internal static Control Icon(Tool tool) => new Glyph { Kind = tool, Width = 22, Height = 22 };
+    internal static Control Icon(Tool tool) => new EditorIcon(tool.ToString()) { Width = 22, Height = 22 };
     public void ApplyLayout(ToolbarLayout layout)
     {
         _layout = layout.Copy(); _buttons.Clear(); _groups.Clear(); Children.Clear();
@@ -99,8 +99,8 @@ internal sealed class ToolRail : Grid
         foreach (var (button, tools) in _groups)
         {
             var active = tools.Contains(tool);
-            button.Background = active ? Skin.SurfaceControlPressedBrush : Brushes.Transparent;
-            button.BorderBrush = active ? Skin.AccentBrush : Brushes.Transparent;
+            button.Background = active ? new SolidColorBrush(Color.Parse("#1FFFFFFF")) : Brushes.Transparent;
+            button.BorderBrush = active ? new SolidColorBrush(Color.Parse("#24FFFFFF")) : Brushes.Transparent;
             button.BorderThickness = new Thickness(active ? 1 : 0);
             if (active) { button.Tag = tool; button.Content = GroupIcon(tool, tools.Count > 1); }
         }
@@ -138,7 +138,7 @@ internal sealed class ToolRail : Grid
             var description = tool == Tool.Zoom ? "Zoom — click to zoom in; Alt-click to zoom out; double-click for 100%" : tool == Tool.RotateView ? "Rotate View — drag to rotate; Shift snaps to 15°; double-click to reset" : Names.GetValueOrDefault(tool, ToolCatalog.Title(tool));
             var parts = Localize.Text(description).Split('—', 2, StringSplitOptions.TrimEntries);
             var tip = Localize.Text(ToolCatalog.Title(tool)) + (key.Length > 0 ? $"({key})" : "")
-                + (parts.Length > 1 ? ": " + parts[1] : "");
+                + (ToolCatalog.Help(tool) is { } help ? ": " + Localize.Text(help) : parts.Length > 1 ? ": " + parts[1] : "");
             ToolTip.SetTip(button, tip);
             Avalonia.Automation.AutomationProperties.SetName(button, tip);
         }
@@ -182,7 +182,7 @@ internal sealed class ToolRail : Grid
                 Tag = group[0],
                 Width = 44,
                 Height = 34,
-                CornerRadius = new CornerRadius(3),
+                CornerRadius = new CornerRadius(7),
                 Padding = new Thickness(0),
                 HorizontalContentAlignment = HorizontalAlignment.Center,
                 VerticalContentAlignment = VerticalAlignment.Center,
@@ -261,7 +261,7 @@ internal sealed class ToolRail : Grid
             Width = 24,
             Height = 24,
             Padding = new Thickness(0),
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch,
             BorderThickness = new Thickness(1),
@@ -282,7 +282,7 @@ internal sealed class ToolRail : Grid
             Width = 20,
             Height = 18,
             Padding = new Thickness(0),
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = new CornerRadius(7),
             FontSize = 11,
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,

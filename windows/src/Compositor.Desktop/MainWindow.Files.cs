@@ -11,7 +11,8 @@ public sealed partial class MainWindow
 {
     private async Task SaveTab(Tab tab, bool asNew)
     {
-        if (ReferenceEquals(tab, _open)) CommitText();
+        if (ReferenceEquals(tab, _placementTab)) FinishPlacement(true);
+        if (ReferenceEquals(tab, _open)) { FinishPen(); CommitText(); }
         if (tab.Document is null) return;
         if (!asNew && SaveSmartContents(tab)) return;
         if (tab.Saving is { } pending) { await pending; return; }
