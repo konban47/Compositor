@@ -32,7 +32,7 @@ The model runs locally on the CPU. Images are not sent to an external inference 
 | Inter font | via Avalonia.Fonts.Inter 12.1.3 | SIL OFL; [rsms/inter](https://github.com/rsms/inter). |
 | SkiaSharp | 4.152.1 | MIT / BSD and third-party notices; [mono/SkiaSharp](https://github.com/mono/SkiaSharp). `licenses/SkiaSharp-LICENSE.txt`. |
 | ONNX Runtime | 1.30.0 | MIT; [microsoft/onnxruntime](https://github.com/microsoft/onnxruntime). Full LICENSE and ThirdPartyNotices copied from its NuGet package. |
-| Magick.NET Q8 | 14.17.2 | Apache-2.0 / ImageMagick and delegate licenses; [dlemstra/Magick.NET](https://github.com/dlemstra/Magick.NET). Full package Notice.txt included as `licenses/ImageMagick-NOTICE.txt`. |
+| Magick.NET Q16-HDRI | 14.17.2 | Apache-2.0 / ImageMagick and delegate licenses; [dlemstra/Magick.NET](https://github.com/dlemstra/Magick.NET). Full package Notice.txt included as `licenses/ImageMagick-NOTICE.txt`. |
 | LibTiff.NET | 2.4.660 | BSD-3-Clause; [BitMiracle/libtiff.net](https://github.com/BitMiracle/libtiff.net). |
 | Svg.Skia | 5.2.3 | MIT; [wieslawsoltes/Svg.Skia](https://github.com/wieslawsoltes/Svg.Skia). Its transitive dependencies retain their own licenses. |
 | Sdcb.LibRaw | 0.21.1.7 | MIT, copyright Zhou Jie; [source commit](https://github.com/sdcb/Sdcb.LibRaw/tree/43e9c1771c2b1387c2170e084e433d8bcef51cab). |
@@ -43,3 +43,5 @@ The model runs locally on the CPU. Images are not sent to an external inference 
 `licenses/nuget-packages.json` records the restored package versions, source URLs, license declarations and copyright metadata. Third-party licenses apply to those components independently of the application's MIT license. Build/test-only packages are not part of the application runtime. Inno Setup is a build tool; its generated installer contains its own engine and standard translated installer messages.
 
 The installer Chinese translation is vendored unmodified from [jrsoftware/issrc, ChineseSimplified.isl](https://github.com/jrsoftware/issrc/blob/main/Files/Languages/ChineseSimplified.isl). Its original translator credits and terms are retained in the file header.
+
+Windows 1.4.10.0 merges upstream macOS 1.4.10 through `f01e2980fb76eb085d3f8ac96070a1c0c4a9afa9`. The Windows ICO embeds the upstream app icon PNG frames at 16/32/64/128/256 pixels without redrawing. High precision pixels, portable RAW controls and preview behavior are adapted to Skia/LibRaw; the upstream Metal/Core Image and newer PatchMatch kernels are retained as source, not represented as Windows binaries. See [the feature mapping](UPDATES-1.4.10.0.md).

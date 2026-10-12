@@ -62,13 +62,16 @@ public static partial class TextEdits
         var image = new SKBitmap(Bitmaps.ColorInfo(width, height));
         image.Erase(SKColors.Transparent);
         using var canvas = new SKCanvas(image);
-        using var paint = new SKPaint { IsAntialias = true };
+        using var paint = new SKPaint { IsAntialias = style.Layout?.Smoothing != TextSmoothing.None };
         foreach (var piece in pieces)
         {
             paint.Color = piece.Colour;
             using var font = new SKFont(piece.Typeface, (float)(style.FontSize * piece.Scale))
             {
-                Embolden = style.Bold == true,
+                ScaleX = piece.Horizontal,
+                Edging = style.Layout?.Smoothing == TextSmoothing.None ? SKFontEdging.Alias : SKFontEdging.Antialias,
+                Hinting = style.Layout?.Smoothing is TextSmoothing.Sharp or TextSmoothing.Crisp ? SKFontHinting.Full : SKFontHinting.Normal,
+                Embolden = style.Bold == true || style.Layout?.Smoothing == TextSmoothing.Strong,
                 SkewX = style.Italic == true ? -.25f : 0,
             };
             if (piece.Shaped)
@@ -107,7 +110,10 @@ public static partial class TextEdits
         {
             using var font = new SKFont(piece.Typeface, (float)(style.FontSize * piece.Scale))
             {
-                Embolden = style.Bold == true,
+                ScaleX = piece.Horizontal,
+                Edging = style.Layout?.Smoothing == TextSmoothing.None ? SKFontEdging.Alias : SKFontEdging.Antialias,
+                Hinting = style.Layout?.Smoothing is TextSmoothing.Sharp or TextSmoothing.Crisp ? SKFontHinting.Full : SKFontHinting.Normal,
+                Embolden = style.Bold == true || style.Layout?.Smoothing == TextSmoothing.Strong,
                 SkewX = style.Italic == true ? -.25f : 0,
             };
             if (piece.Shaped)
@@ -294,7 +300,7 @@ public static partial class TextEdits
 
     /// <summary>One run to draw, with the face and colour it is set in, where it goes and how big it is.</summary>
     private readonly record struct Piece(string Text, SKTypeface Typeface, SKColor Colour, float X, float Y,
-        float Scale, float Shift, float Width, bool Shaped, ushort[]? Glyphs, SKPoint[]? Positions);
+        float Scale, float Shift, float Width, bool Shaped, ushort[]? Glyphs, SKPoint[]? Positions, float Horizontal = 1);
 
     /// <summary>
     /// The text laid out: every run with its place, and how big the whole paragraph came out. Lines break
@@ -303,23 +309,46 @@ public static partial class TextEdits
     private static List<Piece> Layout(LayerTextStyle style, TextVariables? variables,
         out double measuredWidth, out double measuredHeight, List<Stop>? stops = null)
     {
+        var options = style.Layout ?? new(); var sx = options.HorizontalScale / 100; var sy = options.VerticalScale / 100;
+        var natural = Copy(style);
+        if (natural.BoxSize is { } box) natural.BoxSize = new JsonSize { Width = (box.Width - Padding * 2) / sx + Padding * 2, Height = (box.Height - Padding * 2) / sy + Padding * 2 };
+        var pieces = NaturalLayout(natural, variables, out measuredWidth, out measuredHeight, stops);
+        for (var i = 0; i < pieces.Count; i++)
+        {
+            var p = pieces[i]; pieces[i] = p with { X = (float)(Padding + (p.X - Padding) * sx),
+                Y = (float)(Padding + (p.Y - Padding - options.BaselineShift) * sy), Width = (float)(p.Width * sx),
+                Scale = (float)(p.Scale * sy), Horizontal = (float)(sx / sy),
+                Positions = p.Positions?.Select(v => new SKPoint((float)(v.X * sx), (float)(v.Y * sy))).ToArray() };
+        }
+        if (stops is not null) for (var i = 0; i < stops.Count; i++) stops[i] = stops[i] with {
+            X = (float)(Padding + (stops[i].X - Padding) * sx), Y = (float)(Padding + (stops[i].Y - Padding - options.BaselineShift) * sy) };
+        measuredWidth *= sx; measuredHeight *= sy; return pieces;
+    }
+
+    private static List<Piece> NaturalLayout(LayerTextStyle style, TextVariables? variables,
+        out double measuredWidth, out double measuredHeight, List<Stop>? stops)
+    {
         if (style.Vertical == true) return VerticalLayout(style, variables, out measuredWidth, out measuredHeight, stops);
         var pieces = new List<Piece>();
         var content = Content(style, variables);
         var colours = Colours(style, content.Length);
         var fonts = Fonts(style, content.Length);
+        var options = style.Layout ?? new();
         var lineHeight = style.LineHeight;
         // Where the lines have to fit: the paragraph box less its padding, or no limit at all for point text.
-        var limit = style.BoxSize is { } box ? Math.Max(1, box.Width - Padding * 2) : double.PositiveInfinity;
+        var limit = style.BoxSize is { } box ? Math.Max(1, box.Width - Padding * 2 - options.LeftIndent - options.RightIndent) : double.PositiveInfinity;
         var baseline = Baseline(style);
 
         measuredWidth = 0;
-        var line = 0;
+        var yOffset = 0.0;
         foreach (var (start, length) in Lines(content))
         {
-            foreach (var (from, to) in Wrap(content, start, length, style, fonts, colours, limit))
+            yOffset += options.SpaceBefore;
+            foreach (var (from, to) in Wrap(content, start, length, style, fonts, colours, Math.Max(1, limit - Math.Max(0, options.FirstLineIndent))))
             {
-                var y = (float)(Padding + line * lineHeight + baseline);
+                var indent = options.LeftIndent + (from == start ? options.FirstLineIndent : 0);
+                var available = limit - (from == start ? options.FirstLineIndent : 0);
+                var y = (float)(Padding + yOffset + baseline);
                 var linePieces = new List<Piece>();
                 var lineStops = new List<Stop>();
                 if (Shapes(style, content, from, to) || NeedsReorder(content, from, to))
@@ -328,17 +357,30 @@ public static partial class TextEdits
                     BuildPlain(content, from, to, style, fonts, colours, y, linePieces, lineStops);
 
                 var width = linePieces.Count == 0 ? 0 : linePieces[^1].X + linePieces[^1].Width;
-                var offset = AlignmentOffset(style.Alignment, limit, width);
-                var shift = (float)(Padding + offset);
+                var alignment = style.Alignment;
+                if (options.Justification != TextJustification.None && double.IsFinite(available))
+                {
+                    if ((to < start + length || options.Justification == TextJustification.All) && width > 0 && available > width)
+                    {
+                        var factor = available / width;
+                        for (var i = 0; i < linePieces.Count; i++) { var p = linePieces[i]; linePieces[i] = p with { X = (float)(p.X * factor), Width = (float)(p.Width * factor), Positions = p.Positions?.Select(v => new SKPoint((float)(v.X * factor), v.Y)).ToArray() }; }
+                        for (var i = 0; i < lineStops.Count; i++) lineStops[i] = lineStops[i] with { X = (float)(lineStops[i].X * factor) };
+                        width = (float)available;
+                    }
+                    alignment = options.Justification switch { TextJustification.LastCenter => TextAlignment.Center, TextJustification.LastRight => TextAlignment.Right, _ => TextAlignment.Left };
+                }
+                var offset = AlignmentOffset(alignment, available, width);
+                var shift = (float)(Padding + indent + offset);
                 for (var index = 0; index < linePieces.Count; index++) linePieces[index] = linePieces[index] with { X = linePieces[index].X + shift };
                 for (var index = 0; index < lineStops.Count; index++) lineStops[index] = lineStops[index] with { X = lineStops[index].X + shift };
                 pieces.AddRange(linePieces);
                 stops?.AddRange(lineStops);
-                measuredWidth = Math.Max(measuredWidth, width);
-                line++;
+                measuredWidth = Math.Max(measuredWidth, width + indent + options.RightIndent);
+                yOffset += lineHeight;
             }
+            yOffset += options.SpaceAfter;
         }
-        measuredHeight = line * lineHeight;
+        measuredHeight = yOffset;
         return pieces;
     }
 
@@ -550,7 +592,7 @@ public static partial class TextEdits
     private static double Advance(string text, SKTypeface typeface, LayerTextStyle style, float scale)
     {
         using var font = new SKFont(typeface, (float)(style.FontSize * scale)) { Embolden = style.Bold == true, SkewX = style.Italic == true ? -.25f : 0 };
-        return font.MeasureText(text) + style.Tracking;
+        return font.MeasureText(text) + style.Tracking - (IsCjk(text) ? style.FontSize * (style.Layout?.Tsume ?? 0) / 100 : 0);
     }
 
     /// <summary>The lines of the content, as (start, length) into it. A break is a newline, in any of its forms.</summary>
@@ -603,12 +645,12 @@ public static partial class TextEdits
             if (width + tokenWidth > limit && at > from)
             {
                 var breakAt = at;
-                while (breakAt < end && NoLineStart(content[breakAt]))
+                while (style.Layout?.Kinsoku != false && breakAt < end && NoLineStart(content[breakAt]))
                 {
                     NextElement(content, breakAt, end, out var step);
                     breakAt += step;
                 }
-                if (breakAt > from && breakAt <= at && NoLineEnd(content[breakAt - 1]))
+                if (style.Layout?.Kinsoku != false && breakAt > from && breakAt <= at && NoLineEnd(content[breakAt - 1]))
                 {
                     NextElement(content, breakAt - 1, end, out var back);
                     breakAt -= back;
@@ -727,6 +769,7 @@ public static partial class TextEdits
     /// <summary>A copy of a style, so an edit does not change the layer it came from.</summary>
     internal static LayerTextStyle Copy(LayerTextStyle style) => new()
     {
+        Layout = style.Layout, Vertical = style.Vertical,
         Content = style.Content,
         FontName = style.FontName,
         FontSize = style.FontSize,

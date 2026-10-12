@@ -9,7 +9,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.30.0" />
     <PackageReference Include="BitMiracle.LibTiff.NET" Version="2.4.660" />
-    <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="14.17.2" />
+    <PackageReference Include="Magick.NET-Q16-HDRI-AnyCPU" Version="14.17.2" />
     <PackageReference Include="Sdcb.LibRaw" Version="0.21.1.7" />
     <PackageReference Include="Sdcb.LibRaw.runtime.win64" Version="0.21.1" />
     <PackageReference Include="SkiaSharp" Version="4.152.1" />

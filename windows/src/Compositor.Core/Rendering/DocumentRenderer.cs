@@ -59,6 +59,7 @@ public static partial class DocumentRenderer
         if (wanted.Width <= 0 || wanted.Height <= 0) return result;
         var grown = SKRectI.Intersect(Inflate(wanted, Halo(document)), canvas);
         using var bitmap = Allocate(grown.Width, grown.Height);
+        if (document.Image.Background is { } background) bitmap.Erase((SKColor)background);
         new Renderer(document, bitmap, grown).Draw();
         using var surface = new SKCanvas(result);
         using var paint = new SKPaint { BlendMode = SKBlendMode.Src };

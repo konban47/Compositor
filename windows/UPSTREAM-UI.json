@@ -1,24 +1,24 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "b4bfdea87f9dc0cbc9eabfa63683eb1b9c2bca60",
+  "commit": "f01e2980fb76eb085d3f8ac96070a1c0c4a9afa9",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
     {
       "path": "Compositor/UI/BrushControls.swift",
-      "sha256": "cfeb09d23f468d12439306eff50f1f18eac8e64dccbdeb7d174ec846e74d0044"
+      "sha256": "5c4ba6512b4782c63945824b3554cfa2cab5d85f391e267efe9878fa187ef4d3"
     },
     {
       "path": "Compositor/UI/GradientControls.swift",
-      "sha256": "a24ba69b2297b3e0d9e28dfa7a5e0834a7cfd22a071e14fec1e71b77f0c43b47"
+      "sha256": "7ccc03c97a42894585f480315016d1f79754d80f50233aefa99766f389eeb722"
     },
     {
       "path": "Compositor/UI/LassoControls.swift",
-      "sha256": "0c597e0826ab2d74ef0d1772e65db0dc01c80c53ae750c3219a7029a65a8ba68"
+      "sha256": "ab6a5b292e8cae3cb8f62db4ae9771aa86d06d688e3fb9ac227f3643c5fddb35"
     },
     {
       "path": "Compositor/ContentView.swift",
-      "sha256": "a510b9b196222576c1e10dc68c1904061f7c3b8444a031bae6bc5fc58e958d2a"
+      "sha256": "410dbf6eeb1ff35c6ac6ade35c47cab1fbc14a99a77652471189ea1560f4fd81"
     },
     {
       "path": "Compositor/UI/ToolHeaderStyle.swift",
@@ -26,7 +26,7 @@
     },
     {
       "path": "Compositor/Document/EditorSession.swift",
-      "sha256": "981ac92762cfdfa16c57c55e24d2c3075f2753d064ff03b9b90dd14e63026ec7"
+      "sha256": "17aa37a0af407f17b5635297b229614fefe089cd74f9d3ddc63cfc0f04e7ad66"
     }
   ],
   "directPorts": [

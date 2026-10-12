@@ -19,6 +19,10 @@ public sealed class ImportedImage : IDisposable
     public SKBitmap Image { get; private set; }
     public SKBitmap Thumbnail { get; private set; }
     public string Name { get; private set; }
+    public Compositor.Core.Format.ImageMode ColorMode { get; set; } = Compositor.Core.Format.ImageMode.RGB;
+    public SKBitmap? Deep { get; private init; }
+    public int BitDepth { get; private init; } = 8;
+    public SKBitmap WorkingImage => Deep ?? Image;
 
     public int Width => Image.Width;
     public int Height => Image.Height;
@@ -33,9 +37,18 @@ public sealed class ImportedImage : IDisposable
     public static ImportedImage Create(SKBitmap image, string name) =>
         new(image, Bitmaps.Thumbnail(image), name);
 
+    public static ImportedImage CreateDeep(SKBitmap deep, string name, int depth = 16)
+    {
+        if (depth is not (16 or 32) || deep.ColorType != SKColorType.RgbaF32) throw new ArgumentException("Invalid deep image.");
+        DeepPixels.Quantize(deep, depth);
+        var preview = DeepPixels.Preview(deep);
+        return new ImportedImage(preview, Bitmaps.Thumbnail(preview), name) { Deep = deep, BitDepth = depth };
+    }
+
     public void Dispose()
     {
         Image.Dispose();
         Thumbnail.Dispose();
+        Deep?.Dispose();
     }
 }

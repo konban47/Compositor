@@ -14,6 +14,9 @@ internal sealed class RawDevelopDialog : DialogWindow
     private readonly Slider _exposure = new() { Minimum = -5, Maximum = 5, Value = 0, Width = 240 };
     private readonly Slider _temperature = new() { Minimum = -100, Maximum = 100, Value = 0, Width = 240 };
     private readonly Slider _tint = new() { Minimum = -100, Maximum = 100, Value = 0, Width = 240 };
+    private readonly Slider _highlights = new() { Minimum = 0, Maximum = 100, Width = 240 };
+    private readonly Slider _noise = new() { Minimum = 0, Maximum = 100, Width = 240 };
+    private readonly Slider _lens = new() { Minimum = -100, Maximum = 100, Width = 240 };
     private readonly CanvasView _preview = new() { Width = 520, Height = 340 };
     private readonly CanvasDocument _document;
 
@@ -25,7 +28,7 @@ internal sealed class RawDevelopDialog : DialogWindow
         _document = Compositor.Core.IO.ImageImporter.NewDocument(ImportedImage.Create(Bitmaps.Fitted(image.Image, 720), image.Name));
         var content = new StackPanel { Margin = new Thickness(16), Spacing = 10 };
         content.Children.Add(_preview);
-        foreach (var (label, slider) in new[] { ("Exposure", _exposure), ("Temperature", _temperature), ("Tint", _tint) })
+        foreach (var (label, slider) in new[] { ("Exposure", _exposure), ("Temperature", _temperature), ("Tint", _tint), ("Highlight Recovery", _highlights), ("Noise Reduction", _noise), ("Lens Correction", _lens) })
         {
             var value = new TextBlock { Width = 55, FontSize = 11, Foreground = Skin.SecondaryBrush, VerticalAlignment = VerticalAlignment.Center };
             void Update() { value.Text = slider.Value.ToString("0.0"); Preview(); }
@@ -69,11 +72,11 @@ internal sealed class RawDevelopDialog : DialogWindow
         Opened += (_, _) => { Preview(); _preview.Fit(); };
     }
 
-    private CameraRawSettings Settings => new() { Exposure = _exposure.Value, Temperature = _temperature.Value, Tint = _tint.Value };
+    private RawDevelopSettings Settings => new(_exposure.Value, _temperature.Value, _tint.Value, _highlights.Value, _noise.Value, _lens.Value);
     private void Preview()
     {
         var document = _document.Clone();
-        CameraRawEdits.Apply(document, document.Layers[0].ID, Settings);
+        document.Layers[0].Asset = RawDevelop.Apply(_document.Layers[0].Asset!, Settings);
         _preview.Document = document;
         _preview.InvalidateVisual();
     }
@@ -84,9 +87,7 @@ internal sealed class RawDevelopDialog : DialogWindow
         await dialog.ShowDialog(owner);
         dialog._document.Dispose();
         if (!dialog._accepted) return null;
-        var document = Compositor.Core.IO.ImageImporter.NewDocument(image);
         var settings = dialog.Settings;
-        await Task.Run(() => CameraRawEdits.Apply(document, document.Layers[0].ID, settings));
-        return document.Layers[0].Asset;
+        return await Task.Run(() => RawDevelop.Apply(image, settings));
     }
 }

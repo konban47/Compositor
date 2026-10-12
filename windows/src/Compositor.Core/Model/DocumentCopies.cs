@@ -6,12 +6,13 @@ public static class DocumentCopies
     public static CanvasDocument Independent(CanvasDocument source)
     {
         var copy = new CanvasDocument(Guid.NewGuid(), source.Width, source.Height, source.Resolution);
+        source.CopyImageMetadataTo(copy);
         try
         {
             foreach (var original in source.Layers)
             {
                 var layer = original.Clone();
-                layer.Asset = original.Asset is { } asset ? ImportedImage.Create(asset.Image.Copy(), layer.Name) : null;
+                layer.Asset = original.Asset is { } asset ? DeepPixels.Copy(asset, layer.Name) : null;
                 if (layer.Asset is { } pixels)
                 {
                     layer.Text = original.LiveText is { } text ? new LayerText(text, pixels.Image) : null;

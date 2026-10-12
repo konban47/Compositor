@@ -1,6 +1,6 @@
 # 选区、修饰与辅助工具
 
-适用于 Windows **1.4.9.4 Preview**。本版新增 19 个工具，工具总数为 69。所有工具都有中文名称、快捷键提示，并接入工具菜单和自定义工具栏。旧工具栏预设中的新增项会出现在“附加工具”；在“自定义工具栏”点“恢复默认值”可恢复新版分组。组按钮长按或右键展开，同组按键循环选择。
+适用于 Windows **1.4.10.0 Preview**。1.4.9.4 新增 19 个工具，工具总数为 69。所有工具都有中文名称、快捷键提示，并接入工具菜单和自定义工具栏。旧工具栏预设中的新增项会出现在“附加工具”；在“自定义工具栏”点“恢复默认值”可恢复新版分组。组按钮长按或右键展开，同组按键循环选择。
 
 ## 光标、取样与网格
 
@@ -51,4 +51,4 @@
 
 操作语义参考 Adobe 官方的[套索工具](https://helpx.adobe.com/photoshop/using/selecting-lasso-tools.html)、[磁性套索工具](https://helpx.adobe.com/photoshop/using/tool-techniques/magnetic-lasso-tool.html)和[绘画工具概览](https://helpx.adobe.com/photoshop/desktop/apply-painting-techniques/fill-objects-selections-layers/painting-tools-overview.html)。本项目为独立实现。
 
-新增标注使用 **Windows 项目格式 v17**；无标注时继续按所用特性选择 v11–v16。标注字段、边界与兼容性见[项目格式](../docs/project-format.md#windows-extension-version-17)。
+新增标注使用 **Windows 项目格式 v17**；使用新版图像模式、高位深、变量、测量记录或文字布局时升级到 v18；其余按所用特性选择最低版本。标注字段、边界与兼容性见[项目格式](../docs/project-format.md#windows-extension-version-17)。

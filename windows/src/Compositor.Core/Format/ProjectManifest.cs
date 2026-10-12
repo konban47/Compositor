@@ -6,7 +6,7 @@ namespace Compositor.Core.Format;
 public sealed class ProjectManifest
 {
     /// <summary>The format version new saves write.</summary>
-    public const int Current = 17;
+    public const int Current = 18;
 
     /// <summary>Every version <c>Load</c> accepts.</summary>
     public const int SupportedLower = 1;
@@ -32,6 +32,12 @@ public sealed class ProjectManifest
     public List<CanvasGuide>? Guides { get; set; }
     public List<DocumentMark>? Marks { get; set; }
     public List<ProjectChannelRecord>? Channels { get; set; }
+    public ImageSettings? ImageSettings { get; set; }
+    public List<ImageVariable>? Variables { get; set; }
+    public List<ImageDataSet>? DataSets { get; set; }
+    public MeasurementScale? MeasurementScale { get; set; }
+    public List<MeasurementRecord>? Measurements { get; set; }
+    public string[]? MeasurementFields { get; set; }
 
     public const string FormatIdentifier = "com.compositor.project";
 

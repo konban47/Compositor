@@ -1,8 +1,8 @@
-# Compositor project format, versions 1–11 and Windows extensions 12–17
+# Compositor project format, macOS versions 1–12 and Windows extensions 12–18
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
-The manifest identifies `com.compositor.project`, version `11` for new saves (versions `1`–`10` remain readable), and the sRGB working space. It stores document UUID, pixel dimensions, active layer UUID, and layers in bottom-to-top order. Each layer stores its UUID, name, visibility, transform (origin, size, clockwise rotation, flips, sampling), and optional image filename. Blank layers have no image asset.
+The manifest identifies `com.compositor.project`, version `12` for new saves (versions `1`–`11` remain readable), and the sRGB working space. It stores document UUID, pixel dimensions, active layer UUID, and layers in bottom-to-top order. Each layer stores its UUID, name, visibility, transform (origin, size, clockwise rotation, flips, sampling), and optional image filename. Blank layers have no image asset.
 
 Embedded PNGs preserve source pixels and transparency; transforms remain separate. Projects survive moving or deleting imported source photos. Saving uses a coordinated atomic package replacement. Unsupported versions, invalid metadata, missing assets, unsafe paths, and oversized data are rejected before replacing the live document.
 
@@ -163,3 +163,29 @@ Windows **1.4.9.4 Preview** reads v1–v17. Nonempty document `marks` requires v
 Coordinates and dimensions have absolute values at most 1,000,000, and the existing 4 MiB manifest limit still applies. Invalid enum values, null strings, invalid coordinates or duplicate IDs are rejected. Missing `marks` means an empty list. Annotation records are immutable for undo snapshots. Canvas/image geometry also transforms the annotations; slices remain axis-aligned bounding rectangles, while measurements keep transformed endpoints.
 
 Marks never enter composite image/PDF output or the layer clipboard. Slice export renders the intersection with the canvas as PNG plus a JSON manifest of filenames, rectangles and URL metadata. Full document copies keep marks. Tool settings, source-sampling points for brushes, in-progress crop/selection gestures and cursor state remain session-only. These annotations are not PSD metadata and do not imply Photoshop interchange support.
+
+## Upstream macOS version 12
+
+Upstream 1.4.10 lets a layer image be a 16-bit PNG, displayed through a dithered 8-bit preview. Its PNG bit depth identifies the precision without new manifest fields. Masks stay 8-bit. This shares the version number with the earlier Windows extension 12; readers inspect image precision and optional Windows fields independently.
+
+
+## Windows extension version 18
+
+Windows 1.4.10.0 reads versions 1–18 and writes the lowest version needed. Version 18 is required for deep layer data or any of the metadata below. A version-12 upstream 16-bit PNG can be read; resaving it uses Windows v18. Version numbers 12 onward have distinct Windows and macOS feature meanings. macOS cannot open Windows v18.
+
+| Scope / field | Representation |
+| --- | --- |
+| manifest `imageSettings` | Optional object: `mode` = Bitmap/Grayscale/Duotone/Indexed/RGB/CMYK/Lab/Multichannel (default RGB), `depth` = 8/16/32 (default 8), optional `palette` of 2–256 ARGB uint values, `ink` ARGB uint (default 0xFF352818), nullable `background` ARGB canvas fill. Bitmap, Indexed and Duotone require depth 8. Working pixels remain sRGB. |
+| layer `floatImageFile` | Optional `float-<UPPERCASE-UUID>.rgba` file within images, permitted only alongside a layer image PNG. This is zlib-compressed little-endian row-major RGBA float32, unassociated alpha, exactly width × height × 16 bytes. Dimensions come from the PNG. No header or row padding. Values must be finite; RGB in ±65536, alpha 0–1. Decompressed data must fit the asset budget. |
+| manifest `variables` | Up to 10,000 `{name, layerID, kind}` objects; kind Visibility/Text/PixelReplacement. Names unique case-insensitively, nonempty, at most 128 characters; layer ID must exist. |
+| manifest `dataSets` | Up to 1,000 `{name, values}` objects; values maps variable names to strings. Name max 128, at most 10,000 values, each value max 100,000 characters. Existing total manifest budget still applies. |
+| manifest `measurementScale` | `{pixels, units, unit}`; finite positive pixels/units ≤ 1,000,000; unit nonempty ≤ 64 characters. Defaults 1 pixel = 1 px. |
+| manifest `measurements` | Up to 10,000 records: `name`, `time` (ISO 8601), `area`, `perimeter`, `width`, `height`, `length`, `angle`, `count`, `mean`, `unit`. Measurements finite; name ≤ 1,024, unit ≤ 64. |
+| manifest `measurementFields` | Up to eight names from Area/Perimeter/Width/Height/Length/Angle/Count/Mean, controls CSV output. |
+| text `layout` | Optional editable `TextLayoutOptions` object as below. Omitted retains previous layout behavior. |
+
+16-bit layers store an actual 16-bit RGBA PNG in the existing `imageFile`. 32-bit layers additionally store `floatImageFile`; the PNG is a 16-bit compatibility proxy and does not replace the float resource. Masks and Alpha channels remain 8-bit coverage. PNG bit depth identifies deep images without an additional layer-depth field. Float files have the same path containment and resource budget checks as other package resources. Exporting a composite is distinct from saving original layer precision; complex compositing may use an 8-bit renderer.
+
+The text `layout` fields are `horizontalScale` / `verticalScale` (percent, default 100, 1–1000), `baselineShift` and `firstLineIndent` (default 0, ±10,000), `leftIndent`, `rightIndent`, `spaceBefore`, `spaceAfter` (default 0, 0–10,000), `justification` (None/LastLeft/LastCenter/LastRight/All), `smoothing` (None/Sharp/Crisp/Strong/Smooth, default Smooth), `kinsoku` (default true), and `tsume` (percent 0–100, default 0). Layout distances are layer pixels; font size UI converts to points using document resolution. These fields supplement the existing language, direction and OpenType tags, not an Adobe paragraph engine.
+
+Document duplication and undo preserve these fields. Source sampling points, three-dot expansion state, plugin installation state, active plugin processes and measurement tool gestures are not project metadata. Plugin results become ordinary image layers; external plugin binaries are never embedded in `.comp` packages.

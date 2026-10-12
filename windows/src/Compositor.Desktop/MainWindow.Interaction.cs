@@ -215,7 +215,7 @@ public sealed partial class MainWindow
         row.AddHandler(PointerPressedEvent, (_, e) =>
         {
             if (!e.GetCurrentPoint(row).Properties.IsLeftButtonPressed || e.GetPosition(row).X < 32) return;
-            if (e.Source is Visual source && (source is Button || source.GetVisualAncestors().TakeWhile(item => item != row).Any(item => item is Button || item is LayerThumbnail))) return;
+            if (e.Source is Visual source && (source is Button or LayerThumbnail || source.GetVisualAncestors().TakeWhile(item => item != row).Any(item => item is Button || item is LayerThumbnail))) return;
             if (row.Tag is not Guid id) return;
             if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && _layers.SelectedItems?.Contains(row) == true)
                 _layers.SelectedItems.Remove(row);

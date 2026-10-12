@@ -79,6 +79,7 @@ internal sealed class FilterDialog : DialogWindow
                 break;
             case FilterKind.GaussianBlur:
                 Add(group, "Radius, pixels", 0.1, 250, start.BlurRadius, defaults.BlurRadius, (s, v) => s.BlurRadius = v);
+                Check(group, "Preserve Transparency", start.PreserveTransparency, (s, v) => s.PreserveTransparency = v);
                 break;
             case FilterKind.BloomGlow:
                 Add(group, "Amount", 0, 100, start.BloomAmount, defaults.BloomAmount, (s, v) => s.BloomAmount = v);

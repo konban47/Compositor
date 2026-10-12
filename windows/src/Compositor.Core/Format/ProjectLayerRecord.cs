@@ -10,6 +10,7 @@ public sealed class ProjectLayerRecord
     [JsonRequired] public bool IsVisible { get; set; }
     [JsonRequired] public LayerTransform Transform { get; set; } = new();
     public string? ImageFile { get; set; }
+    public string? FloatImageFile { get; set; }
     public Guid? ParentID { get; set; }
     public bool? IsGroup { get; set; }
     public double? Opacity { get; set; }

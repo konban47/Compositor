@@ -22,6 +22,12 @@ public sealed class CanvasDocument : IDisposable
     public int Width { get; set; }
     public int Height { get; set; }
     public double Resolution { get; set; } = 72;
+    public ImageSettings Image { get; set; } = new();
+    public List<ImageVariable> Variables { get; } = [];
+    public List<ImageDataSet> DataSets { get; } = [];
+    public MeasurementScale MeasurementScale { get; set; } = new();
+    public List<MeasurementRecord> Measurements { get; } = [];
+    public string[] MeasurementFields { get; set; } = ["Area", "Perimeter", "Width", "Height", "Length", "Angle", "Count", "Mean"];
 
     /// <summary>Bottom to top.</summary>
     public List<ImageLayer> Layers { get; } = [];
@@ -54,6 +60,7 @@ public sealed class CanvasDocument : IDisposable
         copy.Marks.AddRange(Marks);
         copy.Channels.AddRange(Channels);
         copy.EditChannels = EditChannels;
+        CopyImageMetadataTo(copy);
         // Guides are objects, so they are copied rather than shared: a snapshot has to keep the positions it
         // was taken at, or moving a guide could not be undone.
         copy.Guides.AddRange(Guides.Select(guide => new CanvasGuide
@@ -90,6 +97,7 @@ public sealed class CanvasDocument : IDisposable
         Selection = other.Selection;
         Marks.Clear(); Marks.AddRange(other.Marks);
         Channels.Clear(); Channels.AddRange(other.Channels);
+        other.CopyImageMetadataTo(this);
     }
 
     /// <summary>Whether two documents hold the same thing, with pixels compared by identity.</summary>
@@ -97,7 +105,10 @@ public sealed class CanvasDocument : IDisposable
     {
         if (ID != other.ID || Width != other.Width || Height != other.Height || Resolution != other.Resolution
             || Layers.Count != other.Layers.Count || Guides.Count != other.Guides.Count || !Channels.SequenceEqual(other.Channels)
-            || !Marks.SequenceEqual(other.Marks) || !Selection.Matches(other.Selection)) return false;
+            || !Marks.SequenceEqual(other.Marks) || !Selection.Matches(other.Selection)
+            || Image != other.Image || MeasurementScale != other.MeasurementScale || !Variables.SequenceEqual(other.Variables)
+            || !DataSets.SequenceEqual(other.DataSets) || !Measurements.SequenceEqual(other.Measurements)
+            || !MeasurementFields.SequenceEqual(other.MeasurementFields)) return false;
         for (var index = 0; index < Layers.Count; index++)
         {
             if (!Layers[index].SameAs(other.Layers[index])) return false;
@@ -159,6 +170,7 @@ public sealed class CanvasDocument : IDisposable
         LinkID = layer.LinkID,
         Transform = Format.LayerTransform.FromRuntime(layer.Transform),
         ImageFile = layer.Asset is null ? null : Format.LayerMask.ExpectedImageFile(layer.ID),
+        FloatImageFile = layer.Asset?.BitDepth == 32 ? FloatPixels.FileName(layer.ID) : null,
         ParentID = layer.ParentID,
         IsGroup = layer.IsGroup,
         Opacity = layer.Opacity,
@@ -181,6 +193,14 @@ public sealed class CanvasDocument : IDisposable
         SmartObjectID = layer.SmartObject?.ID,
         Text = layer.LiveText,
     };
+
+    public void CopyImageMetadataTo(CanvasDocument copy)
+    {
+        copy.Image = Image; copy.MeasurementScale = MeasurementScale; copy.MeasurementFields = MeasurementFields.ToArray();
+        copy.Variables.Clear(); copy.Variables.AddRange(Variables);
+        copy.DataSets.Clear(); copy.DataSets.AddRange(DataSets);
+        copy.Measurements.Clear(); copy.Measurements.AddRange(Measurements);
+    }
 
     public void Dispose()
     {

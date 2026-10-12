@@ -127,10 +127,10 @@ public sealed partial class MainWindow
         Edit("Type", () => TextEdits.Add(document, new LayerTextStyle { Content = "中文 Typography", FontName = "Arial", FontSize = 24,
             BoxSize = new JsonSize(300, 90) }, new SKPoint(30, 200)) is not null);
         Reselect(document.Layers[^1].ID); OpenInspector(0); Pump();
-        var bold = _properties.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().Single(button => button.Content?.ToString() == Localize.Text("Bold"));
+        var bold = _properties.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().Single(button => Equals(button.Tag, "Bold"));
         bold.IsChecked = true; bold.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
         Check(PropertyLayer?.LiveText?.Bold == true, "Bold text property did not commit.");
-        _properties.Children.OfType<Expander>().Single(section => section.Header?.ToString() == Localize.Text("Transform")).IsExpanded = false;
+        _properties.Children.OfType<Expander>().Single(section => Equals(section.Tag, "property-section-Transform")).IsExpanded = false;
         Save("text");
         using (var finalFrame = this.CaptureRenderedFrame()) finalFrame!.Save(output, new PngBitmapEncoderOptions());
         Check(!Localize.IsChinese || _inspectorTabs.Items.OfType<TabItem>().Select(item => item.Header?.ToString()).SequenceEqual(new[] { "属性", "历史记录" }), "Inspector headings are untranslated.");

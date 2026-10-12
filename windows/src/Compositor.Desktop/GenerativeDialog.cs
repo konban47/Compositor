@@ -30,10 +30,12 @@ internal sealed class GenerativeDialog : DialogWindow
     private readonly HttpClient _http;
     private CancellationTokenSource? _request;
     private bool _closed;
+    private readonly byte[]? _reference;
     private Item? Picked => (_results.SelectedItem as ListBoxItem)?.Tag as Item;
-    internal GenerativeDialog(bool canImport, HttpMessageHandler? handler = null)
+    internal GenerativeDialog(bool canImport, HttpMessageHandler? handler = null, byte[]? reference = null, string? prompt = null)
     {
-        Title = Localize.Text("Generative Workspace"); Width = 1040; Height = 760; MinWidth = 820; MinHeight = 560;
+        _reference = reference; _prompt.Text = prompt ?? "";
+        Title = Localize.Text(reference is null ? "Generative Workspace" : "Generative Upscale"); Width = 1040; Height = 760; MinWidth = 820; MinHeight = 560;
         _http = handler is null ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) : new HttpClient(handler);
         _http.Timeout = TimeSpan.FromMinutes(10);
         var saved = GenerationSettings.Load();
@@ -45,7 +47,7 @@ internal sealed class GenerativeDialog : DialogWindow
         Field("API Base URL or Full Generation Endpoint", _endpoint); Field("Image Model", _model); Field("API Key", _key); controls.Children.Add(_remember);
         var save = new Button { Content = Localize.Text("Save Connection Settings") }; save.Click += (_, _) => SaveSettings(); controls.Children.Add(save);
         Field("Prompt", _prompt); Field("Image Size", _size); Field("Number of Images", _count);
-        controls.Children.Add(new TextBlock { Text = Localize.Text("Generate sends the prompt to your configured provider and may incur its API charges. Project images are not uploaded."), TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12 });
+        controls.Children.Add(new TextBlock { Text = Localize.Text(reference is null ? "Generate sends the prompt to your configured provider and may incur its API charges. Project images are not uploaded." : "Generate uploads this document image to your configured provider for enhancement and may incur its API charges. The result opens as a separate document."), TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12 });
         controls.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _generate, _cancel } }); controls.Children.Add(_status);
         _generate.Click += (_, _) => _ = Generate(); _cancel.Click += (_, _) => _request?.Cancel();
         var previewPanel = new Grid { RowDefinitions = new RowDefinitions("*,180,Auto") };
@@ -89,7 +91,8 @@ internal sealed class GenerativeDialog : DialogWindow
         _generate.IsEnabled = false; _cancel.IsEnabled = true; _status.Text = Localize.Text("Generating…");
         try
         {
-            var images = await new ImageGenerationClient(_http).Generate(request, _key.Text ?? "", cancel.Token);
+            var service = new ImageGenerationClient(_http);
+            var images = _reference is null ? await service.Generate(request, _key.Text ?? "", cancel.Token) : await service.Edit(request, _key.Text ?? "", _reference, cancel.Token);
             if (_closed) return;
             foreach (var generated in images)
             {

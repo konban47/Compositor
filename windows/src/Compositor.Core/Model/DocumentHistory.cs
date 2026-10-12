@@ -85,7 +85,10 @@ public sealed partial class DocumentHistory
         if (_depth > 0 || _pending is not { } before) return;
         _pending = null;
         if (before.Document is not null && document is not null)
+        {
             LayerProtection.Enforce(before.Document, document, _pendingName);
+            Document.ImageModeEdits.Enforce(before.Document, document);
+        }
         // Selecting, navigating and edits that changed nothing must preserve the redo history.
         if (Same(before.Document, document)) return;
         _revision = Guid.NewGuid();
@@ -156,7 +159,7 @@ public sealed partial class DocumentHistory
         foreach (var channel in document?.Channels ?? []) yield return (channel.Asset.Image, channel.Asset.Thumbnail);
         foreach (var layer in document?.Layers ?? [])
         {
-            if (layer.Asset is { } asset) yield return (asset.Image, asset.Thumbnail);
+            if (layer.Asset is { } asset) { yield return (asset.Image, asset.Thumbnail); if (asset.Deep is { } deep) yield return (deep, deep); }
             if (layer.Mask?.Asset is { } mask) yield return (mask.Image, mask.Thumbnail);
         }
     }

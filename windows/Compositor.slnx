@@ -4,6 +4,7 @@
     <Project Path="src/Compositor.Core/Compositor.Core.csproj" />
     <Project Path="src/Compositor.Desktop/Compositor.Desktop.csproj" />
   </Folder>
+  <Folder Name="/examples/"><Project Path="examples/Compositor.SamplePlugin/Compositor.SamplePlugin.csproj" /></Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Compositor.Core.Tests/Compositor.Core.Tests.csproj" />
   </Folder>

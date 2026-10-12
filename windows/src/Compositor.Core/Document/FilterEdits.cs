@@ -48,7 +48,8 @@ public sealed class FilterSettings
 
     // Gaussian blur
     /// <summary>Standard deviation in layer pixels, 0.1 to 250.</summary>
-    public double BlurRadius { get; set; } = 1;
+    public double BlurRadius { get; set; } = 5;
+    public bool PreserveTransparency { get; set; }
 
     // Bloom
     /// <summary>0 to 100: how strongly the glow is laid over the picture.</summary>
@@ -173,6 +174,11 @@ public static class FilterEdits
     {
         if (!settings.IsValid(kind) || !settings.DoesAnything(kind)) return false;
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { } layer) return false;
+        if (kind == FilterKind.GaussianBlur && layer.Asset is { } deepSource && (deepSource.Deep is not null || settings.PreserveTransparency))
+        {
+            using var blurred = DeepAdjustments.Blur(deepSource.WorkingImage, settings.BlurRadius, settings.PreserveTransparency);
+            return ImageAdjustments.SetPixels(document, layer, blurred);
+        }
         // Where the mask sat before the layer's grid changes under it, which is what carries it across.
         var maskPlacement = layer.MaskTransform;
         if (!FilterSurface.Begin(layer, Margin(kind, settings), out var work, out var placement)) return false;
@@ -249,6 +255,7 @@ public static class FilterEdits
         if (!settings.IsValid) return false;
         // An adjustment layer holds no pixels of its own: its effect is drawn as the stack is composited.
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { Adjustment: null } layer) return false;
+        if (layer.Asset?.Deep is not null && DeepAdjustments.Supports(settings)) return DeepAdjustments.Apply(document, layer, settings);
         var maskPlacement = FilterSurface.MaskPlacementOf(layer);
         if (!FilterSurface.Begin(layer, settings.SamplingMargin, out var work, out var placement)) return false;
         using var _ = work;

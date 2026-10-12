@@ -3,6 +3,7 @@ namespace Compositor.Core.Format;
 /// <summary>An editable text layer's metadata; the PNG remains the display and export fallback.</summary>
 public sealed class LayerTextStyle
 {
+    public TextLayoutOptions? Layout { get; set; }
     public bool? Vertical { get; set; }
     public string Content { get; set; } = "Text";
     public string FontName { get; set; } = "Helvetica";
@@ -82,7 +83,7 @@ public sealed class LayerTextStyle
         && double.IsFinite(Leading) && Leading is >= 0 and <= 5000
         && ColorRunsAreValid && FontRunsAreValid
         && (Superscript is not true || Subscript is not true)
-        && FeaturesAreValid && LanguageIsValid;
+        && FeaturesAreValid && LanguageIsValid && (Layout?.IsValid ?? true);
 
     /// <summary>Feature tags are four ASCII letters or digits, at most 64 of them, and unique.</summary>
     private bool FeaturesAreValid

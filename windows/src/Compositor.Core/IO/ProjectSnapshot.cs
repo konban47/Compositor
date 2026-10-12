@@ -72,6 +72,10 @@ public sealed class ProjectSnapshot : IDisposable
     public CanvasDocument ToDocument()
     {
         var document = new CanvasDocument(Manifest.DocumentID, Manifest.Width, Manifest.Height, Manifest.Resolution ?? 72);
+        document.Image = Manifest.ImageSettings ?? new();
+        document.Variables.AddRange(Manifest.Variables ?? []); document.DataSets.AddRange(Manifest.DataSets ?? []);
+        document.MeasurementScale = Manifest.MeasurementScale ?? new(); document.Measurements.AddRange(Manifest.Measurements ?? []);
+        if (Manifest.MeasurementFields is { } fields) document.MeasurementFields = fields;
         document.Layers.AddRange(RuntimeLayers());
         document.Guides.AddRange(Manifest.Guides ?? []);
         document.Marks.AddRange(Manifest.Marks ?? []);
@@ -87,9 +91,13 @@ public sealed class ProjectSnapshot : IDisposable
     public static ProjectSnapshot FromDocument(CanvasDocument document)
     {
         var channels = document.Channels.Where(c => !c.IsTemporary).ToArray();
+        var defaultMeasurementFields = document.MeasurementFields.SequenceEqual(new[] { "Area", "Perimeter", "Width", "Height", "Length", "Angle", "Count", "Mean" });
         var manifest = new ProjectManifest
         {
-            Version = document.Marks.Count > 0 ? 17 : document.Layers.Any(layer => layer.LiveText?.Vertical is not null || layer.LiveShape is { Kind: ShapeKind.Path, LineWidth: not null }) ? 16
+            Version = !document.Image.IsDefault || document.Variables.Count > 0 || document.DataSets.Count > 0
+                || document.MeasurementScale != new MeasurementScale() || document.Measurements.Count > 0
+                || document.Layers.Any(l => l.Asset?.Deep is not null || l.LiveText?.Layout is not null) || !defaultMeasurementFields ? 18
+                : document.Marks.Count > 0 ? 17 : document.Layers.Any(layer => layer.LiveText?.Vertical is not null || layer.LiveShape is { Kind: ShapeKind.Path, LineWidth: not null }) ? 16
                 : document.Layers.Any(layer => layer.Blending is not null || layer.Effects?.Items is not null
                     || layer.Effects?.Enabled == false || layer.IsGroup && (layer.Effects is not null || layer.BlendMode != LayerBlendMode.Normal)
                     || layer.Label != LayerLabel.None || layer.Container != LayerContainer.Group || layer.SmartObject is not null) ? 15
@@ -102,6 +110,12 @@ public sealed class ProjectSnapshot : IDisposable
             Width = document.Width,
             Height = document.Height,
             Resolution = document.Resolution,
+            ImageSettings = document.Image.IsDefault ? null : document.Image,
+            Variables = document.Variables.Count == 0 ? null : [.. document.Variables],
+            DataSets = document.DataSets.Count == 0 ? null : [.. document.DataSets],
+            MeasurementScale = document.MeasurementScale == new MeasurementScale() ? null : document.MeasurementScale,
+            Measurements = document.Measurements.Count == 0 ? null : [.. document.Measurements],
+            MeasurementFields = defaultMeasurementFields ? null : document.MeasurementFields,
             ActiveLayerID = document.Layers.Count > 0 ? document.Layers[^1].ID : null,
             Layers = [.. document.Layers.Select(CanvasDocument.Record)],
             Guides = document.Guides.Count > 0 ? [.. document.Guides] : null,

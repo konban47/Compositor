@@ -15,7 +15,7 @@ internal sealed class ExportAsDialog : DialogWindow
     private readonly CanvasDocument _document;
     private readonly ComboBox _format = new()
     {
-        ItemsSource = new[] { "PNG", "JPEG", "PDF" },
+        ItemsSource = new[] { "PNG", "JPEG", "PDF", "TIFF" },
         Width = 170,
         Height = 24,
         FontSize = 11.5,
@@ -89,6 +89,10 @@ internal sealed class ExportAsDialog : DialogWindow
         Add("Format", _format); Add("Width, pixels", _width); Add("Height, pixels", _height);
         controls.Children.Add(_linked); Add("Quality", _quality); controls.Children.Add(_transparent); Add("Background", _background);
         controls.Children.Add(_size);
+        if (document.Image.Depth > 8)
+            controls.Children.Add(new TextBlock { Text = Localize.Text(Compositor.Core.Rendering.DocumentRenderer.SupportsDeepComposite(document)
+                ? "PNG supports up to 16 bits. Use TIFF for 32-bit floating-point output."
+                : "This document uses compositing effects rendered at 8-bit precision. Original deep layer data is preserved in the project."), TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Skin.SecondaryBrush });
         var cancel = new Button
         {
             Content = Localize.Text("Cancel"),
@@ -150,8 +154,8 @@ internal sealed class ExportAsDialog : DialogWindow
     {
         if (_closed) return;
         _revision++; _export.IsEnabled = false; _quality.IsEnabled = _format.SelectedIndex == 1;
-        _transparent.IsEnabled = _format.SelectedIndex == 0;
-        _background.IsEnabled = _format.SelectedIndex != 0 || _transparent.IsChecked != true;
+        _transparent.IsEnabled = _format.SelectedIndex is 0 or 3;
+        _background.IsEnabled = _format.SelectedIndex is not (0 or 3) || _transparent.IsChecked != true;
         _size.Text = Localize.Text("Rendering preview…"); _timer.Stop(); _timer.Start();
     }
     private bool _rendering;

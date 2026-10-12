@@ -163,6 +163,20 @@ public static class BrushEdits
         var toDocument = PixelToDocument(layer.Transform, width, height);
         if (!toDocument.TryInvert(out var toPixel)) return false;
 
+        if (asset.Deep is not null && settings.Mode == BrushMode.Blur)
+        {
+            if (!Stroke(document, points, settings, toDocument, toPixel, width, height, out var deepCoverage)) return false;
+            using var softened = DeepAdjustments.Blur(asset.WorkingImage, settings.BlurRadius / Math.Max(.001, layer.Transform.Width / asset.Width), true);
+            using var result = DeepPixels.From(asset.WorkingImage);
+            var target = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(result.GetPixelSpan());
+            var blurred = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(softened.GetPixelSpan());
+            for (var i = 0; i < deepCoverage.Length; i++) for (var c = 0; c < 3; c++) target[i * 4 + c] += (blurred[i * 4 + c] - target[i * 4 + c]) * (float)(deepCoverage[i] * settings.Opacity);
+            // Stroke already applied the selection coverage; do not multiply it a second time.
+            var selection = document.Selection;
+            try { document.Selection = DocumentSelection.All; return ImageAdjustments.SetPixels(document, layer, result); }
+            finally { document.Selection = selection; }
+        }
+
         // What the stroke paints from, taken now: the Clone Stamp's sample of the layer or the canvas, the
         // layer as it is before the stroke softened, or the picture a chosen history state looked like.
         // Taken once, so going over an area again within a stroke does not blur what it has just painted.

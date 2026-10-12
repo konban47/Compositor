@@ -229,7 +229,8 @@ public sealed partial class MainWindow : Window
 
         /// <summary>What the tab is called: the project's name, or what it is until it is saved.</summary>
         public int UntitledNumber { get; set; } = 1;
-        public string Name => Path is { } path ? System.IO.Path.GetFileName(path) : Localize.Text("Untitled") + (UntitledNumber == 1 ? "" : " " + UntitledNumber);
+        public string? CustomName { get; set; }
+        public string Name => Path is { } path ? System.IO.Path.GetFileName(path) : CustomName ?? Localize.Text("Untitled") + (UntitledNumber == 1 ? "" : " " + UntitledNumber);
     }
 
     private readonly List<Tab> _tabs = [];
@@ -478,6 +479,7 @@ public sealed partial class MainWindow : Window
                         Command("_Open project folder…", OpenProject, "Open Project"),
                         _recentMenu,
                         Command("_Import image…", () => _ = ImportImage()),
+                        Command("Import Folder as Layers…", () => _ = ImportImageFolder()),
                         Command("_Save", Save, "Save"),
                         Command("Save _As…", SaveAs, "Save As"),
                         new Separator(),
@@ -555,40 +557,7 @@ public sealed partial class MainWindow : Window
                         _visibility,
                     },
                 },
-                new MenuItem
-                {
-                    Header = Localize.Text("_Image"),
-                    Items =
-                    {
-                        Command("_Hue/Saturation…", () => _ = ImageAdjustment(AdjustmentKind.HueSaturation),
-                            "Hue/Saturation"),
-                        Command("_Levels…", () => _ = ImageAdjustment(AdjustmentKind.Levels), "Levels"),
-                        new MenuItem
-                        {
-                            Header = Localize.Text("_Auto Levels"),
-                            Items =
-                            {
-                                Command("Auto _Contrast", () => AutoLevels(LevelsAuto.Contrast)),
-                                Command("Auto C_olour", () => AutoLevels(LevelsAuto.Color)),
-                                Command("Auto Color + Neutral _Midtones", () => AutoLevels(LevelsAuto.Neutral)),
-                            },
-                        },
-                        Command("C_urves…", () => _ = ImageAdjustment(AdjustmentKind.Curves), "Curves"),
-                        Command("_Exposure…", () => _ = ImageAdjustment(AdjustmentKind.Exposure)),
-                        Command("Black & _White…", () => _ = ImageAdjustment(AdjustmentKind.BlackWhite)),
-                        Command("_Gradient Map…", () => _ = ImageAdjustment(AdjustmentKind.GradientMap)),
-                        Command("C_olor Balance…", () => _ = ImageAdjustment(AdjustmentKind.ColorBalance)),
-                        new Separator(),
-                        Command("_Grain…", () => _ = ImageAdjustment(AdjustmentKind.Grain)),
-                        Command("_Invert", () => _ = ImageAdjustment(AdjustmentKind.Invert), "Invert"),
-                        new Separator(),
-                        Command("Rotate Canvas 90° Clockwise", () => RotateCanvas(true)),
-                        Command("Rotate Canvas 90° Counterclockwise", () => RotateCanvas(false)),
-                        Command("_Canvas Size…", () => _ = CanvasSize(), "Canvas Size"),
-                        Command("_Image Size…", () => _ = ImageSize(), "Image Size"),
-                        Command("_Trim…", () => _ = Trim()),
-                    },
-                },
+                BuildImageMenu(),
                 new MenuItem
                 {
                     Header = Localize.Text("_Filter"),
@@ -613,112 +582,7 @@ public sealed partial class MainWindow : Window
                         Command("Lens _Correction…", () => _ = ApplyFilter(FilterKind.LensCorrection)),
                     },
                 },
-                new MenuItem
-                {
-                    Header = Localize.Text("_Tools"),
-                    Items =
-                    {
-                        ToolItem("_Pan (drag to scroll)", Tool.Pan, "Hand tool"),
-                        ToolItem("_Move (drag the layer; Ctrl-drag a corner to distort it)", Tool.Move,
-                            "Move / Transform tool"),
-                        ToolItem("Marquee (_rectangular selection)", Tool.Marquee, "Marquee tool"),
-                        ToolItem("_Elliptical marquee", Tool.Ellipse),
-                        ToolItem("_Lasso (freehand)", Tool.Lasso, "Lasso tool"),
-                        ToolItem("_Polygonal lasso (click each corner)", Tool.Polygon),
-                        ToolItem("Magic _wand (click a color)", Tool.Wand, "Magic wand"),
-                        ToolItem("_Object Selection (click a subject)", Tool.Object),
-                        ToolItem("_Brush", Tool.Brush, "Brush tool"),
-                        ToolItem("_Clone stamp (Alt-click a source first)", Tool.Clone, "Clone Stamp"),
-                        ToolItem("Blur brush", Tool.Blur, "Blur / Smudge / Liquify"),
-                        ToolItem("_Liquify brush (push the pixels around)", Tool.Liquify),
-                        ToolItem("S_mudge brush (drag the color along)", Tool.Smudge),
-                        ToolItem("Spot _healing", Tool.Heal, "Spot Healing"),
-                        ToolItem("_Eyedropper (click the canvas)", Tool.Eyedropper, "Eyedropper tool"),
-                        ToolItem("_Type (click where the text goes)", Tool.Type, "Type tool"),
-                        ToolItem("_Crop (drag a frame, then apply it)", Tool.Crop, "Crop tool"),
-                        ToolItem("_Shape (drag out a rectangle, ellipse or line)", Tool.Shape, "Shape tool"),
-                        ToolItem("_Gradient (drag the line it runs along)", Tool.Gradient, "Gradient tool"),
-                        ToolItem("_History brush (paint back a state)", Tool.HistoryBrush),
-                        ToolItem("Direct Selection Tool", Tool.Path),
-                        ToolItem("Path Selection Tool", Tool.PathSelection, "Path selection tool"),
-                        ToolItem("Ellipse Tool", Tool.ShapeEllipse),
-                        ToolItem("Triangle Tool", Tool.Triangle),
-                        ToolItem("Polygon Tool", Tool.PolygonShape),
-                        ToolItem("Star Tool", Tool.Star),
-                        ToolItem("Line Tool", Tool.Line),
-                        ToolItem("Custom Shape Tool", Tool.CustomShape),
-                        ToolItem("Rotate View Tool", Tool.RotateView, "Rotate view tool"),
-                        ToolItem("Zoom Tool", Tool.Zoom, "Zoom tool"),
-                        ToolItem("Selection Brush Tool", Tool.SelectionBrush),
-                        ToolItem("Magnetic Lasso Tool", Tool.MagneticLasso),
-                        ToolItem("Quick Selection Tool", Tool.QuickSelection),
-                        ToolItem("Perspective Crop Tool", Tool.PerspectiveCrop),
-                        ToolItem("Slice Tool", Tool.Slice),
-                        ToolItem("Slice Select Tool", Tool.SliceSelect),
-                        ToolItem("Frame Tool", Tool.Frame),
-                        ToolItem("Color Sampler Tool", Tool.ColorSampler),
-                        ToolItem("Ruler Tool", Tool.Ruler),
-                        ToolItem("Note Tool", Tool.Note),
-                        ToolItem("Count Tool", Tool.Count),
-                        ToolItem("Remove Tool", Tool.Remove),
-                        ToolItem("Healing Brush Tool", Tool.HealingBrush),
-                        ToolItem("Patch Tool", Tool.Patch),
-                        ToolItem("Content-Aware Move Tool", Tool.ContentMove),
-                        ToolItem("Red Eye Tool", Tool.RedEye),
-                        ToolItem("Pencil Tool", Tool.Pencil),
-                        ToolItem("Color Replacement Tool", Tool.ColorReplacement),
-                        ToolItem("Mixer Brush Tool", Tool.MixerBrush),
-                        ToolItem("Pattern Stamp Tool", Tool.PatternStamp),
-                        ToolItem("Art History Brush Tool", Tool.ArtHistory),
-                        ToolItem("Eraser Tool", Tool.Eraser),
-                        ToolItem("Background Eraser Tool", Tool.BackgroundEraser),
-                        ToolItem("Magic Eraser Tool", Tool.MagicEraser),
-                        ToolItem("Paint Bucket Tool", Tool.Bucket),
-                        ToolItem("Sharpen Tool", Tool.Sharpen),
-                        ToolItem("Adjustment Brush Tool", Tool.AdjustmentBrush),
-                        ToolItem("Dodge Tool", Tool.Dodge),
-                        ToolItem("Burn Tool", Tool.Burn),
-                        ToolItem("Sponge Tool", Tool.Sponge),
-                        ToolItem("Pen Tool", Tool.Pen),
-                        ToolItem("Freeform Pen Tool", Tool.FreeformPen),
-                        ToolItem("Curvature Pen Tool", Tool.CurvaturePen),
-                        ToolItem("Add Anchor Point Tool", Tool.AddAnchor),
-                        ToolItem("Delete Anchor Point Tool", Tool.DeleteAnchor),
-                        ToolItem("Convert Point Tool", Tool.ConvertAnchor),
-                        ToolItem("Vertical Type Tool", Tool.VerticalType),
-                        ToolItem("Vertical Type Mask Tool", Tool.VerticalTypeMask),
-                        ToolItem("Horizontal Type Mask Tool", Tool.TypeMask),
-                        Command("Customize Toolbar…", () => _ = CustomizeToolbar()),
-                        Command("Shape Tool Options…", () => _ = ShapeOptions()),
-                        Command("Quick Mask", ToggleQuickMask),
-                        Command("Generative Workspace…", () => _ = OpenGenerativeWorkspace()),
-                        new Separator(),
-                        _gradientMenu,
-                        new Separator(),
-                        _shapeKinds,
-                        new Separator(),
-                        _cropRatios,
-                        new Separator(),
-                        _paintOnMask,
-                        _eraseToggle,
-                        new Separator(),
-                        new MenuItem
-                        {
-                            Header = Localize.Text("_Brush settings"),
-                            Items =
-                            {
-                                Command("_Size…", () => _ = SetBrush(BrushSetting.Size)),
-                                Command("_Hardness…", () => _ = SetBrush(BrushSetting.Hardness)),
-                                Command("_Opacity…", () => _ = SetBrush(BrushSetting.Opacity)),
-                                Command("_Color…", () => _ = SetBrush(BrushSetting.Colour)),
-                                new Separator(),
-                                Command("Spot healing: _Content-Aware", () => Heal(HealingMode.ContentAware)),
-                                Command("Spot healing: Create _Texture", () => Heal(HealingMode.CreateTexture)),
-                                Command("Spot healing: Proximity _Match", () => Heal(HealingMode.ProximityMatch)),
-                            },
-                        },
-                    },
-                },
+                BuildToolsMenu(),
                 new MenuItem
                 {
                     Header = Localize.Text("_Select"),
@@ -771,6 +635,7 @@ public sealed partial class MainWindow : Window
                         Command("_Clear Guides", ClearGuides),
                     },
                 },
+                BuildPluginsMenu(),
                 new MenuItem
                 {
                     Header = Localize.Text("_Help"),
@@ -1169,6 +1034,12 @@ public sealed partial class MainWindow : Window
         Does("Levels", () => _ = ImageAdjustment(AdjustmentKind.Levels));
         Does("Hue/Saturation", () => _ = ImageAdjustment(AdjustmentKind.HueSaturation));
         Does("Invert", () => _ = ImageAdjustment(AdjustmentKind.Invert));
+        Does("Color Balance", () => _ = ImageAdjustment(AdjustmentKind.ColorBalance));
+        Does("Black & White", () => _ = ImageAdjustment(AdjustmentKind.BlackWhite));
+        Does("Desaturate", () => _ = ExtendedImageAdjustment(ImageAdjustmentKind.Desaturate, true));
+        Does("Auto Tone", () => AutoLevels(LevelsAuto.Color));
+        Does("Auto Contrast", () => AutoLevels(LevelsAuto.Contrast));
+        Does("Auto Color", () => AutoLevels(LevelsAuto.Neutral));
         Does("Canvas Size", () => _ = CanvasSize());
         Does("Image Size", () => _ = ImageSize());
         Does("Layer via Copy", LayerViaCopy);
@@ -4846,6 +4717,8 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void UpdateRulers()
     {
+        var ppi = _document?.Resolution ?? 72;
+        _rulerAcross.PixelsPerUnit = _rulerDown.PixelsPerUnit = _propertyRulerUnit switch { 1 => ppi, 2 => ppi / 2.54, 3 => ppi / 72, _ => 1 };
         _rulerAcross.Scale = _canvas.Zoom;
         _rulerAcross.Origin = _canvas.OriginX;
         _rulerDown.Scale = _canvas.Zoom;
@@ -5997,7 +5870,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ShowTransformBox()
     {
-        if (_tool != Tool.Move || _document is not { } document)
+        if (_tool != Tool.Move || _document is not { } document || _layers.SelectedIndex < 0)
         {
             _canvas.TransformBox = null;
             _canvas.DistortEnabled = false;
@@ -6181,7 +6054,12 @@ public sealed partial class MainWindow : Window
             });
             if (file?.TryGetLocalPath() is not { } path) return;
             // A band of tiles at a time, so the canvas size does not have to fit in one buffer.
-            TiledPngWriter.Write(document, path);
+            if (document.Image.Depth > 8 || document.Image.Mode != ImageMode.RGB || document.Layers.Any(l => l.Asset?.Deep is not null))
+            {
+                using var result = ExportImage.Encode(document, new ExportOptions(ExportFormat.Png, document.Width, document.Height, Resolution: document.Resolution));
+                await File.WriteAllBytesAsync(path, result.Bytes);
+            }
+            else TiledPngWriter.Write(document, path);
             Say($"Exported {path}");
         }
         catch (Exception error)
@@ -6238,6 +6116,6 @@ public sealed partial class MainWindow : Window
         var limit = _canvas.ZoomedOutAsFarAsItGoes ? "    as far out as one screenful can be drawn" : "";
         _statusInfo.Text = Localize.Text(_document is not { } document
             ? "Ready when you are"
-            : $"{_canvas.Zoom * 100:0}%    {document.Width} × {document.Height} px    sRGB · Transparent{limit}");
+            : $"{_canvas.Zoom * 100:0}%    {document.Width} × {document.Height} px    {Localize.Text(ModeTitle(document.Image.Mode))} · {document.Image.Depth} {Localize.Text("Bits/Channel")}{limit}");
     }
 }

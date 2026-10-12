@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 function Read-Repo([string]$Path) { Get-Content -LiteralPath (Join-Path $repo $Path) -Raw -Encoding utf8 }
 [xml]$project = Read-Repo 'windows/src/Compositor.Desktop/Compositor.Desktop.csproj'
@@ -31,7 +31,7 @@ foreach ($feature in @('自定义工具栏','生成式工作区','Shift+F','imag
 if ((Read-Repo 'README.md') -match '仅显示画布 \| F 进入') { throw 'Homepage still assigns F to canvas-only mode.' }
 $keys = Read-Repo 'windows/src/Compositor.Core/IO/Shortcuts.cs'
 if (!$keys.Contains('Menu("Full Screen with Tools", "F")') -or !$keys.Contains('Menu("Canvas Only", "F", Shift)')) { throw 'Screen mode documentation and shortcuts differ.' }
-if (!(Read-Repo $updates).Contains('b4bfdea87f9dc0cbc9eabfa63683eb1b9c2bca60')) { throw 'Upstream baseline is missing.' }
+if (!(Read-Repo $updates).Contains('f01e2980fb76eb085d3f8ac96070a1c0c4a9afa9')) { throw 'Upstream baseline is missing.' }
 $table = Join-Path $repo 'Compositor/Resources/CameraRawTables.bin'
 $converted = Join-Path $repo 'windows/src/Compositor.Core/Resources/CameraRawTables.deflate'
 foreach ($asset in @($table,$converted)) {
@@ -68,5 +68,18 @@ foreach ($field in @('marks','kind','group','url','visible')) {
 if (!(Read-Repo 'windows/scripts/package.ps1').Contains('PROFESSIONAL-TOOLS.md')) { throw 'Professional guide missing from package.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--professional-checks')) { throw 'Professional UI checks missing from CI.' }
 if (!$keys.Contains('Canvas("Frame tool", "K")')) { throw 'Frame shortcut documentation is stale.' }
+foreach ($field in @('imageSettings','floatImageFile','variables','dataSets','measurementScale','measurements','measurementFields','layout','horizontalScale','verticalScale','baselineShift','justification','smoothing')) {
+    if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v18 field: $field" }
+}
+foreach ($guide in @('IMAGE-WORKSPACE.md','PLUGINS.md')) {
+    if (!(Read-Repo "windows/$guide").Contains("**$version Preview**")) { throw "$guide version is stale." }
+    if (!(Read-Repo 'windows/scripts/package.ps1').Contains($guide)) { throw "$guide missing from package." }
+    if (!(Read-Repo 'README.md').Contains($guide)) { throw "$guide missing from homepage." }
+}
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--image-workspace-checks')) { throw 'Image workspace UI checks missing from CI.' }
+foreach ($text in @('8 位 sRGB 再进入','不提供 CMYK/Lab、专色、多通道计算')) {
+    if ((Read-Repo 'windows/README.md').Contains($text)) { throw "Obsolete capability statement: $text" }
+}
+if (!(Read-Repo 'windows/PLUGINS.md').Contains('apiVersion') -or !(Read-Repo 'windows/PLUGINS.md').Contains('32 位源')) { throw 'Plugin protocol or precision boundary is undocumented.' }
 & (Join-Path $PSScriptRoot 'check-upstream-ui.ps1')
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

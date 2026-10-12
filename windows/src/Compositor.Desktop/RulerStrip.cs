@@ -34,6 +34,7 @@ internal sealed class RulerStrip : Control
 
     /// <summary>Points on the strip for each document pixel, which is the canvas's own zoom.</summary>
     public double Scale { get; set; } = 1;
+    public double PixelsPerUnit { get; set; } = 1;
 
     /// <summary>The document place at the strip's left end or top, which is the canvas's own origin.</summary>
     public double Origin { get; set; }
@@ -83,9 +84,9 @@ internal sealed class RulerStrip : Control
         var across = Axis == GuideAxis.Horizontal;
         var length = across ? width : height;
         var last = Origin + length / Scale;
-        foreach (var tick in RulerScale.Between(Origin, last, Scale))
+        foreach (var tick in RulerScale.Between(Origin / PixelsPerUnit, last / PixelsPerUnit, Scale * PixelsPerUnit))
         {
-            var at = (tick.Value - Origin) * Scale;
+            var at = (tick.Value * PixelsPerUnit - Origin) * Scale;
             if (at < 0 || at > length) continue;
             var into = tick.Kind switch
             {

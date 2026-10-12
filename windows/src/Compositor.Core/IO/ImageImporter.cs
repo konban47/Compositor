@@ -45,7 +45,7 @@ public static class ImageImporter
     /// <summary>What the importer will attempt, by extension.</summary>
     public static readonly string[] Extensions =
         [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg", ".tif", ".tiff", ".psd", ".psb",
-         ".heic", ".heif", ".avif", ".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw", ".srf", ".sr2",
+         ".heic", ".heif", ".hif", ".avif", ".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw", ".srf", ".sr2",
          ".raf", ".orf", ".rw2", ".raw", ".rwl", ".pef", ".3fr", ".erf", ".mrw", ".kdc", ".dcr", ".x3f", ".iiq"];
 
     /// <summary>The longest side of the small copy the layers panel draws, as the Mac build uses.</summary>
@@ -73,7 +73,8 @@ public static class ImageImporter
         if (extension.Equals(".tif", StringComparison.OrdinalIgnoreCase)
             || extension.Equals(".tiff", StringComparison.OrdinalIgnoreCase))
         {
-            return DecodeTiff(path, name, remainingPixels);
+            try { return DeepImageCodec.Decode(Read(path), name, remainingPixels); }
+            catch (MagickException error) { throw new ImportException(ImportError.Unreadable, error.Message); }
         }
         if (extension.Equals(".psd", StringComparison.OrdinalIgnoreCase)
             || extension.Equals(".psb", StringComparison.OrdinalIgnoreCase))
@@ -91,6 +92,11 @@ public static class ImageImporter
             return DecodeRaw(path, name, remainingPixels);
         }
         var bytes = Read(path);
+        if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
+        {
+            try { if (PngCodec.ReadHeader(bytes).BitDepth == 16) return DeepImageCodec.Decode(bytes, name, remainingPixels); }
+            catch (ProjectException) { throw new ImportException(ImportError.Unreadable); }
+        }
         if (!TrySkia(bytes, name, remainingPixels, out var image))
         {
             throw SkiaReads.Contains(extension, StringComparer.OrdinalIgnoreCase)
@@ -102,7 +108,7 @@ public static class ImageImporter
     }
 
     /// <summary>HEIC and HEIF, which no Skia build for Windows reads: ImageMagick has the decoder.</summary>
-    private static readonly string[] HeicReads = [".heic", ".heif", ".avif"];
+    private static readonly string[] HeicReads = [".heic", ".heif", ".hif", ".avif"];
 
     /// <summary>
     /// The camera RAW files, which only LibRaw reads. The list is the Mac build's `UTType.rawImage` — as many
@@ -124,13 +130,7 @@ public static class ImageImporter
         Check(width, height, remainingPixels);
         try
         {
-            using var image = new MagickImage(path);
-            // Turn the picture the way the camera said it goes, as the Mac build's ImageIO import does.
-            image.AutoOrient();
-            using var pixels = image.GetPixels();
-            var bytes = pixels.ToByteArray(PixelMapping.RGBA)
-                        ?? throw new ImportException(ImportError.Unreadable);
-            return FromRgba(bytes, (int)image.Width, (int)image.Height, name, remainingPixels);
+            return DeepImageCodec.Decode(Read(path), name, remainingPixels);
         }
         catch (MagickException error)
         {
@@ -183,31 +183,31 @@ public static class ImageImporter
         context.DcrawProcess(settings =>
         {
             // The white balance the camera chose, as the Mac build's RAW import shows it. The output colour
-            // space is left at LibRaw's own default, which is sRGB, and the depth at 8 bits.
+            // space is sRGB; preserve the sensor pipeline output at 16 bits.
             settings.UseCameraWb = true;
-            settings.OutputBps = 8;
+            settings.OutputBps = 16;
         });
         using var image = context.MakeDcrawMemoryImage();
-        if (image.Width <= 0 || image.Height <= 0 || image.Channels < 3 || image.Bits != 8)
+        if (image.Width <= 0 || image.Height <= 0 || image.Channels < 3 || image.Bits != 16)
         {
-            throw new ImportException(ImportError.Unreadable, "That RAW did not come back as 8-bit color.");
+            throw new ImportException(ImportError.Unreadable, "That RAW did not come back as 16-bit color.");
         }
         var length = image.DataSize;
         if (length <= 0) throw new ImportException(ImportError.Unreadable);
         var rgb = new byte[length];
         System.Runtime.InteropServices.Marshal.Copy(image.DataPointer, rgb, 0, length);
-        var pixels = image.Width * image.Height;
-        var rgba = new byte[(long)pixels * 4];
+        var pixels = checked(image.Width * image.Height);
+        Check(image.Width, image.Height, remainingPixels);
+        var rgba = Bitmaps.Allocate(DeepPixels.Info(image.Width, image.Height));
+        var target = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(rgba.GetPixelSpan());
+        var source = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ushort>(rgb.AsSpan());
+        if (source.Length < (long)pixels * image.Channels) { rgba.Dispose(); throw new ImportException(ImportError.Unreadable); }
         for (var index = 0; index < pixels; index++)
         {
-            var from = index * image.Channels;
-            var to = index * 4;
-            rgba[to] = rgb[from];
-            rgba[to + 1] = rgb[from + 1];
-            rgba[to + 2] = rgb[from + 2];
-            rgba[to + 3] = 255;
+            for (var c = 0; c < 3; c++) target[index * 4 + c] = source[index * image.Channels + c] / 65535f;
+            target[index * 4 + 3] = 1;
         }
-        return FromRgba(rgba, image.Width, image.Height, name, remainingPixels);
+        return ImportedImage.CreateDeep(rgba, name, 16);
     }
 
     /// <summary>Refuses a picture that is too long a side, or too many pixels, to hold.</summary>
@@ -330,7 +330,7 @@ public static class ImageImporter
     /// <summary>A canvas holding the image at its own size, as a new project starts.</summary>
     public static CanvasDocument NewDocument(ImportedImage image, double resolution = 72)
     {
-        var document = new CanvasDocument(Guid.NewGuid(), image.Width, image.Height, resolution);
+        var document = new CanvasDocument(Guid.NewGuid(), image.Width, image.Height, resolution) { Image = new Compositor.Core.Format.ImageSettings { Mode = image.ColorMode, Depth = image.BitDepth } };
         document.Layers.Add(Layer(image));
         return document;
     }

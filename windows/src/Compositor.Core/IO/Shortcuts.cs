@@ -215,6 +215,12 @@ public static class Shortcuts
         Menu("Levels", "L", Ctrl);
         Menu("Hue/Saturation", "U", Ctrl);
         Menu("Invert", "I", Ctrl);
+        Menu("Color Balance", "B", Ctrl);
+        Menu("Black & White", "B", Ctrl | Shift | Alt);
+        Menu("Desaturate", "U", Ctrl | Shift);
+        Menu("Auto Tone", "L", Ctrl | Shift);
+        Menu("Auto Contrast", "L", Ctrl | Shift | Alt);
+        Menu("Auto Color", "B", Ctrl | Shift);
         Menu("Canvas Size", "C", Ctrl | Alt);
         Menu("Image Size", "I", Ctrl | Alt);
         Menu("Layer via Copy", "J", Ctrl);

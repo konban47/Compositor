@@ -577,7 +577,7 @@
     }
   },
   {
-    "package": "Magick.NET-Q8-AnyCPU",
+    "package": "Magick.NET-Q16-HDRI-AnyCPU",
     "version": "14.17.2",
     "authors": {
       "text": "Dirk Lemstra"

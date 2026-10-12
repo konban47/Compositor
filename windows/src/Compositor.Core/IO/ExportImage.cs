@@ -4,11 +4,11 @@ using SkiaSharp;
 
 namespace Compositor.Core.IO;
 
-public enum ExportFormat { Png, Jpeg, Pdf }
+public enum ExportFormat { Png, Jpeg, Pdf, Tiff }
 public sealed record ExportOptions(ExportFormat Format, int Width, int Height, int Quality = 90,
     bool Transparency = true, SKColor? Background = null, double Resolution = 72)
 {
-    public string Extension => Format switch { ExportFormat.Jpeg => "jpg", ExportFormat.Pdf => "pdf", _ => "png" };
+    public string Extension => Format switch { ExportFormat.Jpeg => "jpg", ExportFormat.Pdf => "pdf", ExportFormat.Tiff => "tif", _ => "png" };
     public bool IsValid => Enum.IsDefined(Format) && Width > 0 && Height > 0
         && Width <= DocumentLimits.MaxSide && Height <= DocumentLimits.MaxSide
         && (long)Width * Height <= DocumentLimits.MaxSurfacePixels && Quality is >= 1 and <= 100
@@ -31,10 +31,10 @@ public static class ExportImage
         if ((long)document.Width * document.Height > DocumentLimits.MaxSurfacePixels)
             throw new InvalidOperationException("This canvas is too large for an export preview. Use Export PNG for tiled export.");
         // Resize the complete composite, so rotated layers, masks and effects scale together.
-        using var original = DocumentRenderer.Render(document);
-        using var pixels = original.Resize(Bitmaps.ColorInfo(options.Width, options.Height),
+        using var original = document.Image.Depth > 8 || document.Layers.Any(l => l.Asset?.Deep is not null) ? DocumentRenderer.RenderDeep(document) : DocumentRenderer.Render(document);
+        using var pixels = original.Resize(original.ColorType == SKColorType.RgbaF32 ? DeepPixels.Info(options.Width, options.Height) : Bitmaps.ColorInfo(options.Width, options.Height),
             new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)) ?? throw new IOException("The image could not be resized.");
-        if (options.Format != ExportFormat.Png || !options.Transparency)
+        if (options.Format is ExportFormat.Jpeg or ExportFormat.Pdf || !options.Transparency)
         {
             using var canvas = new SKCanvas(pixels);
             using var paint = new SKPaint { Color = options.Background ?? SKColors.White, BlendMode = SKBlendMode.DstOver };
@@ -42,7 +42,9 @@ public static class ExportImage
         }
         byte[] bytes;
         using var image = SKImage.FromBitmap(pixels);
-        if (options.Format == ExportFormat.Pdf)
+        if (options.Format == ExportFormat.Tiff || options.Format == ExportFormat.Png && (document.Image.Depth > 8 || document.Image.Mode != Compositor.Core.Format.ImageMode.RGB || original.ColorType == SKColorType.RgbaF32))
+            bytes = DeepImageCodec.EncodeMode(pixels, document.Image with { Depth = Math.Max(document.Image.Depth, document.Layers.Select(l => l.Asset?.BitDepth ?? 8).DefaultIfEmpty(8).Max()) }, options.Format == ExportFormat.Tiff, options.Resolution);
+        else if (options.Format == ExportFormat.Pdf)
         {
             using var stream = new MemoryStream();
             using (var pdf = SKDocument.CreatePdf(stream))

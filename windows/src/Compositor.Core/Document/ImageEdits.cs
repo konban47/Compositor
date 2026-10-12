@@ -45,7 +45,7 @@ public static class ImageEdits
             var transform = new Model.LayerTransform(box.Left, box.Top, box.Width, box.Height, 0, false, false, sampling);
             // Resampling bakes the complete transform into pixels, including live text and shapes.
             var replacement = layer.Asset is { } pixels
-                ? ImportedImage.Create(Resample(pixels.Image, layer.Transform, sx, sy, box, sampling, gray: false)!, pixels.Name)
+                ? ResampleAsset(pixels, layer.Transform, sx, sy, box, sampling)
                 : null;
             var mask = layer.Mask;
             Model.LayerMask? maskResult = null;
@@ -106,6 +106,13 @@ public static class ImageEdits
         return true;
     }
 
+    private static ImportedImage ResampleAsset(ImportedImage source, Model.LayerTransform transform, double sx, double sy, SKRectI box, LayerSampling sampling)
+    {
+        var pixels = Resample(source.WorkingImage, transform, sx, sy, box, sampling, gray: false)
+            ?? throw new InvalidOperationException("The image could not be resized.");
+        return source.Deep is null ? ImportedImage.Create(pixels, source.Name) : ImportedImage.CreateDeep(pixels, source.Name, source.BitDepth);
+    }
+
     /// <summary>The upright box a layer's picture covers once the canvas has been scaled.</summary>
     private static SKRectI Box(Model.LayerTransform transform, int width, int height, double sx, double sy)
     {
@@ -135,7 +142,7 @@ public static class ImageEdits
         if (box.Width <= 0 || box.Height <= 0) return null;
         var info = gray
             ? new SKImageInfo(box.Width, box.Height, SKColorType.Gray8, SKAlphaType.Opaque)
-            : Bitmaps.ColorInfo(box.Width, box.Height);
+            : source.ColorType == SKColorType.RgbaF32 ? DeepPixels.Info(box.Width, box.Height) : Bitmaps.ColorInfo(box.Width, box.Height);
         var bitmap = new SKBitmap(info);
         if (!bitmap.ReadyToDraw) return null;
         bitmap.Erase(SKColors.Transparent);

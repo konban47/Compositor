@@ -28,6 +28,26 @@ public sealed class ImageGenerationClient(HttpClient client)
         if (!string.IsNullOrWhiteSpace(key)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key.Trim());
         request.Content = JsonContent.Create(new { model = options.Model.Trim(), prompt = options.Prompt, n = options.Count, size = options.Size });
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation);
+        return await DecodeResponse(response, cancellation);
+    }
+
+    public async Task<IReadOnlyList<GeneratedImage>> Edit(GenerationRequest options, string key, byte[] image, CancellationToken cancellation = default)
+    {
+        if (image.Length is 0 or > 50 * 1024 * 1024 || string.IsNullOrWhiteSpace(options.Model) || string.IsNullOrWhiteSpace(options.Prompt) || options.Prompt.Length > 32000) throw new ArgumentException("Invalid image edit request.");
+        var generation = Endpoint(options.Endpoint);
+        var endpoint = new Uri(generation.AbsoluteUri[..^"generations".Length] + "edits");
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        if (!string.IsNullOrWhiteSpace(key)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key.Trim());
+        var form = new MultipartFormDataContent();
+        form.Add(new StringContent(options.Model.Trim()), "model"); form.Add(new StringContent(options.Prompt), "prompt");
+        form.Add(new StringContent(options.Size), "size"); form.Add(new StringContent("1"), "n");
+        var pixels = new ByteArrayContent(image); pixels.Headers.ContentType = new MediaTypeHeaderValue("image/png"); form.Add(pixels, "image", "source.png");
+        request.Content = form;
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation);
+        return await DecodeResponse(response, cancellation);
+    }
+    private async Task<IReadOnlyList<GeneratedImage>> DecodeResponse(HttpResponseMessage response, CancellationToken cancellation)
+    {
         if (!response.IsSuccessStatusCode)
         {
             // Providers may echo a request. Never propagate its body, headers, URL or credentials to logs/UI.

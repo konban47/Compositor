@@ -37,6 +37,19 @@ public static class ProjectStore
         }
 
         var version = manifest.Version;
+        if (manifest.ImageSettings is { } imageSettings && (version < 18 || !imageSettings.IsValid)
+            || manifest.MeasurementScale is { } scale && (version < 18 || !scale.IsValid)
+            || manifest.Variables is { } variables && (version < 18 || variables.Count > 10000 || variables.Any(v => v is null
+                || !Enum.IsDefined(v.Kind) || string.IsNullOrWhiteSpace(v.Name) || v.Name.Length > 128
+                || !manifest.Layers.Any(l => l.ID == v.LayerID)) || variables.Select(v => v.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != variables.Count)
+            || manifest.DataSets is { } dataSets && (version < 18 || dataSets.Count > 1000 || dataSets.Any(d => d is null
+                || string.IsNullOrWhiteSpace(d.Name) || d.Name.Length > 128 || d.Values is null || d.Values.Count > 10000
+                || d.Values.Any(v => v.Key.Length > 128 || v.Value is null || v.Value.Length > 100000)))
+            || manifest.Measurements is { } measurements && (version < 18 || measurements.Count > 10000 || measurements.Any(m => m is null
+                || m.Name is null || m.Name.Length > 1024 || m.Unit is null || m.Unit.Length > 64
+                || new[] { m.Area, m.Perimeter, m.Width, m.Height, m.Length, m.Angle, m.Mean }.Any(v => !double.IsFinite(v))))
+            || manifest.MeasurementFields is { } fields && (version < 18 || fields.Length > 8 || fields.Any(f => f is not ("Area" or "Perimeter" or "Width" or "Height" or "Length" or "Angle" or "Count" or "Mean"))))
+            throw new ProjectException(ProjectError.Invalid);
         if (manifest.Marks is { } marks && (version < 17 || marks.Count > 10_000 || marks.Any(m => m is null || !m.IsValid)
             || marks.Select(m => m.ID).Distinct().Count() != marks.Count)) throw new ProjectException(ProjectError.Invalid);
         var channelIDs = new HashSet<Guid>();
@@ -50,6 +63,8 @@ public static class ProjectStore
         }
         foreach (var layer in manifest.Layers)
         {
+            if (layer.FloatImageFile is not null && (version < 18 || layer.ImageFile is null || layer.FloatImageFile != Model.FloatPixels.FileName(layer.ID)))
+                throw new ProjectException(ProjectError.Invalid);
             if ((layer.Blending is not null && (!layer.Blending.IsValid || version < 15))
                 || (layer.Effects is not null && (!layer.Effects.IsValid || version < 15 && (layer.Effects.Items is not null || !layer.Effects.Enabled)))
                 || (layer.Label is { } label && (version < 15 || !Enum.IsDefined(label)))
@@ -68,7 +83,7 @@ public static class ProjectStore
                     || (text.ColorRuns is not null && version < 10)
                     || (text.FontRuns is not null && version < 11)
                     || (text.HasTypography && version < 13)
-                    || (text.HasAdvancedTypography && version < 14)
+                    || (text.HasAdvancedTypography && version < 14) || (text.Layout is not null && version < 18)
                     || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null)
                 {
                     throw new ProjectException(ProjectError.Invalid);
@@ -198,7 +213,13 @@ public static class ProjectStore
                 {
                     CheckSize(asset.Width, asset.Height, ref pixels);
                 }
-                images[filename] = PngCodec.Encode(asset.Image);
+                images[filename] = !isMask && asset.Deep is { } deep ? DeepImageCodec.EncodePng(deep) : PngCodec.Encode(asset.Image);
+                if (!isMask && layer.FloatImageFile is { } floatFile)
+                {
+                    if (asset.Deep is null || asset.BitDepth != 32 || (long)asset.Width * asset.Height * 16 > Model.DocumentLimits.MaxAssetBytes)
+                        throw new ProjectException(ProjectError.TooLarge);
+                    images[floatFile] = Model.FloatPixels.Encode(asset.Deep);
+                }
             }
         }
 
@@ -327,12 +348,22 @@ public static class ProjectStore
                     var file = ResolveAsset(package, $"{ImagesName}/{filename}", Model.DocumentLimits.MaxAssetBytes);
                     var bytes = File.ReadAllBytes(file);
                     var headerOfAsset = PngCodec.ReadHeader(bytes);
-                    if (!headerOfAsset.IsEightBitOrLess) throw new ProjectException(ProjectError.MissingImage);
+                    if (!headerOfAsset.IsEightBitOrLess && (isMask || manifest.Version < 12 || headerOfAsset.BitDepth != 16)) throw new ProjectException(ProjectError.MissingImage);
                     if (isMask) CheckSize(headerOfAsset.Width, headerOfAsset.Height, ref maskPixels);
                     else CheckSize(headerOfAsset.Width, headerOfAsset.Height, ref pixels);
 
-                    var bitmap = isMask ? PngCodec.DecodeMask(headerOfAsset, bytes) : PngCodec.DecodeImage(headerOfAsset, bytes);
-                    var asset = new Model.ImportedImage(bitmap, Model.Bitmaps.Thumbnail(bitmap), layer.Name);
+                    Model.ImportedImage asset;
+                    if (!isMask && layer.FloatImageFile is { } floatFile)
+                    {
+                        var floatBytes = File.ReadAllBytes(ResolveAsset(package, $"{ImagesName}/{floatFile}", Model.DocumentLimits.MaxAssetBytes));
+                        asset = Model.ImportedImage.CreateDeep(Model.FloatPixels.Decode(floatBytes, headerOfAsset.Width, headerOfAsset.Height), layer.Name, 32);
+                    }
+                    else if (!isMask && headerOfAsset.BitDepth == 16) asset = DeepImageCodec.Decode(bytes, layer.Name);
+                    else
+                    {
+                        var bitmap = isMask ? PngCodec.DecodeMask(headerOfAsset, bytes) : PngCodec.DecodeImage(headerOfAsset, bytes);
+                        asset = new Model.ImportedImage(bitmap, Model.Bitmaps.Thumbnail(bitmap), layer.Name);
+                    }
                     if (isMask) snapshot.Masks[layer.ID] = asset;
                     else snapshot.Images[layer.ID] = asset;
                 }

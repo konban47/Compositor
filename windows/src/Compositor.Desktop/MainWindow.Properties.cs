@@ -2,6 +2,8 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -17,7 +19,7 @@ namespace Compositor.Desktop;
 public sealed partial class MainWindow
 {
     private readonly TabControl _inspectorTabs = new();
-    private readonly StackPanel _properties = new() { Spacing = 8, Margin = new Thickness(10) };
+    private readonly StackPanel _properties = new() { Spacing = 0, Background = PropertySurface };
     private readonly Dictionary<string, bool> _propertySections = [];
     private bool _refreshingLayerRows;
     private Guid? _maskTargetLayer;
@@ -25,7 +27,7 @@ public sealed partial class MainWindow
     private bool _proportionLocked = true, _propertiesPending;
     private AlignmentTarget _alignmentTarget = AlignmentTarget.Auto;
     private string _propertiesKey = "";
-    private ImageLayer? PropertyLayer => _document?.Layers.FirstOrDefault(layer => layer.ID == Selected);
+    private ImageLayer? PropertyLayer => _layers.SelectedIndex >= 0 ? _document?.Layers.FirstOrDefault(layer => layer.ID == Selected) : null;
     private bool MaskTarget => _options.PaintOnMask && PropertyLayer?.Mask is not null;
 
     private void SyncMaskTarget()
@@ -40,7 +42,7 @@ public sealed partial class MainWindow
             Content = new ScrollViewer { Content = _properties, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } });
         _inspectorTabs.Items.Add(new TabItem { Header = Localize.Text("History"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Content = BuildHistoryPanel() });
         _inspectorTabs.SelectedIndex = 0;
-        var dock = new Grid { RowDefinitions = new RowDefinitions("4*,4,5*") };
+        var dock = new Grid { RowDefinitions = new RowDefinitions("6*,4,4*") };
         _inspectorTabs.MinHeight = 100; layers.MinHeight = 150;
         dock.Children.Add(_inspectorTabs);
         var splitter = new GridSplitter { ResizeDirection = GridResizeDirection.Rows, HorizontalAlignment = HorizontalAlignment.Stretch, Background = Skin.BorderSubtleBrush };
@@ -62,7 +64,7 @@ public sealed partial class MainWindow
         Dispatcher.UIThread.Post(() =>
         {
             _propertiesPending = false;
-            var key = $"{_document?.ID}:{_history.CurrentRevision}:{Selected}:{MaskTarget}:{string.Join(',', SelectedLayers)}";
+            var key = $"{_document?.ID}:{_history.CurrentRevision}:{Selected}:{_layers.SelectedIndex}:{MaskTarget}:{string.Join(',', SelectedLayers)}";
             if (key != _propertiesKey) { _propertiesKey = key; BuildProperties(); }
             RefreshHistory();
             foreach (var thumbnail in _layerThumbnails) thumbnail.InvalidateVisual();
@@ -76,23 +78,19 @@ public sealed partial class MainWindow
         var layer = PropertyLayer;
         if (layer is null)
         {
-            _properties.Children.Add(PropertyLabel("Document"));
-            _properties.Children.Add(new TextBlock { Text = $"{document.Width} × {document.Height} px · {document.Resolution:0.##} ppi · RGB / 8", FontSize = 12 });
-            _properties.Children.Add(PropertyAction("Image Size…", () => _ = ImageSize()));
-            _properties.Children.Add(PropertyAction("Canvas Size…", () => _ = CanvasSize())); return;
+            BuildDocumentProperties(document); return;
         }
         var heading = MaskTarget ? layer.Mask!.VectorPath is null ? "Layer Mask" : "Vector Mask"
             : SelectedLayers.Count > 1 ? "Multiple Layers" : layer.IsGroup ? "Group" : layer.LiveText is not null ? "Type Layer"
             : layer.LiveShape is not null ? "Shape Layer" : layer.Adjustment is not null ? "Adjustment Layer" : "Pixel Layer";
-        _properties.Children.Add(new TextBlock { Text = Localize.Text(heading), FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Skin.LabelBrush });
-        _properties.Children.Add(new TextBlock { Text = layer.Name, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Skin.SecondaryBrush });
+        PropertyHeading(heading, MaskTarget ? "mask" : layer.LiveText is not null ? "Type" : layer.LiveShape is not null ? "Shape" : layer.IsGroup ? "folder" : "image");
         if (MaskTarget) { BuildMaskProperties(layer); return; }
         BuildTransformProperties(layer);
         if (layer.LiveText is { } text) BuildTextProperties(layer.ID, text);
         if (layer.LiveShape is not null) BuildShapeProperties(layer);
         if (layer.Adjustment is not null)
             Section("Adjustments", PropertyAction("Adjustment Settings…", () => _ = EditAdjustment()));
-        BuildAlignmentProperties();
+        if (layer.LiveText is null) BuildAlignmentProperties();
         var quick = new StackPanel { Spacing = 5 };
         if (layer.Asset is not null && layer.Adjustment is null)
         {
@@ -108,10 +106,15 @@ public sealed partial class MainWindow
         else quick.Children.Add(PropertyAction("Edit Layer Mask", () => SetPaintingMask(true)));
         if (layer.LiveText is not null || layer.LiveShape is not null)
             quick.Children.Add(PropertyAction("Rasterize Layer", () => Edit("Rasterize Layer", () => { if (PropertyLayer is not { } current) return false; current.Text = null; current.Shape = null; return true; })));
+        if (layer.LiveText is not null)
+        {
+            quick.Children.Add(PropertyAction("Convert to Frame", () => Edit("Convert to Frame", () => TextEdits.MakeFrame(document, layer.ID))));
+            quick.Children.Add(PropertyAction("Convert to Vector Shape", () => Edit("Convert to Vector Shape", () => TextEdits.ToVectorShape(document, layer.ID))));
+        }
         if (quick.Children.Count > 0) Section("Quick Actions", quick);
     }
 
-    private static TextBlock PropertyLabel(string text) => new() { Text = Localize.Text(text), FontSize = 11, Foreground = Skin.SecondaryBrush, TextWrapping = TextWrapping.Wrap };
+    private static TextBlock PropertyLabel(string text) => new() { Text = Localize.Text(text), FontSize = 12, Foreground = Skin.LabelBrush, TextWrapping = TextWrapping.Wrap };
     private static Button PropertyAction(string text, Action action)
     {
         var button = new Button
@@ -119,13 +122,12 @@ public sealed partial class MainWindow
             Content = Localize.Text(text),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Center,
-            MinHeight = 24,
-            Height = 24,
-            FontSize = 11,
-            Padding = new Thickness(6, 2),
-            CornerRadius = new CornerRadius(7),
-            Background = Skin.SurfaceControlBrush,
-            BorderBrush = Skin.BorderControlBrush,
+            MinHeight = 30,
+            FontSize = 12,
+            Padding = new Thickness(8, 4),
+            CornerRadius = new CornerRadius(2),
+            Background = PropertyFieldSurface,
+            BorderBrush = PropertyLine,
             BorderThickness = new Thickness(1),
             Foreground = Skin.LabelBrush,
             Tag = text,
@@ -135,7 +137,7 @@ public sealed partial class MainWindow
     }
     private static Button InspectorButton(string icon, string text, Action action)
     {
-        var button = new Button { Content = new InspectorGlyph(icon), Width = 34, Height = 30, Padding = new Thickness(5, 4),
+        var button = new Button { Content = new InspectorGlyph(icon), Width = 32, Height = 30, Padding = new Thickness(5, 4), CornerRadius = new CornerRadius(2),
             Background = Brushes.Transparent, Tag = text };
         ToolTip.SetTip(button, Localize.Text(text));
         Avalonia.Automation.AutomationProperties.SetName(button, Localize.Text(text));
@@ -144,18 +146,67 @@ public sealed partial class MainWindow
     private static Control InlineProperty(string label, Control input)
     {
         var row = new Grid { ColumnDefinitions = new ColumnDefinitions("24,*") };
-        row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Foreground = Skin.SecondaryBrush });
+        row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Foreground = Skin.LabelBrush });
         input.MinHeight = 28;
         Grid.SetColumn(input, 1); row.Children.Add(input); return row;
     }
+    private static readonly IBrush PropertySurface = new SolidColorBrush(Avalonia.Media.Color.FromRgb(0x51, 0x51, 0x51));
+    private static readonly IBrush PropertyFieldSurface = new SolidColorBrush(Avalonia.Media.Color.FromRgb(0x45, 0x45, 0x45));
+    private static readonly IBrush PropertyLine = new SolidColorBrush(Avalonia.Media.Color.FromRgb(0x64, 0x64, 0x64));
+    private void PropertyHeading(string title, string icon) => _properties.Children.Add(new Border { Padding = new Thickness(10, 8), BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(0, 0, 0, 1),
+        Child = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Children = {
+            new Border { Width = 28, Height = 28, Padding = new Thickness(3), CornerRadius = new CornerRadius(2), Background = PropertyFieldSurface, BorderBrush = PropertyLine, BorderThickness = new Thickness(1), Child = new InspectorGlyph(icon) },
+            new TextBlock { Text = Localize.Text(title), FontSize = 13, VerticalAlignment = VerticalAlignment.Center } } } });
     private void Section(string title, params Control[] contents)
     {
-        var body = new StackPanel { Spacing = 7, Margin = new Thickness(0, 5, 0, 8) };
+        var body = new StackPanel { Spacing = 10, Margin = new Thickness(10, 6, 12, 16), MinWidth = 256, MaxWidth = 312, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var item in contents) body.Children.Add(item);
-        var section = new Expander { Header = Localize.Text(title), Content = body, IsExpanded = _propertySections.GetValueOrDefault(title, true),
-            HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(0) };
+        // Keep Expander semantics and keyboard access, with the flat header/dividers from the reference.
+        var section = new Expander { Header = Localize.Text(title == "Transform" ? "Transform Properties" : title), Tag = "property-section-" + title, Content = body,
+            IsExpanded = _propertySections.GetValueOrDefault(title, true), HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(0) };
+        section.Template = new FuncControlTemplate<Expander>((owner, scope) =>
+        {
+            var arrow = new TextBlock { Text = owner.IsExpanded ? "⌄" : "›", Width = 14, VerticalAlignment = VerticalAlignment.Center, FontSize = 14 };
+            var header = new Button { Height = 34, Padding = new Thickness(8, 4), Background = Brushes.Transparent, BorderThickness = new Thickness(0), CornerRadius = new CornerRadius(0), HorizontalAlignment = HorizontalAlignment.Stretch,
+                Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3, Children = { arrow, new TextBlock { Text = owner.Header?.ToString(), FontSize = 12.5, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center } } } };
+            var content = new ContentPresenter { Content = owner.Content, IsVisible = owner.IsExpanded, HorizontalContentAlignment = HorizontalAlignment.Stretch };
+            header.Click += (_, _) => owner.IsExpanded = !owner.IsExpanded;
+            owner.PropertyChanged += (_, e) => { if (e.Property == Expander.IsExpandedProperty) { content.IsVisible = owner.IsExpanded; arrow.Text = owner.IsExpanded ? "⌄" : "›"; } };
+            return new Border { BorderThickness = new Thickness(0, 0, 0, 1), BorderBrush = Skin.BorderControlBrush, Child = new StackPanel { Children = { header, content } } };
+        });
         section.PropertyChanged += (_, e) => { if (e.Property == Expander.IsExpandedProperty) _propertySections[title] = section.IsExpanded; };
         _properties.Children.Add(section);
+    }
+    private Control MoreProperties(string section, Control extra, bool expanded = false)
+    {
+        var key = section + ".more"; extra.IsVisible = _propertySections.GetValueOrDefault(key, expanded);
+        var button = InspectorButton("more", "More Options", () => { extra.IsVisible = !extra.IsVisible; _propertySections[key] = extra.IsVisible; });
+        button.Tag = "property-more-" + section; button.Width = 28; button.Height = 24;
+        button.HorizontalAlignment = HorizontalAlignment.Right; button.Background = PropertyFieldSurface;
+        button.BorderBrush = PropertyLine; button.BorderThickness = new Thickness(1);
+        return new StackPanel { Spacing = 10, Children = { extra, button } };
+    }
+    private static ComboBox PropertyChoice(string tag, string[] labels, int selected, Action<int> changed)
+    {
+        var combo = new ComboBox { Tag = tag, ItemsSource = labels.Select(Localize.Text).ToArray(), SelectedIndex = selected,
+            MinHeight = 28, Padding = new Thickness(5, 2), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = PropertyFieldSurface, BorderBrush = PropertyLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(1) };
+        ToolTip.SetTip(combo, Localize.Text(tag)); combo.SelectionChanged += (_, _) => { if (combo.SelectedIndex >= 0) changed(combo.SelectedIndex); }; return combo;
+    }
+    private static ToggleButton PropertyToggle(string icon, string text, bool selected, Action<bool> changed)
+    {
+        var button = new ToggleButton { Content = new InspectorGlyph(icon), Tag = text, IsChecked = selected, Background = selected ? PropertyFieldSurface : Brushes.Transparent, BorderBrush = PropertyLine, BorderThickness = new Thickness(selected ? 1 : 0), Width = 30, MinHeight = 30, Height = 30, Padding = new Thickness(4), CornerRadius = new CornerRadius(2) };
+        button.Template = new FuncControlTemplate<ToggleButton>((owner, scope) =>
+        {
+            var border = new Border { CornerRadius = new CornerRadius(2), Padding = new Thickness(4), BorderBrush = PropertyLine,
+                Child = new ContentPresenter { Content = owner.Content, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center } };
+            void Refresh() { border.Background = owner.IsChecked == true ? PropertyFieldSurface : owner.IsPointerOver ? Skin.SurfaceControlHoverBrush : Brushes.Transparent; border.BorderThickness = new Thickness(owner.IsChecked == true ? 1 : 0); }
+            owner.PropertyChanged += (_, e) => { if (e.Property == ToggleButton.IsCheckedProperty || e.Property == IsPointerOverProperty) Refresh(); };
+            Refresh(); return border;
+        });
+        ToolTip.SetTip(button, Localize.Text(text)); Avalonia.Automation.AutomationProperties.SetName(button, Localize.Text(text));
+        button.Click += (_, _) => { var on = button.IsChecked == true; button.Background = on ? PropertyFieldSurface : Brushes.Transparent; button.BorderThickness = new Thickness(on ? 1 : 0); changed(on); }; return button;
     }
     private static Control PropertyPair(Control first, Control second)
     {
@@ -174,10 +225,11 @@ public sealed partial class MainWindow
             FormatString = "0.##",
             ShowButtonSpinner = false,
             Increment = 1,
-            Height = 24,
-            FontSize = 11,
-            CornerRadius = new CornerRadius(7),
-            Background = Skin.SurfaceDarkBrush,
+            Height = 28, MinHeight = 28,
+            Padding = new Thickness(5, 2),
+            FontSize = 12,
+            CornerRadius = new CornerRadius(1),
+            Background = PropertyFieldSurface,
             BorderBrush = Skin.BorderControlBrush,
             Foreground = Skin.LabelBrush,
             HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -199,9 +251,7 @@ public sealed partial class MainWindow
     {
         var box = SelectedLayers.Count > 1 || layer.IsGroup ? TransformEdits.GroupBox(_document!, SelectedLayers) : layer.Transform;
         if (box is not { } transform) return;
-        var locked = new ToggleButton { Content = new InspectorGlyph("link"), IsChecked = _proportionLocked, Width = 30, Height = 34, Padding = new Thickness(4), Tag = "Constrain Proportions" };
-        ToolTip.SetTip(locked, Localize.Text("Constrain Proportions"));
-        locked.IsCheckedChanged += (_, _) => _proportionLocked = locked.IsChecked == true;
+        var locked = PropertyToggle("link", "Constrain Proportions", _proportionLocked, on => _proportionLocked = on);
         NumericUpDown Number(string axis, double v, double min, double max) => PropertyNumber("transform-" + axis, v, min, max, next =>
         {
             var draft = axis switch
@@ -212,7 +262,7 @@ public sealed partial class MainWindow
             };
             SetPropertyTransform(draft);
         });
-        var controls = new Grid { ColumnDefinitions = new ColumnDefinitions("34,*,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), IsEnabled = LayerProtection.CanMove(_document!, layer.ID) };
+        var controls = new Grid { MinWidth = 256, MaxWidth = 300, ColumnDefinitions = new ColumnDefinitions("30,*,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), IsEnabled = LayerProtection.CanMove(_document!, layer.ID) };
         controls.Children.Add(locked); Grid.SetRowSpan(locked, 2);
         void Put(Control control, int row, int column) { control.Margin = new Thickness(3); Grid.SetRow(control, row); Grid.SetColumn(control, column); controls.Children.Add(control); }
         Put(InlineProperty("W", Number("width", transform.Width, 1, 300000)), 0, 1);
@@ -225,7 +275,7 @@ public sealed partial class MainWindow
         var flips = new StackPanel { Orientation = Orientation.Horizontal };
         flips.Children.Add(InspectorButton("flip-x", "Flip Horizontal", () => SetPropertyTransform(transform with { FlipX = !transform.FlipX })));
         flips.Children.Add(InspectorButton("flip-y", "Flip Vertical", () => SetPropertyTransform(transform with { FlipY = !transform.FlipY })));
-        flips.Children.Add(InspectorButton("reset", "Reset Rotation", () => SetPropertyTransform(transform with { Rotation = 0 })));
+
         Put(flips, 2, 2); Section("Transform", controls);
     }
     private void SetPropertyTransform(LayerTransform draft)
@@ -255,109 +305,22 @@ public sealed partial class MainWindow
         }
         all.Children.Add(PropertyLabel("Align:"));
         all.Children.Add(Row("Align Left", "Align H Center", "Align Right", "Align Top", "Align V Center", "Align Bottom"));
-        all.Children.Add(new Separator());
-        all.Children.Add(PropertyLabel("Distribute:"));
-        all.Children.Add(Row("Distribute Top", "Distribute Vertically", "Distribute Bottom", "Distribute Left", "Distribute Horizontally", "Distribute Right"));
-        all.Children.Add(new Separator());
-        var target = new ComboBox { ItemsSource = new[] { Localize.Text("Automatic"), Localize.Text("Selected Layers"), Localize.Text("Canvas"), Localize.Text("Selection") },
-            SelectedIndex = (int)_alignmentTarget, MinWidth = 130, Tag = "alignment-target" };
+        var extra = new StackPanel { Spacing = 10 };
+        extra.Children.Add(new Separator());
+        extra.Children.Add(PropertyLabel("Distribute:"));
+        extra.Children.Add(Row("Distribute Top", "Distribute Vertically", "Distribute Bottom", "Distribute Left", "Distribute Horizontally", "Distribute Right"));
+        extra.Children.Add(new Separator());
+        var target = PropertyChoice("alignment-target", ["Automatic", "Selected Layers", "Canvas", "Selection"], (int)_alignmentTarget,
+            value => { _alignmentTarget = (AlignmentTarget)value; BuildProperties(); });
         ToolTip.SetTip(target, Localize.Text("Reference bounds for alignment and distribution"));
-        target.SelectionChanged += (_, _) => { _alignmentTarget = (AlignmentTarget)Math.Max(0, target.SelectedIndex); BuildProperties(); };
-        all.Children.Add(PropertyPair(PropertyField("Distribute Spacing:", Row("Distribute Vertical Spacing", "Distribute Horizontal Spacing")), PropertyField("Align to:", target)));
-        var more = InspectorButton("more", "Alignment Options", () => { });
-        more.HorizontalAlignment = HorizontalAlignment.Right;
-        more.Click += (_, _) =>
-        {
-            var menu = new ContextMenu();
-            menu.Items.Add(Command("Select All Layers", () => { _layers.SelectAll(); BuildProperties(); }));
-            menu.Items.Add(Command("Align to Selection", () => { _alignmentTarget = AlignmentTarget.Selection; BuildProperties(); }));
-            menu.Items.Add(Command("Align to Canvas", () => { _alignmentTarget = AlignmentTarget.Canvas; BuildProperties(); }));
-            menu.Open(more);
-        };
-        all.Children.Add(more); Section("Align and Distribute", all);
+        extra.Children.Add(PropertyPair(PropertyField("Distribute Spacing:", Row("Distribute Vertical Spacing", "Distribute Horizontal Spacing")), PropertyField("Align to:", target)));
+        all.Children.Add(MoreProperties("Alignment", extra, true)); Section("Align and Distribute", all);
     }
     private void AlignProperties(string operation)
     {
         if (_document is not { } document) return;
         if (_alignmentTarget == AlignmentTarget.Selection && document.Selection.Path is not { IsEmpty: false }) { Say("Create a selection to use it as the alignment reference."); return; }
         Edit(operation, () => LayerAlignment.Apply(document, SelectedLayers, operation, _alignmentTarget));
-    }
-
-    private void BuildTextProperties(Guid id, LayerTextStyle text)
-    {
-        void Change(Action<LayerTextStyle> modify)
-        {
-            if (_document is not { } document || PropertyLayer?.ID != id) return;
-            var style = JsonSerializer.Deserialize<LayerTextStyle>(JsonSerializer.Serialize(text, ManifestJson.Options), ManifestJson.Options)!;
-            modify(style); Edit("Character Properties", () => TextEdits.SetStyle(document, id, style));
-            ShowLayers(document);
-        }
-        var font = new TextBox { Text = text.FontName, Tag = "property-font" };
-        font.LostFocus += (_, _) => { if (!string.IsNullOrWhiteSpace(font.Text) && font.Text != text.FontName) Change(style => { style.FontName = font.Text.Trim(); style.FontRuns = null; }); };
-        var formatting = new WrapPanel();
-        foreach (var (name, on) in new[] { ("Bold", text.Bold), ("Italic", text.Italic), ("Underline", text.Underline), ("Strikethrough", text.Strikethrough) })
-        {
-            var button = new ToggleButton { Content = Localize.Text(name), IsChecked = on == true, Padding = new Thickness(6, 3), Margin = new Thickness(2), FontSize = 11 };
-            button.Click += (_, _) => Change(style => { bool? value = button.IsChecked == true ? true : null;
-                switch (name) { case "Bold": style.Bold = value; break; case "Italic": style.Italic = value; break; case "Underline": style.Underline = value; break; default: style.Strikethrough = value; break; } });
-            formatting.Children.Add(button);
-        }
-        // The OpenType and script switches: small caps, super/subscript, ligatures and kerning, plus the
-        // reading direction. They rerender the layer through the same Change the rest use.
-        var script = new WrapPanel();
-        foreach (var (name, on) in new[]
-                 {
-                     ("Small Caps", text.SmallCaps), ("All Caps", text.AllCaps), ("Superscript", text.Superscript),
-                     ("Subscript", text.Subscript), ("Ligatures", text.Ligatures), ("Kerning", text.Kerning),
-                 })
-        {
-            var button = new ToggleButton { Content = Localize.Text(name), IsChecked = on == true, Padding = new Thickness(6, 3), Margin = new Thickness(2), FontSize = 11 };
-            button.Click += (_, _) =>
-            {
-                bool? value = button.IsChecked == true ? true : null;
-                Change(style =>
-                {
-                    switch (name)
-                    {
-                        case "Small Caps": style.SmallCaps = value; break;
-                        case "All Caps": style.AllCaps = value; break;
-                        case "Superscript": style.Superscript = value; break;
-                        case "Subscript": style.Subscript = value; break;
-                        case "Ligatures": style.Ligatures = value; break;
-                        default: style.Kerning = value; break;
-                    }
-                });
-            };
-            script.Children.Add(button);
-        }
-        var direction = new ComboBox
-        {
-            ItemsSource = new[] { Localize.Text("Auto direction"), Localize.Text("Left to right"), Localize.Text("Right to left") },
-            SelectedIndex = (int)text.Direction,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        direction.SelectionChanged += (_, _) => Change(style => style.Direction = (Compositor.Core.Format.TextDirection)Math.Max(0, direction.SelectedIndex));
-        var dynamic = new CheckBox { Content = Localize.Text("Dynamic text (fills {width}, {date} and other tokens)"), IsChecked = text.Dynamic == true };
-        dynamic.IsCheckedChanged += (_, _) => Change(style => style.Dynamic = dynamic.IsChecked == true ? true : null);
-        var color = new TextBox { Text = $"#{(int)(text.Red * 255):X2}{(int)(text.Green * 255):X2}{(int)(text.Blue * 255):X2}", Tag = "property-text-color" };
-        var previousColor = color.Text;
-        color.LostFocus += (_, _) => { if (color.Text != previousColor && SKColor.TryParse(color.Text, out var parsed)) { previousColor = color.Text; Change(style => { style.Red = parsed.Red / 255.0; style.Green = parsed.Green / 255.0; style.Blue = parsed.Blue / 255.0; style.ColorRuns = null; }); } };
-        Section("Character", PropertyField("Font Family", font),
-            PropertyPair(PropertyField("Size (pt)", PropertyNumber("text-size", text.FontSize * 72 / _document!.Resolution, 1, 2000, v => Change(style => style.FontSize = v * _document.Resolution / 72))),
-                PropertyField("Leading (px, 0 = Auto)", PropertyNumber("text-leading", text.Leading, 0, 5000, v => Change(style => style.Leading = v)))),
-            PropertyPair(PropertyField("Tracking (px)", PropertyNumber("text-tracking", text.Tracking, -100, 1000, v => Change(style => style.Tracking = v))), PropertyField("Text Color (#RRGGBB)", color)), formatting);
-        var alignment = new ComboBox { ItemsSource = new[] { Localize.Text("Left"), Localize.Text("Center"), Localize.Text("Right") }, SelectedIndex = (int)text.Alignment, HorizontalAlignment = HorizontalAlignment.Stretch };
-        alignment.SelectionChanged += (_, _) => Change(style => { style.Alignment = (Compositor.Core.Format.TextAlignment)alignment.SelectedIndex; style.BoxSize ??= new JsonSize { Width = PropertyLayer!.Asset!.Width, Height = PropertyLayer.Asset.Height }; });
-        Section("Paragraph", alignment, PropertyAction("Edit Text…", () => _ = EditText()),
-            PropertyPair(PropertyAction("Bulleted List", () => Change(style => { style.Content = string.Join('\n', style.Content.Split('\n').Select(line => line.StartsWith("• ") ? line[2..] : "• " + line)); style.ColorRuns = null; style.FontRuns = null; })),
-                PropertyAction("Numbered List", () => Change(style => { style.Content = string.Join('\n', style.Content.Split('\n').Select((line, index) => $"{index + 1}. {line}")); style.ColorRuns = null; style.FontRuns = null; }))),
-            PropertyPair(PropertyAction("Uppercase", () => Change(style => { style.Content = style.Content.ToUpperInvariant(); style.ColorRuns = null; style.FontRuns = null; })),
-                PropertyAction("Lowercase", () => Change(style => { style.Content = style.Content.ToLowerInvariant(); style.ColorRuns = null; style.FontRuns = null; }))));
-        Section("OpenType and Script", script, direction);
-        Section("Dynamic Text", dynamic);
-        Section("Convert", PropertyPair(
-            PropertyAction("Convert to Frame", () => Edit("Convert to Frame", () => TextEdits.MakeFrame(_document!, id))),
-            PropertyAction("Convert to Vector Shape", () => Edit("Convert to Vector Shape", () => TextEdits.ToVectorShape(_document!, id)))));
     }
 
     private void BuildMaskProperties(ImageLayer layer)

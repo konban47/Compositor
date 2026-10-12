@@ -11,6 +11,15 @@ namespace Compositor.Desktop;
 
 public sealed partial class MainWindow
 {
+    private async Task ImportImageFolder()
+    {
+        var picked = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = Localize.Text("Import Folder as Layers…") });
+        if (picked.FirstOrDefault()?.TryGetLocalPath() is not { } folder) return;
+        var paths = Directory.EnumerateFiles(folder).Where(p => ImageImporter.Extensions.Contains(Path.GetExtension(p), StringComparer.OrdinalIgnoreCase)).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (paths.Length == 0) { Say("No supported images in this folder."); return; }
+        await ImportDroppedPaths(paths);
+    }
+
     private async Task SaveTab(Tab tab, bool asNew)
     {
         if (ReferenceEquals(tab, _placementTab)) FinishPlacement(true);

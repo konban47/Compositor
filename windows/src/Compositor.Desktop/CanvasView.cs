@@ -44,7 +44,9 @@ public sealed partial class CanvasView : Control
     // Every colour the canvas draws with comes from Skin, which takes them from the Mac's own canvas.
     private static readonly IBrush Backdrop = Skin.PasteboardBrush;
     /// <summary>What shows through a transparent picture: the checkerboard, as the Mac's canvas draws it.</summary>
-    private static readonly IBrush Paper = Skin.Checker;
+    public bool ShowsTransparency { get; set; } = true;
+    public int GuideLineStyle { get; set; }
+    private IBrush Paper => ShowsTransparency ? Skin.Checker : Brushes.White;
 
     /// <summary>The caret: white, over whatever it is on.</summary>
     private static readonly Pen CaretPen = new() { Brush = Brushes.White, Thickness = 1 };
@@ -852,7 +854,7 @@ public sealed partial class CanvasView : Control
             var extent = Math.Sqrt(Bounds.Width * Bounds.Width + Bounds.Height * Bounds.Height);
             if (guide.Axis == Format.GuideAxis.Vertical) { y1 = -extent; y2 = extent; }
             else { x1 = -extent; x2 = extent; }
-            context.DrawLine(Skin.GuidePen, new Point(x1, y1), new Point(x2, y2));
+            context.DrawLine(GuideLineStyle == 0 ? Skin.GuidePen : new Pen(Skin.GuidePen.Brush, 1) { DashStyle = GuideLineStyle == 1 ? DashStyle.Dash : DashStyle.Dot }, new Point(x1, y1), new Point(x2, y2));
         }
     }
 

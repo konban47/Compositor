@@ -67,6 +67,20 @@ public sealed class DocumentSelection
     /// <summary>Whether a whole pixel is inside the selection. A softened edge is not accounted for here.</summary>
     public bool Contains(int x, int y) => Path is not { } path || path.Contains(x + 0.5f, y + 0.5f);
 
+    /// <summary>Rotate an outline or a stored soft coverage mask without discarding fractional selection values.</summary>
+    public DocumentSelection Transformed(SKMatrix matrix, int width, int height)
+    {
+        if (Path is not { } path) return this;
+        if (_coverage is null) { var moved = new SKPath(path); moved.Transform(matrix); return WithPath(moved); }
+        var pixels = Bitmaps.Allocate(Bitmaps.MaskInfo(width, height)); pixels.Erase(SKColors.Black);
+        using (var canvas = new SKCanvas(pixels))
+        {
+            canvas.SetMatrix(matrix);
+            canvas.DrawBitmap(_coverage, _coverageOrigin, new SKSamplingOptions(SKFilterMode.Linear));
+        }
+        return FromCoverage(pixels).WithFeather(Feather);
+    }
+
     /// <summary>The same outline with a softer edge.</summary>
     public DocumentSelection WithFeather(double feather) => new(Path, Antialiased, feather)
         { _coverage = _coverage, _coverageOrigin = _coverageOrigin };

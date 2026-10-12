@@ -1,0 +1,13 @@
+{
+  "apiVersion": 1,
+  "id": "compositor.sample",
+  "name": "示例插件 / Sample Plugin",
+  "version": "1.0.0",
+  "entry": "Compositor.SamplePlugin.exe",
+  "author": "Compositor Windows contributors",
+  "description": "验证 PNG 与 JSON 调用接口；复制当前图层并读取图像信息。",
+  "commands": [
+    { "id": "duplicate", "title": "复制当前图像 / Duplicate Image", "result": "layer" },
+    { "id": "describe", "title": "图像信息 / Image Information", "result": "message" }
+  ]
+}

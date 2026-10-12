@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Compositor.Core.Model;
 using Compositor.Core.Rendering;
 using SkiaSharp;
@@ -42,8 +43,13 @@ public static class WarpEdits
         SKBitmap? work = null;
         try
         {
-            work = DocumentRenderer.Allocate(width, height);
-            using (var canvas = new SKCanvas(work)) DocumentRenderer.DrawLayerPixels(canvas, layer);
+            work = asset.Deep is null ? DocumentRenderer.Allocate(width, height) : Bitmaps.Allocate(DeepPixels.Info(width, height).WithAlphaType(SKAlphaType.Premul));
+            work.Erase(SKColors.Transparent);
+            using (var canvas = new SKCanvas(work))
+            {
+                canvas.SetMatrix(BrushEdits.PixelToDocument(layer.Transform, asset.Width, asset.Height));
+                canvas.DrawBitmap(asset.WorkingImage, 0, 0, new SKSamplingOptions(SKFilterMode.Linear));
+            }
         }
         catch (InvalidOperationException)
         {
@@ -67,6 +73,7 @@ public static class WarpEdits
     /// </summary>
     private static bool StrokeInto(CanvasDocument document, ImageLayer layer, SKBitmap work, Stroke stroke, ImportedImage asset)
     {
+        if (asset.Deep is not null) return DeepStrokeInto(document, layer, work, stroke, asset);
         var region = document.Selection.CoverageRect(document.Width, document.Height);
         using var clip = document.Selection.Coverage(region);
         var width = asset.Width;
@@ -118,6 +125,21 @@ public static class WarpEdits
         }
         layer.Asset = ImportedImage.Create(painted, asset.Name);
         return true;
+    }
+
+    private static bool DeepStrokeInto(CanvasDocument document, ImageLayer layer, SKBitmap work, Stroke stroke, ImportedImage asset)
+    {
+        using var source = DeepPixels.From(work); using var painted = DeepPixels.From(asset.WorkingImage);
+        var p = MemoryMarshal.Cast<byte, float>(painted.GetPixelSpan()); var s = MemoryMarshal.Cast<byte, float>(source.GetPixelSpan());
+        var mapping = BrushEdits.PixelToDocument(layer.Transform, asset.Width, asset.Height); var changed = false;
+        for (var y = 0; y < asset.Height; y++) for (var x = 0; x < asset.Width; x++)
+        {
+            var at = mapping.MapPoint(x + .5f, y + .5f); var sx = (int)Math.Floor(at.X); var sy = (int)Math.Floor(at.Y);
+            if (!stroke.Covered(at, (stroke.Diameter + 4) / 2) || sx < 0 || sy < 0 || sx >= source.Width || sy >= source.Height) continue;
+            var from = sy * source.RowBytes / 4 + sx * 4; var to = y * painted.RowBytes / 4 + x * 4;
+            for (var c = 0; c < 4; c++) p[to + c] = s[from + c]; changed = true;
+        }
+        return changed && ImageAdjustments.SetPixels(document, layer, painted);
     }
 
     private static byte Straight(byte premultiplied, byte alpha) =>
@@ -211,7 +233,14 @@ public static class WarpEdits
             return t * t * (3 - 2 * t);
         }
 
-        private Span<byte> Pixels => _work.GetPixelSpan();
+        private PixelAccess Pixels => new(_work);
+        private readonly ref struct PixelAccess
+        {
+            private readonly Span<byte> _bytes;
+            private readonly Span<float> _floats;
+            public PixelAccess(SKBitmap bitmap) { _bytes = bitmap.ColorType == SKColorType.RgbaF32 ? [] : bitmap.GetPixelSpan(); _floats = bitmap.ColorType == SKColorType.RgbaF32 ? MemoryMarshal.Cast<byte, float>(bitmap.GetPixelSpan()) : []; }
+            public float this[int index] { get => _floats.IsEmpty ? _bytes[index] : _floats[index]; set { if (_floats.IsEmpty) _bytes[index] = Bounded(value); else _floats[index] = value; } }
+        }
 
         /// <summary>The colour under the brush, taken on before the stroke drags it anywhere.</summary>
         private void PickUp(SKPoint centre)
@@ -220,7 +249,7 @@ public static class WarpEdits
             var side = radius * 2 + 1;
             _carried = new float[side * side * 4];
             var pixels = Pixels;
-            var stride = _work.RowBytes;
+            var stride = _work.RowBytes / (_work.ColorType == SKColorType.RgbaF32 ? 4 : 1);
             var cx = (int)Math.Round(centre.X);
             var cy = (int)Math.Round(centre.Y);
             for (var dy = -radius; dy <= radius; dy++)
@@ -245,7 +274,7 @@ public static class WarpEdits
             var side = radius * 2 + 1;
             if (_carried.Length == 0) PickUp(centre);
             var pixels = Pixels;
-            var stride = _work.RowBytes;
+            var stride = _work.RowBytes / (_work.ColorType == SKColorType.RgbaF32 ? 4 : 1);
             var cx = (int)Math.Round(centre.X);
             var cy = (int)Math.Round(centre.Y);
             var keep = (float)_strength;
@@ -266,7 +295,7 @@ public static class WarpEdits
                     {
                         var under = (float)pixels[p + k];
                         var painted = under + (_carried[c + k] - under) * w;
-                        pixels[p + k] = Bounded(painted);
+                        pixels[p + k] = painted;
                         // The brush picks up some of what it just left, more the weaker the smudge is set.
                         _carried[c + k] = painted + (_carried[c + k] - painted) * keep;
                     }
@@ -293,7 +322,7 @@ public static class WarpEdits
             var ch = y1 - y0 + 1;
             if (_scratch.Length < cw * ch * 4) _scratch = new float[cw * ch * 4];
             var pixels = Pixels;
-            var stride = _work.RowBytes;
+            var stride = _work.RowBytes / (_work.ColorType == SKColorType.RgbaF32 ? 4 : 1);
             for (var y = 0; y < ch; y++)
             {
                 for (var x = 0; x < cw; x++)
@@ -331,7 +360,7 @@ public static class WarpEdits
                     {
                         var top = _scratch[s00 + k] + (_scratch[s10 + k] - _scratch[s00 + k]) * fx;
                         var bottom = _scratch[s01 + k] + (_scratch[s11 + k] - _scratch[s01 + k]) * fx;
-                        pixels[p + k] = Bounded(top + (bottom - top) * fy);
+                        pixels[p + k] = top + (bottom - top) * fy;
                     }
                 }
             }
