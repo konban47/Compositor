@@ -208,6 +208,10 @@ public static class Shortcuts
         Menu("Paste Into", "V", Ctrl | Shift | Alt);
         Menu("Toggle Last State", "Z", Ctrl | Alt);
         Menu("Fade", "F", Ctrl | Shift);
+        Menu("Preferences", "K", Ctrl);
+        Menu("Color Settings", "K", Ctrl | Shift);
+        Menu("Keyboard Shortcuts", "K", Ctrl | Alt | Shift);
+        Menu("Menus", "M", Ctrl | Alt | Shift);
         Menu("Fill Dialog", "F5", Shift);
         Menu("Free Transform", "T", Ctrl);
         Menu("Transform Again", "T", Ctrl | Shift);

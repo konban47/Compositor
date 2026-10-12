@@ -10,7 +10,7 @@ public sealed partial class MainWindow
         var menu = new MenuItem { Header = Localize.Text("Preferences") };
         foreach (var name in new[] { "General", "Interface", "Workspace", "Notifications", "Tools", "History", "File Handling", "Export", "Performance", "Image Processing", "Scratch Disks", "Cursors", "Transparency and Gamut", "Units and Rulers", "Guides, Grid and Slices", "Plugins", "Type", "Technology Previews", "Camera Raw" })
         {
-            var item = Command(name + "…", () => _ = EditPreferences(name));
+            var item = Command(name + "…", () => _ = EditPreferences(name), name == "General" ? "Preferences" : null);
             if (name is "Scratch Disks" or "Technology Previews" or "Notifications")
             { item.IsEnabled = false; ToolTip.SetTip(item, Localize.Text("This editor uses memory-backed images and in-window status messages; this Photoshop preference is not available.")); }
             menu.Items.Add(item);

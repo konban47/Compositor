@@ -40,9 +40,9 @@ public sealed partial class MainWindow
             Run("Define Brush Preset…", () => DefinePreset("Brush")), Run("Define Pattern…", () => DefinePreset("Pattern")), Run("Define Custom Shape…", () => DefinePreset("Shape")),
             new Separator(), Group("Purge", Run("Clipboard", () => Purge("Clipboard")), Run("History", () => Purge("History")), Run("All", () => Purge("All")), Run("Video Cache", () => Purge("Video Cache"))),
             new Separator(), Run("PDF Presets…", PdfPresets), Group("Presets", Run("Preset Manager…", PresetManager), Run("Migrate Presets…", MigratePresets)),
-            Run("Remote Connections…", RemoteConnections), new Separator(), Run("Color Settings…", ColorSettings), Run("OpenColorIO Settings…", OpenColorIoSettings),
+            Run("Remote Connections…", RemoteConnections), new Separator(), Run("Color Settings…", ColorSettings, "Color Settings"), Run("OpenColorIO Settings…", OpenColorIoSettings),
             Run("Assign Profile…", AssignColorProfile), Run("Convert to Profile…", ConvertColorProfile), new Separator(),
-            Run("_Keyboard Shortcuts…", KeyboardShortcuts), Run("Menus…", CustomizeMenus), Run("Customize Toolbar…", CustomizeToolbar), BuildPreferencesMenu());
+            Run("_Keyboard Shortcuts…", KeyboardShortcuts, "Keyboard Shortcuts"), Run("Menus…", CustomizeMenus, "Menus"), Run("Customize Toolbar…", CustomizeToolbar), BuildPreferencesMenu());
         menu.PropertyChanged += (_, e) => { if (e.Property == MenuItem.IsSubMenuOpenProperty && menu.IsSubMenuOpen) RefreshEditAvailability(menu); };
         return menu;
     }

@@ -1002,6 +1002,10 @@ public sealed partial class MainWindow : Window
         Does("Paste Into", () => PasteMasked(false));
         Does("Toggle Last State", ToggleLastState);
         Does("Fade", () => _ = FadeLastEdit());
+        Does("Preferences", () => _ = EditPreferences("General"));
+        Does("Color Settings", () => _ = ColorSettings());
+        Does("Keyboard Shortcuts", () => _ = KeyboardShortcuts());
+        Does("Menus", () => _ = CustomizeMenus());
         Does("Fill Dialog", () => _ = EditFill());
         Does("Free Transform", () => BeginEditTransform("Scale"));
         Does("Transform Again", RepeatTransform);
