@@ -11,4 +11,7 @@ $ported = Get-Content -LiteralPath (Join-Path $repo $manifest.implementation) -R
 foreach ($token in @('Clone','Gradient','Polygon','Object','ButtonSide = 36','ButtonRadius = 7','RailWidth = 56','RailSpacing = 10')) {
     if (!$ported.Contains($token)) { throw "Upstream artwork mapping missing: $token" }
 }
-Write-Output "PASS: four direct icon ports and button metrics track upstream $($manifest.commit)."
+foreach ($asset in @($manifest.generatedCounterparts.reference, $manifest.generatedCounterparts.implementation, $manifest.generatedCounterparts.provenance)) {
+    if (!(Test-Path -LiteralPath (Join-Path $repo $asset))) { throw "Missing generated-symbol provenance: $asset" }
+}
+Write-Output "PASS: four direct icon ports, layout sources and generated-symbol provenance track upstream $($manifest.commit)."

@@ -92,7 +92,7 @@ public sealed record BrushSettings(
     double PatternScale = 1,
     int ArtStyle = 0,
     int ReplaceMode = 0,
-    double MixerWet = .5, double MixerLoad = 1, double MixerMix = .5, double MixerFlow = 1);
+    double MixerWet = .5, double MixerLoad = 1, double MixerMix = .5, double MixerFlow = 1, SKBitmap? TipImage = null);
 
 /// <summary>
 /// Painting a stroke into a layer's own pixels. Mouse samples arrive in document coordinates, so they are
@@ -333,7 +333,7 @@ public static class BrushEdits
         var selection = new Clip(clipped, clip?.RowBytes ?? 0, region);
         // The first dab sits on the first sample; the rest follow it at even spacing, carrying whatever
         // distance is left over the end of one run into the next so a fast pointer leaves no gaps.
-        Stamp(coverage, width, height, points[0], radius, toDocument, toPixel, hard, settings.Hardness, selection);
+        Stamp(coverage, width, height, points[0], radius, toDocument, toPixel, hard, settings.Hardness, selection, settings.TipImage);
         var next = spacing;
         for (var index = 1; index < points.Count; index++)
         {
@@ -346,7 +346,7 @@ public static class BrushEdits
             while (next <= length)
             {
                 var at = new SKPoint((float)(from.X + dx * next / length), (float)(from.Y + dy * next / length));
-                Stamp(coverage, width, height, at, radius, toDocument, toPixel, hard, settings.Hardness, selection);
+                Stamp(coverage, width, height, at, radius, toDocument, toPixel, hard, settings.Hardness, selection, settings.TipImage);
                 next += spacing;
             }
             next -= length;
@@ -552,7 +552,7 @@ public static class BrushEdits
     /// selection scales each pixel, so a dab that straddles a feathered edge is painted in part.
     /// </summary>
     private static void Stamp(float[] coverage, int width, int height, SKPoint centre, double radius,
-        SKMatrix toDocument, SKMatrix toPixel, bool hard, double hardness, Clip selection)
+        SKMatrix toDocument, SKMatrix toPixel, bool hard, double hardness, Clip selection, SKBitmap? tipImage)
     {
         // The document square around the dab, brought into pixels: a generous box, since the transform may
         // turn it.
@@ -575,7 +575,16 @@ public static class BrushEdits
             {
                 var at = toDocument.MapPoint(x + 0.5f, y + 0.5f);
                 var distance = Math.Sqrt(Math.Pow(at.X - centre.X, 2) + Math.Pow(at.Y - centre.Y, 2));
-                var tip = Tip(distance, radius, hardness) * selection.At(at.X, at.Y);
+                var shape = Tip(distance, radius, hardness);
+                if (tipImage is not null)
+                {
+                    var side = Math.Max(tipImage.Width, tipImage.Height);
+                    var tx = (int)Math.Floor((at.X - centre.X) / (radius * 2) * side + tipImage.Width / 2.0);
+                    var ty = (int)Math.Floor((at.Y - centre.Y) / (radius * 2) * side + tipImage.Height / 2.0);
+                    if (tx < 0 || ty < 0 || tx >= tipImage.Width || ty >= tipImage.Height) continue;
+                    var c = tipImage.GetPixel(tx, ty); shape = (1 - (.2126 * c.Red + .7152 * c.Green + .0722 * c.Blue) / 255) * c.Alpha / 255;
+                }
+                var tip = shape * selection.At(at.X, at.Y);
                 if (tip <= 0) continue;
                 var index = y * width + x;
                 // Overlapping dabs within one stroke must not build up: they take the larger coverage, or

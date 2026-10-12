@@ -34,30 +34,23 @@ internal sealed class ToolRail : Grid
         RowDefinitions = new RowDefinitions("*,Auto");
         var tools = new ScrollViewer { Content = Tools(), HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
         Children.Add(tools);
-        var footer = new StackPanel();
+        var footer = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Spacing = 4 };
         if (layout.ShowExtras)
         {
-            var extra = new Button { Content = new InspectorGlyph("more"), Width = 44, Height = 28, Tag = "Extra Tools" };
-            ToolTip.SetTip(extra, Localize.Text("Extra Tools / Customize Toolbar"));
+            var extra = FooterButton(new UpstreamPaletteGlyph("more"), "Extra Tools");
+            ToolTip.SetTip(extra, Localize.Text("Customize Toolbar…"));
             extra.Click += (_, _) =>
             {
                 var menu = new ContextMenu();
-                foreach (var id in _layout.Extras)
-                {
-                    var tool = Enum.Parse<Tool>(id);
-                    var item = new MenuItem { Header = Localize.Text(ToolCatalog.Title(tool)), Icon = Icon(tool) };
-                    item.Click += (_, _) => Chosen?.Invoke(tool); menu.Items.Add(item);
-                }
-                if (menu.Items.Count > 0) menu.Items.Add(new Separator());
                 var customize = new MenuItem { Header = Localize.Text("Customize Toolbar…") };
-                customize.Click += (_, _) => CustomizeRequested?.Invoke(); menu.Items.Add(customize); menu.Open(extra);
+                customize.Click += (_, _) => CustomizeRequested?.Invoke(); menu.Items.Add(customize); extra.ContextMenu = menu; menu.Open(extra);
             };
             footer.Children.Add(extra);
         }
         if (layout.ShowColors) footer.Children.Add(Colours());
         void Footer(string icon, string name, Action fire)
         {
-            var button = new Button { Content = icon == "mask" ? new PanelGlyph("mask") : new InspectorGlyph(icon), Width = 44, Height = 28, Tag = name, Padding = new Thickness(11, 3) };
+            var button = FooterButton(icon == "mask" ? new EditorIcon("quick-mask") : new InspectorGlyph(icon), name);
             ToolTip.SetTip(button, Localize.Text(name)); button.Click += (_, _) => fire(); footer.Children.Add(button);
         }
         if (layout.ShowQuickMask) Footer("mask", "Quick Mask (Q)", () => QuickMaskRequested?.Invoke());
@@ -66,6 +59,13 @@ internal sealed class ToolRail : Grid
         SetRow(footer, 1); Children.Add(footer);
         Mark(_marked); ShowShortcuts(_shortcuts);
     }
+    private static Button FooterButton(Control icon, string name) => new()
+    {
+        Content = icon, Tag = name, Width = UpstreamArtwork.ButtonSide, Height = UpstreamArtwork.ButtonSide,
+        Padding = new Thickness(6), Background = Brushes.Transparent, BorderThickness = new Thickness(0),
+        HorizontalAlignment = HorizontalAlignment.Center, HorizontalContentAlignment = HorizontalAlignment.Center,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
     private Glyph _foreground = new() { Kind = Tool.Brush };
     private Glyph _background = new() { Kind = Tool.Brush };
     private Button? _front;
@@ -155,6 +155,7 @@ internal sealed class ToolRail : Grid
         _backgroundColour = background;
         _foreground.Fill = Colour(foreground);
         _background.Fill = Colour(background);
+        _foreground.InvalidateVisual(); _background.InvalidateVisual();
     }
 
     /// <summary>The two colours the rail is showing, as the brush and the background have them.</summary>
@@ -225,32 +226,19 @@ internal sealed class ToolRail : Grid
     /// </summary>
     private Control Colours()
     {
-        var swatches = new Canvas { Width = RailWidth, Height = 44, Margin = new Thickness(0, 6, 0, 0) };
-        var back = Swatch(_background, false);
-        var front = Swatch(_foreground, true);
-        Canvas.SetLeft(back, 20);
-        Canvas.SetTop(back, 16);
-        Canvas.SetLeft(front, 8);
-        Canvas.SetTop(front, 4);
-        swatches.Children.Add(back);
-        swatches.Children.Add(front);
-        var swap = Small("⇄", "Switch Foreground and Background Colors (X)");
-        var reset = Small("◩", "Default Foreground and Background Colors (D)");
-        swap.Click += (_, _) => ColoursSwapped?.Invoke();
-        reset.Click += (_, _) => ColoursReset?.Invoke();
-        var row = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Children = { swap, reset },
-        };
-        var column = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Children = { swatches, row },
-        };
-        return column;
+        // The 24 px swatches, 12 px overlap and corner actions are the upstream layout.
+        var swatches = new Canvas { Width = 40, Height = 42, Margin = new Thickness(0, 6, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
+        var back = Swatch(_background, false); var front = Swatch(_foreground, true);
+        Canvas.SetLeft(back, 14); Canvas.SetTop(back, 15);
+        Canvas.SetLeft(front, 2); Canvas.SetTop(front, 3);
+        swatches.Children.Add(back); swatches.Children.Add(front);
+        var swap = Small("swap", "Switch Foreground and Background Colors (X)");
+        var reset = Small("reset", "Default Foreground and Background Colors (D)");
+        swap.Click += (_, _) => ColoursSwapped?.Invoke(); reset.Click += (_, _) => ColoursReset?.Invoke();
+        Canvas.SetLeft(swap, 29); Canvas.SetTop(swap, 0);
+        Canvas.SetLeft(reset, 1); Canvas.SetTop(reset, 30);
+        swatches.Children.Add(swap); swatches.Children.Add(reset);
+        return swatches;
     }
 
     private Button Swatch(Control glyph, bool foreground)
@@ -261,11 +249,11 @@ internal sealed class ToolRail : Grid
             Width = 24,
             Height = 24,
             Padding = new Thickness(0),
-            CornerRadius = new CornerRadius(7),
+            CornerRadius = new CornerRadius(6),
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch,
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Colors.White, 0.4),
+            BorderThickness = new Thickness(0),
+            Background = Brushes.Transparent,
         };
         ToolTip.SetTip(button, Localize.Text(foreground ? "Foreground color" : "Background color"));
         button.Click += (_, _) => ColourChosen?.Invoke(foreground);
@@ -278,17 +266,17 @@ internal sealed class ToolRail : Grid
     {
         var button = new Button
         {
-            Content = Localize.Text(text),
-            Width = 20,
-            Height = 18,
+            Content = new UpstreamPaletteGlyph(text),
+            Width = 12,
+            Height = 12,
             Padding = new Thickness(0),
             CornerRadius = new CornerRadius(7),
             FontSize = 11,
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
-            Background = Skin.SurfaceControlBrush,
-            BorderBrush = Skin.BorderControlBrush,
-            BorderThickness = new Thickness(1),
+            Background = Brushes.Transparent,
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
         };
         ToolTip.SetTip(button, Localize.Text(hint));
         return button;
@@ -353,7 +341,8 @@ internal sealed class ToolRail : Grid
             if (size.Width <= 0 || size.Height <= 0) return;
             if (Fill is { } fill)
             {
-                context.FillRectangle(fill, new Rect(size));
+                context.DrawRectangle(fill, new Pen(Brushes.Black, 1), new Rect(size).Deflate(.5), 6, 6);
+                context.DrawRectangle(null, new Pen(Brushes.White, 1.5), new Rect(size).Deflate(1.75), 4.75, 4.75);
                 return;
             }
             var ox = (size.Width - Side) / 2;

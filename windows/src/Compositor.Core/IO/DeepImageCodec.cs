@@ -21,12 +21,26 @@ public static class DeepImageCodec
         if (info.Width > DocumentLimits.MaxSide || info.Height > DocumentLimits.MaxSide || (long)info.Width * info.Height > remainingPixels)
             throw new ImportException(ImportError.TooLarge);
         using var image = new MagickImage(bytes); var mode = image.ColorSpace switch { ColorSpace.CMYK => ImageMode.CMYK, ColorSpace.Lab => ImageMode.Lab, ColorSpace.Gray => ImageMode.Grayscale, _ => ImageMode.RGB }; var depth = image.Depth > 16 ? 32 : image.Depth > 8 ? 16 : 8;
-        image.AutoOrient(); image.ColorSpace = ColorSpace.sRGB; image.ColorType = ColorType.TrueColorAlpha;
+        image.AutoOrient();
+        var linear = info.Format is MagickFormat.Exr or MagickFormat.Hdr;
+        if (!linear) image.ColorSpace = ColorSpace.sRGB;
+        image.ColorType = ColorType.TrueColorAlpha;
         using var pixels = image.GetPixels(); var source = pixels.ToArray() ?? throw new InvalidDataException("Empty decoded image.");
         var result = Bitmaps.Allocate(DeepPixels.Info((int)image.Width, (int)image.Height));
         var target = MemoryMarshal.Cast<byte, float>(result.GetPixelSpan());
         if (source.Length != target.Length) { result.Dispose(); throw new InvalidDataException("Unexpected image channel layout."); }
-        for (var i = 0; i < source.Length; i++) target[i] = source[i] / 65535f;
+        for (var i = 0; i < source.Length; i++)
+        {
+            var value = source[i] / 65535f;
+            target[i] = linear && i % 4 != 3 ? LinearToSrgb(value) : value;
+        }
+        if (info.Format is MagickFormat.Exr or MagickFormat.Hdr)
+        {
+            // Upstream treats only a genuine above-white highlight as HDR, allowing decoding roundoff.
+            depth = 16;
+            for (var i = 0; i < target.Length; i += 4)
+                if (target[i + 3] > 0 && Math.Max(target[i], Math.Max(target[i + 1], target[i + 2])) > 1.001f) { depth = 32; break; }
+        }
         ImportedImage imported;
         if (depth > 8) imported = ImportedImage.CreateDeep(result, name, depth);
         else { using (result) imported = ImportedImage.Create(DeepPixels.Preview(result), name); }
@@ -47,6 +61,15 @@ public static class DeepImageCodec
         if (tiff && settings.Depth == 32) encoded.Settings.SetDefine(MagickFormat.Tiff, "floating-point", "true");
         if (!tiff && settings.Depth > 8) { encoded.Depth = 16; encoded.Settings.SetDefine(MagickFormat.Png, "bit-depth", "16"); }
         return encoded.ToByteArray(tiff ? MagickFormat.Tiff : MagickFormat.Png);
+    }
+    private static float LinearToSrgb(float value)
+    { var sign = MathF.Sign(value); var v = MathF.Abs(value); return sign * (v <= .0031308f ? v * 12.92f : 1.055f * MathF.Pow(v, 1 / 2.4f) - .055f); }
+    public static byte[] EncodeExr(SKBitmap image)
+    {
+        using var encoded = Magick(image);
+        // OpenEXR stores linear light. The decoder returns extended sRGB for the editor.
+        encoded.ColorSpace = ColorSpace.RGB; encoded.Depth = 16;
+        return encoded.ToByteArray(MagickFormat.Exr);
     }
     public static byte[] EncodePng(SKBitmap image)
     {

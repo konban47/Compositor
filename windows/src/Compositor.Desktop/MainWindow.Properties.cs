@@ -150,9 +150,9 @@ public sealed partial class MainWindow
         input.MinHeight = 28;
         Grid.SetColumn(input, 1); row.Children.Add(input); return row;
     }
-    private static readonly IBrush PropertySurface = new SolidColorBrush(Avalonia.Media.Color.FromRgb(0x51, 0x51, 0x51));
-    private static readonly IBrush PropertyFieldSurface = new SolidColorBrush(Avalonia.Media.Color.FromRgb(0x45, 0x45, 0x45));
-    private static readonly IBrush PropertyLine = new SolidColorBrush(Avalonia.Media.Color.FromRgb(0x64, 0x64, 0x64));
+    private static readonly IBrush PropertySurface = Skin.ChromeBrush;
+    private static readonly IBrush PropertyFieldSurface = Skin.SurfaceControlBrush;
+    private static readonly IBrush PropertyLine = Skin.BorderControlBrush;
     private void PropertyHeading(string title, string icon) => _properties.Children.Add(new Border { Padding = new Thickness(10, 8), BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(0, 0, 0, 1),
         Child = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Children = {
             new Border { Width = 28, Height = 28, Padding = new Thickness(3), CornerRadius = new CornerRadius(2), Background = PropertyFieldSurface, BorderBrush = PropertyLine, BorderThickness = new Thickness(1), Child = new InspectorGlyph(icon) },

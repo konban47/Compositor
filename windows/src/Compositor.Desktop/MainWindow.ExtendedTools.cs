@@ -24,7 +24,7 @@ public sealed partial class MainWindow
 
     private bool CanvasActionPressed(SKPoint at, KeyModifiers modifiers, int clicks)
     {
-        if (_placementTab is not null) return PlacementPressed(at);
+        if (_placementTab is not null) return PlacementPressed(at, modifiers);
         if (ProfessionalPressed(at, modifiers, clicks)) return true;
         if (_tool is Tool.Bucket or Tool.MagicEraser) { PaintBucket(at, _tool == Tool.MagicEraser); return true; }
         if (ToolCatalog.IsPen(_tool))
@@ -146,6 +146,7 @@ public sealed partial class MainWindow
                 context.DrawEllipse(Skin.ChromeBrush, pen, at, 4, 4);
             }
         }
+        DrawPuppetPins(context, screen);
         if (_pen is { } draft)
         {
             var geometry = new StreamGeometry();

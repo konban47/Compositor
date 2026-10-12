@@ -21,6 +21,7 @@ internal static partial class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args is ["--edit-workspace-checks", var editWorkspaceOutput]) return EditWorkspaceChecks(editWorkspaceOutput);
         if (args is ["--image-workspace-checks", var imageWorkspaceOutput]) return ImageWorkspaceChecks(imageWorkspaceOutput);
         if (args is ["--professional-checks", var professionalOutput]) return ProfessionalChecks(professionalOutput);
         if (args is ["--editing-checks", var editingOutput]) return EditingChecks(editingOutput);

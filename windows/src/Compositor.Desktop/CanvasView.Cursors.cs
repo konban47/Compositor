@@ -11,6 +11,7 @@ public sealed partial class CanvasView
     private bool _sourceModifier;
     private static readonly Dictionary<StandardCursorType, Cursor> ToolCursors = new();
     internal StandardCursorType ActiveCursorKind { get; private set; }
+    internal bool PreciseBrushCursor { get; set; }
     internal bool BrushOutlineEnabled { get; set; }
     internal SKPoint? CloneSource { get; set; }
     internal SKPointI? CloneOffset { get; set; }
@@ -47,6 +48,7 @@ public sealed partial class CanvasView
         if (SourceTargetShowing) Target(pointer, true);
         else if (BrushOutlineShowing)
         {
+            if (PreciseBrushCursor) { Target(pointer, false); return; }
             var radius = Math.Max(.5, OutlineDiameter / 2);
             context.DrawEllipse(null, new Pen(Brushes.Black, 3), pointer, radius, radius);
             context.DrawEllipse(null, new Pen(Brushes.White, 1), pointer, radius, radius);

@@ -11,6 +11,13 @@ internal static class EditorTheme
 {
     internal static void Apply(Styles styles)
     {
+        // Upstream uses the operating system's sans-serif UI face, not the document font.
+        // Windows supplies Segoe UI and Microsoft YaHei UI; SF is not a redistributable repository asset.
+        var windows = new Style(s => s.OfType<Window>());
+        windows.Setters.Add(new Setter(TemplatedControl.FontFamilyProperty, new FontFamily("Segoe UI, Microsoft YaHei UI, Noto Sans SC")));
+        windows.Setters.Add(new Setter(TemplatedControl.FontSizeProperty, 12d));
+        windows.Setters.Add(new Setter(TemplatedControl.ForegroundProperty, Skin.LabelBrush));
+        styles.Add(windows);
         // Upstream ContentView: 7-point tool corners, translucent white selection and a quiet hairline.
         var buttons = new Style(s => s.OfType<Button>());
         buttons.Setters.Add(new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(UpstreamArtwork.ButtonRadius)));

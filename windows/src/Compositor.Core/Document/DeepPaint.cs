@@ -40,7 +40,13 @@ public static class DeepPaint
     {
         if (depth is not (8 or 16) || doc.Image.Mode is Compositor.Core.Format.ImageMode.Bitmap or Compositor.Core.Format.ImageMode.Indexed or Compositor.Core.Format.ImageMode.Duotone
             || !LayerProtection.CanPaint(doc, id) || doc.Layers.FirstOrDefault(l => l.ID == id) is not { IsGroup: false, LiveText: null, LiveShape: null, Adjustment: null, Asset: { } asset } layer || asset.BitDepth == depth) return false;
-        layer.Asset = depth == 8 ? ImportedImage.Create(asset.Image.Copy(), asset.Name) : ImportedImage.CreateDeep(DeepPixels.From(asset.WorkingImage), asset.Name, 16);
+        if (depth == 8) layer.Asset = ImportedImage.Create(asset.Image.Copy(), asset.Name);
+        else
+        {
+            var pixels = DeepPixels.From(asset.WorkingImage); var values = MemoryMarshal.Cast<byte, float>(pixels.GetPixelSpan());
+            for (var i = 0; i < values.Length; i++) values[i] = MathF.Round(Math.Clamp(values[i], 0, 1) * 65535) / 65535;
+            layer.Asset = ImportedImage.CreateDeep(pixels, asset.Name, 16);
+        }
         return true;
     }
 }

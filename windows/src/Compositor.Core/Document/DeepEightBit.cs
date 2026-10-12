@@ -25,7 +25,7 @@ public static class DeepEightBit
     }
     public static SKBitmap Run(SKBitmap source, Kernel operation, bool mixesChannels = true)
     {
-        using var straight = DeepPixels.From(source); var src = MemoryMarshal.Cast<byte, float>(straight.GetPixelSpan());
+        using var straight = DeepPixels.From(source); var scales = HdrPixels.Normalize(straight); var src = MemoryMarshal.Cast<byte, float>(straight.GetPixelSpan());
         var count = checked(source.Width * source.Height * 4); var low = new byte[count];
         for (var y = 0; y < source.Height; y++) for (var x = 0; x < source.Width; x++)
         {
@@ -59,6 +59,7 @@ public static class DeepEightBit
                 for (var c = 0; c < 3; c++) output[i + c] = basis[i + 3] == 0 ? 0 : Math.Clamp((output[i + c] + (fitted[i + c] > 0 ? offsets[i + c] / fitted[i + c] : 0)) / basis[i + 3], 0, 1);
                 output[i + 3] = basis[i + 3] == low[i + 3] ? src[i + 3] : basis[i + 3] / 255f;
             }
+            HdrPixels.Restore(result, scales);
             return result;
         }
         catch { result.Dispose(); throw; }

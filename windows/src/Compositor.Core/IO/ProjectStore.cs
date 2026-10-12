@@ -63,7 +63,7 @@ public static class ProjectStore
         }
         foreach (var layer in manifest.Layers)
         {
-            if (layer.FloatImageFile is not null && (version < 18 || layer.ImageFile is null || layer.FloatImageFile != Model.FloatPixels.FileName(layer.ID)))
+            if (layer.FloatImageFile is not null && (version < 18 || layer.ImageFile is null || layer.ImageFile.EndsWith(".exr", StringComparison.OrdinalIgnoreCase) || layer.FloatImageFile != Model.FloatPixels.FileName(layer.ID)))
                 throw new ProjectException(ProjectError.Invalid);
             if ((layer.Blending is not null && (!layer.Blending.IsValid || version < 15))
                 || (layer.Effects is not null && (!layer.Effects.IsValid || version < 15 && (layer.Effects.Items is not null || !layer.Effects.Enabled)))
@@ -137,7 +137,8 @@ public static class ProjectStore
             if (!ids.Add(layer.ID) || !layer.Transform.ToRuntime().IsValid
                 || string.IsNullOrWhiteSpace(layer.Name)
                 || Encoding.UTF8.GetByteCount(layer.Name) > 16_384
-                || (layer.ImageFile is not null && layer.ImageFile != LayerMask.ExpectedImageFile(layer.ID)))
+                || (layer.ImageFile is not null && layer.ImageFile != LayerMask.ExpectedImageFile(layer.ID)
+                    && !(version >= 13 && layer.ImageFile == Path.ChangeExtension(LayerMask.ExpectedImageFile(layer.ID), "exr"))))
             {
                 throw new ProjectException(ProjectError.Invalid);
             }
@@ -213,7 +214,9 @@ public static class ProjectStore
                 {
                     CheckSize(asset.Width, asset.Height, ref pixels);
                 }
-                images[filename] = !isMask && asset.Deep is { } deep ? DeepImageCodec.EncodePng(deep) : PngCodec.Encode(asset.Image);
+                images[filename] = !isMask && filename.EndsWith(".exr", StringComparison.Ordinal)
+                    ? DeepImageCodec.EncodeExr(asset.WorkingImage)
+                    : !isMask && asset.Deep is { } deep ? DeepImageCodec.EncodePng(deep) : PngCodec.Encode(asset.Image);
                 if (!isMask && layer.FloatImageFile is { } floatFile)
                 {
                     if (asset.Deep is null || asset.BitDepth != 32 || (long)asset.Width * asset.Height * 16 > Model.DocumentLimits.MaxAssetBytes)
@@ -347,6 +350,11 @@ public static class ProjectStore
                     if (filename is null) continue;
                     var file = ResolveAsset(package, $"{ImagesName}/{filename}", Model.DocumentLimits.MaxAssetBytes);
                     var bytes = File.ReadAllBytes(file);
+                    if (!isMask && filename.EndsWith(".exr", StringComparison.Ordinal))
+                    {
+                        var hdr = DeepImageCodec.Decode(bytes, layer.Name, Model.DocumentLimits.DocumentPixelBudget - pixels);
+                        CheckSize(hdr.Width, hdr.Height, ref pixels); snapshot.Images[layer.ID] = hdr; continue;
+                    }
                     var headerOfAsset = PngCodec.ReadHeader(bytes);
                     if (!headerOfAsset.IsEightBitOrLess && (isMask || manifest.Version < 12 || headerOfAsset.BitDepth != 16)) throw new ProjectException(ProjectError.MissingImage);
                     if (isMask) CheckSize(headerOfAsset.Width, headerOfAsset.Height, ref maskPixels);

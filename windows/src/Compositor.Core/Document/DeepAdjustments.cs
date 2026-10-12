@@ -19,6 +19,12 @@ public static class DeepAdjustments
     }
     public static void Adjust(SKBitmap image, LayerAdjustment settings)
     {
+        var scales = settings.Kind == AdjustmentKind.Exposure ? null : HdrPixels.Normalize(image);
+        try { AdjustNormalized(image, settings); }
+        finally { HdrPixels.Restore(image, scales); }
+    }
+    private static void AdjustNormalized(SKBitmap image, LayerAdjustment settings)
+    {
         var data = MemoryMarshal.Cast<byte, float>(image.GetPixelSpan());
         var independent = settings.Kind is AdjustmentKind.Levels or AdjustmentKind.Curves or AdjustmentKind.Exposure or AdjustmentKind.Invert;
         if (independent)

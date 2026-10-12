@@ -82,8 +82,9 @@ public sealed partial class MainWindow
     {
         if (_placementTab is not { } tab) return;
         var selected = Selected;
+        if (apply) RememberTransform();
         if (!apply && _placementBefore is not null) tab.Document = _placementBefore;
-        _placementTab = null; _placementBefore = null; _placeMesh = null; _placeBasis = null; _placedIDs.Clear(); _placeGrab = -1;
+        _puppetPins.Clear(); _puppetSource.Clear(); _placementTab = null; _placementBefore = null; _placeMesh = null; _placeBasis = null; _placedIDs.Clear(); _placeGrab = -1;
         tab.History.End(tab.Document, apply ? selected : _placementSelected);
         _placementBar.IsVisible = false; _optionsBar.IsVisible = true;
         if (ReferenceEquals(tab, _open)) { Show(tab); Reselect(apply ? selected : _placementSelected); }
@@ -166,9 +167,10 @@ public sealed partial class MainWindow
         if (horizontal) mesh.Split(true, (float)v); if (vertical) mesh.Split(false, (float)u);
         _placeSplit = (mesh.Columns.FindIndex(x => x == u), mesh.Rows.FindIndex(y => y == v)); _canvas.InvalidateVisual();
     }
-    private bool PlacementPressed(SKPoint at)
+    private bool PlacementPressed(SKPoint at, KeyModifiers modifiers)
     {
         if (_placementTab is null || PropertyLayer is not { } layer) return false;
+        if (_placeMode == "Puppet") return PuppetPressed(at, modifiers);
         if (_placeMesh is null && _placeMode != "Rotate") return false;
         _placeStart = at; _placeGrab = -1;
         if (_placeMesh is { } mesh)
@@ -183,6 +185,7 @@ public sealed partial class MainWindow
     }
     private void PlacementMoved(SKPoint at, KeyModifiers modifiers)
     {
+        if (_placeMode == "Puppet") { PuppetMoved(at); return; }
         if (_placeMode == "Rotate" && _placeBasis is { } basis && PropertyLayer is { } target)
         {
             var pivot = PlacementPivot(basis.Transform);
@@ -209,7 +212,7 @@ public sealed partial class MainWindow
     private void RenderPlacementMesh()
     {
         if (_placeMesh is not { } mesh || _placeBasis is not { Asset: { } asset } basis || PropertyLayer is not { } layer) return;
-        var warped = _placeMode == "Warp" ? mesh.Render(asset.Image)
+        var warped = _placeMode is "Warp" or "Puppet" ? mesh.Render(asset.Image)
             : DistortWarp.Warp(asset.Image, basis.Transform, [mesh.Points[0], mesh.Points[1], mesh.Points[3], mesh.Points[2]]);
         if (warped is null) return;
         layer.Asset = ImportedImage.Create(warped.Image, asset.Name); layer.Transform = warped.Transform; Refresh(); UpdatePlacementBar();

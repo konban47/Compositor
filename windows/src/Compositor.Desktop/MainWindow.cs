@@ -208,7 +208,7 @@ public sealed partial class MainWindow : Window
         /// disposes them and the snapshot is dropped rather than disposed.</summary>
         public CanvasDocument? Document { get; set; }
 
-        public DocumentHistory History { get; } = new();
+        public DocumentHistory History { get; } = new(EditorPreferences.Current.HistorySteps, EditorPreferences.Current.HistoryMB * 1024 * 1024) { AllowNonLinear = EditorPreferences.Current.NonLinearHistory };
         public int SnapshotNumber { get; set; }
         public Task<bool>? Saving { get; set; }
 
@@ -450,6 +450,7 @@ public sealed partial class MainWindow : Window
         InitializeInteraction();
         _tabs.Add(_open);
         Content = Layout();
+        ApplyPreferences();
         RefreshTabs();
         UpdateLayerMenu();
         SetTool(Tool.Move);
@@ -491,35 +492,7 @@ public sealed partial class MainWindow : Window
                         Command("E_xit", Close),
                     },
                 },
-                new MenuItem
-                {
-                    Header = Localize.Text("_Edit"),
-                    Items =
-                    {
-                        Command("_Undo", Undo, "Undo"),
-                        Command("_Redo", Redo, "Redo"),
-                        new Separator(),
-                        Command("Cu_t", Cut, "Cut"),
-                        Command("_Copy", Copy, "Copy"),
-                        Command("Copy _Merged", CopyMerged, "Copy Merged"),
-                        Command("_Paste", Paste, "Paste"),
-                        Command("Layer via Cop_y", LayerViaCopy, "Layer via Copy"),
-                        new Separator(),
-                        Command("Fill with _Foreground Color", () => FillPixels(BrushColour(), "Fill"),
-                            "Fill with Foreground Color"),
-                        Command("Fill with _Background Color", () => FillPixels(BackgroundColour(), "Fill"),
-                            "Fill with Background Color"),
-                        Command("_Clear Selection Pixels", ClearPixels),
-                        new Separator(),
-                        Command("Flip Layer _Horizontal", () => Flip(horizontal: true, canvas: false)),
-                        Command("Flip Layer _Vertical", () => Flip(horizontal: false, canvas: false)),
-                        Command("Flip _Canvas Horizontal", () => Flip(horizontal: true, canvas: true)),
-                        Command("Flip Canvas _Vertical", () => Flip(horizontal: false, canvas: true)),
-                        new Separator(),
-                        Command("_Find Command…", () => _ = FindCommand(), "Find Command"),
-                        Command("_Keyboard Shortcuts…", () => _ = KeyboardShortcuts()),
-                    },
-                },
+                BuildEditMenu(),
                 new MenuItem
                 {
                     Header = Localize.Text("_Layer"),
@@ -741,6 +714,7 @@ public sealed partial class MainWindow : Window
             },
         };
         var bar = new DockPanel();
+        _tabDropArea = bar; WireTabDrop(bar, null);
         DockPanel.SetDock(add, Dock.Left);
         DockPanel.SetDock(zooms, Dock.Right);
         bar.Children.Add(add);
@@ -817,7 +791,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private MenuItem Command(string header, Action action, string? key = null)
     {
-        var item = new MenuItem { Header = Localize.Text(header) };
+        var item = new MenuItem { Header = Localize.Text(header), Tag = header };
         item.Click += (_, _) => action();
         ShowKey(item, key);
         return item;
@@ -1024,6 +998,14 @@ public sealed partial class MainWindow : Window
         Does("Copy", Copy);
         Does("Copy Merged", CopyMerged);
         Does("Paste", Paste);
+        Does("Paste in Place", Paste);
+        Does("Paste Into", () => PasteMasked(false));
+        Does("Toggle Last State", ToggleLastState);
+        Does("Fade", () => _ = FadeLastEdit());
+        Does("Fill Dialog", () => _ = EditFill());
+        Does("Free Transform", () => BeginEditTransform("Scale"));
+        Does("Transform Again", RepeatTransform);
+        Does("Content-Aware Scale", () => _ = ContentAwareScale());
         Does("Fill with Foreground Color", () => FillPixels(BrushColour(), "Fill"));
         Does("Fill with Background Color", () => FillPixels(BackgroundColour(), "Fill"));
         Does("Content-Aware Fill", ContentAwareFill);
@@ -2839,7 +2821,7 @@ public sealed partial class MainWindow : Window
         Say($"{tab.Name} closed");
     }
 
-    /// <summary>The tab strip: a button a tab, styled as Photoshop rectangular document tabs.</summary>
+    /// <summary>The tab strip: a button a tab, using ProjectTabs.swift capsule metrics and translucent white states.</summary>
     private void RefreshTabs()
     {
         _tabStrip.Children.Clear();
@@ -2852,10 +2834,12 @@ public sealed partial class MainWindow : Window
                 Tag = tab,
                 Background = Brushes.Transparent,
                 BorderThickness = new Thickness(0),
-                FontSize = 11.5,
-                FontWeight = front ? FontWeight.SemiBold : FontWeight.Normal,
+                FontSize = 12,
+                MaxWidth = 155,
+                Height = 28,
+                FontWeight = front ? FontWeight.SemiBold : FontWeight.Medium,
                 Foreground = front ? Skin.LabelBrush : Skin.SecondaryBrush,
-                Padding = new Thickness(4, 2, 4, 2),
+                Padding = new Thickness(0),
                 VerticalContentAlignment = VerticalAlignment.Center,
             };
             name.Click += (_, _) => Bring(tab);
@@ -2875,39 +2859,28 @@ public sealed partial class MainWindow : Window
             };
             close.IsVisible = _tabs.Count > 1 || tab.Document is not null || tab.Path is not null;
             close.Click += (_, _) => _ = CloseTab(tab);
-            _tabStrip.Children.Add(new Border
+            var pill = new Border
             {
+                Tag = tab,
                 Background = front ? Skin.TabFront : Skin.TabBack,
                 BorderBrush = front ? Skin.TabFrontEdge : Skin.TabBackEdge,
-                BorderThickness = new Thickness(0, front ? 2 : 1, 0, 0),
-                CornerRadius = new CornerRadius(2, 2, 0, 0),
-                Padding = new Thickness(8, 2, 4, 2),
-                Margin = new Thickness(2, 0, 2, 0),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(14),
+                Height = 28,
+                Padding = new Thickness(11, 0, 5, 0),
+                Margin = new Thickness(3, 3, 3, 3),
                 Child = new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
                     Spacing = 3,
+                    VerticalAlignment = VerticalAlignment.Center,
                     Children = { name, close },
                 },
-            });
+            };
+            ToolTip.SetTip(pill, tab.Name); ToolTip.SetTip(close, Localize.Text("Close") + " " + tab.Name);
+            WireTabDrop(pill, tab); _tabStrip.Children.Add(pill);
         }
-        var add = new Button
-        {
-            Content = Localize.Text("+"),
-            Width = 20,
-            Height = 20,
-            Padding = new Thickness(0),
-            CornerRadius = new CornerRadius(7),
-            Background = Skin.SurfaceControlBrush,
-            BorderBrush = Skin.BorderControlBrush,
-            BorderThickness = new Thickness(1),
-            FontSize = 11,
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(4, 2, 0, 0),
-        };
-        add.Click += (_, _) => _ = NewProject();
-        _tabStrip.Children.Add(add);
+
     }
 
     /// <summary>
@@ -3030,11 +3003,16 @@ public sealed partial class MainWindow : Window
         _blend.BorderBrush = Skin.BorderControlBrush;
         _blend.VerticalContentAlignment = VerticalAlignment.Center;
 
+        CompactSlider.Apply(_opacity);
         _opacity.Width = 72;
-        _opacity.Height = 20;
+        _opacity.Height = 32;
+        _opacity.MinHeight = 32;
+        _opacity.VerticalAlignment = VerticalAlignment.Center;
+        _opacity.Margin = new Thickness(2, 0);
 
         _opacityReadout.Width = 35;
         _opacityReadout.FontSize = 11;
+        _opacityReadout.VerticalAlignment = VerticalAlignment.Center;
         _opacityReadout.Foreground = Skin.LabelBrush;
 
         _blend.SelectionChanged += (_, _) =>
@@ -4677,7 +4655,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ProjectWritten(object? sender, EventArgs e)
     {
-        if (_open.Saving is not null || _detecting) return;
+        if (!EditorPreferences.Current.WatchFiles || _open.Saving is not null || _detecting) return;
         if (_watch?.Changed() is not true) return;
         if (_document is not { } document || _projectPath is not { } path) return;
         if (_history.IsModified)
@@ -5196,7 +5174,7 @@ public sealed partial class MainWindow : Window
             {
                 Vertical = _tool is Tool.VerticalType or Tool.VerticalTypeMask ? true : null,
                 Content = Localize.Text(""),
-                FontName = "Arial",
+                FontName = EditorPreferences.Current.DefaultFont,
                 FontSize = 72,
                 Red = _options.Brush.Red,
                 Green = _options.Brush.Green,

@@ -9,16 +9,15 @@ using Avalonia.Themes.Fluent;
 namespace Compositor.Desktop;
 
 /// <summary>
-/// The colours and layout styling logic of the interface, designed to strictly follow Adobe Photoshop's
-/// professional Dark theme: neutral 0x32 dark grey chrome, 0x28 canvas pasteboard, 0x1473E6 Adobe blue accent,
-/// 0x22 dark inset control surfaces, and crisp 1px borders and high-readability typography hierarchy.
+/// Portable dark surfaces and system-label counterparts, following upstream ContentView and ProjectTabs.
+/// Canvas guide and grid colors retain the Photoshop-oriented editing convention.
 /// </summary>
 internal static class Skin
 {
     // ---- Photoshop Layout & Surface Colours ----
 
-    /// <summary>Photoshop dark UI chrome: panel bodies, tool headers, options bar and window frame (#323232).</summary>
-    public static readonly Color Chrome = Color.FromRgb(0x32, 0x32, 0x32);
+    /// <summary>Upstream ContentView surface: Color(white: 0.14), rounded to #242424.</summary>
+    public static readonly Color Chrome = Color.FromRgb(0x24, 0x24, 0x24);
 
     /// <summary>Photoshop workspace pasteboard behind document canvas (#282828).</summary>
     public static readonly Color Pasteboard = Color.FromRgb(0x28, 0x28, 0x28);
@@ -100,12 +99,12 @@ internal static class Skin
     public static readonly IBrush DisabledBrush = new SolidColorBrush(Disabled);
     public static readonly IBrush AccentBrush = new SolidColorBrush(Accent);
 
-    /// <summary>Photoshop active document tab: seamless #323232 body with #1473E6 top accent border.</summary>
-    public static readonly IBrush TabFront = new SolidColorBrush(Chrome);
-    /// <summary>Photoshop inactive document tab: darker #252525 body.</summary>
-    public static readonly IBrush TabBack = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x25));
-    public static readonly IBrush TabFrontEdge = new SolidColorBrush(Accent);
-    public static readonly IBrush TabBackEdge = new SolidColorBrush(BorderSubtle);
+    /// <summary>Upstream ProjectTabs active capsule: white at 12%.</summary>
+    public static readonly IBrush TabFront = new SolidColorBrush(Colors.White, .12);
+    /// <summary>Upstream ProjectTabs inactive capsule: white at 3.5%.</summary>
+    public static readonly IBrush TabBack = new SolidColorBrush(Colors.White, .035);
+    public static readonly IBrush TabFrontEdge = new SolidColorBrush(Colors.White, .22);
+    public static readonly IBrush TabBackEdge = new SolidColorBrush(Colors.White, .08);
 
     /// <summary>Photoshop menu separator rule: #3E3E3E.</summary>
     public static readonly IBrush MenuRule = new SolidColorBrush(Color.FromRgb(0x3E, 0x3E, 0x3E));

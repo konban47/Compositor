@@ -12,6 +12,7 @@ internal sealed class EditorIcon(string kind) : Control
     internal static bool Draw(DrawingContext context, string kind, Size size)
     {
         if (UpstreamArtwork.Draw(context, kind, size)) return true;
+        if (GeneratedSymbols.Draw(context, kind, size)) return true;
         if (!Paths.TryGetValue(kind, out var data)) return false;
         var side = Math.Max(1, Math.Min(size.Width, size.Height)); var scale = side / 24;
         using var fit = context.PushTransform(Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation((size.Width - side) / 2, (size.Height - side) / 2));

@@ -18,7 +18,7 @@ internal static class Localize
     private static readonly HashSet<string> Audited = [];
     internal static string Language { get; private set; } = ReadLanguage();
     internal static bool IsChinese => Language == "zh-CN";
-    internal static FontFamily UiFont => new("avares://Compositor/Assets/Fonts#Noto Sans SC");
+    internal static FontFamily UiFont => new("Segoe UI, Microsoft YaHei UI, avares://Compositor/Assets/Fonts#Noto Sans SC");
     private static readonly Lazy<(Regex Pattern, string Translation)[]> Templates = new(() => Chinese
         .Where(pair => pair.Key.Contains('{'))
         .Select(pair => (new Regex("^" + Regex.Replace(Regex.Escape(pair.Key), @"\\\{\d+(?::[^}]+)?}", "(.*?)") + "$",

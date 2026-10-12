@@ -111,9 +111,9 @@ public sealed partial class MainWindow
         DockPanel.SetDock(top, Dock.Top); layers.Children.Add(top);
         var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, Margin = new Thickness(8, 4, 8, 6) };
         footer.Children.Add(PanelButton("link", "Link / Unlink Layers", LinkLayers));
+        footer.Children.Add(PanelButton("adjust", "New Adjustment Layer", () => ShowAdjustmentMenu(footer)));
         footer.Children.Add(PanelButton("fx", "Layer Effects", () => ShowEffectsMenu(footer)));
         footer.Children.Add(PanelButton("mask", "Add Layer Mask", () => AddMask(true)));
-        footer.Children.Add(PanelButton("adjust", "New Adjustment Layer", () => ShowAdjustmentMenu(footer)));
         footer.Children.Add(PanelButton("folder", "New Group (Ctrl+G)", () => { if (SelectedLayers.Count > 0) GroupSelected(); else NewFolder(); }));
         footer.Children.Add(PanelButton("add", "New Layer (Ctrl+Shift+N)", NewBlankLayer));
         footer.Children.Add(PanelButton("delete", "Delete Layer or Selected Mask", DeletePanelTarget));

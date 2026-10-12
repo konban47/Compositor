@@ -1,21 +1,30 @@
 # Compositor for Windows — 简体中文 / English
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.4.10.0 Preview**。
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.4.10.1 Preview**。
 
 [下载 Windows 发行包](https://github.com/konban47/Compositor/releases) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
 
 ## 使用
 
 - 目标平台：Windows 10 1809 及以上、Windows 11，**x64**。不提供 32 位或原生 ARM64 包。
-- 安装版：运行 `Compositor-Windows-1.4.10.0-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
+- 安装版：运行 `Compositor-Windows-1.4.10.1-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
 - 免安装版：解压整个 `*-portable.zip`，运行文件夹中的 `Compositor.exe`。自带 .NET 运行时，无需安装 .NET SDK。若系统缺少 Visual C++ 2015–2022 x64 运行库，先运行随包提供的 `redist/vc_redist.x64.exe`。
 - 程序与安装包目前未做商业代码签名。只从本仓库下载；`SHA256SUMS.txt` 可用于校验文件完整性。
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
 - 界面中文字体随包提供，不依赖系统是否安装中文语言包。画布文字支持中文输入法预编辑、候选窗口光标位置、汉字字体回退、无空格中文段落换行。
 - `.comp` 是**文件夹项目**，包含 `manifest.json` 和图层资源。打开整个项目文件夹；保存时选择 `.comp` 名称。不要只复制 `manifest.json`。
-- 普通图像、PSD/PSB、相机 RAW 通过“文件 → 导入图像”打开；PSD 转换限制会在导入报告中显示。PNG/JPEG/PDF/TIFF 通过“导出为”菜单输出；PDF 为单页合成图像。
+- 普通图像、PSD/PSB、相机 RAW 通过“文件 → 导入图像”打开；PSD 转换限制会在导入报告中显示。PNG/JPEG/PDF/TIFF/EXR 通过“导出为”菜单输出；PDF 为单页合成图像。
 - 可将项目文件夹或图像路径作为参数：`Compositor.exe "D:\图片\项目.comp"`。
 - 设置保存在 `%APPDATA%\CompositorWindows`。卸载不会删除项目文件和个人设置。
+
+## 1.4.10.1 界面、编辑菜单与 HDR 更新
+
+- 属性面板使用统一背景；不透明度手柄完整且居中。工具栏底部按钮居中，三点仅打开“自定义工具栏”。前／背景色、交换／默认色按上游布局，标签页使用胶囊比例并移除右侧重复新建按钮。
+- 上游四个自绘图标直接移植；颜色与标签组件按 Swift 源码移植布局。Apple SF Symbols／系统字体无 Windows 资源，采用矢量对应图形与系统无衬线字体回退。内置 imagegen 生成新增图标设计参考，最终为清晰矢量；工具未提供实际模型版本。
+- 按所附截图重整“编辑”菜单，补充选择性粘贴、填充／描边、文字查找替换／Windows 拼写、再次变换、操控变形、内容识别缩放、对齐／混合、预设、菜单、首选项、ICC 和外部 OCIO 接口。图像菜单保留上一版的模式、调整、计算、变量和分析。
+- 合并上游至 **f5ae5ba**：EXR／Radiance HDR 导入、HDR 调整保留高光、EXR 导出、HDR 转 16 位、16-Bit 标识、标签栏拖放新建画布按图层尺寸、JPEG／PNG 优先导出。保存仍为 v18 深度资源，读取 macOS v13 EXR。
+- **1085 项核心测试、16 组英文与 10 组中文界面检查**；CI 检查文档、图标来源和包内说明。
+- [编辑菜单及功能边界](EDIT-MENU.md) · [图像与属性](IMAGE-WORKSPACE.md) · [插件 API](PLUGINS.md) · [本版更新与上游对应](UPDATES-1.4.10.1.md)。以下版本段落为历史记录。
 
 ## 1.4.10.0 图像、属性与插件更新
 
@@ -90,7 +99,7 @@
 
 ### 项目兼容性
 
-当前读取版本 1–18。图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，上游 macOS 1.4.10 支持 v1–v12，其中 v12 的 16 位 PNG 可以读取，但不支持 Windows v13–v18 字段。清除新增字段后可恢复相应较低版本；交付合成结果可导出 PNG。详细字段见 [项目格式 v15](../docs/project-format.md#windows-extension-version-15)。
+当前读取版本 1–18。图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，最新上游 macOS 1.4.10 支持 v1–v13，其中 v12 的 16 位 PNG 和 v13 EXR 可以读取，但不支持 Windows v13–v18 字段。清除新增字段后可恢复相应较低版本；交付合成结果可导出 PNG。详细字段见 [项目格式 v15](../docs/project-format.md#windows-extension-version-15)。
 
 ## 功能与迁移范围
 
@@ -107,6 +116,8 @@
 - Windows 安装包、独立更新频道、带截图及测试报告的双版本 Windows Server CI。
 
 ## 已知差异和验收边界
+
+- 编辑菜单的本地算法、原生 Windows 拼写字典、ICC 转换范围及外部 OCIO／图像生成服务依赖详见 [EDIT-MENU.md](EDIT-MENU.md)。不实现 Adobe 远程连接协议、ABR／PAT／CSH／PDF joboptions、暂存盘、通知中心或技术预览引擎；相关无运行时入口置灰。
 
 这是可运行的 Windows 移植版，不承诺和 macOS 或 Photoshop 的每个像素、窗口行为或性能完全一致：
 
@@ -146,7 +157,7 @@ CLI 位于包内 `cli/Compositor.Cli.exe`，运行 `--help` 查看命令。
 
 ## English
 
-An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, updated through upstream macOS 1.4.10 and commit 2522e3b, with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
+An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, updated through upstream macOS 1.4.10 and commit f5ae5ba, with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 

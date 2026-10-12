@@ -171,6 +171,7 @@ public sealed partial class MainWindow
         var thumbnail = new LayerThumbnail(() => Current()?.LiveText is not null ? null : Current()?.Asset?.Thumbnail,
             layer.IsGroup ? "folder" : layer.LiveText is not null ? "T" : layer.Adjustment is not null ? "◐" : "")
             { Width = 32, Height = 32, Margin = new Thickness(layer.IsGroup ? 0 : depth * 12, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Active = () => Selected == layer.ID && !MaskTarget };
+        if (layer.Asset?.BitDepth > 8) notes = (layer.Asset.BitDepth == 32 ? "HDR" : "16-Bit") + (string.IsNullOrEmpty(notes) ? "" : " · " + notes);
         _layerThumbnails.Add(thumbnail);
         thumbnail.PointerPressed += (_, e) =>
         {
@@ -259,6 +260,7 @@ public sealed partial class MainWindow
             var from = _dragLayer; var to = _dropRow?.Tag as Guid?; var above = _dropAbove;
             var moved = _layerDragging;
             _dragLayer = null; _layerDragging = false; ClearDropIndicator(); e.Pointer.Capture(null);
+            if (moved && DropLayersOnTabs(e.GetPosition(this))) { e.Handled = true; return; }
             if (moved && from is { } source && to is { } target && _document is { } document)
             {
                 Edit("Reorder Layers", () => LayerEdits.MoveRelative(document, source, target, above));

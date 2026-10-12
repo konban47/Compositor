@@ -171,7 +171,7 @@ Upstream 1.4.10 lets a layer image be a 16-bit PNG, displayed through a dithered
 
 ## Windows extension version 18
 
-Windows 1.4.10.0 reads versions 1–18 and writes the lowest version needed. Version 18 is required for deep layer data or any of the metadata below. A version-12 upstream 16-bit PNG can be read; resaving it uses Windows v18. Version numbers 12 onward have distinct Windows and macOS feature meanings. macOS cannot open Windows v18.
+Windows 1.4.10.1 reads versions 1–18 and writes the lowest version needed. Version 18 is required for deep layer data or any of the metadata below. Upstream v12 16-bit PNG and v13 EXR can be read; normal Windows document saves use v18 PNG plus float sidecars for HDR. Raw ProjectSnapshot save preserves a v13 EXR payload as EXR. An EXR and a floatImageFile sidecar on the same layer are rejected. Version numbers 12 onward have distinct Windows and macOS feature meanings. macOS cannot open Windows v18.
 
 | Scope / field | Representation |
 | --- | --- |
@@ -192,4 +192,4 @@ Document duplication and undo preserve these fields. Source sampling points, thr
 
 ### Upstream macOS version 13
 
-Version 13 lets a layer's image file be OpenEXR, named `<layer UUID>.exr`: an HDR layer, whose pixels hold light brighter than white as half floats in extended sRGB (white is 1). It is shown, and for now edited, through a copy clipped to white and rounded to 8 bits with a fine noise, made again on load. An EXR whose values all stay within white loads as a 16-bit layer. Masks stay 8-bit PNG. Files declaring versions 1–12 cannot contain EXR images, and older app builds reject v13.
+Version 13 lets a layer's image file be OpenEXR, named `<layer UUID>.exr`: an HDR layer, whose pixels hold light brighter than white as half floats in extended sRGB (white is 1). The display preview clips to white; current upstream edits normalize and restore above-white highlights where supported. An EXR whose values all stay within white loads as a 16-bit layer. Masks stay 8-bit PNG. Files declaring versions 1–12 cannot contain EXR images, and older app builds reject v13.

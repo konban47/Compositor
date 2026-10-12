@@ -15,7 +15,7 @@ internal sealed class ExportAsDialog : DialogWindow
     private readonly CanvasDocument _document;
     private readonly ComboBox _format = new()
     {
-        ItemsSource = new[] { "PNG", "JPEG", "PDF", "TIFF" },
+        ItemsSource = new[] { "PNG", "JPEG", "PDF", "TIFF", "EXR" },
         Width = 170,
         Height = 24,
         FontSize = 11.5,
@@ -86,12 +86,23 @@ internal sealed class ExportAsDialog : DialogWindow
         _width.Value = document.Width; _height.Value = document.Height; _format.SelectedIndex = (int)format;
         var controls = new StackPanel { Spacing = 9, Margin = new Thickness(18), Width = 230 };
         void Add(string label, Control control) { controls.Children.Add(new TextBlock { Text = Localize.Text(label), FontSize = 11.5, Foreground = Skin.LabelBrush }); controls.Children.Add(control); }
-        Add("Format", _format); Add("Width, pixels", _width); Add("Height, pixels", _height);
+        _quality.Value = EditorPreferences.Current.ExportQuality;
+        var currentFormat = new MenuItem { Header = ((string[])_format.ItemsSource!)[(int)format] + " ▾" };
+        var more = new MenuItem { Header = Localize.Text("More") };
+        foreach (var (label, value) in new[] { ("JPEG", ExportFormat.Jpeg), ("PNG", ExportFormat.Png), ("PDF", ExportFormat.Pdf), ("TIFF", ExportFormat.Tiff), ("EXR", ExportFormat.Exr) })
+        {
+            var choice = new MenuItem { Header = label };
+            choice.Click += (_, _) => { _format.SelectedIndex = (int)value; currentFormat.Header = label + " ▾"; };
+            if (value is ExportFormat.Jpeg or ExportFormat.Png) currentFormat.Items.Add(choice); else more.Items.Add(choice);
+        }
+        currentFormat.Items.Add(more);
+        var formatMenu = new Menu { Width = 170, Height = 30, Background = Skin.SurfaceControlBrush }; formatMenu.Items.Add(currentFormat);
+        Add("Format", formatMenu); Add("Width, pixels", _width); Add("Height, pixels", _height);
         controls.Children.Add(_linked); Add("Quality", _quality); controls.Children.Add(_transparent); Add("Background", _background);
         controls.Children.Add(_size);
         if (document.Image.Depth > 8)
             controls.Children.Add(new TextBlock { Text = Localize.Text(Compositor.Core.Rendering.DocumentRenderer.SupportsDeepComposite(document)
-                ? "PNG supports up to 16 bits. Use TIFF for 32-bit floating-point output."
+                ? "PNG supports up to 16 bits. Use TIFF for 32-bit floating-point output or EXR for HDR highlights."
                 : "This document uses compositing effects rendered at 8-bit precision. Original deep layer data is preserved in the project."), TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Skin.SecondaryBrush });
         var cancel = new Button
         {
@@ -138,7 +149,7 @@ internal sealed class ExportAsDialog : DialogWindow
         VerticalContentAlignment = VerticalAlignment.Center,
     };
     private ExportOptions Options() => new((ExportFormat)_format.SelectedIndex, (int)(_width.Value ?? 1), (int)(_height.Value ?? 1),
-        (int)(_quality.Value ?? 90), _transparent.IsChecked == true, _background.SelectedIndex == 1 ? SKColors.Black : SKColors.White, _document.Resolution);
+        (int)(_quality.Value ?? 90), _transparent.IsChecked == true, _background.SelectedIndex == 1 ? SKColors.Black : SKColors.White, _format.SelectedIndex == 2 ? EditorPreferences.Current.PdfResolution : _document.Resolution);
     private void DimensionChanged(bool width)
     {
         if (_changing) return;
@@ -154,8 +165,8 @@ internal sealed class ExportAsDialog : DialogWindow
     {
         if (_closed) return;
         _revision++; _export.IsEnabled = false; _quality.IsEnabled = _format.SelectedIndex == 1;
-        _transparent.IsEnabled = _format.SelectedIndex is 0 or 3;
-        _background.IsEnabled = _format.SelectedIndex is not (0 or 3) || _transparent.IsChecked != true;
+        _transparent.IsEnabled = _format.SelectedIndex is 0 or 3 or 4;
+        _background.IsEnabled = _format.SelectedIndex is not (0 or 3 or 4) || _transparent.IsChecked != true;
         _size.Text = Localize.Text("Rendering preview…"); _timer.Stop(); _timer.Start();
     }
     private bool _rendering;

@@ -204,6 +204,14 @@ public static class Shortcuts
         Menu("Copy", "C", Ctrl);
         Menu("Copy Merged", "C", Ctrl | Shift);
         Menu("Paste", "V", Ctrl);
+        Menu("Paste in Place", "V", Ctrl | Shift);
+        Menu("Paste Into", "V", Ctrl | Shift | Alt);
+        Menu("Toggle Last State", "Z", Ctrl | Alt);
+        Menu("Fade", "F", Ctrl | Shift);
+        Menu("Fill Dialog", "F5", Shift);
+        Menu("Free Transform", "T", Ctrl);
+        Menu("Transform Again", "T", Ctrl | Shift);
+        Menu("Content-Aware Scale", "C", Ctrl | Shift | Alt);
         Menu("Fill with Foreground Color", "Delete", Alt);
         Menu("Fill with Background Color", "Delete", Ctrl);
         Menu("Content-Aware Fill", "Delete", Alt | Shift);

@@ -1,6 +1,6 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "2522e3b8f8bee3c64b1ab4c474656824969393ff",
+  "commit": "f5ae5bad0b25b32dda9f254e62d2f07f59478698",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
@@ -27,6 +27,22 @@
     {
       "path": "Compositor/Document/EditorSession.swift",
       "sha256": "17aa37a0af407f17b5635297b229614fefe089cd74f9d3ddc63cfc0f04e7ad66"
+    },
+    {
+      "path": "Compositor/UI/ColorPaletteControls.swift",
+      "sha256": "b4d244b3dff818032719f596ec31db73a8e418dfa3b1d306d0c36db06af3df5c"
+    },
+    {
+      "path": "Compositor/UI/ProjectTabs.swift",
+      "sha256": "12d6758a0c8277827baf24960eae8e8ff15a8bd442da607e003557443f34cf89"
+    },
+    {
+      "path": "Compositor/UI/ProjectTabLayout.swift",
+      "sha256": "0b7efbb7c771d968bbd9cc31734fca2d96667a30f51b3109d2bb5b57c0ea226b"
+    },
+    {
+      "path": "Compositor/Document/DeepLayers.swift",
+      "sha256": "68a5e13d75175ed994021afcb6820e67fc45ff9287678e5a48df1e8c90281e25"
     }
   ],
   "directPorts": [
@@ -45,5 +61,17 @@
     "selectedFillOpacity": 0.12,
     "selectedBorderOpacity": 0.14
   },
-  "systemResources": "Other upstream symbols use Apple SF Symbols, and native buttons use SwiftUI/AppKit. No corresponding redistributable asset files exist in this repository; EditorIcon supplies Windows vector counterparts."
+  "systemResources": "Other upstream symbols use Apple SF Symbols, and native buttons use SwiftUI/AppKit. No corresponding redistributable asset files exist in this repository; EditorIcon supplies Windows vector counterparts.",
+  "layoutPorts": {
+    "ColorPaletteControls": "ToolRail.cs + UpstreamPaletteGlyph.cs",
+    "ProjectTabs": "MainWindow.cs + Skin.cs",
+    "typography": "System sans-serif: Segoe UI / Microsoft YaHei UI / Noto Sans SC fallback; no Apple fonts bundled"
+  },
+  "generatedCounterparts": {
+    "reference": "windows/design/icon-reference.png",
+    "implementation": "windows/src/Compositor.Desktop/GeneratedSymbols.cs",
+    "tool": "built-in imagegen",
+    "actualModel": "not disclosed by tool",
+    "provenance": "windows/design/README.md"
+  }
 }

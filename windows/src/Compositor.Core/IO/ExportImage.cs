@@ -4,11 +4,11 @@ using SkiaSharp;
 
 namespace Compositor.Core.IO;
 
-public enum ExportFormat { Png, Jpeg, Pdf, Tiff }
+public enum ExportFormat { Png, Jpeg, Pdf, Tiff, Exr }
 public sealed record ExportOptions(ExportFormat Format, int Width, int Height, int Quality = 90,
     bool Transparency = true, SKColor? Background = null, double Resolution = 72)
 {
-    public string Extension => Format switch { ExportFormat.Jpeg => "jpg", ExportFormat.Pdf => "pdf", ExportFormat.Tiff => "tif", _ => "png" };
+    public string Extension => Format switch { ExportFormat.Jpeg => "jpg", ExportFormat.Pdf => "pdf", ExportFormat.Tiff => "tif", ExportFormat.Exr => "exr", _ => "png" };
     public bool IsValid => Enum.IsDefined(Format) && Width > 0 && Height > 0
         && Width <= DocumentLimits.MaxSide && Height <= DocumentLimits.MaxSide
         && (long)Width * Height <= DocumentLimits.MaxSurfacePixels && Quality is >= 1 and <= 100
@@ -42,7 +42,8 @@ public static class ExportImage
         }
         byte[] bytes;
         using var image = SKImage.FromBitmap(pixels);
-        if (options.Format == ExportFormat.Tiff || options.Format == ExportFormat.Png && (document.Image.Depth > 8 || document.Image.Mode != Compositor.Core.Format.ImageMode.RGB || original.ColorType == SKColorType.RgbaF32))
+        if (options.Format == ExportFormat.Exr) bytes = DeepImageCodec.EncodeExr(pixels);
+        else if (options.Format == ExportFormat.Tiff || options.Format == ExportFormat.Png && (document.Image.Depth > 8 || document.Image.Mode != Compositor.Core.Format.ImageMode.RGB || original.ColorType == SKColorType.RgbaF32))
             bytes = DeepImageCodec.EncodeMode(pixels, document.Image with { Depth = Math.Max(document.Image.Depth, document.Layers.Select(l => l.Asset?.BitDepth ?? 8).DefaultIfEmpty(8).Max()) }, options.Format == ExportFormat.Tiff, options.Resolution);
         else if (options.Format == ExportFormat.Pdf)
         {

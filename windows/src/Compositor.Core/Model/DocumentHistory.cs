@@ -27,8 +27,10 @@ public sealed partial class DocumentHistory
         _savedRevision = _revision;
     }
 
-    public int EntryLimit { get; }
-    public int RetainedByteLimit { get; }
+    public int EntryLimit { get; private set; }
+    public int RetainedByteLimit { get; private set; }
+    public void Configure(int count, int bytes, CanvasDocument? document)
+    { EntryLimit = Math.Clamp(count, 1, 1000); RetainedByteLimit = Math.Max(0, bytes); Trim(document); }
 
     /// <summary>
     /// When set, an edit made after stepping back keeps the states that were ahead of it instead of throwing

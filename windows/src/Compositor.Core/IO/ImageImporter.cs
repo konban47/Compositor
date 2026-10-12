@@ -23,7 +23,7 @@ public sealed class ImportException : Exception
     public ImportException(ImportError error, string? message = null) : base(message ?? error switch
     {
         ImportError.Unreadable => "The image could not be read. It may be damaged or unavailable.",
-        ImportError.Unsupported => "Choose a JPEG, PNG, HEIC, TIFF, SVG or Photoshop (PSD) file.",
+        ImportError.Unsupported => "Choose a JPEG, PNG, HEIC, TIFF, EXR, HDR, SVG or Photoshop (PSD) file.",
         _ => $"This import exceeds the {DocumentLimits.MaxSide:N0}-pixel side limit or the "
             + $"{DocumentLimits.DocumentBudgetMegapixels}-megapixel document budget.",
     })
@@ -44,7 +44,7 @@ public static class ImageImporter
 {
     /// <summary>What the importer will attempt, by extension.</summary>
     public static readonly string[] Extensions =
-        [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg", ".tif", ".tiff", ".psd", ".psb",
+        [".exr", ".hdr", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg", ".tif", ".tiff", ".psd", ".psb",
          ".heic", ".heif", ".hif", ".avif", ".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw", ".srf", ".sr2",
          ".raf", ".orf", ".rw2", ".raw", ".rwl", ".pef", ".3fr", ".erf", ".mrw", ".kdc", ".dcr", ".x3f", ".iiq"];
 
@@ -70,7 +70,9 @@ public static class ImageImporter
         {
             return DecodeSvg(path, fitting, name, remainingPixels);
         }
-        if (extension.Equals(".tif", StringComparison.OrdinalIgnoreCase)
+        if (extension.Equals(".exr", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".hdr", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".tif", StringComparison.OrdinalIgnoreCase)
             || extension.Equals(".tiff", StringComparison.OrdinalIgnoreCase))
         {
             try { return DeepImageCodec.Decode(Read(path), name, remainingPixels); }
@@ -102,7 +104,7 @@ public static class ImageImporter
             throw SkiaReads.Contains(extension, StringComparer.OrdinalIgnoreCase)
                 ? new ImportException(ImportError.Unreadable)
                 : new ImportException(ImportError.Unsupported,
-                    $"{extension} files are not read yet. PNG, JPEG, WebP, GIF, BMP, TIFF, SVG, HEIC and camera RAW are.");
+                    $"{extension} files are not read yet. PNG, JPEG, WebP, GIF, BMP, TIFF, EXR, HDR, SVG, HEIC and camera RAW are.");
         }
         return image;
     }
@@ -274,7 +276,7 @@ public static class ImageImporter
     }
 
     /// <summary>The kinds Skia decodes here, so a corrupt one of these is damage rather than a wrong format.</summary>
-    private static readonly string[] SkiaReads = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"];
+    private static readonly string[] SkiaReads = [ ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"];
 
     private static bool TrySkia(byte[] bytes, string name, int remainingPixels, out ImportedImage image)
     {
