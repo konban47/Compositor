@@ -342,10 +342,32 @@ nonisolated enum PixelFilter {
                                      sixteenBit: job.sixteenBit)
     }
 
+    /// A filter's preview on an HDR layer's pixels (`hdr`, at the preview's size), made the way OK makes the result: the
+    /// Core Image filters on them as they are, Exposure exactly, the rest with highlights divided down to within white
+    /// and multiplied back (`DeepLayer.normalizing`) — run once here, where OK runs them several times and reads
+    /// between, too slow for every slider move and too fine to see.
+    static func previewHDR(_ job: FilterJob, from hdr: CGImage) throws -> CGImage {
+        var run = job
+        run.image = hdr
+        if job.kind.runsAtSixteenBits {
+            run.sixteenBit = true
+            return try PixelFilter.run(run)
+        }
+        if job.kind == .exposure {
+            let result = try DeepLayer.exposure(hdr, job.settings.exposure)
+            guard let selection = job.selection else { return result }
+            return try PixelAdjust.blend(result, over: hdr, through: selection, pixelToDocument: job.mapping, isMask: false, sixteenBit: true)
+        }
+        return try DeepLayer.normalizing(hdr) { normal in
+            run.image = normal
+            return try PixelFilter.run(run)
+        }
+    }
+
     /// A Core Image filter's result, at 16 bits for a 16-bit layer's pixels.
     private static func render(_ image: CIImage, job: FilterJob) throws -> CGImage {
         let width = job.image.width, height = job.image.height
-        if job.sixteenBit { return try DeepLayer.render(image, width: width, height: height) }
+        if job.sixteenBit { return try DeepLayer.render(image, width: width, height: height, hdr: DeepLayer.isHDR(job.image)) }
         return try PixelAdjust.render(image, width: width, height: height, isMask: false)
     }
 }
@@ -361,6 +383,9 @@ final class FilterEdit {
     let selection: SelectionClip?
     var mapping: CGAffineTransform
     var previewSource: CGImage
+    /// An HDR layer's pixels at the preview's size and grid, which its preview is made from, as OK makes the result from
+    /// the layer's own: from `previewSource`, clipped to white, a blur or Exposure would preview something else.
+    var hdrPreviewSource: CGImage?
     var previewScale: CGFloat
     var previewMapping: CGAffineTransform
     /// A filter reaching past the layer's edge — Content-Aware Fill over a selection, a blur spreading outwards —
@@ -468,6 +493,7 @@ final class FilterEdit {
         previewSource = ready.previewSource
         previewScale = ready.previewScale
         previewMapping = ready.previewMapping
+        hdrPreviewSource = try Self.hdrPreview(of: asset, inside: nil, grid: nil, size: ready.previewSource)
         // A rotated layer's sides don't run along the canvas's, so it has none at its edge.
         if let canvas, kind == .gaussianBlur || kind == .motionBlur, layer.transform.rotation == 0 {
             let inPixels = CGRect(origin: .zero, size: canvas).applying(ready.mapping.inverted())
@@ -559,7 +585,22 @@ final class FilterEdit {
         previewSource = ready.previewSource
         previewScale = ready.previewScale
         previewMapping = ready.previewMapping
+        hdrPreviewSource = try Self.hdrPreview(of: original, inside: grownInside,
+                                               grid: CGSize(width: source.width, height: source.height), size: ready.previewSource)
         previewSourceVersion &+= 1
+    }
+
+    /// An HDR layer's pixels laid out as `size` (the preview's source) is: padded onto `grid` at `inside` when the layer
+    /// has grown, then scaled to its size. Nil for any other layer.
+    private static func hdrPreview(of asset: ImportedImage, inside: CGRect?, grid: CGSize?, size: CGImage) throws -> CGImage? {
+        guard asset.isHDR, let deep = try DeepLayer.flattened(asset) else { return nil }
+        guard let grid, let inside else { return try DeepLayer.hdrPreview(of: asset, matching: size) }
+        let whole = try DeepLayer.padded(deep, to: grid, inside: inside)
+        guard whole.width != size.width || whole.height != size.height else { return whole }
+        let context = try DeepLayer.context(width: size.width, height: size.height, hdr: true)
+        context.interpolationQuality = .high
+        BrushRaster.draw(whole, in: CGRect(x: 0, y: 0, width: size.width, height: size.height), mask: false, context: context)
+        return context.makeImage()
     }
 
     func previewImage(for id: UUID) -> CGImage? { preview && id == layerID ? preparedPreview : nil }
@@ -677,11 +718,18 @@ extension EditorSession {
         edit.pending = nil
         let placement = edit.pendingTransform
         let sourceVersion = edit.previewSourceVersion
+        let hdrSource = edit.kind.isAutomatic ? nil : edit.hdrPreviewSource
         edit.preparing = true
         edit.previewError = nil
         edit.previewTask = Task { @MainActor [weak self, weak edit] in
             let result = await Task.detached(priority: .userInitiated) { () -> (CGImage?, CameraRawScope?, String?) in
                 do {
+                    // An HDR layer previews from its HDR pixels, as OK makes it, shown clipped to white.
+                    if let hdrSource {
+                        let made = try PixelFilter.previewHDR(job, from: hdrSource)
+                        let scope = job.kind == .cameraRaw ? try CameraRawScope.preview(job).scope : nil
+                        return (try DeepLayer.dithered(made), scope, nil)
+                    }
                     if job.kind == .cameraRaw {
                         let made = try CameraRawScope.preview(job)
                         return (made.image, made.scope, nil)
@@ -779,6 +827,15 @@ extension EditorSession {
                 edit.grownInside.map { (size: CGSize(width: grownImage.width, height: grownImage.height), inside: $0) }
             }
             let made = try await Task.detached(priority: .userInitiated) { () -> (asset: ImportedImage, transform: LayerTransform?) in
+                // Exposure on an HDR layer, exactly: turned down, it brings highlights into view.
+                if let deep, DeepLayer.isHDR(deep), job.kind == .exposure {
+                    var result = try DeepLayer.exposure(deep, job.settings.exposure)
+                    if let selection = job.selection {
+                        result = try PixelAdjust.blend(result, over: deep, through: selection, pixelToDocument: job.mapping,
+                                                       isMask: false, sixteenBit: true)
+                    }
+                    return (try DeepLayer.asset(result, name: job.kind.rawValue), grown)
+                }
                 if let deep, let lookup = job.kind.sixteenBitLookup(job.settings) {
                     // Channels that mix go through the adjustment's color lookup at 16 bits.
                     var result = try DeepLayer.lookup(deep, cube: lookup.cube, dimension: lookup.dimension)

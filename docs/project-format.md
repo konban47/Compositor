@@ -1,8 +1,8 @@
-# Compositor project format, macOS versions 1–12 and Windows extensions 12–18
+# Compositor project format, macOS versions 1–13 and Windows extensions 12–18
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
-The manifest identifies `com.compositor.project`, version `12` for new saves (versions `1`–`11` remain readable), and the sRGB working space. It stores document UUID, pixel dimensions, active layer UUID, and layers in bottom-to-top order. Each layer stores its UUID, name, visibility, transform (origin, size, clockwise rotation, flips, sampling), and optional image filename. Blank layers have no image asset.
+The manifest identifies `com.compositor.project`, version `13` for new macOS saves (versions `1`–`12` remain readable), and the sRGB working space. It stores document UUID, pixel dimensions, active layer UUID, and layers in bottom-to-top order. Each layer stores its UUID, name, visibility, transform (origin, size, clockwise rotation, flips, sampling), and optional image filename. Blank layers have no image asset.
 
 Embedded PNGs preserve source pixels and transparency; transforms remain separate. Projects survive moving or deleting imported source photos. Saving uses a coordinated atomic package replacement. Unsupported versions, invalid metadata, missing assets, unsafe paths, and oversized data are rejected before replacing the live document.
 
@@ -189,3 +189,7 @@ Windows 1.4.10.0 reads versions 1–18 and writes the lowest version needed. Ver
 The text `layout` fields are `horizontalScale` / `verticalScale` (percent, default 100, 1–1000), `baselineShift` and `firstLineIndent` (default 0, ±10,000), `leftIndent`, `rightIndent`, `spaceBefore`, `spaceAfter` (default 0, 0–10,000), `justification` (None/LastLeft/LastCenter/LastRight/All), `smoothing` (None/Sharp/Crisp/Strong/Smooth, default Smooth), `kinsoku` (default true), and `tsume` (percent 0–100, default 0). Layout distances are layer pixels; font size UI converts to points using document resolution. These fields supplement the existing language, direction and OpenType tags, not an Adobe paragraph engine.
 
 Document duplication and undo preserve these fields. Source sampling points, three-dot expansion state, plugin installation state, active plugin processes and measurement tool gestures are not project metadata. Plugin results become ordinary image layers; external plugin binaries are never embedded in `.comp` packages.
+
+### Upstream macOS version 13
+
+Version 13 lets a layer's image file be OpenEXR, named `<layer UUID>.exr`: an HDR layer, whose pixels hold light brighter than white as half floats in extended sRGB (white is 1). It is shown, and for now edited, through a copy clipped to white and rounded to 8 bits with a fine noise, made again on load. An EXR whose values all stay within white loads as a 16-bit layer. Masks stay 8-bit PNG. Files declaring versions 1–12 cannot contain EXR images, and older app builds reject v13.

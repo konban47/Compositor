@@ -974,7 +974,7 @@ final class BrushStroke {
     /// painted through each tile's coverage, as `publish` paints `clone` at 8, over `crop` of the stroke's grid.
     private func deepPainted(_ asset: ImportedImage, crop: CGRect) throws -> CGImage? {
         guard let deepClone, let deep = try DeepLayer.flattened(asset) else { return nil }
-        let wide = try DeepLayer.context(width: Int(crop.width), height: Int(crop.height))
+        let wide = try DeepLayer.context(width: Int(crop.width), height: Int(crop.height), hdr: DeepLayer.isHDR(deep))
         BrushRaster.draw(deep, in: sourceRect.offsetBy(dx: -crop.minX, dy: -crop.minY), mask: false, context: wide)
         for (key, tile) in tiles {
             guard let coverage = coverage[key], let mask = coverage.makeImage(),
@@ -1096,7 +1096,8 @@ actor BrushCommit {
     /// (`painted`, the source with the patches over it), as `DeepLayer.flattened` does for strokes.
     private func sixteenBit(_ layer: ImportedImage, painted: CGContext, input: Input) throws -> CGImage? {
         guard let deep = try DeepLayer.flattened(layer) else { return nil }
-        let wide = try DeepLayer.context(width: input.width, height: input.height)
+        let hdr = DeepLayer.isHDR(deep)
+        let wide = try DeepLayer.context(width: input.width, height: input.height, hdr: hdr)
         BrushRaster.draw(deep, in: input.sourceRect, mask: false, context: wide)
         // A gradient or fill drawn again at 16 bits, smooth where its 8-bit tiles would step.
         if let deepPaint = input.deepPaint {
@@ -1111,8 +1112,14 @@ actor BrushCommit {
               painted.bytesPerRow == unpainted.bytesPerRow else { throw ExportError.render }
         // Held to the end of the call: optimized, Swift may free a context right after its last use, its `data`.
         withExtendedLifetime(unpainted) {
-            deep_take_painted(wideData.assumingMemoryBound(to: UInt16.self), wide.bytesPerRow, paintedData.assumingMemoryBound(to: UInt8.self),
-                              unpaintedData.assumingMemoryBound(to: UInt8.self), painted.bytesPerRow, input.width, input.height)
+            let paintedBytes = paintedData.assumingMemoryBound(to: UInt8.self), unpaintedBytes = unpaintedData.assumingMemoryBound(to: UInt8.self)
+            if hdr {
+                deep_take_painted_hdr(wideData.assumingMemoryBound(to: UInt16.self), wide.bytesPerRow, paintedBytes, unpaintedBytes,
+                                      painted.bytesPerRow, input.width, input.height)
+            } else {
+                deep_take_painted(wideData.assumingMemoryBound(to: UInt16.self), wide.bytesPerRow, paintedBytes, unpaintedBytes,
+                                  painted.bytesPerRow, input.width, input.height)
+            }
         }
         return wide.makeImage()
     }

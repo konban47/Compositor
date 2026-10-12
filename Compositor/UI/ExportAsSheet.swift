@@ -6,6 +6,10 @@ struct ExportAsSheet: View {
     let raster: ExportRaster
     /// The same flattened at 16 bits a channel, when the document has a 16-bit layer to keep.
     let deepRaster: ExportRaster?
+    /// The same flattened in half floats, when the document has an HDR layer: what an EXR is written from, the only
+    /// format offered that keeps light brighter than white. Without one, EXR isn't offered.
+    let hdrRaster: ExportRaster?
+    private var formats: [ExportFormat] { ExportFormat.allCases.filter { $0 != .exr || hdrRaster != nil } }
     let session: EditorSession
     let finish: ((data: Data, format: ExportFormat)?) -> Void
     @State private var format: ExportFormat
@@ -15,10 +19,11 @@ struct ExportAsSheet: View {
     /// JPEG's quality from the last export, which the next one starts from.
     private static let qualityKey = "jpegExportQuality"
 
-    init(raster: ExportRaster, deepRaster: ExportRaster? = nil, session: EditorSession, format: ExportFormat,
-         finish: @escaping ((data: Data, format: ExportFormat)?) -> Void) {
+    init(raster: ExportRaster, deepRaster: ExportRaster? = nil, hdrRaster: ExportRaster? = nil, session: EditorSession,
+         format: ExportFormat, finish: @escaping ((data: Data, format: ExportFormat)?) -> Void) {
         self.raster = raster
         self.deepRaster = deepRaster
+        self.hdrRaster = hdrRaster
         self.session = session
         self.finish = finish
         var start = JPEGOptions()
@@ -26,7 +31,7 @@ struct ExportAsSheet: View {
             start.quality = min(1, max(0, saved))
         }
         _options = State(initialValue: start)
-        _format = State(initialValue: format)
+        _format = State(initialValue: format == .exr && hdrRaster == nil ? .png : format)
         _width = State(initialValue: raster.image.width)
         _height = State(initialValue: raster.image.height)
     }
@@ -88,10 +93,15 @@ struct ExportAsSheet: View {
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 12) {
                 GridRow {
                     Text("Format")
-                    Picker("Format", selection: $format) {
-                        ForEach(ExportFormat.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    // The everyday formats side by side, JPEG first; the rest (PDF, and EXR with an HDR layer) in a menu beside them,
+                    // which takes the chosen one's name.
+                    HStack(spacing: 12) {
+                        Picker("Format", selection: $format) {
+                            ForEach([ExportFormat.jpeg, .png], id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        .pickerStyle(.segmented).labelsHidden().fixedSize()
+                        moreFormats
                     }
-                    .pickerStyle(.segmented).labelsHidden().fixedSize()
                 }
                 GridRow {
                     Text("Size")
@@ -131,7 +141,7 @@ struct ExportAsSheet: View {
                     }
                 }
                 // JPEG has no transparency, and a PDF's page shows through it, so both fill it with a color.
-                if format != .png {
+                if format == .jpeg || format == .pdf {
                     GridRow {
                         Text("Background")
                         DialogColorSwatch(title: "Export Background", color: matte, session: session)
@@ -140,7 +150,8 @@ struct ExportAsSheet: View {
                 }
             }
             HStack(spacing: 12) {
-                Text(format == .png ? "Transparency kept · sRGB" : "sRGB")
+                Text(format == .exr ? "Brighter than white kept · Transparency kept"
+                     : format == .png ? "Transparency kept · sRGB" : "sRGB")
                     .foregroundStyle(.secondary)
                 Spacer()
                 if let error { Text(error).foregroundStyle(.red) }
@@ -172,7 +183,7 @@ struct ExportAsSheet: View {
             error = nil
             do {
                 try await Task.sleep(for: .milliseconds(200))
-                let source = requested.sixteenBit ? deepRaster ?? raster : raster
+                let source = requested.format == .exr ? hdrRaster ?? raster : requested.sixteenBit ? deepRaster ?? raster : raster
                 let sized = try await ImageExporter.shared.resized(source, width: requested.width, height: requested.height)
                 let data: Data, preview: CGImage
                 switch requested.format {
@@ -180,6 +191,8 @@ struct ExportAsSheet: View {
                     let encoded = try await ImageExporter.shared.jpeg(sized, options: requested.options)
                     (data, preview) = (encoded.data, encoded.preview)
                 case .png: (data, preview) = (try await ImageExporter.shared.pngData(sized), sized.image)
+                // Shown as everything is, brighter than white as white.
+                case .exr: (data, preview) = (try await ImageExporter.shared.exrData(sized), try DeepLayer.dithered(sized.image))
                 case .pdf:
                     let background = CGColor(srgbRed: requested.options.red, green: requested.options.green,
                                              blue: requested.options.blue, alpha: 1)
@@ -195,6 +208,22 @@ struct ExportAsSheet: View {
                 self.error = error.localizedDescription
             }
         }
+    }
+
+    /// PDF, and EXR with an HDR layer: a menu beside PNG and JPEG, blue with the chosen one's name while it's chosen,
+    /// as the selected segment beside it would be.
+    @ViewBuilder private var moreFormats: some View {
+        let others = formats.filter { $0 != .png && $0 != .jpeg }
+        let chosen = others.contains(format)
+        let menu = Menu(chosen ? format.rawValue : "More") {
+            Picker("More formats", selection: $format) {
+                ForEach(others, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.inline).labelsHidden()
+        }
+        .menuStyle(.button).fixedSize()
+        .help("Other formats: PDF\(others.contains(.exr) ? ", and EXR to keep light brighter than white" : "")")
+        if chosen { menu.buttonStyle(.borderedProminent) } else { menu.buttonStyle(.bordered) }
     }
 
     private func sizeField(_ value: Int, set: @escaping (Int) -> Void) -> some View {

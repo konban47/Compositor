@@ -54,7 +54,8 @@ extension EditorSession {
         guard let region = selectionCopyRegion() else { return nil }
         let deep = sixteenBit && !mask ? try layer.asset.flatMap { try DeepLayer.flattened($0) } : nil
         let context = deep == nil ? try BrushRaster.context(width: Int(region.width), height: Int(region.height), mask: false)
-                                  : try DeepLayer.context(width: Int(region.width), height: Int(region.height))
+                                  : try DeepLayer.context(width: Int(region.width), height: Int(region.height),
+                                                          hdr: deep.map(DeepLayer.isHDR) ?? false)
         context.translateBy(x: -region.minX, y: -region.minY)
         clip?.apply(to: context)
         let transform = displayedTransform(for: layer)

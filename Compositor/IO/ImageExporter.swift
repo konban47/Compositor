@@ -20,16 +20,20 @@ actor ImageExporter {
     /// `sixteenBit`: flattened at 16 bits a channel, drawing 16-bit layers from their 16-bit pixels (`DeepLayer`),
     /// for a 16-bit PNG. Layers, clipping stacks and adjustment layers come through at full precision; effects and
     /// blend modes that need their own surface pass through 8 bits on the way.
-    func render(_ snapshot: ProjectSnapshot, sixteenBit: Bool = false) throws -> ExportRaster {
+    /// `hdr` (with `sixteenBit`): flattened in half floats instead, keeping HDR layers' light brighter than white, for an
+    /// EXR.
+    func render(_ snapshot: ProjectSnapshot, sixteenBit: Bool = false, hdr: Bool = false) throws -> ExportRaster {
         let width = snapshot.manifest.width, height = snapshot.manifest.height
         guard (1...DocumentLimits.maxSide).contains(width), (1...DocumentLimits.maxSide).contains(height),
               width * height <= DocumentLimits.maxSurfacePixels else { throw ExportError.tooLarge }
         return try autoreleasepool {
-            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+            let hdr = hdr && sixteenBit
+            guard let space = hdr ? DeepLayer.hdrSpace : CGColorSpace(name: CGColorSpace.sRGB),
                   let context = CGContext(data: nil, width: width, height: height,
                                           bitsPerComponent: sixteenBit ? 16 : 8, bytesPerRow: width * (sixteenBit ? 8 : 4), space: space,
                                           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                                              | (sixteenBit ? CGBitmapInfo.byteOrder16Little.rawValue : 0)) else {
+                                              | (sixteenBit ? CGBitmapInfo.byteOrder16Little.rawValue : 0)
+                                              | (hdr ? CGBitmapInfo.floatComponents.rawValue : 0)) else {
                 throw ExportError.render
             }
             context.clear(CGRect(x: 0, y: 0, width: width, height: height))
@@ -63,6 +67,7 @@ actor ImageExporter {
                 drawLayer(mode, target)
             }
             live.sixteenBit = sixteenBit
+            live.hdr = hdr
             live.adjustment = { records[$0]?.adjustment }
             live.adjustmentOpacity = { records[$0]?.effectiveOpacity(in: records) ?? 1 }
             live.adjustmentClip = { id, ctx in
@@ -111,6 +116,13 @@ actor ImageExporter {
         try pngData(render(snapshot))
     }
 
+    /// An HDR flattening (`render(_:sixteenBit:hdr:)`) as OpenEXR, highlights kept.
+    func exrData(_ raster: ExportRaster) throws -> Data {
+        try encode(raster.image, type: .openEXR, properties: [
+            kCGImagePropertyDPIWidth: raster.resolution, kCGImagePropertyDPIHeight: raster.resolution
+        ] as CFDictionary)
+    }
+
     func pngData(_ raster: ExportRaster) throws -> Data {
         try encode(raster.image, type: .png, properties: [
             kCGImagePropertyDPIWidth: raster.resolution, kCGImagePropertyDPIHeight: raster.resolution
@@ -125,13 +137,14 @@ actor ImageExporter {
               width * height <= DocumentLimits.maxSurfacePixels else { throw ExportError.tooLarge }
         try Task.checkCancellation()
         return try autoreleasepool {
-            // A 16-bit flattening stays 16-bit.
-            let deep = raster.image.bitsPerComponent > 8
-            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+            // A 16-bit flattening stays 16-bit, an HDR one HDR.
+            let deep = raster.image.bitsPerComponent > 8, hdr = DeepLayer.isHDR(raster.image)
+            guard let space = hdr ? DeepLayer.hdrSpace : CGColorSpace(name: CGColorSpace.sRGB),
                   let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: deep ? 16 : 8,
                                           bytesPerRow: width * (deep ? 8 : 4), space: space,
                                           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                                              | (deep ? CGBitmapInfo.byteOrder16Little.rawValue : 0)) else { throw ExportError.render }
+                                              | (deep ? CGBitmapInfo.byteOrder16Little.rawValue : 0)
+                                              | (hdr ? CGBitmapInfo.floatComponents.rawValue : 0)) else { throw ExportError.render }
             context.interpolationQuality = .high
             context.draw(raster.image, in: CGRect(x: 0, y: 0, width: width, height: height))
             guard let image = context.makeImage() else { throw ExportError.render }
