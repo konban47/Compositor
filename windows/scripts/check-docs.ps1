@@ -87,5 +87,17 @@ $editGuide = Read-Repo 'windows/EDIT-MENU.md'
 foreach ($feature in @('选择性粘贴','内容识别缩放','操控变形','OpenColorIO','ICC','EXR','Windows 拼写','JSON')) {
     if (!$editGuide.Contains($feature)) { throw "Edit guide missing $feature." }
 }
+foreach ($guide in @('PREFERENCES.md','LAYER-MENU.md')) {
+    if (!(Read-Repo "windows/$guide").Contains("**$version Preview**")) { throw "$guide version is stale." }
+    if (!(Read-Repo 'windows/scripts/package.ps1').Contains($guide) -or !(Read-Repo 'README.md').Contains($guide)) { throw "$guide is missing from package/homepage." }
+}
+foreach ($field in @('extended','values','cube','preserveLuminosity','monochrome','absolute','referenceMean','referenceDeviation')) {
+    if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v19 field: $field" }
+}
+$preferences = Read-Repo 'windows/PREFERENCES.md'
+foreach ($feature in @('OpenCL','Skia','30 位','恢复副本','草稿','暂存盘','--preferences-checks')) {
+    if (!$preferences.Contains($feature)) { throw "Preferences guide missing $feature." }
+}
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--preferences-checks')) { throw 'Preferences UI checks missing from CI.' }
 & (Join-Path $PSScriptRoot 'check-upstream-ui.ps1')
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

@@ -48,13 +48,13 @@ public sealed partial class MainWindow
         grids.Children.Add(PropertyToggle("Ruler", "Rulers", _rulersVisible, _ => ShowRulers()));
         grids.Children.Add(PropertyToggle("grid", "Grid", _gridVisible, _ => ShowGrid()));
         grids.Children.Add(PropertyToggle("transparency", "Transparency Grid", _canvas.ShowsTransparency, on => { _canvas.ShowsTransparency = on; _canvas.InvalidateVisual(); }));
-        var units = PropertyChoice("Ruler Units", ["Pixels", "Inches", "Centimeters", "Points"], _propertyRulerUnit, i => { _propertyRulerUnit = i; UpdateRulers(); });
+        var units = PropertyChoice("Ruler Units", ["Pixels", "Inches", "Centimeters", "Points"], _propertyRulerUnit, i => { _propertyRulerUnit = i; EditorPreferences.Current.RulerUnit = i; SavePreferenceChanges(); UpdateRulers(); });
         Section("Rulers and Grids", PropertyPair(grids, units), MoreProperties("Grids", PropertyAction("Grid Settings…", () => _ = GridSettings())));
         var guides = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         guides.Children.Add(PropertyToggle("guides", "Show Guides", _guidesVisible, _ => ShowGuides()));
         guides.Children.Add(PropertyToggle("guides-lock", "Lock Guides", _guidesLocked, _ => LockGuides()));
         guides.Children.Add(PropertyToggle("snap", "Snap", _snappingOn, _ => ShowSnapping()));
-        var line = PropertyChoice("Guide Style", ["Solid", "Dashed", "Dotted"], _canvas.GuideLineStyle, i => { _canvas.GuideLineStyle = i; _canvas.InvalidateVisual(); });
+        var line = PropertyChoice("Guide Style", ["Solid", "Dashed", "Dotted"], _canvas.GuideLineStyle, i => { _canvas.GuideLineStyle = i; EditorPreferences.Current.GuideStyle = i; SavePreferenceChanges(); _canvas.InvalidateOverlay(); });
         Section("Guides", PropertyPair(guides, line), MoreProperties("Guides", PropertyPair(PropertyAction("New Guide…", () => _ = NewGuide()), PropertyAction("Clear Guides", ClearGuides))));
         Section("Quick Actions", PropertyPair(PropertyAction("Image Size…", () => _ = ImageSize()), PropertyAction("Crop", () => SetTool(Tool.Crop))),
             PropertyPair(PropertyAction("Trim…", () => _ = Trim()), PropertyAction("Rotate…", () => _ = RotateImageArbitrary())));

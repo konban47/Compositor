@@ -11,6 +11,7 @@ public sealed partial class CanvasView
     private bool _sourceModifier;
     private static readonly Dictionary<StandardCursorType, Cursor> ToolCursors = new();
     internal StandardCursorType ActiveCursorKind { get; private set; }
+    internal bool PenCursorEnabled { get; set; }
     internal bool PreciseBrushCursor { get; set; }
     internal bool BrushOutlineEnabled { get; set; }
     internal SKPoint? CloneSource { get; set; }
@@ -21,10 +22,10 @@ public sealed partial class CanvasView
     internal void UpdateToolCursor()
     {
         ActiveCursorKind = IsPanning ? StandardCursorType.SizeAll : PanEnabled ? StandardCursorType.Hand
-            : TypeOnClick ? StandardCursorType.Ibeam : BrushOutlineEnabled ? StandardCursorType.None : StandardCursorType.Arrow;
+            : TypeOnClick ? StandardCursorType.Ibeam : BrushOutlineEnabled || PenCursorEnabled && EditorPreferences.Current.PenCursor ? StandardCursorType.None : StandardCursorType.Arrow;
         if (!ToolCursors.TryGetValue(ActiveCursorKind, out var cursor)) ToolCursors[ActiveCursorKind] = cursor = new Cursor(ActiveCursorKind);
         Cursor = cursor;
-        InvalidateVisual();
+        InvalidateOverlay();
     }
     private void TrackToolPointer(PointerEventArgs e)
     { _toolPointer = e.GetPosition(this); _sourceModifier = e.KeyModifiers.HasFlag(KeyModifiers.Alt); UpdateToolCursor(); }
@@ -35,6 +36,7 @@ public sealed partial class CanvasView
     { _sourceModifier = false; UpdateToolCursor(); base.OnLostFocus(e); }
     private void DrawToolCursor(DrawingContext context)
     {
+        if (_painting && EditorPreferences.Current.HidePaintingCursor) return;
         if (_toolPointer is not { } pointer || _document is null || PanEnabled || IsPanning) return;
         void Target(Point point, bool ring)
         {
@@ -45,13 +47,20 @@ public sealed partial class CanvasView
                 if (ring) context.DrawEllipse(null, pen, point, 5, 5);
             }
         }
+        if (PenCursorEnabled && EditorPreferences.Current.PenCursor)
+        {
+            using var translate = context.PushTransform(Matrix.CreateTranslation(pointer.X - 1, pointer.Y - 1));
+            context.DrawGeometry(Brushes.White, new Pen(Brushes.Black, 2), StreamGeometry.Parse("M1,1 L5,18 L10,21 L21,10 L18,5 Z M1,1 L12,12 M10,17 L17,10"));
+            context.DrawEllipse(Brushes.Black, null, new Point(12, 12), 1.8, 1.8);
+        }
         if (SourceTargetShowing) Target(pointer, true);
         else if (BrushOutlineShowing)
         {
             if (PreciseBrushCursor) { Target(pointer, false); return; }
             var radius = Math.Max(.5, OutlineDiameter / 2);
-            context.DrawEllipse(null, new Pen(Brushes.Black, 3), pointer, radius, radius);
-            context.DrawEllipse(null, new Pen(Brushes.White, 1), pointer, radius, radius);
+            context.DrawEllipse(null, new Pen(Brushes.Black, EditorPreferences.Current.BrushOutlineWidth + 2), pointer, radius, radius);
+            context.DrawEllipse(null, new Pen(Brushes.White, EditorPreferences.Current.BrushOutlineWidth), pointer, radius, radius);
+            if (EditorPreferences.Current.BrushCrosshair) Target(pointer, false);
         }
         if (SampleSourceOnClick && CloneSource is { } source)
         {

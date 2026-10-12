@@ -37,6 +37,7 @@ public sealed partial class DocumentHistory
     /// them away, so the redo branch survives a change of mind — Photoshop's non-linear history.
     /// </summary>
     public bool AllowNonLinear { get; set; }
+    public Action<string>? Committed { get; set; }
 
     public bool CanUndo => _depth == 0 && _past.Count > 0;
     public bool CanRedo => _depth == 0 && _future.Count > 0;
@@ -98,7 +99,7 @@ public sealed partial class DocumentHistory
         // Linear history throws the redo branch away; non-linear history keeps it so the states ahead stay
         // reachable. The new state still lands after the current one, so both remain in order.
         if (!AllowNonLinear) _future.Clear();
-        Trim(document);
+        Trim(document); Committed?.Invoke(_pendingName);
     }
 
     public Snapshot? Undo()

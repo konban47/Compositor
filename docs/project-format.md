@@ -1,4 +1,4 @@
-# Compositor project format, macOS versions 1–13 and Windows extensions 12–18
+# Compositor project format, macOS versions 1–13 and Windows extensions 12–19
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
@@ -193,3 +193,21 @@ Document duplication and undo preserve these fields. Source sampling points, thr
 ### Upstream macOS version 13
 
 Version 13 lets a layer's image file be OpenEXR, named `<layer UUID>.exr`: an HDR layer, whose pixels hold light brighter than white as half floats in extended sRGB (white is 1). The display preview clips to white; current upstream edits normalize and restore above-white highlights where supported. An EXR whose values all stay within white loads as a 16-bit layer. Masks stay 8-bit PNG. Files declaring versions 1–12 cannot contain EXR images, and older app builds reject v13.
+
+## Windows extension version 19
+
+Windows 1.4.10.2 reads versions 1–19 and writes the lowest necessary version. Version 19 adds `adjustment.kind = "Extended"` with a required `extended` settings object. Existing adjustment kinds remain unchanged; an `extended` object on another kind is invalid. Earlier Windows and current macOS builds reject v19.
+
+`extended.kind` is one of BrightnessContrast, Vibrance, PhotoFilter, ChannelMixer, ColorLookup, Posterize, Threshold, SelectiveColor. These are pointwise operators supported by editable adjustment layers; global-statistics operations such as Equalize are rejected for this layer type.
+
+| Field | Representation and validation |
+| --- | --- |
+| `values` | Non-null object, at most 128 numeric parameters. Names retain case (for example `Brightness`, `Contrast`, `Density`); values finite with absolute value at most 10,000. Missing parameters use the operator defaults. |
+| `color`, `replacement` | ARGB uint colors. Defaults 0xFFEC8A00 and 0xFF3399FF. |
+| `preserveLuminosity`, `monochrome`, `absolute`, `range` | Boolean, boolean, boolean and integer 0–8; defaults true, false, false, 0. Operator-specific settings are retained on reopen. |
+| `cube` | Optional embedded color lookup: `size` 2–65; `values` exactly size cubed `{r,g,b}` finite samples, red index varies fastest; `minimum` and `maximum` finite RGB domain points with minimum strictly below maximum per channel. No external LUT path is saved. Existing manifest size limits still apply. |
+| `referenceMean`, `referenceDeviation` | Optional three finite numbers; deviations nonnegative. Shared adjustment serialization fields, unused by the eight v19 layer operators. |
+
+Example inside a layer record: `"adjustment": {"kind":"Extended","extended":{"kind":"BrightnessContrast","values":{"Brightness":25,"Contrast":10}}}`. Blend, opacity, clipping and mask fields keep their existing meanings. A project with these layers writes v19 even if no other Windows extension is used. Pixel-only application of the same operation does not itself require v19.
+
+UI preferences, GPU cache limits, cached display scenes, recovery scheduling and cursor settings are not project fields. GPU display acceleration does not change the saved format or replace original layer pixels.

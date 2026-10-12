@@ -55,7 +55,8 @@ public sealed partial class MainWindow
         Check(_puppetPins.Count == 1 && _placeMesh is not null, "Puppet pin did not move."); FinishPlacement(false); Pump();
         doc = _document!; layer = doc.Layers.Single(); Copy(); doc.Selection = DocumentSelection.Rectangular(new(30, 30, 90, 90), 400, 300); PasteMasked(false); Pump();
         Check(_document!.Layers.Count == 2 && _document!.Layers.Any(l => l.Mask is not null), "Paste Into did not create a mask."); Undo(); Pump();
-        var task = EditPreferences("History"); Pump(); var form = OwnedWindows.OfType<FormDialog>().Single(); form.Close(false); Finish(task);
+        var task = EditPreferences("History"); Pump(); OwnedWindows.OfType<PreferencesDialog>().Single().Close(false); Finish(task);
+        FormDialog form;
         var oldDirectory = EditorPresets.DefaultPath;
         task = DefinePreset("Brush"); Pump(); form = OwnedWindows.OfType<FormDialog>().Single(); form.Close(true); Finish(task);
         Check(EditorPresets.Load(oldDirectory).Any(p => p.Kind == "Brush"), "Define Brush did not save a usable preset.");

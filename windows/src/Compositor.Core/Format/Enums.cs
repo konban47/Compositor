@@ -53,6 +53,7 @@ public enum AdjustmentKind
     Invert,
     [JsonStringEnumMemberName("Black & White")] BlackWhite,
     [JsonStringEnumMemberName("Color Balance")] ColorBalance,
+    Extended,
 }
 
 public enum LevelsChannel

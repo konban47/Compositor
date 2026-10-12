@@ -89,7 +89,7 @@ public sealed partial class MainWindow
             {
                 var old = before.Layers.Select(l => l.ID).ToHashSet();
                 var added = target.Document?.Layers.Where(l => !old.Contains(l.ID)).Select(l => l.ID).ToHashSet() ?? [];
-                if (added.Count > 0 && _tabs.Contains(target)) BeginPlacement(target, before, selected, added);
+                if (added.Count > 0 && _tabs.Contains(target) && !EditorPreferences.Current.SkipPlacement) BeginPlacement(target, before, selected, added);
                 else target.History.End(target.Document, selected);
             }
         }

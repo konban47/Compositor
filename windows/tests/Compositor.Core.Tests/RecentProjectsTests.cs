@@ -91,6 +91,17 @@ public class RecentProjectsTests : IDisposable
     }
 
     [Fact]
+    public void PreferenceLimitCanExpandAndDisableRecentFiles()
+    {
+        _recent.Limit = 100;
+        for (var i = 0; i < 105; i++) _recent.Note(Project($"recent-{i}.comp"));
+        Assert.Equal(100, _recent.All().Count);
+        _recent.Limit = 3; Assert.Equal(3, _recent.All().Count);
+        _recent.Limit = 0; Assert.Empty(_recent.All()); Assert.Empty(_recent.Note(Project("disabled.comp")));
+        Assert.Empty(new RecentProjects(_recent.Path).All());
+    }
+
+    [Fact]
     public void ForgettingTakesThemAllAway()
     {
         _recent.Note(Project("one.comp"));

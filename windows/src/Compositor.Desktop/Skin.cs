@@ -17,28 +17,29 @@ internal static class Skin
     // ---- Photoshop Layout & Surface Colours ----
 
     /// <summary>Upstream ContentView surface: Color(white: 0.14), rounded to #242424.</summary>
-    public static readonly Color Chrome = Color.FromRgb(0x24, 0x24, 0x24);
+    public static readonly Color Chrome = Tone(0x24, 0x50, 0xB8, 0xEE);
+    private static Color Tone(byte a, byte b, byte c, byte d) { var v = new[] { a, b, c, d }[EditorPreferences.Current.Theme]; return Color.FromRgb(v, v, v); }
 
     /// <summary>Photoshop workspace pasteboard behind document canvas (#282828).</summary>
     public static readonly Color Pasteboard = Color.FromRgb(0x28, 0x28, 0x28);
 
     /// <summary>Deep recessed background for text inputs, number fields, listboxes, and slider tracks (#222222).</summary>
-    public static readonly Color SurfaceDark = Color.FromRgb(0x22, 0x22, 0x22);
+    public static readonly Color SurfaceDark = Tone(0x22, 0x44, 0xD0, 0xFF);
 
     /// <summary>Standard Photoshop button and toggle surface (#3D3D3D).</summary>
-    public static readonly Color SurfaceControl = Color.FromRgb(0x3D, 0x3D, 0x3D);
+    public static readonly Color SurfaceControl = Tone(0x3D, 0x60, 0xC8, 0xE0);
 
     /// <summary>Photoshop control hover state (#4C4C4C).</summary>
-    public static readonly Color SurfaceControlHover = Color.FromRgb(0x4C, 0x4C, 0x4C);
+    public static readonly Color SurfaceControlHover = Tone(0x4C, 0x70, 0xD8, 0xD0);
 
     /// <summary>Photoshop control pressed and active tool sunken state (#252525).</summary>
-    public static readonly Color SurfaceControlPressed = Color.FromRgb(0x25, 0x25, 0x25);
+    public static readonly Color SurfaceControlPressed = Tone(0x25, 0x40, 0xA8, 0xC0);
 
     /// <summary>Subtle 1px border between docked workspace sections (#262626).</summary>
-    public static readonly Color BorderSubtle = Color.FromRgb(0x26, 0x26, 0x26);
+    public static readonly Color BorderSubtle = Tone(0x26, 0x40, 0xA0, 0xC0);
 
     /// <summary>Standard 1px control outline border (#464646).</summary>
-    public static readonly Color BorderControl = Color.FromRgb(0x46, 0x46, 0x46);
+    public static readonly Color BorderControl = Tone(0x46, 0x70, 0x90, 0xB0);
 
     /// <summary>The transparency checker: Photoshop default neutral dark squares (#383838 and #454545).</summary>
     public static readonly Color CheckerBase = Color.FromRgb(0x38, 0x38, 0x38);
@@ -78,16 +79,16 @@ internal static class Skin
     public static readonly Color AccentPressed = Color.FromRgb(0x0D, 0x5B, 0xBD);
 
     /// <summary>Photoshop primary text label: clean light grey (#E1E1E1).</summary>
-    public static readonly Color Label = Color.FromRgb(0xE1, 0xE1, 0xE1);
+    public static readonly Color Label = Tone(0xE1, 0xEE, 0x22, 0x11);
     /// <summary>Photoshop secondary text label: neutral medium grey (#9E9E9E).</summary>
-    public static readonly Color Secondary = Color.FromRgb(0x9E, 0x9E, 0x9E);
+    public static readonly Color Secondary = Tone(0x9E, 0xCC, 0x50, 0x60);
     /// <summary>Photoshop disabled text: muted dark grey (#666666).</summary>
     public static readonly Color Disabled = Color.FromRgb(0x66, 0x66, 0x66);
 
     // ---- App Surface Brushes ----
 
     public static readonly IBrush ChromeBrush = new SolidColorBrush(Chrome);
-    public static readonly IBrush PasteboardBrush = new SolidColorBrush(Pasteboard);
+    public static IBrush PasteboardBrush => new SolidColorBrush(Color.Parse(EditorPreferences.Current.Pasteboard));
     public static readonly IBrush SurfaceDarkBrush = new SolidColorBrush(SurfaceDark);
     public static readonly IBrush SurfaceControlBrush = new SolidColorBrush(SurfaceControl);
     public static readonly IBrush SurfaceControlHoverBrush = new SolidColorBrush(SurfaceControlHover);
@@ -111,15 +112,15 @@ internal static class Skin
 
     /// <summary>Pens for canvas drawing.</summary>
     public static readonly IPen PictureEdgePen = new Pen(new SolidColorBrush(PictureEdge), 1);
-    public static readonly IPen GuidePen = new Pen(new SolidColorBrush(Guide), 1);
+    public static IPen GuidePen => new Pen(new SolidColorBrush(Color.Parse(EditorPreferences.Current.GuideColor)), 1);
     public static readonly IPen SnapPen = new Pen(new SolidColorBrush(Accent), 1);
-    public static readonly IPen GridPen = new Pen(new SolidColorBrush(Grid), 1);
-    public static readonly IPen GridFinePen = new Pen(new SolidColorBrush(GridFine), 1);
+    public static IPen GridPen => new Pen(new SolidColorBrush(Color.Parse(EditorPreferences.Current.GridColor), .45), 1);
+    public static IPen GridFinePen => new Pen(new SolidColorBrush(Color.Parse(EditorPreferences.Current.GridColor), .28), 1);
     public static readonly IPen PixelGridPen = new Pen(new SolidColorBrush(PixelGrid), 1);
     public static readonly IBrush CropDimBrush = new SolidColorBrush(CropDim);
 
     /// <summary>Photoshop transform box: crisp Adobe blue line with solid white handles.</summary>
-    public static readonly IPen TransformPen = new Pen(new SolidColorBrush(Accent), 1);
+    public static IPen TransformPen => new Pen(new SolidColorBrush(Color.Parse(EditorPreferences.Current.PathColor)), EditorPreferences.Current.PathWidth);
     public static readonly IBrush HandleFill = Brushes.White;
     public static readonly IPen HandlePen = new Pen(new SolidColorBrush(Accent), 1);
 
@@ -127,36 +128,38 @@ internal static class Skin
     public static readonly IBrush CurveGround = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
     public static readonly IBrush CurveGrid = new SolidColorBrush(Color.FromRgb(0x38, 0x38, 0x38));
 
-    private static IBrush? _checker;
+    private static DrawingBrush? _checker;
+    internal static void ResetChecker()
+    {
+        if (_checker is null) return;
+        var replacement = MakeChecker();
+        _checker.Drawing = replacement.Drawing;
+        _checker.DestinationRect = replacement.DestinationRect;
+    }
 
     /// <summary>
     /// The transparency checker as a tiled brush: the Mac tiles it in screen points whatever the zoom is, so
     /// this is a 20-point tile of four squares rather than anything drawn per pixel.
     /// </summary>
-    public static IBrush Checker
+    public static IBrush Checker => _checker ??= MakeChecker();
+    private static DrawingBrush MakeChecker()
     {
-        get
+        var size = EditorPreferences.Current.CheckerSize * 2;
+        var half = size / 2.0;
+        var drawing = new DrawingGroup();
+        void Square(string color, Rect rect) => drawing.Children.Add(new GeometryDrawing
         {
-            if (_checker is not null) return _checker;
-            var size = (int)(CheckerSize * 2);
-            var tile = new RenderTargetBitmap(new PixelSize(size, size), new Vector(96, 96));
-            using (var context = tile.CreateDrawingContext())
-            {
-                var half = size / 2.0;
-                context.FillRectangle(new SolidColorBrush(CheckerBase), new Rect(0, 0, size, size));
-                var square = new SolidColorBrush(CheckerSquare);
-                context.FillRectangle(square, new Rect(0, 0, half, half));
-                context.FillRectangle(square, new Rect(half, half, half, half));
-            }
-            return _checker = new ImageBrush(tile)
-            {
-                TileMode = TileMode.Tile,
-                Stretch = Stretch.Fill,
-                DestinationRect = new RelativeRect(0, 0, size, size, RelativeUnit.Absolute),
-                AlignmentX = AlignmentX.Left,
-                AlignmentY = AlignmentY.Top,
-            };
-        }
+            Brush = new SolidColorBrush(Color.Parse(color)), Geometry = new RectangleGeometry(rect),
+        });
+        Square(EditorPreferences.Current.CheckerDark, new Rect(0, 0, size, size));
+        Square(EditorPreferences.Current.CheckerLight, new Rect(0, 0, half, half));
+        Square(EditorPreferences.Current.CheckerLight, new Rect(half, half, half, half));
+        return new DrawingBrush
+        {
+            Drawing = drawing, TileMode = TileMode.Tile, Stretch = Stretch.Fill,
+            DestinationRect = new RelativeRect(0, 0, size, size, RelativeUnit.Absolute),
+            AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top,
+        };
     }
 
     /// <summary>
@@ -169,7 +172,7 @@ internal static class Skin
     public static int Apply(FluentTheme theme)
     {
         if (theme.Resources is not ResourceDictionary resources
-            || !resources.ThemeDictionaries.TryGetValue(ThemeVariant.Dark, out var provider)
+            || !resources.ThemeDictionaries.TryGetValue(EditorPreferences.Current.Theme >= 2 ? ThemeVariant.Light : ThemeVariant.Dark, out var provider)
             || provider is not ResourceDictionary dark) return 0;
 
         var shades = new Dictionary<Color, Color>
@@ -202,7 +205,7 @@ internal static class Skin
         moved += Wear(dark, "ButtonForeground", Label);
 
         moved += Wear(dark, "TextControlBackground", SurfaceDark);
-        moved += Wear(dark, "TextControlBackgroundPointerOver", Color.FromRgb(0x28, 0x28, 0x28));
+        moved += Wear(dark, "TextControlBackgroundPointerOver", SurfaceDark);
         moved += Wear(dark, "TextControlBackgroundFocused", SurfaceDark);
         moved += Wear(dark, "TextControlBorderBrush", BorderControl);
         moved += Wear(dark, "TextControlBorderBrushFocused", Accent);

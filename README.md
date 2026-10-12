@@ -4,14 +4,14 @@
 
 本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
 
-[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.4.10.1) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.4.10.1.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
+[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.4.10.2) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.4.10.2.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
 
 ## 安装
 
 目标系统：Windows 10 1809 及以上、Windows 11，64 位 x64。
 
-- **安装版**：运行 `Compositor-Windows-1.4.10.1-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.4.10.1-x64-portable.zip`，运行 `Compositor.exe`。
+- **安装版**：运行 `Compositor-Windows-1.4.10.2-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.4.10.2-x64-portable.zip`，运行 `Compositor.exe`。
 - 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
 - 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
 
@@ -47,6 +47,7 @@
 | 清除局部内容 | 建立选区后按 Delete 或 Backspace，清除当前图层选区内像素 |
 | 局部修饰 | 先建立选区，再使用液化、涂抹、污点修复、仿制图章或画笔 |
 | 重复上次滤镜 | Ctrl+Alt+F；使用上次应用的参数，可撤销 |
+| 首选项 | Ctrl+K；分类／搜索／高级图形设置，详见[首选项手册](windows/PREFERENCES.md) |
 | 搜索命令 | Ctrl+F，可搜索中文或英文名称 |
 | 带工具栏全屏 | F 进入／退出，保留工具栏、选项栏、图层与属性面板；Esc 返回 |
 | 仅显示画布 | Shift+F 进入／退出，Esc 返回 |
@@ -60,7 +61,7 @@
 
 ## 功能
 
-本版编辑菜单、选择性粘贴、变形、预设、颜色与首选项见[编辑菜单手册](windows/EDIT-MENU.md)，图标来源见[设计记录](windows/design/README.md)。图像模式、计算、变量、分析和属性排版见[图像与属性手册](windows/IMAGE-WORKSPACE.md)，插件安装及接口见[插件说明](windows/PLUGINS.md)。光标、网格、19 个工具及上游 UI 复用见[工具使用说明](windows/PROFESSIONAL-TOOLS.md)。置入、复制、其他工具及按钮／图标说明见[新增编辑工具手册](windows/EDITING-TOOLS.md)。工作区与 API 配置见 [工作区使用说明](windows/WORKSPACE.md)，上游对应关系与验证见 [1.4.10.1 更新说明](windows/UPDATES-1.4.10.1.md)。
+本版统一首选项、设置接入与性能见[首选项手册](windows/PREFERENCES.md)，图层菜单和钢笔辅助线见[图层菜单手册](windows/LAYER-MENU.md)。编辑菜单、选择性粘贴、变形、预设、颜色与首选项见[编辑菜单手册](windows/EDIT-MENU.md)，图标来源见[设计记录](windows/design/README.md)。图像模式、计算、变量、分析和属性排版见[图像与属性手册](windows/IMAGE-WORKSPACE.md)，插件安装及接口见[插件说明](windows/PLUGINS.md)。光标、网格、19 个工具及上游 UI 复用见[工具使用说明](windows/PROFESSIONAL-TOOLS.md)。置入、复制、其他工具及按钮／图标说明见[新增编辑工具手册](windows/EDITING-TOOLS.md)。工作区与 API 配置见 [工作区使用说明](windows/WORKSPACE.md)，上游对应关系与验证见 [1.4.10.2 更新说明](windows/UPDATES-1.4.10.2.md)。
 
 - 图层缩略图、搜索和类型筛选、锁定、分组折叠、链接、不透明度与填充；24 种混合模式、蒙版、调整图层和图层样式。
 - RGB 分通道显示与编辑、Alpha 通道新建／复制／重命名／删除、选区存取及灰度绘制。
@@ -71,15 +72,15 @@
 - 多标签页、撤销／重做、历史快照、从状态新建独立文档、异步保存、未保存关闭保护和独立 Windows 更新频道。
 - 中文界面使用 Photoshop 常见术语，提供中文输入法接口、随包中文字体和中文换行。
 
-本版读取 v1–v18 项目。图像模式／位深、变量／数据组、测量记录及新版文字布局使用 **Windows 扩展格式 v18**；切片、注释、计数、颜色取样点和测量使用 **Windows 扩展格式 v17**；直排文字和开放路径描边使用 **Windows 扩展格式 v16**；新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 **Windows 扩展格式 v15**；使用高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，或使用任意轮廓形状时保存为 **Windows 扩展格式 v14**；使用非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式时保存为 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时保存为 v12，其余为 v11。旧版不接受超出其支持范围的版本；最新 macOS 1.4.10 支持至 v13，其 16 位 PNG 与 v13 EXR 可读，但不理解 Windows v13–v18 扩展。[文件格式与兼容性](docs/project-format.md#windows-extension-version-18)
+本版读取 v1–v19 项目。新增八类可编辑调整层使用 **Windows 扩展格式 v19**；图像模式／位深、变量／数据组、测量记录及新版文字布局使用 **Windows 扩展格式 v18**；切片、注释、计数、颜色取样点和测量使用 **Windows 扩展格式 v17**；直排文字和开放路径描边使用 **Windows 扩展格式 v16**；新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 **Windows 扩展格式 v15**；使用高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，或使用任意轮廓形状时保存为 **Windows 扩展格式 v14**；使用非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式时保存为 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时保存为 v12，其余为 v11。旧版不接受超出其支持范围的版本；最新 macOS 1.4.10 支持至 v13，其 16 位 PNG 与 v13 EXR 可读，但不理解 Windows v13–v19 扩展。[文件格式与兼容性](docs/project-format.md#windows-extension-version-19)
 
 ## 验证与当前状态
 
-**1.4.10.1 Preview** 统一面板、工具栏与标签页外观，修复不透明度手柄，扩展编辑菜单、预设、首选项和颜色管理；同步上游 **1.4.10 / `f5ae5ba`** 的 EXR/HDR、标签栏拖放与导出格式分组。核心测试 **1085 项**，16 组英文和 10 组中文界面检查；双 Windows Server CI 负责回归、打包及安装／卸载验证。[持续集成](https://github.com/konban47/Compositor/actions/workflows/windows.yml)
+**1.4.10.2 Preview** 新增统一首选项及高级图形设置、钢笔光标与辅助线、缓存 GPU 图层显示、图层菜单与可编辑调整层。上游复核仍为 **1.4.10 / `f5ae5ba`**。核心测试 **1132 项**，17 组英文和 11 组中文界面检查；双 Windows Server CI 负责回归、打包及安装／卸载验证。[持续集成](https://github.com/konban47/Compositor/actions/workflows/windows.yml)
 
 [图层样式与右键菜单使用说明](windows/LAYER-STYLES.md)记录每个菜单项、快捷键、格式和 Photoshop 差异。样式使用 CPU 近似渲染；遮住所有对象采用离线显著性连通区域，不是 Adobe 实例识别；智能对象保存本应用图层源，不提供 PSD 智能对象往返。
 
-本机验证环境为 Windows 11；Windows 10 实机、真实输入法候选窗、多显示器和数位板仍需人工验收。使用 CPU/Skia 与 U²-NetP，渲染、主体识别及 RAW 显影与 Apple 原生实现存在差异；应用和安装包尚未进行商业代码签名。高级 OpenType 特性、小型大写／上下标、动态文字、东亚避头尾与标点挤压、阿拉伯语／希伯来语等中东与复杂文字塑形与从右到左排版、文字转框架与文字转矢量字形、历史记录画笔、非线性历史及矢量路径节点编辑均已提供，用法与兼容范围见下文。[完整已知差异](windows/README.md#已知差异和验收边界)
+本机验证环境为 Windows 11；Windows 10 实机、真实输入法候选窗、多显示器和数位板仍需人工验收。使用 Skia GPU 显示、CPU 参考合成与 U²-NetP，渲染、主体识别及 RAW 显影与 Apple 原生实现存在差异；应用和安装包尚未进行商业代码签名。高级 OpenType 特性、小型大写／上下标、动态文字、东亚避头尾与标点挤压、阿拉伯语／希伯来语等中东与复杂文字塑形与从右到左排版、文字转框架与文字转矢量字形、历史记录画笔、非线性历史及矢量路径节点编辑均已提供，用法与兼容范围见下文。[完整已知差异](windows/README.md#已知差异和验收边界)
 
 ## 开发
 

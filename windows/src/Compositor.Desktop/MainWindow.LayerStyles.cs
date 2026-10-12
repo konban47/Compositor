@@ -252,7 +252,12 @@ public sealed partial class MainWindow
             using var cropped = Bitmaps.Allocate(Bitmaps.ColorInfo(crop.Width, crop.Height));
             using (var canvas = new SKCanvas(cropped)) canvas.DrawBitmap(image, -crop.Left, -crop.Top, new SKSamplingOptions(SKFilterMode.Nearest));
             byte[] bytes; string extension;
-            if (quick) { bytes = PngCodec.Encode(cropped); extension = "png"; }
+            if (quick)
+            {
+                if (!EditorPreferences.Current.ExportTransparency) { using var opaque = Bitmaps.Allocate(Bitmaps.ColorInfo(cropped.Width, cropped.Height)); using var canvas = new SKCanvas(opaque); canvas.Clear(SKColors.White); canvas.DrawBitmap(cropped, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest)); bytes = PngCodec.Encode(opaque); }
+                else bytes = PngCodec.Encode(cropped);
+                extension = "png";
+            }
             else
             {
                 using var exportDoc = new CanvasDocument(Guid.NewGuid(), cropped.Width, cropped.Height, doc.Resolution);

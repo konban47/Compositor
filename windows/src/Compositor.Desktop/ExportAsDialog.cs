@@ -87,6 +87,7 @@ internal sealed class ExportAsDialog : DialogWindow
         var controls = new StackPanel { Spacing = 9, Margin = new Thickness(18), Width = 230 };
         void Add(string label, Control control) { controls.Children.Add(new TextBlock { Text = Localize.Text(label), FontSize = 11.5, Foreground = Skin.LabelBrush }); controls.Children.Add(control); }
         _quality.Value = EditorPreferences.Current.ExportQuality;
+        _transparent.IsChecked = EditorPreferences.Current.ExportTransparency;
         var currentFormat = new MenuItem { Header = ((string[])_format.ItemsSource!)[(int)format] + " ▾" };
         var more = new MenuItem { Header = Localize.Text("More") };
         foreach (var (label, value) in new[] { ("JPEG", ExportFormat.Jpeg), ("PNG", ExportFormat.Png), ("PDF", ExportFormat.Pdf), ("TIFF", ExportFormat.Tiff), ("EXR", ExportFormat.Exr) })

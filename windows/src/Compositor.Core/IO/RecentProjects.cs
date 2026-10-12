@@ -22,18 +22,20 @@ public sealed class RecentProjects
         AppPaths.SettingsDirectory, "recent.json");
 
     public string Path { get; }
+    public int Limit { get; set; } = Most;
 
     /// <summary>The projects noted lately that are still there, most recent first and each only once.</summary>
     public List<string> All()
     {
         var kept = new List<string>();
+        if (Limit <= 0) return kept;
         foreach (var entry in Read())
         {
             if (string.IsNullOrWhiteSpace(entry)) continue;
             if (!Directory.Exists(entry) && !File.Exists(entry)) continue;
             if (kept.Contains(entry, StringComparer.OrdinalIgnoreCase)) continue;
             kept.Add(entry);
-            if (kept.Count >= Most) break;
+            if (kept.Count >= Math.Clamp(Limit, 1, 100)) break;
         }
         return kept;
     }
@@ -44,7 +46,7 @@ public sealed class RecentProjects
         var list = All();
         list.RemoveAll(entry => string.Equals(entry, project, StringComparison.OrdinalIgnoreCase));
         list.Insert(0, project);
-        Write(list.Take(Most));
+        Write(list.Take(Math.Clamp(Limit, 0, 100)));
         return All();
     }
 

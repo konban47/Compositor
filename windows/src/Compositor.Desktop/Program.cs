@@ -21,6 +21,7 @@ internal static partial class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args is ["--preferences-checks", var preferencesOutput]) return PreferencesChecks(preferencesOutput);
         if (args is ["--edit-workspace-checks", var editWorkspaceOutput]) return EditWorkspaceChecks(editWorkspaceOutput);
         if (args is ["--image-workspace-checks", var imageWorkspaceOutput]) return ImageWorkspaceChecks(imageWorkspaceOutput);
         if (args is ["--professional-checks", var professionalOutput]) return ProfessionalChecks(professionalOutput);
@@ -481,7 +482,10 @@ internal static partial class Program
     }
 
     public static AppBuilder Build() =>
-        AppBuilder.Configure<DesktopApp>().UsePlatformDetect().WithInterFont().LogToTrace();
+        AppBuilder.Configure<DesktopApp>().UsePlatformDetect()
+            .With(new SkiaOptions { MaxGpuResourceSizeBytes = (long)EditorPreferences.Current.GpuCacheMB * 1024 * 1024 })
+            .With(new Win32PlatformOptions { RenderingMode = EditorPreferences.Current.UseGpu ? [Win32RenderingMode.AngleEgl, Win32RenderingMode.Software] : [Win32RenderingMode.Software] })
+            .WithInterFont().LogToTrace();
 
     /// <summary>
     /// The app on Avalonia's headless platform, for the checks that drive the window with a pointer. Headless

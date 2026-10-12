@@ -46,7 +46,7 @@ public sealed partial class MainWindow
         if (_closeApproved) return;
         CommitText();
         if (_detecting) { e.Cancel = true; return; }
-        if (!_tabs.Any(tab => tab.History.IsModified || tab.Saving is not null)) return;
+        if (!_tabs.Any(tab => tab.History.IsModified || tab.Saving is not null || tab.Recovering is not null)) return;
         e.Cancel = true;
         if (_confirmingClose) return;
         _confirmingClose = true;

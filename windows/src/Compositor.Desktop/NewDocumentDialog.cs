@@ -120,6 +120,7 @@ internal sealed class NewDocumentDialog : DialogWindow
     internal NewDocumentDialog()
     {
         Title = Localize.Text("New Project");
+        _resolution.Text = EditorPreferences.Current.NewResolution.ToString(System.Globalization.CultureInfo.CurrentCulture);
         Width = 460;
         SizeToContent = SizeToContent.Height;
         CanResize = false;

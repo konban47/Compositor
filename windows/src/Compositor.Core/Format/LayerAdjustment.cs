@@ -245,6 +245,7 @@ public sealed class ColorBalanceSettings
 /// </summary>
 public sealed class LayerAdjustment
 {
+    public Document.ImageAdjustmentSettings? Extended { get; set; }
     public AdjustmentKind Kind { get; set; }
     public double Hue { get; set; }
     public double Saturation { get; set; }
@@ -312,6 +313,11 @@ public sealed class LayerAdjustment
                   && double.IsFinite(Saturation) && Math.Abs(Saturation) <= 100
                   && double.IsFinite(Lightness) && Math.Abs(Lightness) <= 100)) return false;
 
+            if (Kind == AdjustmentKind.Extended && (Extended is null || !Extended.IsValid
+                || Extended.Kind is not (Document.ImageAdjustmentKind.BrightnessContrast or Document.ImageAdjustmentKind.Vibrance
+                    or Document.ImageAdjustmentKind.PhotoFilter or Document.ImageAdjustmentKind.ChannelMixer or Document.ImageAdjustmentKind.ColorLookup
+                    or Document.ImageAdjustmentKind.Posterize or Document.ImageAdjustmentKind.Threshold or Document.ImageAdjustmentKind.SelectiveColor))) return false;
+            if (Kind != AdjustmentKind.Extended && Extended is not null) return false;
             var hsv = ResolvedHSV;
             if (!hsv.Adjustments.Values.All(adjustment =>
                     double.IsFinite(adjustment.Hue) && Math.Abs(adjustment.Hue) <= 360

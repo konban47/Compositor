@@ -48,7 +48,7 @@ public sealed partial class MainWindow
         foreach (var tool in Enum.GetValues<Tool>())
         {
             SetTool(tool); Pump(); Check(_rail.Marked == tool, "Unreachable tool " + tool);
-            Check(_canvas.ActiveCursorKind == (ToolCatalog.IsType(tool) ? StandardCursorType.Ibeam : ToolCatalog.HasRoundCursor(tool) ? StandardCursorType.None : tool == Tool.Pan ? StandardCursorType.Hand : StandardCursorType.Arrow), "Wrong cursor " + tool);
+            Check(_canvas.ActiveCursorKind == (ToolCatalog.IsType(tool) ? StandardCursorType.Ibeam : ToolCatalog.HasRoundCursor(tool) || ToolCatalog.IsPen(tool) || tool is Tool.AddAnchor or Tool.DeleteAnchor or Tool.ConvertAnchor ? StandardCursorType.None : tool == Tool.Pan ? StandardCursorType.Hand : StandardCursorType.Arrow), "Wrong cursor " + tool);
             Check(!Localize.IsChinese || Localize.Text(ToolCatalog.Title(tool)) != ToolCatalog.Title(tool), "Untranslated tool " + tool);
             using var target = new RenderTargetBitmap(new PixelSize(24, 24)); var symbol = new EditorIcon(tool.ToString()); symbol.Measure(new Size(24, 24)); symbol.Arrange(new Rect(0, 0, 24, 24)); target.Render(symbol);
         }

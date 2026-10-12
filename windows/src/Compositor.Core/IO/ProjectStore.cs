@@ -103,6 +103,7 @@ public static class ProjectStore
                 {
                     throw new ProjectException(ProjectError.Invalid);
                 }
+                if (adjustment.Extended is not null && version < 19) throw new ProjectException(ProjectError.Invalid);
                 if (adjustment.NeedsVersion9 && version < 9) throw new ProjectException(ProjectError.Invalid);
             }
             if (!LayerMask.FromRecord(layer).IsValid(version, layer.IsGroup == true, layer.ID))

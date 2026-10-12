@@ -42,7 +42,7 @@ public sealed partial class CanvasView : Control
     private const long ViewportPixelLimit = 32L * 1024 * 1024;
 
     // Every colour the canvas draws with comes from Skin, which takes them from the Mac's own canvas.
-    private static readonly IBrush Backdrop = Skin.PasteboardBrush;
+    private static IBrush Backdrop => Skin.PasteboardBrush;
     /// <summary>What shows through a transparent picture: the checkerboard, as the Mac's canvas draws it.</summary>
     public bool ShowsTransparency { get; set; } = true;
     public int GuideLineStyle { get; set; }
@@ -396,11 +396,11 @@ public sealed partial class CanvasView : Control
         Focusable = true;
         _antsTimer.Tick += (_, _) => AdvanceAnts();
         AttachedToVisualTree += (_, _) => _antsTimer.Start();
-        DetachedFromVisualTree += (_, _) => { _antsTimer.Stop(); _caretBlink.Stop(); _composite?.Dispose(); _composite = null; _navigatorImage?.Dispose(); _navigatorImage = null; };
+        DetachedFromVisualTree += (_, _) => { _antsTimer.Stop(); _caretBlink.Stop(); _composite?.Dispose(); _composite = null; _navigatorImage?.Dispose(); _navigatorImage = null; ReleaseDisplayScene(); };
         _caretBlink.Tick += (_, _) =>
         {
             _caretOn = !_caretOn;
-            if (TextEditing) InvalidateVisual();
+            if (TextEditing) InvalidateOverlay();
         };
     }
 
@@ -423,8 +423,11 @@ public sealed partial class CanvasView : Control
     {
         _compositeDirty = true;
         _navigatorDirty = true;
+        _sceneDirty = true;
         base.InvalidateVisual();
     }
+
+    internal void InvalidateOverlay() => base.InvalidateVisual();
 
     /// <summary>Starts typing on the canvas: the keys come here and a caret blinks where the text ends.</summary>
     public void BeginText()
@@ -470,7 +473,7 @@ public sealed partial class CanvasView : Control
             switch (e.Key)
             {
                 case Key.Escape:
-                    TextCancelled?.Invoke();
+                    if (EditorPreferences.Current.EscapeCommitsText) TextCommitted?.Invoke(); else TextCancelled?.Invoke();
                     e.Handled = true;
                     return;
                 case Key.Enter or Key.Return when e.KeyModifiers.HasFlag(KeyModifiers.Control):
@@ -514,6 +517,7 @@ public sealed partial class CanvasView : Control
         set
         {
             _document = value;
+            InvalidateVisual();
             Fit();
         }
     }
@@ -668,7 +672,8 @@ public sealed partial class CanvasView : Control
             DrawNavigator(context); DrawToolCursor(context); return;
         }
 
-        if (_composite is null || _compositeDirty || !ReferenceEquals(document, _compositeDocument) || region != _compositeRegion)
+        UpdateDisplayScene(document);
+        if (_displayScene is null && (_composite is null || _compositeDirty || !ReferenceEquals(document, _compositeDocument) || region != _compositeRegion))
         {
             using var rendered = DocumentRenderer.RenderRegion(document, region);
             ChannelEdits.View(rendered, DisplayChannels, AlphaDisplay is null);
@@ -705,7 +710,8 @@ public sealed partial class CanvasView : Control
         DrawPaperShadow(context, destination);
         // The checkerboard under the picture, so transparent pixels show through it as they do on the Mac.
         context.DrawRectangle(Paper, null, destination);
-        context.DrawImage(_composite, destination);
+        if (_displayScene is { } scene) context.Custom(new SceneDrawOperation(scene, new Rect(Bounds.Size), _origin, _zoom));
+        else if (_composite is not null) context.DrawImage(_composite, destination);
         context.DrawRectangle(null, Skin.PictureEdgePen, destination);
         DrawGrid(context, document);
         DrawPixelGrid(context, document);
@@ -1668,7 +1674,7 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerExited(PointerEventArgs e)
     {
-        _toolPointer = null; InvalidateVisual();
+        _toolPointer = null; InvalidateOverlay();
         PointerLeftCanvas?.Invoke();
         base.OnPointerExited(e);
     }
@@ -1761,7 +1767,7 @@ public sealed partial class CanvasView : Control
             if (_stroke.Count == 0 || Math.Abs(point.X - _stroke[^1].X) + Math.Abs(point.Y - _stroke[^1].Y) >= 0.5f)
             {
                 _stroke.Add(point);
-                InvalidateVisual();
+                InvalidateOverlay();
             }
             base.OnPointerMoved(e);
             return;
@@ -1987,7 +1993,9 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
-        ZoomAt(Math.Pow(1.15, Math.Clamp(e.Delta.Y, -20, 20)), e.GetPosition(this));
+        if (EditorPreferences.Current.WheelZoom || e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            ZoomAt(Math.Pow(1.15, Math.Clamp(e.Delta.Y, -20, 20)), EditorPreferences.Current.ZoomAtPointer ? e.GetPosition(this) : new Point(Bounds.Width / 2, Bounds.Height / 2));
+        else { _origin = new SKPoint(_origin.X - (float)(e.Delta.X * 40 / Zoom), _origin.Y - (float)(e.Delta.Y * 40 / Zoom)); Moved(); }
         e.Handled = true;
         base.OnPointerWheelChanged(e);
     }

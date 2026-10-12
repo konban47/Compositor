@@ -301,6 +301,7 @@ public sealed partial class MainWindow
                 }
                 else if (mark.Kind == MarkKind.Measure) context.DrawLine(stroke, at, end);
                 else context.DrawEllipse(Skin.ChromeBrush, stroke, at, 5, 5);
+                if (mark.Kind == MarkKind.Slice && !EditorPreferences.Current.ShowSliceNumbers) continue;
                 var label = mark.Kind == MarkKind.Note ? "▤" : number.ToString();
                 var text = new FormattedText(label, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, brush);
                 context.DrawRectangle(Skin.ChromeBrush, null, new Rect(at + new Vector(7, -8), new Size(text.Width + 4, text.Height))); context.DrawText(text, at + new Vector(9, -8));

@@ -13,7 +13,7 @@ public sealed class DesktopApp : Application
         // (ContentView's `.preferredColorScheme(.dark)`), so the port does the same rather than
         // following whatever the machine is set to — a light menu bar over a dark canvas was
         // unreadable, and the Mac has no light appearance to match.
-        RequestedThemeVariant = ThemeVariant.Dark;
+        RequestedThemeVariant = EditorPreferences.Current.Theme >= 2 ? ThemeVariant.Light : ThemeVariant.Dark;
         _theme = new FluentTheme();
         Styles.Add(_theme);
         EditorTheme.Apply(Styles);
@@ -32,6 +32,12 @@ public sealed class DesktopApp : Application
             desktop.MainWindow = window;
             window.Opened += async (_, _) =>
             {
+                if (desktop.Args is ["--performance-checks", var input, var report])
+                {
+                    try { await window.PerformanceCheck(input, report); desktop.Shutdown(); }
+                    catch (Exception error) { await File.WriteAllTextAsync(report, error.ToString()); desktop.Shutdown(1); }
+                    return;
+                }
                 foreach (var path in desktop.Args ?? []) await window.OpenPath(path);
             };
         }

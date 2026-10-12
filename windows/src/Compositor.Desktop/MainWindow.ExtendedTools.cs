@@ -37,7 +37,7 @@ public sealed partial class MainWindow
             if (clicks > 1 && nodes.Count > 1) { FinishPen(); return true; }
             nodes.Add(new PathNodes.Node { Point = at }); _penLast = at; _penDrawing = true;
             if (_tool == Tool.CurvaturePen) SmoothPen();
-            _canvas.InvalidateVisual(); return true;
+            _canvas.InvalidateOverlay(); return true;
         }
         if (_tool is Tool.AddAnchor or Tool.DeleteAnchor or Tool.ConvertAnchor && _pathNodes is { } path && _canvas.DocumentToPath is { } map)
         {
@@ -76,7 +76,7 @@ public sealed partial class MainWindow
         {
             var node = editable.Subpaths[convert.Subpath].Nodes[convert.Node]; var point = map(at);
             node.Out = point; node.In = modifiers.HasFlag(KeyModifiers.Alt) ? node.In : node.Point - (point - node.Point);
-            _canvas.InvalidateVisual(); return;
+            _canvas.InvalidateOverlay(); return;
         }
         if (!_penDrawing || _pen?.Subpaths.FirstOrDefault() is not { } contour) return;
         if (_tool == Tool.FreeformPen)
@@ -90,7 +90,7 @@ public sealed partial class MainWindow
             if (SKPoint.Distance(at, node.Point) > 2 / _canvas.Zoom)
             { node.Out = at; node.In = modifiers.HasFlag(KeyModifiers.Alt) ? null : node.Point - delta; }
         }
-        _canvas.InvalidateVisual();
+        _canvas.InvalidateOverlay();
     }
     private void CanvasActionReleased()
     {
@@ -123,14 +123,14 @@ public sealed partial class MainWindow
         Guid? made = null;
         Edit("Draw Path", () => (made = ShapeEdits.Add(doc, new LayerShapeStyle { Kind = ShapeKind.Path, Path = path.ToSvgPathData(), Red = _options.Brush.Red,
             Green = _options.Brush.Green, Blue = _options.Brush.Blue, LineWidth = pen.Subpaths[0].Closed ? null : _options.ShapeLineWidth }, box, Selected)) is not null);
-        _pen = null; _penDrawing = false; Reselect(made); _canvas.InvalidateVisual(); return true;
+        _pen = null; _penDrawing = false; Reselect(made); _canvas.InvalidateOverlay(); return true;
     }
     private bool CancelPen()
-    { if (_pen is null) return false; _pen = null; _penDrawing = false; _canvas.InvalidateVisual(); return true; }
+    { if (_pen is null) return false; _pen = null; _penDrawing = false; _canvas.InvalidateOverlay(); return true; }
     private void DrawEditingOverlay(DrawingContext context, Func<SKPoint, Point> screen)
     {
         DrawProfessionalOverlay(context, screen);
-        var pen = new Pen(Skin.AccentBrush, 1.25) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        var pen = new Pen(new SolidColorBrush(Color.Parse(EditorPreferences.Current.PathColor)), EditorPreferences.Current.PathWidth) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
         if (_placementTab is not null && _placePivotVisible && PropertyLayer is { } layer)
         {
             var at = screen(PlacementPivot(layer.Transform)); context.DrawEllipse(null, pen, at, 5, 5);
@@ -158,6 +158,12 @@ public sealed partial class MainWindow
                 drawing.EndFigure(contour.Closed);
             }
             context.DrawGeometry(null, pen, geometry);
+            foreach (var contour in draft.Subpaths)
+            foreach (var node in contour.Nodes)
+            {
+                if (node.In is { } incoming) context.DrawLine(pen, screen(node.Point), screen(incoming));
+                if (node.Out is { } outgoing) context.DrawLine(pen, screen(node.Point), screen(outgoing));
+            }
             foreach (var grab in draft.Grabs()) context.DrawEllipse(grab.Handle ? Skin.ChromeBrush : Skin.LabelBrush, pen, screen(grab.Point), 3, 3);
         }
     }

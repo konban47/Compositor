@@ -28,7 +28,8 @@ public sealed class ImageAdjustmentSettings
     public ImageAdjustmentSettings Copy() => new() { Kind = Kind, Values = new(Values), Color = Color,
         Replacement = Replacement, PreserveLuminosity = PreserveLuminosity, Monochrome = Monochrome,
         Absolute = Absolute, Range = Range, Cube = Cube, ReferenceMean = ReferenceMean, ReferenceDeviation = ReferenceDeviation };
-    public bool IsValid => Enum.IsDefined(Kind) && Values.Count <= 128
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsValid => Enum.IsDefined(Kind) && Values is not null && Values.Count <= 128 && (Cube is null || Cube.IsValid)
         && Values.Values.All(v => double.IsFinite(v) && Math.Abs(v) <= 10000)
         && Range is >= 0 and <= 8 && (ReferenceMean is null || ReferenceMean.Length == 3 && ReferenceMean.All(double.IsFinite))
         && (ReferenceDeviation is null || ReferenceDeviation.Length == 3 && ReferenceDeviation.All(v => double.IsFinite(v) && v >= 0));
@@ -52,6 +53,10 @@ public sealed class ColorCube
     public required Color3[] Values { get; init; }
     public Color3 Minimum { get; init; } = new(0, 0, 0);
     public Color3 Maximum { get; init; } = new(1, 1, 1);
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsValid => Size is >= 2 and <= 65 && Values is not null && Values.Length == Size * Size * Size
+        && Values.All(Finite) && Finite(Minimum) && Finite(Maximum) && Minimum.R < Maximum.R && Minimum.G < Maximum.G && Minimum.B < Maximum.B;
+    private static bool Finite(Color3 c) => double.IsFinite(c.R) && double.IsFinite(c.G) && double.IsFinite(c.B);
     public static ColorCube Parse(string text)
     {
         if (text.Length > 24_000_000) throw new InvalidDataException("The color lookup is too large.");

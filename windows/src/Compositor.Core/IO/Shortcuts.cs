@@ -256,6 +256,9 @@ public static class Shortcuts
         Menu("New Blank Layer", "N", Ctrl | Shift);
         Menu("Move Layer Up", "OemCloseBrackets", Ctrl);
         Menu("Move Layer Down", "OemOpenBrackets", Ctrl);
+        Menu("Bring to Front", "OemCloseBrackets", Ctrl | Shift);
+        Menu("Send to Back", "OemOpenBrackets", Ctrl | Shift);
+        Menu("Layer via Cut");
         Menu("Merge Layers", "E", Ctrl);
         Menu("Rename Layer", "F2");
         Menu("Delete Layer", "Delete");

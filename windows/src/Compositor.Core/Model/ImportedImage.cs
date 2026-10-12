@@ -11,6 +11,10 @@ public sealed class ImportedImage : IDisposable
 {
     public ImportedImage(SKBitmap image, SKBitmap thumbnail, string name)
     {
+        // Assets are copy-on-write throughout the document/history model. Tell Skia too, so cached
+        // SKImages can share the pixel reference instead of copying hundreds of megabytes per scene.
+        image.SetImmutable();
+        thumbnail.SetImmutable();
         Image = image;
         Thumbnail = thumbnail;
         Name = name;

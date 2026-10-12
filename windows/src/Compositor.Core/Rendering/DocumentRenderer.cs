@@ -31,6 +31,14 @@ public static partial class DocumentRenderer
         var scale = Math.Min(1, maximum / (double)Math.Max(document.Width, document.Height));
         var result = Allocate(Math.Max(1, (int)Math.Ceiling(document.Width * scale)), Math.Max(1, (int)Math.Ceiling(document.Height * scale)));
         using var canvas = new SKCanvas(result);
+        using var displayCache = new DisplaySceneCache();
+        using var scene = displayCache.Build(document);
+        if (scene is not null)
+        {
+            canvas.Scale((float)scale);
+            scene.Draw(canvas);
+            return result;
+        }
         for (var y = 0; y < document.Height; y += 1024)
         for (var x = 0; x < document.Width; x += 1024)
         {

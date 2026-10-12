@@ -118,7 +118,14 @@ public sealed partial class MainWindow
                 placement = new LayerTransform(frame.Transform.CenterX - image.Width * scale / 2, frame.Transform.CenterY - image.Height * scale / 2,
                     image.Width * scale, image.Height * scale, frame.Transform.Rotation);
             }
-            document.Layers.Add(new ImageLayer(Guid.NewGuid(), image, placement, image.Name) { ParentID = frame?.ID });
+            if (frame is null && EditorPreferences.Current.ResizeOnPlace)
+            {
+                var scale = Math.Min(1, Math.Min((double)document.Width / image.Width, (double)document.Height / image.Height));
+                placement = new LayerTransform((document.Width - image.Width * scale) / 2, (document.Height - image.Height * scale) / 2, image.Width * scale, image.Height * scale);
+            }
+            var placed = new ImageLayer(Guid.NewGuid(), image, placement, image.Name) { ParentID = frame?.ID };
+            document.Layers.Add(placed);
+            if (EditorPreferences.Current.SmartOnPlace) LayerWorkflow.ConvertToSmartObject(document, [placed.ID]);
             target.History.End(document, document.Layers[^1].ID);
             if (ReferenceEquals(target, _open)) { Reselect(document.Layers[^1].ID); Refresh(); }
             RefreshTabs();

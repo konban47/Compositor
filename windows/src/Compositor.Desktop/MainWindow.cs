@@ -208,9 +208,11 @@ public sealed partial class MainWindow : Window
         /// disposes them and the snapshot is dropped rather than disposed.</summary>
         public CanvasDocument? Document { get; set; }
 
-        public DocumentHistory History { get; } = new(EditorPreferences.Current.HistorySteps, EditorPreferences.Current.HistoryMB * 1024 * 1024) { AllowNonLinear = EditorPreferences.Current.NonLinearHistory };
+        public DocumentHistory History { get; } = new(EditorPreferences.Current.HistorySteps, EditorPreferences.Current.HistoryMB * 1024 * 1024) { AllowNonLinear = EditorPreferences.Current.NonLinearHistory, Committed = RecordHistoryLog };
         public int SnapshotNumber { get; set; }
         public Task<bool>? Saving { get; set; }
+        public Task<bool>? Recovering { get; set; }
+        public Guid RecoveryID { get; } = Guid.NewGuid();
 
         /// <summary>Where this project was opened from, so Save writes back to it.</summary>
         public string? Path { get; set; }
@@ -319,7 +321,7 @@ public sealed partial class MainWindow : Window
         // The picker is a window of its own and the app is left running until the last window closes, so it
         // goes with the editor rather than being left behind to hold the session open.
         Closing += ConfirmWindowClose;
-        Closed += (_, _) => { _picker?.Close(); _channelThumbnail?.Dispose(); foreach (var image in _channelImages) image.Dispose(); };
+        Closed += (_, _) => { _recoveryTimer?.Stop(); _picker?.Close(); _channelThumbnail?.Dispose(); foreach (var image in _channelImages) image.Dispose(); };
         Background = Skin.ChromeBrush;
         // The window's plain labels (a heading, a readout) take their colour from here, as the Mac's do from
         // the appearance; controls that name their own text keep it.
@@ -493,43 +495,7 @@ public sealed partial class MainWindow : Window
                     },
                 },
                 BuildEditMenu(),
-                new MenuItem
-                {
-                    Header = Localize.Text("_Layer"),
-                    Items =
-                    {
-                        LayerCommand("_Duplicate Layer", DuplicateLayer, "Duplicate Layer"),
-                        LayerCommand("_Rename Layer…", () => _ = RenameLayer(), "Rename Layer"),
-                        LayerCommand("_Delete Layer", DeleteLayer, "Delete Layer"),
-                        new Separator(),
-                        LayerCommand("Move Layer _Up", () => MoveLayer(1), "Move Layer Up"),
-                        LayerCommand("Move Layer _Down", () => MoveLayer(-1), "Move Layer Down"),
-                        new Separator(),
-                        _lockLayer,
-                        Command("Ungroup Layers", UngroupSelected, "Ungroup Layers"),
-                        _clipping,
-                        LayerCommand("_Group Selected Layers", GroupSelected, "Group Layers",
-                            (document, layer) => document.Layers.Count < LayerPlacement.MaxLayers),
-                        LayerCommand("Move _Out of Folder", MoveOutOfFolder, null,
-                            (_, layer) => layer.ParentID is not null),
-                        _merge,
-                        new Separator(),
-                        _addMask,
-                        _maskToggle,
-                        LayerCommand("_Delete Mask", DeleteMask, null, (_, layer) => layer.Mask is not null),
-                        LayerCommand("Edit _Text…", () => _ = EditText(), null, (_, layer) => layer.Text is not null),
-                        _maskLink,
-                        new Separator(),
-                        LayerCommand("New Blank Layer", NewBlankLayer, "New Blank Layer"),
-                        LayerCommand("New F_older", NewFolder, null,
-                            (document, _) => document.Layers.Count < LayerPlacement.MaxLayers),
-                        _adjustmentMenu,
-                        _adjustmentSettings,
-                        _effectsMenu,
-                        new Separator(),
-                        _visibility,
-                    },
-                },
+                BuildLayerMenu(),
                 BuildImageMenu(),
                 new MenuItem
                 {
@@ -1028,7 +994,7 @@ public sealed partial class MainWindow : Window
         Does("Auto Color", () => AutoLevels(LevelsAuto.Neutral));
         Does("Canvas Size", () => _ = CanvasSize());
         Does("Image Size", () => _ = ImageSize());
-        Does("Layer via Copy", LayerViaCopy);
+        Does("Layer via Copy", () => LayerViaSelection(false));
         Does("Duplicate Layer", DuplicateLayer);
         Does("Toggle Clipping Mask", ToggleClipping);
         Does("Group Layers", GroupSelected);
@@ -1046,8 +1012,11 @@ public sealed partial class MainWindow : Window
         Does("Blue Channel", () => SelectColorChannel(ColorChannels.Blue));
         Does("Merge Layers", MergeLayers);
         Does("New Blank Layer", NewBlankLayer);
-        Does("Move Layer Up", () => MoveLayer(1));
-        Does("Move Layer Down", () => MoveLayer(-1));
+        Does("Move Layer Up", () => ArrangeLayers("Forward"));
+        Does("Bring to Front", () => ArrangeLayers("Front"));
+        Does("Send to Back", () => ArrangeLayers("Back"));
+        Does("Layer via Cut", () => LayerViaSelection(true));
+        Does("Move Layer Down", () => ArrangeLayers("Backward"));
         Does("Rename Layer", () => _ = RenameLayer());
         Does("Delete Layer", DeleteLayer);
         Does("Last Filter", RepeatLastFilter);
@@ -2840,7 +2809,7 @@ public sealed partial class MainWindow : Window
                 BorderThickness = new Thickness(0),
                 FontSize = 12,
                 MaxWidth = 155,
-                Height = 28,
+                Height = EditorPreferences.Current.LargeTabs ? 36 : 28,
                 FontWeight = front ? FontWeight.SemiBold : FontWeight.Medium,
                 Foreground = front ? Skin.LabelBrush : Skin.SecondaryBrush,
                 Padding = new Thickness(0),
@@ -2870,7 +2839,7 @@ public sealed partial class MainWindow : Window
                 BorderBrush = front ? Skin.TabFrontEdge : Skin.TabBackEdge,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(14),
-                Height = 28,
+                Height = EditorPreferences.Current.LargeTabs ? 36 : 28,
                 Padding = new Thickness(11, 0, 5, 0),
                 Margin = new Thickness(3, 3, 3, 3),
                 Child = new StackPanel
@@ -2921,6 +2890,7 @@ public sealed partial class MainWindow : Window
     {
         var which = tab ?? _open;
         if (which.Saving is { } saving) await saving;
+        if (which.Recovering is { } recovery) try { await recovery; } catch (Exception error) { Say(error.Message); }
         if (which.Document is null || !which.History.IsModified) return true;
         var named = which.Path is { } path
             ? $"{System.IO.Path.GetFileName(path)} has been changed since it was last saved."
@@ -3379,6 +3349,7 @@ public sealed partial class MainWindow : Window
         ShowTransformBox();
         _canvas.PaintEnabled = ToolCatalog.IsBrush(tool);
         _canvas.BrushOutlineEnabled = ToolCatalog.HasRoundCursor(tool);
+        _canvas.PenCursorEnabled = ToolCatalog.IsPen(tool) || tool is Tool.AddAnchor or Tool.DeleteAnchor or Tool.ConvertAnchor;
         _canvas.UpdateToolCursor();
         PushBrush();
         SyncPathNodes();
@@ -3489,6 +3460,10 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OptionsChanged()
     {
+        if (_preferencesReady && (EditorPreferences.Current.BrushSmoothing != _options.Brush.Smoothing || EditorPreferences.Current.SampleRing != _options.ShowsSampleRing))
+        {
+            EditorPreferences.Current.BrushSmoothing = _options.Brush.Smoothing; EditorPreferences.Current.SampleRing = _options.ShowsSampleRing; SavePreferenceChanges();
+        }
         PushBrush();
         _eraseToggle.IsChecked = _options.Erase;
         _paintOnMask.IsChecked = _options.PaintOnMask;
@@ -4156,6 +4131,7 @@ public sealed partial class MainWindow : Window
     {
         if (_document is not { } document || Selected is not { } id) return;
         if (LayerAdjustmentEdits.Settings(document, id) is not { } settings) return;
+        if (settings.Extended is { } extended) { await ExtendedImageAdjustment(extended.Kind, adjustmentLayer: true, editingLayer: id); return; }
         StartPreview(document, id);
         var asked = await AdjustmentDialog.Ask(this, settings,
             changed => RequestPreview((target, layer) => LayerAdjustmentEdits.Set(target, layer, changed)));
@@ -4659,7 +4635,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ProjectWritten(object? sender, EventArgs e)
     {
-        if (!EditorPreferences.Current.WatchFiles || _open.Saving is not null || _detecting) return;
+        if (!EditorPreferences.Current.WatchFiles || _open.Saving is not null || _open.Recovering is not null || _detecting) return;
         if (_watch?.Changed() is not true) return;
         if (_document is not { } document || _projectPath is not { } path) return;
         if (_history.IsModified)
@@ -5002,6 +4978,7 @@ public sealed partial class MainWindow : Window
     private void RefreshRecent()
     {
         _recentMenu.Items.Clear();
+        _recent.Limit = EditorPreferences.Current.RecentFiles;
         var projects = _recent.All();
         foreach (var project in projects)
         {
@@ -5177,9 +5154,9 @@ public sealed partial class MainWindow : Window
             _text = TextSession.New(new LayerTextStyle
             {
                 Vertical = _tool is Tool.VerticalType or Tool.VerticalTypeMask ? true : null,
-                Content = Localize.Text(""),
+                Content = EditorPreferences.Current.PlaceholderText ? Localize.Text("Your text") : "",
                 FontName = EditorPreferences.Current.DefaultFont,
-                FontSize = 72,
+                FontSize = EditorPreferences.Current.DefaultFontSize,
                 Red = _options.Brush.Red,
                 Green = _options.Brush.Green,
                 Blue = _options.Brush.Blue,

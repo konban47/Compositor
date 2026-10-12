@@ -1,13 +1,13 @@
 # Compositor for Windows — 简体中文 / English
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.4.10.1 Preview**。
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.4.10.2 Preview**。
 
 [下载 Windows 发行包](https://github.com/konban47/Compositor/releases) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
 
 ## 使用
 
 - 目标平台：Windows 10 1809 及以上、Windows 11，**x64**。不提供 32 位或原生 ARM64 包。
-- 安装版：运行 `Compositor-Windows-1.4.10.1-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
+- 安装版：运行 `Compositor-Windows-1.4.10.2-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
 - 免安装版：解压整个 `*-portable.zip`，运行文件夹中的 `Compositor.exe`。自带 .NET 运行时，无需安装 .NET SDK。若系统缺少 Visual C++ 2015–2022 x64 运行库，先运行随包提供的 `redist/vc_redist.x64.exe`。
 - 程序与安装包目前未做商业代码签名。只从本仓库下载；`SHA256SUMS.txt` 可用于校验文件完整性。
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
@@ -16,6 +16,15 @@
 - 普通图像、PSD/PSB、相机 RAW 通过“文件 → 导入图像”打开；PSD 转换限制会在导入报告中显示。PNG/JPEG/PDF/TIFF/EXR 通过“导出为”菜单输出；PDF 为单页合成图像。
 - 可将项目文件夹或图像路径作为参数：`Compositor.exe "D:\图片\项目.comp"`。
 - 设置保存在 `%APPDATA%\CompositorWindows`。卸载不会删除项目文件和个人设置。
+
+## 1.4.10.2 首选项、图层菜单与大图显示
+
+- Ctrl+K 打开统一首选项：19 个分类、中英文搜索、草稿确定／取消／重置及高级图形弹窗。设置接入已有工具、历史、恢复副本、导出、标尺、文字、主题和 GPU 配置。
+- 钢笔族使用笔形光标和控制柄辅助线；光标移动只刷新覆盖层。支持的图层以 Skia 场景缓存并使用实际 GPU 上下文重放，复杂效果仍回退参考合成器。
+- 图层菜单按参考图整理，增加填充、蒙版、排列、形状布尔、修边及八类可编辑调整层；后者使用 Windows v19 格式。
+- OpenCL 迁移暂缓，继续使用 Skia。OpenCL、30 位显示和暂存盘换出不作为已实现功能；设置窗口明确说明。
+- **1132 项核心测试、17 组英文与 11 组中文界面检查**；包内包含设置接入、性能验证与功能边界说明。
+- [首选项与接入审查](PREFERENCES.md) · [图层菜单与钢笔](LAYER-MENU.md) · [本版更新](UPDATES-1.4.10.2.md)。以下版本段落为历史记录。
 
 ## 1.4.10.1 界面、编辑菜单与 HDR 更新
 
@@ -83,7 +92,7 @@
 - 图像和蒙版缩略图之间显示链条，点击切换连接；断开后链条消失，原位置仍可点击重连。选中缩略图显示边框，选择图像可独立移动图像，选择断开链接的蒙版可独立移动蒙版。组蒙版随组选中变换，单独移动子图层不会移动组蒙版。
 - 蒙版属性：密度 0–100%、羽化 0–1000 文档像素、反相、启用／停用、链接、载入选区、从选区替换、应用及删除。“选择并遮住”提供密度、羽化、平滑和移动边缘，点击预览可检查结果，取消不修改文档。“色彩范围”确认后直接替换蒙版覆盖率，并恢复原选区。垃圾桶在蒙版选中时提示删除蒙版并保留图像，可撤销。
 - 数值输入按 Enter 或离开输入框应用；蒙版滑块在松开鼠标／按键时应用，一次操作为一个历史步骤。
-- 历史记录：点击状态回退／前进，后续状态变灰；在旧状态继续编辑会丢弃其后的重做分支。自动建立初始快照，可创建快照、恢复快照、删除状态及后续记录、删除快照、清除撤销记录、从当前状态新建独立文档。最多 100 个操作状态、20 个快照，共享 256 MiB 保留像素及智能对象源包预算，超限按旧记录顺序释放；历史与快照仅在本次会话中有效，不写入项目文件。
+- 历史记录：点击状态回退／前进，后续状态变灰；在旧状态继续编辑会丢弃其后的重做分支。自动建立初始快照，可创建快照、恢复快照、删除状态及后续记录、删除快照、清除撤销记录、从当前状态新建独立文档。默认最多 100 个操作状态、20 个快照，共享 256 MiB 保留像素及智能对象源包预算；操作状态数与预算可在首选项更改，超限按旧记录顺序释放；历史与快照仅在本次会话中有效，不写入项目文件。
 - [1.4.8.2 更新与验证说明](UPDATES-1.4.8.2.md)。下面保留上一版功能摘要。
 
 ## 1.4.8.1 功能基础
@@ -99,11 +108,11 @@
 
 ### 项目兼容性
 
-当前读取版本 1–18。图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，最新上游 macOS 1.4.10 支持 v1–v13，其中 v12 的 16 位 PNG 和 v13 EXR 可以读取，但不支持 Windows v13–v18 字段。清除新增字段后可恢复相应较低版本；交付合成结果可导出 PNG。详细字段见 [项目格式 v15](../docs/project-format.md#windows-extension-version-15)。
+当前读取版本 1–19。新增八类可编辑调整层使用 Windows 扩展 v19；图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，最新上游 macOS 1.4.10 支持 v1–v13，其中 v12 的 16 位 PNG 和 v13 EXR 可以读取，但不支持 Windows v13–v19 字段。清除新增字段后可恢复相应较低版本；交付合成结果可导出 PNG。详细字段见 [项目格式 v15](../docs/project-format.md#windows-extension-version-15)。
 
 ## 功能与迁移范围
 
-保留 `.comp` 格式版本 1–11 的读写并增加 Windows 扩展 v12–v18、图层与组、24 种混合模式、蒙版和剪贴蒙版、调整图层、图层样式、选区、绘画/仿制/修复/涂抹/液化、可编辑文字和形状、裁剪/变换、参考线、色阶/曲线/色相饱和度、Camera Raw 调整、仿色、内容识别填充、导出以及撤销/重做。
+保留 `.comp` 格式版本 1–11 的读写并增加 Windows 扩展 v12–v19、图层与组、24 种混合模式、蒙版和剪贴蒙版、调整图层、图层样式、选区、绘画/仿制/修复/涂抹/液化、可编辑文字和形状、裁剪/变换、参考线、色阶/曲线/色相饱和度、Camera Raw 调整、仿色、内容识别填充、导出以及撤销/重做。
 
 在已有 MIT Windows 移植基础上增加：
 
@@ -123,7 +132,7 @@
 
 - 新样式为 CPU 实现，与 Photoshop 轮廓、纹理、斜面光照并非逐像素一致；不读写 ASL 样式文件。遮住所有对象生成显著性连通区域蒙版组，接触的主体可能合为一组。智能对象保存 Compositor 图层源与显示缓存，画板共享一个文档画布；没有 Adobe 外部链接、智能滤镜或 PSD 智能对象往返。简单形状复制为原生 SVG，复杂外观／文字回退为 SVG 内嵌 PNG；CSS 使用 PNG 背景保留视觉结果。具体参数和限制见 [图层手册](LAYER-STYLES.md)。
 
-- Windows 使用 Avalonia / Skia 的 CPU 分块合成；没有移植 Apple Metal、Core Image、Vision 的专有实现。主体识别使用 U²-NetP，结果与 Apple Vision 不同；对象选择按预测蒙版的连通区域选择，不是多实例语义分割。
+- Windows 使用 Avalonia / Skia 的 GPU 缓存显示与 CPU 参考分块合成；没有移植 Apple Metal、Core Image、Vision 的专有实现。主体识别使用 U²-NetP，结果与 Apple Vision 不同；对象选择按预测蒙版的连通区域选择，不是多实例语义分割。
 - Bloom/Glow 的实现近似原视觉效果；相机 RAW 先经 LibRaw 解码为 16 位 sRGB 再进入调整面板，不是完整的传感器域 RAW 流程。Camera Raw 点颜色从前景色加入，原生 Mac 面板的直接取样交互未完全复刻。
 - PSD/PSB 不是 Photoshop 的完整可编辑往返格式；不支持的项目按导入报告说明处理。可导出 PNG/JPEG/PDF/TIFF，不提供 PSD 写回；PDF 不保留矢量文字和图层。
 - 删除剪贴来源提供“烘焙后删除／释放链接后删除／取消”，支持撤销。图层支持拖动排序；跨项目图层拖放等交互仍与原生 Mac 不同。
@@ -161,6 +170,6 @@ An independent Windows x64 port retaining Compositor's `.comp` folder format. Ba
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 
-This first release is a **Preview**: tested locally on Windows 11 and in Windows Server CI, not manually certified on Windows 10. CPU rendering and U²-NetP replace Apple's native implementations; segmentation, glow, fonts, some drag/drop interactions and RAW development are not identical. PSD conversion has reported limitations and no PSD export. Dependent clipping-layer deletion supports baking or releasing links, with undo. These differences are stated explicitly rather than hidden behind a claim of complete native parity.
+This first release is a **Preview**: tested locally on Windows 11 and in Windows Server CI, not manually certified on Windows 10. Skia GPU display, CPU reference compositing and U²-NetP replace Apple's native implementations; segmentation, glow, fonts, some drag/drop interactions and RAW development are not identical. PSD conversion has reported limitations and no PSD export. Dependent clipping-layer deletion supports baking or releasing links, with undo. These differences are stated explicitly rather than hidden behind a claim of complete native parity.
 
 The repository includes reproducible build/package scripts, core tests and headless UI checks. Windows updates use `windows-v*` releases in this fork, never the upstream macOS DMG feed.

@@ -180,14 +180,13 @@ public static class MaskProperties
     public static bool Apply(CanvasDocument document, Guid id)
     {
         if (document.Layers.FirstOrDefault(layer => layer.ID == id) is not { Asset: { } asset, Mask: { } mask, IsGroup: false } layer) return false;
-        var image = asset.Image.Copy();
+        using var image = DeepPixels.From(asset.WorkingImage);
         using var coverage = Coverage(mask, layer.MaskTransform, layer.Transform, image.Width, image.Height);
-        for (var y = 0; y < image.Height; y++)
-        for (var x = 0; x < image.Width; x++)
-        {
-            var amount = coverage.GetPixel(x, y).Red;
-            var color = image.GetPixel(x, y); image.SetPixel(x, y, color.WithAlpha((byte)(color.Alpha * amount / 255)));
-        }
-        layer.Asset = ImportedImage.Create(image, layer.Name); layer.Mask = null; layer.Text = null; layer.Shape = null; return true;
+        var rgba = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(image.GetPixelSpan());
+        for (var y = 0; y < image.Height; y++) for (var x = 0; x < image.Width; x++)
+            rgba[y * image.RowBytes / 4 + x * 4 + 3] *= coverage.GetPixel(x, y).Red / 255f;
+        layer.Asset = asset.Deep is null ? ImportedImage.Create(DeepPixels.Preview(image), layer.Name)
+            : ImportedImage.CreateDeep(image.Copy(), layer.Name, asset.BitDepth);
+        layer.Mask = null; layer.Text = null; layer.Shape = null; layer.SmartObject = null; return true;
     }
 }

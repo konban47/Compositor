@@ -10,7 +10,7 @@ namespace Compositor.Core.Document;
 public static class DeepAdjustments
 {
     public static bool Supports(LayerAdjustment s) => s.Kind is AdjustmentKind.Levels or AdjustmentKind.Curves or AdjustmentKind.Exposure
-        or AdjustmentKind.Invert or AdjustmentKind.HueSaturation or AdjustmentKind.BlackWhite or AdjustmentKind.ColorBalance or AdjustmentKind.GradientMap;
+        or AdjustmentKind.Invert or AdjustmentKind.HueSaturation or AdjustmentKind.BlackWhite or AdjustmentKind.ColorBalance or AdjustmentKind.GradientMap or AdjustmentKind.Extended;
     public static bool Apply(CanvasDocument document, ImageLayer layer, LayerAdjustment settings)
     {
         if (layer.Asset is not { } asset || !Supports(settings)) return false;
@@ -26,6 +26,16 @@ public static class DeepAdjustments
     private static void AdjustNormalized(SKBitmap image, LayerAdjustment settings)
     {
         var data = MemoryMarshal.Cast<byte, float>(image.GetPixelSpan());
+        if (settings.Extended is { } extended)
+        {
+            for (var y = 0; y < image.Height; y++) for (var x = 0; x < image.Width; x++)
+            {
+                var at = y * image.RowBytes / 4 + x * 4;
+                var color = ImageAdjustments.Adjust(new Color3(data[at], data[at + 1], data[at + 2]), extended);
+                data[at] = (float)color.R; data[at + 1] = (float)color.G; data[at + 2] = (float)color.B;
+            }
+            return;
+        }
         var independent = settings.Kind is AdjustmentKind.Levels or AdjustmentKind.Curves or AdjustmentKind.Exposure or AdjustmentKind.Invert;
         if (independent)
         {

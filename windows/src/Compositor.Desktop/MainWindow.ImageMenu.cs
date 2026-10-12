@@ -76,21 +76,23 @@ public sealed partial class MainWindow
         return menu;
     }
 
-    private async Task ExtendedImageAdjustment(ImageAdjustmentKind kind, bool immediate = false)
+    private async Task ExtendedImageAdjustment(ImageAdjustmentKind kind, bool immediate = false, bool adjustmentLayer = false, Guid? editingLayer = null)
     {
-        if (_document is not { } doc || PropertyLayer is not { Asset: not null } layer || !LayerProtection.CanPaint(doc, layer.ID)) { Say("Select an unlocked pixel layer first."); return; }
-        var settings = new ImageAdjustmentSettings { Kind = kind }; var title = ImageAdjustmentTitle(kind); var revision = _history.CurrentRevision;
+        if (_document is not { } doc) return;
+        var layer = PropertyLayer;
+        if (!adjustmentLayer && (layer?.Asset is null || !LayerProtection.CanPaint(doc, layer.ID))) { Say("Select an unlocked pixel layer first."); return; }
+        var settings = editingLayer is { } existing ? doc.Layers.First(l => l.ID == existing).Adjustment!.Extended!.Copy() : new ImageAdjustmentSettings { Kind = kind }; var title = ImageAdjustmentTitle(kind); var revision = _history.CurrentRevision;
         if (!immediate)
         {
             var dialog = new FormDialog(title, 540, kind is ImageAdjustmentKind.ChannelMixer or ImageAdjustmentKind.SelectiveColor ? 670 : 540);
-            void Number(string key, double min, double max, double value = 0, string? label = null) { settings.Values[key] = value; dialog.Number(label ?? key, value, min, max, n => settings.Values[key] = n); }
+            void Number(string key, double min, double max, double value = 0, string? label = null) { value = settings.Get(key, value); settings.Values[key] = value; dialog.Number(label ?? key, value, min, max, n => settings.Values[key] = n); }
             switch (kind)
             {
                 case ImageAdjustmentKind.BrightnessContrast: Number("Brightness", -150, 150); Number("Contrast", -100, 100); break;
                 case ImageAdjustmentKind.Vibrance: Number("Vibrance", -100, 100); Number("Saturation", -100, 100); break;
                 case ImageAdjustmentKind.PhotoFilter:
                     Number("Density", 0, 100, 25); ColorInput(dialog, "Filter Color", settings.Color, c => settings.Color = c);
-                    dialog.Check("Preserve Luminosity", true, on => settings.PreserveLuminosity = on); break;
+                    dialog.Check("Preserve Luminosity", settings.PreserveLuminosity, on => settings.PreserveLuminosity = on); break;
                 case ImageAdjustmentKind.ChannelMixer:
                     for (var channel = 0; channel < 3; channel++)
                     {
@@ -98,10 +100,10 @@ public sealed partial class MainWindow
                         foreach (var (input, index) in new[] { ("R", 0), ("G", 1), ("B", 2) }) Number($"{channel}{input}", -200, 200, channel == index ? 100 : 0, new[] { "Red (%)", "Green (%)", "Blue (%)" }[index]);
                         Number($"{channel}Constant", -200, 200, 0, "Constant (%)");
                     }
-                    dialog.Check("Monochrome", false, on => settings.Monochrome = on); break;
+                    dialog.Check("Monochrome", settings.Monochrome, on => settings.Monochrome = on); break;
                 case ImageAdjustmentKind.ColorLookup:
                     dialog.Description("Load a .cube 3D color lookup file.");
-                    var lutLabel = new TextBlock { Text = Localize.Text("No color lookup loaded"), TextWrapping = Avalonia.Media.TextWrapping.Wrap }; dialog.Fields.Children.Add(lutLabel);
+                    var lutLabel = new TextBlock { Text = Localize.Text(settings.Cube is null ? "No color lookup loaded" : "Embedded color lookup loaded"), TextWrapping = Avalonia.Media.TextWrapping.Wrap }; dialog.Fields.Children.Add(lutLabel);
                     dialog.Fields.Children.Add(FormDialog.ActionButton("Load Color Lookup…", async () =>
                     {
                         var files = await dialog.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = Localize.Text("Load Color Lookup…"), FileTypeFilter = [new FilePickerFileType("Color lookup") { Patterns = ["*.cube"] }] });
@@ -113,11 +115,11 @@ public sealed partial class MainWindow
                 case ImageAdjustmentKind.Threshold: Number("Threshold", 0, 255, 128); break;
                 case ImageAdjustmentKind.SelectiveColor:
                     var fields = new Dictionary<string, NumericUpDown>(); var switchingRange = false;
-                    dialog.Choice("Colors", ["Reds", "Yellows", "Greens", "Cyans", "Blues", "Magentas", "Whites", "Neutrals", "Blacks"], 0, selected =>
+                    dialog.Choice("Colors", ["Reds", "Yellows", "Greens", "Cyans", "Blues", "Magentas", "Whites", "Neutrals", "Blacks"], settings.Range, selected =>
                     { switchingRange = true; settings.Range = selected; foreach (var p in fields) p.Value.Value = (decimal)settings.Get($"{selected}{p.Key}"); switchingRange = false; });
                     foreach (var (key, label) in new[] { ("C", "Cyan"), ("M", "Magenta"), ("Y", "Yellow"), ("K", "Black") })
-                        fields[key] = dialog.Number(label, 0, -100, 100, v => { if (!switchingRange) settings.Values[$"{settings.Range}{key}"] = v; });
-                    dialog.Check("Absolute", false, on => settings.Absolute = on); break;
+                        fields[key] = dialog.Number(label, settings.Get($"{settings.Range}{key}"), -100, 100, v => { if (!switchingRange) settings.Values[$"{settings.Range}{key}"] = v; });
+                    dialog.Check("Absolute", settings.Absolute, on => settings.Absolute = on); break;
                 case ImageAdjustmentKind.ShadowsHighlights:
                     Number("Shadows", 0, 100, 35); Number("Shadow Width", 1, 100, 50); Number("Highlights", 0, 100); Number("Highlight Width", 1, 100, 50); Number("Radius", 1, 250, 30); Number("Midtone Contrast", -100, 100); break;
                 case ImageAdjustmentKind.HdrToning:
@@ -130,12 +132,27 @@ public sealed partial class MainWindow
                 case ImageAdjustmentKind.ReplaceColor:
                     ColorInput(dialog, "Sample Color", settings.Color, c => settings.Color = c); ColorInput(dialog, "Replacement Color", settings.Replacement, c => settings.Replacement = c); Number("Fuzziness", 0, 255, 40); break;
             }
-            dialog.Preview(); StartPreview(doc, layer.ID);
-            dialog.Changed = () => { var copy = settings.Copy(); RequestPreview((target, id) => !dialog.PreviewEnabled || ImageAdjustments.Apply(target, id, copy)); };
+            if (!adjustmentLayer)
+            {
+                dialog.Preview(); StartPreview(doc, layer!.ID);
+                dialog.Changed = () => { var copy = settings.Copy(); RequestPreview((target, id) => !dialog.PreviewEnabled || ImageAdjustments.Apply(target, id, copy)); };
+            }
             bool accepted; try { accepted = await dialog.ShowDialog<bool>(this); } finally { StopPreview(); }
             if (!accepted || !ReferenceEquals(_document, doc) || revision != _history.CurrentRevision) return;
         }
-        Edit(title, () => ImageAdjustments.Apply(doc, layer.ID, settings)); Reselect(layer.ID);
+        if (adjustmentLayer)
+        {
+            Guid? made = editingLayer;
+            Edit(title, () =>
+            {
+                made ??= LayerPlacement.AddAdjustment(doc, AdjustmentKind.Extended, Selected);
+                if (made is null) return false;
+                var target = doc.Layers.First(l => l.ID == made); target.Adjustment = new LayerAdjustment { Kind = AdjustmentKind.Extended, Extended = settings.Copy() };
+                if (editingLayer is null) target.Name = Localize.Text(title.Replace("…", ""));
+                return true;
+            }); Reselect(made);
+        }
+        else { Edit(title, () => ImageAdjustments.Apply(doc, layer!.ID, settings)); Reselect(layer!.ID); }
     }
 
     private static void ColorInput(FormDialog dialog, string title, uint value, Action<uint> changed)

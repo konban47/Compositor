@@ -50,6 +50,16 @@ public static class AdjustmentOperators
     {
         switch (adjustment.Kind)
         {
+            case AdjustmentKind.Extended when adjustment.Extended is { } extended:
+                for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
+                {
+                    var at = y * stride + x * 4; var alpha = rgba[at + 3]; if (alpha == 0) continue;
+                    var color = Document.ImageAdjustments.Adjust(new Document.Color3(rgba[at] / (double)alpha, rgba[at + 1] / (double)alpha, rgba[at + 2] / (double)alpha), extended);
+                    rgba[at] = (byte)Math.Clamp(Math.Round(color.R * alpha), 0, alpha);
+                    rgba[at + 1] = (byte)Math.Clamp(Math.Round(color.G * alpha), 0, alpha);
+                    rgba[at + 2] = (byte)Math.Clamp(Math.Round(color.B * alpha), 0, alpha);
+                }
+                break;
             case AdjustmentKind.HueSaturation:
                 ApplyHueSaturation(adjustment, rgba, width, height, stride);
                 break;

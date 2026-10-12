@@ -32,6 +32,7 @@ internal abstract class DialogWindow : Window
     {
         foreach (var button in this.GetVisualDescendants().OfType<Button>())
         {
+            if (button is Avalonia.Controls.Primitives.ToggleButton) continue;
             var text = button.Content as string ?? (button.Content as TextBlock)?.Text;
             if (string.IsNullOrWhiteSpace(text) || text.Length < 2) continue;
             TextBlock.SetTextWrapping(button, TextWrapping.Wrap);
