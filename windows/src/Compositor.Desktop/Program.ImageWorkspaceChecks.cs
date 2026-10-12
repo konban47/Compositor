@@ -36,7 +36,10 @@ public sealed partial class MainWindow
             source.Erase(SKColors.Coral); using var encoded = source.Encode(SKEncodedImageFormat.Png, 100); using var stream = new MemoryStream(encoded.ToArray());
             using var clipboardBitmap = new Avalonia.Media.Imaging.Bitmap(stream);
             Finish(Avalonia.Input.Platform.ClipboardExtensions.SetBitmapAsync(Clipboard!, clipboardBitmap));
-            Finish(PasteToNewCanvas()); Check(_document is { Width: 29, Height: 17, Layers.Count: 1 }, "Pasting on New Canvas did not create a correctly sized document.");
+            this.KeyPress(Avalonia.Input.Key.V, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.None, null);
+            this.KeyRelease(Avalonia.Input.Key.V, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.None, null);
+            for (var i = 0; i < 300 && _document is null; i++) { Pump(); Thread.Sleep(10); }
+            Check(_document is { Width: 29, Height: 17, Layers.Count: 1 }, "Ctrl+V on New Canvas did not create a correctly sized document.");
         }
         var doc = new CanvasDocument(Guid.NewGuid(), 600, 450);
         var pixels = new SKBitmap(Bitmaps.ColorInfo(220, 150)); pixels.Erase(new SKColor(80, 120, 180));
