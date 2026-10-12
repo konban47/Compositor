@@ -21,6 +21,7 @@ public static class FillEdits
         {
             return false;
         }
+        if (asset.Deep is not null) return DeepPaint.Fill(document, layer, colour);
         var width = asset.Width;
         var height = asset.Height;
         if (width <= 0 || height <= 0) return false;
@@ -67,6 +68,7 @@ public static class FillEdits
         {
             return false;
         }
+        if (asset.Deep is not null) return DeepPaint.Fill(document, layer, SKColors.Transparent, clear: true);
         var width = asset.Width;
         var height = asset.Height;
         if (width <= 0 || height <= 0) return false;

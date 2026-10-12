@@ -36,6 +36,7 @@ public static class GradientEdits
         if (opacity <= 0 || !HasLine(start, end)) return false;
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { } layer) return false;
 
+        if (!mask && layer.Asset?.Deep is not null) return DeepPaint.Gradient(document, layer, start, end, from, to, opacity, shape);
         SKBitmap pixels;
         Model.LayerTransform placement;
         if (mask)

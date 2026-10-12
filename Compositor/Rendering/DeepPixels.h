@@ -2,26 +2,33 @@
 #define DeepPixels_h
 #include <stdint.h>
 #include <stddef.h>
-// 16-bit layers kept through 8-bit operations. A 16-bit color sits just above an 8-bit value, `low` (rounded down).
-// An 8-bit operation is run on `low`, on `low` one step up (`near`) and on `low` four steps up (`far`), and the result
-// at 16 bits is read off between them, by where the color fell past `low`:
+// 16-bit layers kept through 8-bit operations. Each color gets an 8-bit `low` a little below it (0 to 2 steps, rounded
+// as dither rounds, so where bands would start falls at random and comes out as fine noise). An 8-bit operation is run
+// on `low`, and on `low` one, two and four steps up, and the result at 16 bits is read off between them by where the
+// color lies above `low` (see `deep_change` in DeepPixels.c):
 //
-// - where one step changes the result by two or more (the operation stretches tones there), between `low` and `near`:
-//   exact wherever the operation is straight across one step, which is nearly everywhere, sharp bends included;
+// - where one step changes the result by two or more (the operation stretches tones there), between the steps the
+//   color lies between: exact wherever the operation is straight across one step, sharp bends included;
 // - where it changes it by one or nothing (the operation holds or compresses tones there), its results being 8-bit
-//   too say too little across one step, so the slope is read across four instead: to a quarter step, and those runs
-//   don't come out flat.
+//   too say too little across one step, so the slope is read across four instead.
+//
+// An operation whose channels mix (each output channel depends on all three inputs) steps each input channel on its own
+// and adds up how each moves each output: ten runs rather than four.
 //
 // All buffers are premultiplied RGBA. 16-bit ones are native-endian uint16, 4 a pixel; 8-bit ones are 4 bytes a
-// pixel. Strides are in bytes. Alpha is carried at 8 bits (it's coverage), so all three inputs share it.
+// pixel. Strides are in bytes. Alpha is carried at 8 bits (it's coverage), so all inputs share it.
 
-// The 8-bit image `step` steps above a 16-bit one's rounded-down value (0 for `low` itself), kept within alpha.
+// The 8-bit image `step` steps above a 16-bit one's `low` (0 for `low` itself), kept within alpha: in every
+// color channel, or with `channel` 0–2 only in that one (-1 for all).
 void deep_split(const uint16_t *deep, size_t deepStride, uint8_t *out, size_t stride, size_t width, size_t height,
-                int step);
+                int step, int channel);
 
-// The 16-bit result from an operation's results on the three inputs (`deep_split` with steps 0, 1 and 4).
-void deep_merge(const uint16_t *deep, size_t deepStride, const uint8_t *lowResult, const uint8_t *nearResult,
-                const uint8_t *farResult, size_t stride, uint16_t *out, size_t outStride, size_t width, size_t height);
+// The 16-bit result from an operation's results on `low` and one, two and four steps up (`deep_split` with steps 0, 1,
+// 2 and 4). Without `mixes`, only the first of each three is read, stepped in every channel; with it, the three are
+// red, green and blue stepped alone.
+void deep_merge(const uint16_t *deep, size_t deepStride, const uint8_t *lowResult, const uint8_t *const nearResults[3],
+                const uint8_t *const midResults[3], const uint8_t *const farResults[3], size_t stride, uint16_t *out,
+                size_t outStride, size_t width, size_t height, int mixes);
 
 // A painted 16-bit layer made whole: where its 8-bit pixels (`painted`, the base with the strokes over it) differ from
 // its 8-bit base alone (`base`), paint went there and its value is taken; elsewhere the 16-bit pixels in `deep` stay.

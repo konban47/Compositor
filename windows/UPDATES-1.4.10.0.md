@@ -1,6 +1,8 @@
 # Windows 1.4.10.0 Preview
 
-2026-10-12。开始前 fetch 核对，本地与 `origin/windows-port` 均为 `f2a49424b1d4071f1f628ed60c73600a75d74f89`。本次合并上游 [Compositor 1.4.10](https://github.com/robbietilton/Compositor/commit/f01e2980fb76eb085d3f8ac96070a1c0c4a9afa9)，从先前 `b4bfdea87f9dc0cbc9eabfa63683eb1b9c2bca60` 更新至 `f01e2980fb76eb085d3f8ac96070a1c0c4a9afa9`。
+2026-10-12。开始前 fetch 核对，本地与 `origin/windows-port` 均为 `f2a49424b1d4071f1f628ed60c73600a75d74f89`。本次合并上游 [Compositor 1.4.10](https://github.com/robbietilton/Compositor/commit/2522e3b8f8bee3c64b1ab4c474656824969393ff)，从先前 `b4bfdea87f9dc0cbc9eabfa63683eb1b9c2bca60` 更新至 `2522e3b8f8bee3c64b1ab4c474656824969393ff`。
+
+发布前再次 fetch 合并新增加的 5 个提交。对应新增图层 8/16 位转换、深度渐变／填充、新建画布粘贴图像，以及 `DeepPixels.c` 的分通道 split/fit/merge 算法（Camera Raw）。
 
 ## 本次改动
 
@@ -27,7 +29,7 @@ CMYK／Lab 提供 TIFF 模式转换，工作空间仍为 sRGB；复杂合成会�
 
 ## 验证
 
-- Release 构建把警告视为错误；**1065 项核心测试**。新增精度 PNG／TIFF/HDR 往返、v18 保存、选区与通道计算、RAW 控件、缩放、模糊／液化／涂抹、调整层透明度、变量失败原子性、测量与旋转，以及实际插件进程测试。
+- Release 构建把警告视为错误；**1067 项核心测试**。新增精度 PNG／TIFF/HDR 往返、v18 保存、选区与通道计算、RAW 控件、缩放、模糊／液化／涂抹、调整层透明度、变量失败原子性、测量与旋转，以及实际插件进程测试。
 - **15 组英文、9 组中文界面检查**。新增菜单层级、颜色模式确认／取消／撤销、调整预览取消、文档／像素／文字属性、三点展开、插件标签和窄按钮换行检查并输出截图。
 - GitHub Actions 在 Windows Server 2022／2025 回归，随后生成自带运行时的安装包和免安装包；发布程序运行九组中文检查并验证安装／卸载。Windows 10 实机、真实 IME、多屏和数位板仍需人工验收。
 

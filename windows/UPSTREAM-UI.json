@@ -1,6 +1,6 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "f01e2980fb76eb085d3f8ac96070a1c0c4a9afa9",
+  "commit": "2522e3b8f8bee3c64b1ab4c474656824969393ff",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [

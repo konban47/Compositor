@@ -515,6 +515,12 @@ public static class CameraRawEdits
         // pixels — as the Mac build warps the image before it hands it to the kernels. A shape that cannot be
         // made refuses the whole filter rather than grading pixels the panel did not ask to be moved.
         if (settings.AdjustsGeometry && !GeometryEdits.Apply(document, layerID, settings.Geometry)) return false;
+        if (layer.Asset is { Deep: not null } deepAsset)
+        {
+            var heldSeed = seed == 0 ? 1u : seed;
+            using var deepResult = DeepEightBit.Run(deepAsset.WorkingImage, (pixels, width, height, stride) => Grade(pixels, width, height, stride, settings, heldSeed));
+            return ImageAdjustments.SetPixels(document, layer, deepResult);
+        }
         if (!FilterSurface.Begin(layer, 0, out var work, out var placement)) return false;
         using var _ = work;
         using var was = document.Selection.Path is null ? null : FilterSurface.Copy(work);
@@ -539,6 +545,12 @@ public static class CameraRawEdits
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { } layer) return false;
         // The geometry comes first here too, so what the panel shows is what Apply would make: the preview used
         // to lose the warp the moment one of the overlays was ticked.
+        if (layer.Asset?.Deep is not null && !settings.IsIdentity && !shadows && !highlights && !sharpenMask && !settings.AdjustsGeometry)
+        {
+            if (!Apply(document, layerID, settings)) return false;
+            if (FilterSurface.Begin(layer, 0, out var display, out var displayPlacement)) { using (display) scope = CameraRawScope.OfPremultiplied(display); }
+            return true;
+        }
         if (settings.AdjustsGeometry && !GeometryEdits.Apply(document, layerID, settings.Geometry)) return false;
         if (!FilterSurface.Begin(layer, 0, out var work, out var placement)) return false;
         using var _ = work;

@@ -23,8 +23,8 @@
 - 图像菜单按模式、调整、自动调整、尺寸／旋转／裁剪、复制／应用图像／计算、变量及分析排列。新增亮度／对比度、自然饱和度、照片滤镜、通道混合器、颜色查找、色调分离、阈值、可选颜色、阴影／高光、HDR 色调、去色、匹配颜色、替换颜色及色调均化。
 - 文档、像素和文字属性改为截图中的紧凑分栏、单色图标、分隔线和三点展开；支持字符缩放／基线偏移、段落缩进／间距／两端对齐、抗锯齿和 OpenType 控件。
 - “插件 → 增效工具面板／管理增效工具”支持本地安装、启停、删除和执行 API 1 插件。提供实际运行的 PNG＋JSON 独立进程接口及示例工程。
-- 合并上游 **1.4.10 / f01e298**：16 位导入与 PNG 保存、深度调整／涂抹／液化／模糊、RAW 显影控件、文件夹图层导入、HIF 扩展、新应用图标；Windows 增加 32 位工作像素与 TIFF 输出。精度及算法差异见手册。
-- 当前读取 v1–v18，按最低必要版本保存；核心测试 **1065 项**，15 组英文与 9 组中文界面检查。CI 校验文档、来源与包内文件。
+- 合并上游 **1.4.10 / 2522e3b**：16 位导入与 PNG 保存、深度调整／涂抹／液化／模糊、RAW 显影控件、文件夹图层导入、HIF 扩展、新应用图标；Windows 增加 32 位工作像素与 TIFF 输出。精度及算法差异见手册。
+- 当前读取 v1–v18，按最低必要版本保存；核心测试 **1067 项**，15 组英文与 9 组中文界面检查。CI 校验文档、来源与包内文件。
 - [图像与属性操作](IMAGE-WORKSPACE.md) · [插件接口](PLUGINS.md) · [上游对应和验证](UPDATES-1.4.10.0.md)。以下版本段落保留历史记录。
 
 ## 1.4.9.4 光标、网格与工具更新
@@ -146,7 +146,7 @@ CLI 位于包内 `cli/Compositor.Cli.exe`，运行 `--help` 查看命令。
 
 ## English
 
-An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, updated through upstream macOS 1.4.10 and commit f01e298, with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
+An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, updated through upstream macOS 1.4.10 and commit 2522e3b, with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 

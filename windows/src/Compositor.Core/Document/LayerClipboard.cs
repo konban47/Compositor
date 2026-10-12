@@ -22,6 +22,12 @@ public sealed class LayerClipboard
         return new LayerClipboard(SmartObjectData.FromDocument(subset), subset.Layers.Count);
     }
 
+    public CanvasDocument NewDocument()
+    {
+        using var snapshot = _contents.Open(); using var source = snapshot.ToDocument();
+        return DocumentCopies.Independent(source);
+    }
+
     public IReadOnlyList<Guid> Paste(CanvasDocument document, Guid? activeID)
     {
         if (document.Layers.Count + Count > LayerPlacement.MaxLayers) return [];

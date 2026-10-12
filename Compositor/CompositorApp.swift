@@ -198,7 +198,10 @@ struct CompositorApp: App {
                     Button("Copy Merged") { session.copyMergedSelection() }
                         .configuredKeyboardShortcut("c", modifiers: [.command, .shift]).disabled(!session.canCopyMerged)
                     Button("Paste") {
-                        if NSApp.keyWindow?.firstResponder is NSTextView { NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: nil) }
+                        // On the New canvas screen an image on the clipboard makes the canvas, even with a size field
+                        // being typed in; a size copied as text still goes into the field.
+                        if session.canPasteImageAsNewCanvas { Task { await session.pasteImageAsNewCanvas() } }
+                        else if NSApp.keyWindow?.firstResponder is NSTextView { NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: nil) }
                         else if applicationDelegate.workspace.pasteCopiedLayer() { }
                         else if session.canPaste { session.paste() }
                         else { NSSound.beep() }

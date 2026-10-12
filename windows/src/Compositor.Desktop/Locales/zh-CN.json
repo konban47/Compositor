@@ -1969,5 +1969,10 @@
   "Red (%)": "红色（%）",
   "Green (%)": "绿色（%）",
   "Blue (%)": "蓝色（%）",
-  "Constant (%)": "常数（%）"
+  "Constant (%)": "常数（%）",
+  "Convert Layer to 8-Bit": "转换为 8 位图层",
+  "Convert Layer to 16-Bit": "转换为 16 位图层",
+  "Clipboard": "剪贴板",
+  "Could not paste image.": "无法粘贴图像。",
+  "The clipboard image exceeds the pixel budget.": "剪贴板图像超出像素限制。"
 }

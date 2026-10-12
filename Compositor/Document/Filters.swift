@@ -26,6 +26,12 @@ nonisolated enum FilterKind: String, CaseIterable, Sendable {
     var isAutomatic: Bool { self == .contentAwareFill || self == .removeBackground }
     /// The Filter menu's own filters, which Last Filter can run again; not Content-Aware Fill or the Image menu's.
     var repeatsAsLastFilter: Bool { self != .contentAwareFill && !isImageAdjustment }
+    /// Filters made wholly in Core Image, which works at 16 bits as readily as at 8: a 16-bit layer runs them once, on its
+    /// 16-bit pixels, rather than three times through `DeepLayer.run`.
+    var runsAtSixteenBits: Bool { self == .gaussianBlur || self == .motionBlur || self == .bloomGlow }
+    /// Filters whose output channels each depend on all three input channels (Camera Raw's color, and the ones that work
+    /// from brightness), which a 16-bit layer runs the slower, channel-by-channel way (`DeepLayer.run`).
+    var mixesChannels: Bool { self == .cameraRaw || self == .tonalContrast || self == .scanlines }
     /// For the color adjustments whose channels mix, their color lookup, to apply to a 16-bit layer
     /// (`LayerAdjustment.sixteenBitLookup`); nil for the rest.
     func sixteenBitLookup(_ settings: FilterSettings) -> (cube: Data, dimension: Int)? {
@@ -164,6 +170,8 @@ nonisolated struct FilterJob: @unchecked Sendable {
     var canvasSides: LayerSides = []
     /// Canvas-space origin used by live adjustment layers so partial redraws keep one noise field.
     var noiseOrigin: CGPoint = .zero
+    /// A 16-bit layer's pixels, for a filter that works in Core Image (`FilterKind.runsAtSixteenBits`): rendered at 16 bits.
+    var sixteenBit = false
     /// Camera Raw's Option-drag clipping view. Preview only; committing leaves this nil.
     var cameraRawClipping: CameraRawClipping? = nil
     /// Persistent histogram clipping indicators. Preview only; committing leaves these off.
@@ -266,14 +274,14 @@ nonisolated enum PixelFilter {
                         kCIInputBackgroundImageKey: CIImage.empty(), kCIInputMaskImageKey: edges,
                     ])
             }
-            image = try PixelAdjust.render(blurred.cropped(to: extent), width: width, height: height, isMask: false)
+            image = try render(blurred.cropped(to: extent), job: job)
         case .motionBlur:
             // Core Image's y axis points up, so its counterclockwise angle matches Photoshop's.
             let streaked = extending(edges, past: job.canvasSides, of: extent).applyingFilter("CIMotionBlur", parameters: [
                 kCIInputRadiusKey: settings.distance * job.scale * motionRadiusPerPixel,
                 kCIInputAngleKey: settings.angle * .pi / 180,
             ])
-            image = try PixelAdjust.render(streaked.cropped(to: extent), width: width, height: height, isMask: false)
+            image = try render(streaked.cropped(to: extent), job: job)
         case .addNoise:
             // C, not Core Image: its random generator is uniform only, and Gaussian noise is needed too.
             let context = try BrushRaster.context(width: width, height: height, mask: false)
@@ -302,7 +310,7 @@ nonisolated enum PixelFilter {
                 kCIInputRadiusKey: settings.bloomRadius * job.scale,
                 kCIInputIntensityKey: settings.bloomAmount / 50,
             ])
-            image = try PixelAdjust.render(bloomed.cropped(to: extent), width: width, height: height, isMask: false)
+            image = try render(bloomed.cropped(to: extent), job: job)
         case .tonalContrast:
             let blurred = edges.applyingGaussianBlur(sigma: settings.tonalRadius * job.scale)
             let base = try PixelAdjust.render(blurred.cropped(to: extent), width: width, height: height, isMask: false)
@@ -330,7 +338,15 @@ nonisolated enum PixelFilter {
             image = corrected
         }
         guard let selection = job.selection else { return image }
-        return try PixelAdjust.blend(image, over: job.image, through: selection, pixelToDocument: job.mapping, isMask: false)
+        return try PixelAdjust.blend(image, over: job.image, through: selection, pixelToDocument: job.mapping, isMask: false,
+                                     sixteenBit: job.sixteenBit)
+    }
+
+    /// A Core Image filter's result, at 16 bits for a 16-bit layer's pixels.
+    private static func render(_ image: CIImage, job: FilterJob) throws -> CGImage {
+        let width = job.image.width, height = job.image.height
+        if job.sixteenBit { return try DeepLayer.render(image, width: width, height: height) }
+        return try PixelAdjust.render(image, width: width, height: height, isMask: false)
     }
 }
 
@@ -774,10 +790,18 @@ extension EditorSession {
                 }
                 if let deep {
                     let input = try deepGrid.map { try DeepLayer.padded(deep, to: $0.size, inside: $0.inside) } ?? deep
-                    var result = try DeepLayer.run(input) { half in
+                    var result: CGImage
+                    if job.kind.runsAtSixteenBits {
                         var run = job
-                        run.image = half
-                        return try PixelFilter.run(run)
+                        run.image = input
+                        run.sixteenBit = true
+                        result = try PixelFilter.run(run)
+                    } else {
+                        result = try DeepLayer.run(input, mixesChannels: job.kind.mixesChannels) { half in
+                            var run = job
+                            run.image = half
+                            return try PixelFilter.run(run)
+                        }
                     }
                     var placed = grown
                     if spreads, let grown, let crop = try PixelFilter.trimCrop(try DeepLayer.dithered(result)),

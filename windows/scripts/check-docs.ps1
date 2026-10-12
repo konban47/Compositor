@@ -31,7 +31,7 @@ foreach ($feature in @('自定义工具栏','生成式工作区','Shift+F','imag
 if ((Read-Repo 'README.md') -match '仅显示画布 \| F 进入') { throw 'Homepage still assigns F to canvas-only mode.' }
 $keys = Read-Repo 'windows/src/Compositor.Core/IO/Shortcuts.cs'
 if (!$keys.Contains('Menu("Full Screen with Tools", "F")') -or !$keys.Contains('Menu("Canvas Only", "F", Shift)')) { throw 'Screen mode documentation and shortcuts differ.' }
-if (!(Read-Repo $updates).Contains('f01e2980fb76eb085d3f8ac96070a1c0c4a9afa9')) { throw 'Upstream baseline is missing.' }
+if (!(Read-Repo $updates).Contains('2522e3b8f8bee3c64b1ab4c474656824969393ff')) { throw 'Upstream baseline is missing.' }
 $table = Join-Path $repo 'Compositor/Resources/CameraRawTables.bin'
 $converted = Join-Path $repo 'windows/src/Compositor.Core/Resources/CameraRawTables.deflate'
 foreach ($asset in @($table,$converted)) {

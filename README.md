@@ -75,7 +75,7 @@
 
 ## 验证与当前状态
 
-**1.4.10.0 Preview** 修复弹窗按钮文字、合并工具菜单，重整图像菜单并增加模式、调整、计算、变量和分析功能；按参考图重排属性面板，增加三点展开和插件 API 1。合并上游 **1.4.10 / `f01e298`**。核心测试 **1065 项**，15 组英文和 9 组中文界面检查；双 Windows Server CI 负责回归、打包及安装／卸载验证。[持续集成](https://github.com/konban47/Compositor/actions/workflows/windows.yml)
+**1.4.10.0 Preview** 修复弹窗按钮文字、合并工具菜单，重整图像菜单并增加模式、调整、计算、变量和分析功能；按参考图重排属性面板，增加三点展开和插件 API 1。合并上游 **1.4.10 / `2522e3b`**。核心测试 **1067 项**，15 组英文和 9 组中文界面检查；双 Windows Server CI 负责回归、打包及安装／卸载验证。[持续集成](https://github.com/konban47/Compositor/actions/workflows/windows.yml)
 
 [图层样式与右键菜单使用说明](windows/LAYER-STYLES.md)记录每个菜单项、快捷键、格式和 Photoshop 差异。样式使用 CPU 近似渲染；遮住所有对象采用离线显著性连通区域，不是 Adobe 实例识别；智能对象保存本应用图层源，不提供 PSD 智能对象往返。
 

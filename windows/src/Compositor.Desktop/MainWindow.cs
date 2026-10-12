@@ -4295,7 +4295,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Edit ▸ Paste: the clipboard as a layer, where on the document it came from.</summary>
     private void Paste()
     {
-        if (_document is not { } document) return;
+        if (_document is not { } document) { _ = PasteToNewCanvas(); return; }
         if (_layerClipboard is { } layers)
         {
             CommitText();

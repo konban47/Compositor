@@ -108,6 +108,11 @@ public sealed partial class MainWindow
         Add("Convert to Smart Object", ConvertToSmartObject, null, editable);
         if (layer.SmartObject is not null) { Add("Edit Smart Object Contents", EditSmartContents, null, editable); Add("New Smart Object via Copy", IndependentSmartCopy); }
         Add("Rasterize Layer", () => { Edit("Rasterize Layer", () => LayerWorkflow.Rasterize(doc, ids)); ShowLayers(doc); }, null, editable && ids.Any(id => doc.Layers.Any(l => l.ID == id && (l.SmartObject is not null || l.LiveText is not null || l.LiveShape is not null))));
+        var depth = layer.Asset?.BitDepth > 8 ? 8 : 16;
+        var depthTitle = depth == 8 ? "Convert Layer to 8-Bit" : "Convert Layer to 16-Bit";
+        Add(depthTitle, () => { Edit(depthTitle, () => DeepPaint.ConvertLayer(doc, layer.ID, depth)); ShowLayers(doc); }, null,
+            editable && ids.Count == 1 && layer.Asset is not null && layer.LiveText is null && layer.LiveShape is null && !layer.IsGroup && layer.Adjustment is null
+            && doc.Image.Mode is not (ImageMode.Bitmap or ImageMode.Indexed or ImageMode.Duotone));
         Add("Mask All Objects", () => _ = MaskAllObjects(), null, editable && layer.Asset is not null); Separator();
         Add(layer.MaskSourceID is null ? "Create Clipping Mask" : "Release Clipping Mask", ToggleClipping, "Toggle Clipping Mask", editable);
         Add("Link / Unlink Layers", LinkLayers); Separator();

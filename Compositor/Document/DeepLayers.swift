@@ -36,8 +36,11 @@ nonisolated enum DeepLayer {
         let wide = try canonical(deep)
         let target = try BrushRaster.context(width: deep.width, height: deep.height, mask: false)
         guard let source = wide.data, let pixels = target.data else { throw ExportError.render }
-        dither_quantize16(source.assumingMemoryBound(to: UInt16.self), pixels.assumingMemoryBound(to: UInt8.self),
-                          deep.width, deep.height, target.bytesPerRow)
+        // Held to the end of the call: optimized, Swift may free a context right after its last use, its `data`.
+        withExtendedLifetime(wide) {
+            dither_quantize16(source.assumingMemoryBound(to: UInt16.self), pixels.assumingMemoryBound(to: UInt8.self),
+                              deep.width, deep.height, target.bytesPerRow)
+        }
         guard let result = target.makeImage() else { throw ExportError.render }
         return result
     }
@@ -57,9 +60,11 @@ nonisolated enum DeepLayer {
         BrushRaster.draw(base, in: raster.baseRect, mask: false, context: unpainted)
         guard painted.width == width, painted.height == height, let wholeData = whole.data, let paintedData = painted.data,
               let unpaintedData = unpainted.data else { throw ExportError.render }
-        deep_take_painted(wholeData.assumingMemoryBound(to: UInt16.self), whole.bytesPerRow,
-                          paintedData.assumingMemoryBound(to: UInt8.self), unpaintedData.assumingMemoryBound(to: UInt8.self),
-                          painted.bytesPerRow, width, height)
+        withExtendedLifetime((painted, unpainted)) {
+            deep_take_painted(wholeData.assumingMemoryBound(to: UInt16.self), whole.bytesPerRow,
+                              paintedData.assumingMemoryBound(to: UInt8.self), unpaintedData.assumingMemoryBound(to: UInt8.self),
+                              painted.bytesPerRow, width, height)
+        }
         guard let result = whole.makeImage() else { throw ExportError.render }
         return result
     }
@@ -71,30 +76,44 @@ nonisolated enum DeepLayer {
         return ImportedImage(image: image, thumbnail: try PixelAdjust.thumbnail(of: image), name: name, deep: deep)
     }
 
-    /// Runs an 8-bit operation on a 16-bit image without losing its precision: on its rounded-down 8-bit values and on
-    /// those one and four steps up, then reads the 16-bit result off between the three (`deep_merge`). The operation
-    /// must return an image the size it was given.
-    static func run(_ deep: CGImage, through operation: (CGImage) throws -> CGImage) throws -> CGImage {
+    /// Runs an 8-bit operation on a 16-bit image without losing its precision: on 8-bit values a little below its
+    /// colors (rounded as dither rounds, `deep_split`) and on those one, two and four steps up, then reads the 16-bit
+    /// result off between them (`deep_merge`). The operation must return an image the size it was given.
+    /// `mixesChannels`, for an operation whose output channels each depend on all three inputs (Camera Raw's color
+    /// sliders): each input channel is stepped on its own, ten runs, and every output channel adds up how each moves it.
+    /// Read the other way, those came out banded.
+    static func run(_ deep: CGImage, mixesChannels: Bool = false, through operation: (CGImage) throws -> CGImage) throws -> CGImage {
         let width = deep.width, height = deep.height
         let source = try canonical(deep)
         guard let input = source.data else { throw ExportError.render }
-        let results = try [0, 1, 4].map { step -> CGContext in
+        // (step, channel): -1 steps every channel together.
+        let steps: [Int32] = [1, 2, 4]
+        let channels: [Int32] = mixesChannels ? [0, 1, 2] : [-1]
+        var splits: [(step: Int32, channel: Int32)] = [(0, -1)]
+        for step in steps { for channel in channels { splits.append((step, channel)) } }
+        let results = try splits.map { step, channel -> CGContext in
             let context = try BrushRaster.context(width: width, height: height, mask: false)
             guard let bytes = context.data else { throw ExportError.render }
             deep_split(input.assumingMemoryBound(to: UInt16.self), source.bytesPerRow, bytes.assumingMemoryBound(to: UInt8.self),
-                       context.bytesPerRow, width, height, Int32(step))
+                       context.bytesPerRow, width, height, step, channel)
             guard let image = context.makeImage() else { throw ExportError.render }
             let result = try operation(image)
             guard result.width == width, result.height == height else { throw ExportError.render }
             return try BrushRaster.copy(result)
         }
         let out = try context(width: width, height: height)
-        guard let low = results[0].data, let near = results[1].data, let far = results[2].data, let outData = out.data else {
-            throw ExportError.render
+        let buffers = results.compactMap { $0.data.map { UnsafePointer($0.assumingMemoryBound(to: UInt8.self)) } }
+        guard buffers.count == results.count, let outData = out.data else { throw ExportError.render }
+        // Each step's three runs, red, green and blue stepped alone; or its one run, read for all three.
+        let per = mixesChannels ? 3 : 1
+        func runs(_ index: Int) -> [UnsafePointer<UInt8>?] {
+            (0..<3).map { buffers[1 + index * per + (mixesChannels ? $0 : 0)] }
         }
-        deep_merge(input.assumingMemoryBound(to: UInt16.self), source.bytesPerRow, low.assumingMemoryBound(to: UInt8.self),
-                   near.assumingMemoryBound(to: UInt8.self), far.assumingMemoryBound(to: UInt8.self), results[0].bytesPerRow,
-                   outData.assumingMemoryBound(to: UInt16.self), out.bytesPerRow, width, height)
+        withExtendedLifetime((source, results)) {
+            deep_merge(input.assumingMemoryBound(to: UInt16.self), source.bytesPerRow, buffers[0], runs(0), runs(1), runs(2),
+                       results[0].bytesPerRow, outData.assumingMemoryBound(to: UInt16.self), out.bytesPerRow, width, height,
+                       mixesChannels ? 1 : 0)
+        }
         guard let result = out.makeImage() else { throw ExportError.render }
         return result
     }
@@ -114,9 +133,14 @@ nonisolated enum DeepLayer {
         return result
     }
 
+    /// Core Image working in full floats: its default, half floats, holds only about three bits more than 8, which a
+    /// steep Levels after a blur would show as bands.
+    static let ciContext = CIContext(options: [.workingColorSpace: NSNull(), .outputColorSpace: NSNull(),
+                                               .workingFormat: CIFormat.RGBAf])
+
     /// A Core Image result rendered at 16 bits, as `PixelAdjust.render` renders one at 8.
     static func render(_ image: CIImage, width: Int, height: Int) throws -> CGImage {
-        guard let result = PixelAdjust.ciContext.createCGImage(image, from: CGRect(x: 0, y: 0, width: width, height: height),
+        guard let result = ciContext.createCGImage(image, from: CGRect(x: 0, y: 0, width: width, height: height),
                 format: .RGBA16, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!) else { throw ExportError.render }
         return result
     }
@@ -127,5 +151,49 @@ nonisolated enum DeepLayer {
         BrushRaster.draw(deep, in: inside, mask: false, context: context)
         guard let result = context.makeImage() else { throw ExportError.render }
         return result
+    }
+}
+
+extension EditorSession {
+    /// Whether the active layer can change between 8 and 16 bits a channel: one layer of pixels, or a blank one (not
+    /// text, an adjustment or a folder, which have none of their own to keep).
+    var canConvertLayerDepth: Bool {
+        guard canEditLayers, selectedLayerIDs.count <= 1, let layer = activeLayer else { return false }
+        return layer.liveText == nil && layer.adjustment == nil && !layer.isGroup
+    }
+
+    /// The Layers panel's Convert to 16-Bit / Convert to 8-Bit, as one undo step. To 16 bits the pixels stay as they
+    /// are and everything after keeps the extra precision (a blank layer becomes one to paint gradients on); to 8 bits
+    /// they're dithered down, halving the layer's memory and file size.
+    func convertLayerDepth() {
+        guard canConvertLayerDepth, let document, let index = document.layers.firstIndex(where: { $0.id == activeLayerID })
+        else { return }
+        let layer = document.layers[index]
+        guard let asset = layer.asset else {
+            // A blank layer has no pixels yet: it gets clear 16-bit ones over the canvas, to paint and fill into.
+            do {
+                let clear = try DeepLayer.context(width: document.width, height: document.height)
+                guard let deep = clear.makeImage() else { return }
+                let converted = try DeepLayer.asset(deep, name: layer.name)
+                beginEdit("Convert to 16-Bit")
+                self.document?.layers[index].asset = converted
+                self.document?.layers[index].transform = LayerTransform(origin: .zero, size: document.size)
+                endEdit()
+            } catch { brushError = error.localizedDescription }
+            return
+        }
+        let converted: ImportedImage
+        do {
+            if let deep = try DeepLayer.flattened(asset) {
+                let image = try DeepLayer.dithered(deep)
+                converted = ImportedImage(image: image, thumbnail: try PixelAdjust.thumbnail(of: image), name: asset.name)
+            } else {
+                converted = ImportedImage(image: asset.image, thumbnail: asset.thumbnail, name: asset.name,
+                                          deep: try DeepLayer.image(asset.image))
+            }
+        } catch { brushError = error.localizedDescription; return }
+        beginEdit(asset.deep == nil ? "Convert to 16-Bit" : "Convert to 8-Bit")
+        self.document?.layers[index].asset = converted
+        endEdit()
     }
 }

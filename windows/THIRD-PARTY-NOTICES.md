@@ -44,4 +44,6 @@ The model runs locally on the CPU. Images are not sent to an external inference 
 
 The installer Chinese translation is vendored unmodified from [jrsoftware/issrc, ChineseSimplified.isl](https://github.com/jrsoftware/issrc/blob/main/Files/Languages/ChineseSimplified.isl). Its original translator credits and terms are retained in the file header.
 
-Windows 1.4.10.0 merges upstream macOS 1.4.10 through `f01e2980fb76eb085d3f8ac96070a1c0c4a9afa9`. The Windows ICO embeds the upstream app icon PNG frames at 16/32/64/128/256 pixels without redrawing. High precision pixels, portable RAW controls and preview behavior are adapted to Skia/LibRaw; the upstream Metal/Core Image and newer PatchMatch kernels are retained as source, not represented as Windows binaries. See [the feature mapping](UPDATES-1.4.10.0.md).
+Windows 1.4.10.0 merges upstream macOS 1.4.10 through `2522e3b8f8bee3c64b1ab4c474656824969393ff`. The Windows ICO embeds the upstream app icon PNG frames at 16/32/64/128/256 pixels without redrawing. High precision pixels, portable RAW controls and preview behavior are adapted to Skia/LibRaw; the upstream Metal/Core Image and newer PatchMatch kernels are retained as source, not represented as Windows binaries. See [the feature mapping](UPDATES-1.4.10.0.md).
+
+`DeepEightBit.cs` ports the MIT-licensed `DeepPixels.c` split/noise/change/merge algorithm from upstream commit `2522e3b`, copyright 2026 Wonder Assembly LLC, adapted to float assets and bounded managed buffers.

@@ -191,4 +191,24 @@ public sealed class ImageWorkspaceTests
         var result = MemoryMarshal.Cast<byte, float>(rendered.GetPixelSpan()); Assert.InRange(result[3], .4999f, .5001f); Assert.InRange(result[0], .4999f, .5001f);
     }
 
+    [Fact] public void LayerDepthConversionAndDeepGradientAreUndoableAndSmooth()
+    {
+        using var doc = ImageImporter.NewDocument(Gradient()); var layer = doc.Layers[0]; var history = new DocumentHistory();
+        history.Begin("Convert Layer to 8-Bit", doc, layer.ID); Assert.True(DeepPaint.ConvertLayer(doc, layer.ID, 8)); history.End(doc, layer.ID);
+        Assert.Equal(8, layer.Asset!.BitDepth); Assert.Equal(16, history.Undo()!.Value.Document!.Layers[0].Asset!.BitDepth);
+        Assert.True(DeepPaint.ConvertLayer(doc, layer.ID, 16));
+        Assert.True(GradientEdits.Fill(doc, layer.ID, false, new(0, 0), new(1024, 0), SKColors.Black, SKColors.White, 1, GradientShape.Linear));
+        Assert.True(MemoryMarshal.Cast<byte, float>(layer.Asset!.Deep!.GetPixelSpan()).ToArray().Where((_, i) => i % 4 == 0).Distinct().Count() >= 1000);
+        var untouched = MemoryMarshal.Cast<byte, float>(layer.Asset.Deep.GetPixelSpan())[900 * 4]; SelectionEdits.Select(doc, new SKRectI(0, 0, 100, 2));
+        Assert.True(FillEdits.Fill(doc, layer.ID, SKColors.Red)); Assert.Equal(untouched, MemoryMarshal.Cast<byte, float>(layer.Asset!.Deep!.GetPixelSpan())[900 * 4]);
+        Assert.True(FillEdits.Clear(doc, layer.ID)); Assert.Equal(0, MemoryMarshal.Cast<byte, float>(layer.Asset!.Deep!.GetPixelSpan())[3]);
+    }
+    [Fact] public void CameraRawRetainsDeepStepsAndChannelMixing()
+    {
+        using var doc = ImageImporter.NewDocument(Gradient()); var layer = doc.Layers[0];
+        Assert.True(CameraRawEdits.Apply(doc, layer.ID, new CameraRawSettings { Exposure = .3, Temperature = 10, Vibrance = 25 }));
+        Assert.Equal(16, layer.Asset!.BitDepth);
+        Assert.True(MemoryMarshal.Cast<byte, float>(layer.Asset.Deep!.GetPixelSpan()).ToArray().Where((_, i) => i % 4 == 0).Distinct().Count() > 700);
+    }
+
 }

@@ -31,6 +31,13 @@ public sealed partial class MainWindow
         void Save(string suffix) { Pump(); using var frame = this.CaptureRenderedFrame(); frame!.Save(Path.ChangeExtension(output, suffix + ".png"), new PngBitmapEncoderOptions()); }
         void Finish(Task task) { for (var i = 0; i < 300 && !task.IsCompleted; i++) { Pump(); Thread.Sleep(10); } task.GetAwaiter().GetResult(); Pump(); }
         void Click(Button button) { button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump(); }
+        using (var source = new SKBitmap(Bitmaps.ColorInfo(29, 17)))
+        {
+            source.Erase(SKColors.Coral); using var encoded = source.Encode(SKEncodedImageFormat.Png, 100); using var stream = new MemoryStream(encoded.ToArray());
+            using var clipboardBitmap = new Avalonia.Media.Imaging.Bitmap(stream);
+            Finish(Avalonia.Input.Platform.ClipboardExtensions.SetBitmapAsync(Clipboard!, clipboardBitmap));
+            Finish(PasteToNewCanvas()); Check(_document is { Width: 29, Height: 17, Layers.Count: 1 }, "Pasting on New Canvas did not create a correctly sized document.");
+        }
         var doc = new CanvasDocument(Guid.NewGuid(), 600, 450);
         var pixels = new SKBitmap(Bitmaps.ColorInfo(220, 150)); pixels.Erase(new SKColor(80, 120, 180));
         var layer = new ImageLayer(Guid.NewGuid(), ImportedImage.Create(pixels, "Pixel"), new Compositor.Core.Model.LayerTransform(40, 50, 220, 150), "Pixel"); doc.Layers.Add(layer);

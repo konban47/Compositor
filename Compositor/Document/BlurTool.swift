@@ -59,7 +59,7 @@ extension EditorSession {
                     deepSoft = CIImage(cgImage: sharp).applyingGaussianBlur(sigma: sigma * fit).cropped(to: extent)
                 }
                 guard let deepSoft else { return nil }
-                return PixelAdjust.ciContext.createCGImage(deepSoft, from: CGRect(x: part.minX, y: CGFloat(height) - part.maxY,
+                return DeepLayer.ciContext.createCGImage(deepSoft, from: CGRect(x: part.minX, y: CGFloat(height) - part.maxY,
                                                                                   width: part.width, height: part.height),
                     format: .RGBA16, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
             }

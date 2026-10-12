@@ -183,6 +183,13 @@ struct NativeLayerList: NSViewRepresentable {
             mergeItem.isEnabled = validateMenuItem(mergeItem)
             menu.addItem(mergeItem)
 
+            // 7b. Convert to 16-Bit / Convert to 8-Bit
+            let depthTitle = session.activeLayer?.asset?.deep == nil ? "Convert to 16-Bit" : "Convert to 8-Bit"
+            let depthItem = NSMenuItem(title: depthTitle, action: #selector(convertDepthAction), keyEquivalent: "")
+            depthItem.target = self
+            depthItem.isEnabled = validateMenuItem(depthItem)
+            menu.addItem(depthItem)
+
             menu.addItem(NSMenuItem.separator())
 
             // 8. Add Mask >
@@ -250,6 +257,8 @@ struct NativeLayerList: NSViewRepresentable {
                 return session.canEditLayers && session.activeLayer?.parentID != nil
             case #selector(mergeLayersAction):
                 return session.canMergeLayers
+            case #selector(convertDepthAction):
+                return session.canConvertLayerDepth
             case #selector(addWhiteMaskAction), #selector(addBlackMaskAction):
                 return session.canEditMask && session.activeLayer?.mask == nil
             case #selector(toggleMaskAction):
@@ -299,6 +308,10 @@ struct NativeLayerList: NSViewRepresentable {
 
         @objc func mergeLayersAction(_ sender: Any?) {
             session.mergeLayers()
+        }
+
+        @objc func convertDepthAction(_ sender: Any?) {
+            session.convertLayerDepth()
         }
 
         @objc func addWhiteMaskAction(_ sender: Any?) {

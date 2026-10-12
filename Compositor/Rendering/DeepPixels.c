@@ -14,14 +14,56 @@ static void deep_rows(size_t height, void (^body)(size_t first, size_t last)) {
 
 static inline long deep_alpha8(uint16_t alpha) { return lroundf((float)alpha * (255.0f / 65535.0f)); }
 
-// A channel's 8-bit value rounded down, kept within the pixel's alpha (premultiplied colors never pass it).
-static inline long deep_down(uint16_t value, long alpha) {
-    long down = (long)floorf((float)value * (255.0f / 65535.0f));
-    return down > alpha ? alpha : down;
+// A fixed noise for each pixel and channel, 0 up to 1, the same in every run so they all start from the same `low`.
+static inline float deep_noise(size_t x, size_t y, int channel) {
+    uint32_t h = (uint32_t)x * 0x9E3779B1u ^ (uint32_t)y * 0x85EBCA77u ^ (uint32_t)(channel + 1) * 0xC2B2AE3Du;
+    h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15;
+    return (float)(h >> 8) / (float)(1u << 24);
 }
 
+// A channel's `low`: a step below its 8-bit value rounded as dither rounds (down or up at random, more often towards the
+// nearer), so the color lies 0 to 2 steps above it; kept within the pixel's alpha (premultiplied colors never pass it).
+// Rounded straight down, every pixel starting from one 8-bit value took the operation's rounding of that value, the
+// same error across a whole band: up to half a step, which a steep Levels afterwards showed as bands. Dithered, where
+// a band starts falls at random from pixel to pixel, and its edges come out as fine noise instead.
+static inline long deep_low(uint16_t value, long alpha, size_t x, size_t y, int channel) {
+    long low = (long)floorf((float)value * (255.0f / 65535.0f) + deep_noise(x, y, channel)) - 1;
+    return low < 0 ? 0 : low > alpha ? alpha : low;
+}
+
+// How far the color is above `low`, in 8-bit steps: 0 up to 2.
+static inline float deep_past(uint16_t value, long low) {
+    return fminf(2, fmaxf(0, (float)value * (255.0f / 65535.0f) - (float)low));
+}
+
+// How an input channel moves an output one, from the runs with it at `low` (`l`), one, two and four steps up (`s1`, `s2`,
+// `s4`), the color `past` steps above `low`, and the steps alpha left room for (`room`).
+//
+// A straight line fitted through all four runs, where they lie near one: the operation's results being 8-bit too say
+// little across one step, and one that works at 8 bits inside (Camera Raw) wobbles from one 8-bit value to the next,
+// which read step by step came out as faint bands. Where they don't (a bend: a steep Levels clipping to white), read off
+// the straight line between the steps the color lies between, exact wherever the operation is straight across one step.
+// The fit gives the change, and `offset`: where it puts `low`'s result against that run's own rounded one.
+typedef struct { float change; float offset; int fitted; } DeepChange;
+
+static inline DeepChange deep_change(float l, float s1, float s2, float s4, float past, long room) {
+    DeepChange none = { 0, 0, 0 };
+    if (room <= 0) return none;
+    DeepChange steps = { room == 1 || past < 1 ? (s1 - l) * fminf(past, 1) : (s1 - l) + (s2 - s1) * (past - 1), 0, 0 };
+    // Too near alpha for the far runs: the steps there are.
+    if (room < 4) return steps;
+    // Least squares through (0, l), (1, s1), (2, s2), (4, s4): the steps' mean is 1.75, their spread 8.75.
+    float mean = (l + s1 + s2 + s4) / 4;
+    float slope = (-1.75f * l - 0.75f * s1 + 0.25f * s2 + 2.25f * s4) / 8.75f;
+    float start = mean - slope * 1.75f;
+    // A run more than a step off the line (8-bit rounding and wobble stay under one) is a bend.
+    float off = fmaxf(fmaxf(fabsf(l - start), fabsf(s1 - start - slope)), fmaxf(fabsf(s2 - start - 2 * slope), fabsf(s4 - start - 4 * slope)));
+    if (off > 1) return steps;
+    DeepChange fit = { slope * past, start - l, 1 };
+    return fit;
+}
 void deep_split(const uint16_t *deep, size_t deepStride, uint8_t *out, size_t stride, size_t width, size_t height,
-                int step) {
+                int step, int channel) {
     deep_rows(height, ^(size_t first, size_t last) {
         for (size_t y = first; y < last; ++y) {
             const uint16_t *in = (const uint16_t *)((const uint8_t *)deep + y * deepStride);
@@ -30,7 +72,7 @@ void deep_split(const uint16_t *deep, size_t deepStride, uint8_t *out, size_t st
                 const uint16_t *p = in + x * 4;
                 long alpha = deep_alpha8(p[3]);
                 for (int c = 0; c < 3; ++c) {
-                    long value = deep_down(p[c], alpha) + step;
+                    long value = deep_low(p[c], alpha, x, y, c) + (channel < 0 || channel == c ? step : 0);
                     o[x * 4 + c] = (uint8_t)(value > alpha ? alpha : value);
                 }
                 o[x * 4 + 3] = (uint8_t)alpha;
@@ -39,28 +81,39 @@ void deep_split(const uint16_t *deep, size_t deepStride, uint8_t *out, size_t st
     });
 }
 
-void deep_merge(const uint16_t *deep, size_t deepStride, const uint8_t *lowResult, const uint8_t *nearResult,
-                const uint8_t *farResult, size_t stride, uint16_t *out, size_t outStride, size_t width, size_t height) {
+void deep_merge(const uint16_t *deep, size_t deepStride, const uint8_t *lowResult, const uint8_t *const nearResults[3],
+                const uint8_t *const midResults[3], const uint8_t *const farResults[3], size_t stride, uint16_t *out,
+                size_t outStride, size_t width, size_t height, int mixes) {
     deep_rows(height, ^(size_t first, size_t last) {
         for (size_t y = first; y < last; ++y) {
             const uint16_t *in = (const uint16_t *)((const uint8_t *)deep + y * deepStride);
-            const uint8_t *lo = lowResult + y * stride, *ne = nearResult + y * stride, *fa = farResult + y * stride;
+            const uint8_t *lo = lowResult + y * stride;
             uint16_t *o = (uint16_t *)((uint8_t *)out + y * outStride);
             for (size_t x = 0; x < width; ++x) {
                 const uint16_t *p = in + x * 4;
                 long alpha = deep_alpha8(p[3]);
                 float outAlpha = (float)lo[x * 4 + 3] * 257.0f;
+                float past[3];
+                long room[3];
+                for (int k = 0; k < 3; ++k) {
+                    long low = deep_low(p[k], alpha, x, y, k);
+                    past[k] = deep_past(p[k], low);
+                    room[k] = alpha - low;
+                }
+                size_t i = y * stride + x * 4;
                 for (int c = 0; c < 3; ++c) {
-                    long down = deep_down(p[c], alpha);
-                    // How far past `low` the color is, in 8-bit steps (under one), and the real gaps to `near` and
-                    // `far`, which alpha may have shortened.
-                    float past = fminf(1, fmaxf(0, (float)p[c] * (255.0f / 65535.0f) - (float)down));
-                    long nearGap = (down + 1 > alpha ? alpha : down + 1) - down;
-                    long farGap = (down + 4 > alpha ? alpha : down + 4) - down;
-                    float l = lo[x * 4 + c], change = (float)ne[x * 4 + c] - l;
-                    float value = l;
-                    if (nearGap > 0 && (fabsf(change) >= 2 || farGap == nearGap)) value = l + change * past;
-                    else if (farGap > 0) value = l + ((float)fa[x * 4 + c] - l) / (float)farGap * past;
+                    float l = lo[x * 4 + c], value = l, offset = 0;
+                    int fits = 0;
+                    // Each input channel's own runs move this output channel (only its own, unless they mix). Each fit
+                    // also says where `low`'s result really lies; they all say it of the same run, so averaged.
+                    for (int k = mixes ? 0 : c; k < (mixes ? 3 : c + 1); ++k) {
+                        int r = mixes ? k : 0;
+                        DeepChange change = deep_change(l, nearResults[r][i + c], midResults[r][i + c], farResults[r][i + c],
+                                                        past[k], room[k]);
+                        value += change.change;
+                        if (change.fitted) { offset += change.offset; fits += 1; }
+                    }
+                    if (fits) value += offset / (float)fits;
                     float scaled = value * 257.0f;
                     o[x * 4 + c] = (uint16_t)lroundf(scaled < 0 ? 0 : scaled > outAlpha ? outAlpha : scaled);
                 }

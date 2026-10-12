@@ -87,7 +87,7 @@ public sealed partial class DocumentHistory
         if (before.Document is not null && document is not null)
         {
             LayerProtection.Enforce(before.Document, document, _pendingName);
-            Document.ImageModeEdits.Enforce(before.Document, document);
+            if (_pendingName is not ("Convert Layer to 8-Bit" or "Convert Layer to 16-Bit")) Document.ImageModeEdits.Enforce(before.Document, document);
         }
         // Selecting, navigating and edits that changed nothing must preserve the redo history.
         if (Same(before.Document, document)) return;
