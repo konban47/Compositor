@@ -4,6 +4,7 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -77,7 +78,14 @@ public sealed partial class MainWindow
         var menu = _mainMenu!.Items.OfType<MenuItem>().Single(m => Equals(m.Tag, "_Window")); menu.IsSubMenuOpen = true; Pump();
         Check(menu.Items.OfType<MenuItem>().Any(m => Equals(m.Tag, "Arrange")) && menu.Items.OfType<MenuItem>().Any(m => Equals(m.Tag, "Workspace")), "Window menu incomplete."); Save(this, "window-menu"); menu.IsSubMenuOpen = false;
 
-        SetTool(Tool.Type); TypeHere(new(220, 220)); _canvas.Focus(); this.KeyTextInput("保留文字 ESC"); Pump();
+        void Finish(Task task) { for (var i = 0; i < 300 && !task.IsCompleted; i++) { Pump(); Thread.Sleep(10); } Check(task.IsCompleted, "Clipboard did not finish."); task.GetAwaiter().GetResult(); Pump(); }
+        void TextKey(Key key) { this.KeyPress(key, RawInputModifiers.Control, PhysicalKey.None, null); this.KeyRelease(key, RawInputModifiers.Control, PhysicalKey.None, null); Pump(); }
+        SetTool(Tool.Type); TypeHere(new(220, 220)); _canvas.Focus(); this.KeyTextInput("Clipboard draft"); Pump();
+        TextKey(Key.A); Check(_text?.SelectionLength == "Clipboard draft".Length, "Ctrl+A did not select canvas text.");
+        TextKey(Key.C); var copiedText = Clipboard!.TryGetTextAsync(); Finish(copiedText); Check(copiedText.Result == "Clipboard draft", "Ctrl+C copied layers instead of selected text.");
+        TextKey(Key.X); Check(_text?.Content == "", "Ctrl+X did not cut selected text.");
+        Finish(Clipboard!.SetTextAsync("保留文字 ESC")); TextKey(Key.V);
+        Check(_text?.Content == "保留文字 ESC", "Ctrl+V did not paste into the active text session.");
         this.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null); this.KeyRelease(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null); Pump();
         Check(_text is null && doc.Layers.Any(l => l.LiveText?.Content == "保留文字 ESC"), "Escape deleted entered text.");
         TypeHere(new(220, 280)); _canvas.Focus(); this.KeyTextInput("Cancel only this draft");

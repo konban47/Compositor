@@ -684,7 +684,7 @@
   "Tracking, pixels between letters": "字符间距（像素）",
   "Trim away": "裁切边缘",
   "Turn the hue": "调整色相",
-  "Typing — Escape lets it go, Ctrl+Enter keeps it": "文字编辑：Esc 取消，Ctrl+Enter 确认",
+  "Typing — Esc or Ctrl+Enter commits; Ctrl+Esc cancels": "文字编辑：Esc 或 Ctrl+Enter 确认，Ctrl+Esc 取消",
   "Untitled": "未标题",
   "Vignette amount": "暗角数量",
   "Vignette feather": "暗角羽化",

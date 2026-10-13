@@ -913,7 +913,8 @@ public sealed partial class MainWindow : Window
         { ChooseTool(Tool.Wand, Tool.Object, Tool.QuickSelection); e.Handled = true; return; }
         var held = ShortcutKeys.Held(e.KeyModifiers);
         if (Typing() && (held is ShortcutModifiers.None or ShortcutModifiers.Shift
-            || TypingIn() is not null && FieldKeepsIt(e)))
+            || TypingIn() is not null && FieldKeepsIt(e)
+            || _canvas.TextEditing && e.KeyModifiers == KeyModifiers.Control && e.Key is Key.A or Key.C or Key.V or Key.X))
         {
             return;
         }
@@ -5186,7 +5187,7 @@ public sealed partial class MainWindow : Window
         _canvas.BeginText();
         ShowTextCaret();
         Refresh();
-        Say("Typing — Escape lets it go, Ctrl+Enter keeps it");
+        Say("Typing — Esc or Ctrl+Enter commits; Ctrl+Esc cancels");
     }
 
     /// <summary>Keys that were typed, put into the text and drawn as they go.</summary>
