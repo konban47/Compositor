@@ -54,6 +54,7 @@ public sealed partial class MainWindow
     private void OpenInspector(int tab)
     {
         _layersSide.IsVisible = true; _inspectorTabs.SelectedIndex = tab;
+        if (_dockPanels.Count > 0) ShowDockPanel(tab == 0 ? "Properties" : "History");
         RefreshInspector();
     }
 

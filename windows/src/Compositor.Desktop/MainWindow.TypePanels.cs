@@ -22,9 +22,9 @@ public sealed partial class MainWindow
         {
             var body = new StackPanel { Spacing = 6, Margin = new Thickness(8) }; _typePanels[name] = body;
             tab = new TabItem { Header = Localize.Text(name), Tag = "type-panel-" + name, Content = new ScrollViewer { Content = body, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } };
-            _inspectorTabs.Items.Add(tab);
+            _inspectorTabs.Items.Add(tab); RegisterPanel(name, _inspectorTabs, tab);
         }
-        _inspectorTabs.SelectedItem = tab; RefreshTypePanels();
+        ShowDockPanel(name); RefreshTypePanels();
     }
     private void RefreshTypePanels()
     {

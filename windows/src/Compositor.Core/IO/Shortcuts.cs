@@ -182,6 +182,9 @@ public static class Shortcuts
         // The File menu, then Edit, then Layer, then the view's own switches — the Mac's order.
         Menu("Find Command", "F", Ctrl);
         Menu("Canvas Only", "F", Shift);
+        Menu("Proof Colors");
+        Menu("Gamut Warning");
+        Menu("Brush Settings Panel", "F5"); Menu("Color Panel", "F6"); Menu("Layers Panel", "F7"); Menu("Info Panel", "F8"); Menu("Actions Panel", "F9", Alt);
         Menu("Full Screen with Tools", "F");
         Menu("Select Subject", "A", Ctrl | Alt);
         Menu("Remove Background");

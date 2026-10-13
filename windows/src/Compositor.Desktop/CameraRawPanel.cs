@@ -140,8 +140,8 @@ internal sealed class CameraRawPanel
     internal int AmountCount => _rows.Count;
 
     /// <summary>Shows what is being asked for now, overlays and all.</summary>
-    private void RefreshPreview() => Preview?.Invoke(Current(), _shadowClip.IsChecked == true,
-        _highlightClip.IsChecked == true, _sharpenMaskView.IsChecked == true);
+    private void RefreshPreview() { if (!_resetting) Preview?.Invoke(Current(), _shadowClip.IsChecked == true,
+        _highlightClip.IsChecked == true, _sharpenMaskView.IsChecked == true); }
 
     /// <summary>Asks for a picture of the amounts as they stand, without any of them having moved.</summary>
     public void Show() => RefreshPreview();
@@ -208,9 +208,7 @@ internal sealed class CameraRawPanel
     /// <summary>Puts every amount back to nothing, and lets go of the drawn lines with them.</summary>
     public void Reset()
     {
-        foreach (var (slider, _, _, _) in _rows) slider.Value = 0;
-        if (_curve is not null) _curve.Curves = new Compositor.Core.Format.CurvesSettings();
-        ClearGuides();
+        foreach (var group in _groupEnabled.Keys) ResetGroup(group);
     }
 
     /// <summary>
@@ -236,6 +234,7 @@ internal sealed class CameraRawPanel
     /// <summary>The amounts as the panel has them, for a preview of what they would do.</summary>
     public CameraRawSettings Current()
     {
+        var scratch = new CameraRawSettings(); foreach (var row in _groupRows.Where(r => r.Group == "Point color")) row.Set(scratch, row.Slider.Value);
         var settings = new CameraRawSettings
         {
             GlowStyle = Math.Max(0, _glowStyle.SelectedIndex),
@@ -251,11 +250,15 @@ internal sealed class CameraRawPanel
             Mixer = new double[24],
             Points = [.. Points()],
         };
-        foreach (var (slider, set, _, _) in _rows) set(settings, slider.Value);
+        foreach (var row in _groupRows) if (row.Group != "Point color") row.Set(settings, _groupEnabled[row.Group].IsChecked == true ? row.Slider.Value : row.Default);
+        if (_groupEnabled.GetValueOrDefault("Effects")?.IsChecked == false) { settings.GlowStyle = _defaults.GlowStyle; settings.VignetteStyle = _defaults.VignetteStyle; }
+        if (_groupEnabled.GetValueOrDefault("Curve")?.IsChecked == false) settings.Curve = new();
+        if (_groupEnabled.GetValueOrDefault("Point color")?.IsChecked == false || _groupEnabled.GetValueOrDefault("Color mixer")?.IsChecked == false) settings.Points = [];
+        if (_groupEnabled.GetValueOrDefault("Geometry")?.IsChecked == false) settings.Geometry = new();
         settings.CurveShadowSplit = Math.Clamp(settings.CurveShadowSplit, 5, 90);
         settings.CurveDarkSplit = Math.Clamp(settings.CurveDarkSplit, settings.CurveShadowSplit + 2, 95);
         settings.CurveLightSplit = Math.Clamp(settings.CurveLightSplit, settings.CurveDarkSplit + 2, 98);
-        settings.Geometry.Guides.AddRange(_guides);
+        if (_groupEnabled.GetValueOrDefault("Geometry")?.IsChecked != false) settings.Geometry.Guides.AddRange(_guides);
         return settings;
     }
 
@@ -264,7 +267,7 @@ internal sealed class CameraRawPanel
         brush.ToHsl(out var brushHue, out var brushSaturation, out _);
         _brushHue = brushHue;
         _brushSaturation = brushSaturation;
-        var groups = new StackPanel { Margin = new Thickness(16), Spacing = 4 };
+        var groups = new StackPanel { Margin = new Thickness(16, 16, 32, 16), Spacing = 4 };
 
         // The overlays come first: they are shown over whatever the groups below are doing, and none of them
         // is written into the layer when Apply is pressed. The clipping triangles in the scope are the same two
@@ -284,69 +287,69 @@ internal sealed class CameraRawPanel
         groups.Children.Add(overlays);
 
         groups.Children.Add(Heading("Light"));
-        Add(groups, "Exposure, stops", -5, 5, start.Exposure, (s, v) => s.Exposure = v, "0.00");
-        Add(groups, "Contrast", -100, 100, start.Contrast, (s, v) => s.Contrast = v);
-        Add(groups, "Highlights", -100, 100, start.Highlights, (s, v) => s.Highlights = v);
-        Add(groups, "Shadows", -100, 100, start.Shadows, (s, v) => s.Shadows = v);
-        Add(groups, "Whites", -100, 100, start.Whites, (s, v) => s.Whites = v);
-        Add(groups, "Blacks", -100, 100, start.Blacks, (s, v) => s.Blacks = v);
+        Add(groups, "Exposure, stops", -5, 5, start.Exposure, (s, v) => s.Exposure = v, "0.00", reset: _defaults.Exposure);
+        Add(groups, "Contrast", -100, 100, start.Contrast, (s, v) => s.Contrast = v, reset: _defaults.Contrast);
+        Add(groups, "Highlights", -100, 100, start.Highlights, (s, v) => s.Highlights = v, reset: _defaults.Highlights);
+        Add(groups, "Shadows", -100, 100, start.Shadows, (s, v) => s.Shadows = v, reset: _defaults.Shadows);
+        Add(groups, "Whites", -100, 100, start.Whites, (s, v) => s.Whites = v, reset: _defaults.Whites);
+        Add(groups, "Blacks", -100, 100, start.Blacks, (s, v) => s.Blacks = v, reset: _defaults.Blacks);
 
         groups.Children.Add(Heading("Color"));
         var autoBalance = new Button { Content = Localize.Text("Auto White Balance") };
         var pickBalance = new Button { Content = Localize.Text("White Balance Eyedropper") };
         autoBalance.Click += (_, _) => AutoWhiteBalance?.Invoke(); pickBalance.Click += (_, _) => PickWhiteBalance?.Invoke();
         groups.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { autoBalance, pickBalance } });
-        Add(groups, "Temperature, cool to warm", -100, 100, start.Temperature, (s, v) => s.Temperature = v);
-        Add(groups, "Tint, green to magenta", -100, 100, start.Tint, (s, v) => s.Tint = v);
-        Add(groups, "Vibrance", -100, 100, start.Vibrance, (s, v) => s.Vibrance = v);
-        Add(groups, "Saturation", -100, 100, start.Saturation, (s, v) => s.Saturation = v);
+        Add(groups, "Temperature, cool to warm", -100, 100, start.Temperature, (s, v) => s.Temperature = v, reset: _defaults.Temperature);
+        Add(groups, "Tint, green to magenta", -100, 100, start.Tint, (s, v) => s.Tint = v, reset: _defaults.Tint);
+        Add(groups, "Vibrance", -100, 100, start.Vibrance, (s, v) => s.Vibrance = v, reset: _defaults.Vibrance);
+        Add(groups, "Saturation", -100, 100, start.Saturation, (s, v) => s.Saturation = v, reset: _defaults.Saturation);
 
         groups.Children.Add(Heading("Effects"));
-        Add(groups, "Texture", -100, 100, start.Texture, (s, v) => s.Texture = v);
-        Add(groups, "Clarity", -100, 100, start.Clarity, (s, v) => s.Clarity = v);
-        Add(groups, "Dehaze", -100, 100, start.Dehaze, (s, v) => s.Dehaze = v);
-        Add(groups, "Glow", 0, 100, start.Glow, (s, v) => s.Glow = v);
+        Add(groups, "Texture", -100, 100, start.Texture, (s, v) => s.Texture = v, reset: _defaults.Texture);
+        Add(groups, "Clarity", -100, 100, start.Clarity, (s, v) => s.Clarity = v, reset: _defaults.Clarity);
+        Add(groups, "Dehaze", -100, 100, start.Dehaze, (s, v) => s.Dehaze = v, reset: _defaults.Dehaze);
+        Add(groups, "Glow", 0, 100, start.Glow, (s, v) => s.Glow = v, reset: _defaults.Glow);
         groups.Children.Add(Choice("Glow style", _glowStyle, ["Diffusion", "Bloom", "Halation"]));
-        Add(groups, "Glow range", 0, 100, start.GlowRange, (s, v) => s.GlowRange = v);
-        Add(groups, "Glow spread", 0, 100, start.GlowSpread, (s, v) => s.GlowSpread = v);
-        Add(groups, "Glow warmth", -100, 100, start.GlowWarmth, (s, v) => s.GlowWarmth = v);
-        Add(groups, "Vignette amount", -100, 100, start.VignetteAmount, (s, v) => s.VignetteAmount = v);
+        Add(groups, "Glow range", 0, 100, start.GlowRange, (s, v) => s.GlowRange = v, reset: _defaults.GlowRange);
+        Add(groups, "Glow spread", 0, 100, start.GlowSpread, (s, v) => s.GlowSpread = v, reset: _defaults.GlowSpread);
+        Add(groups, "Glow warmth", -100, 100, start.GlowWarmth, (s, v) => s.GlowWarmth = v, reset: _defaults.GlowWarmth);
+        Add(groups, "Vignette amount", -100, 100, start.VignetteAmount, (s, v) => s.VignetteAmount = v, reset: _defaults.VignetteAmount);
         groups.Children.Add(Choice("Vignette style", _vignetteStyle,
             ["Highlight priority", "Color priority", "Paint overlay"]));
-        Add(groups, "Vignette midpoint", 0, 100, start.VignetteMidpoint, (s, v) => s.VignetteMidpoint = v);
-        Add(groups, "Vignette roundness", -100, 100, start.VignetteRoundness, (s, v) => s.VignetteRoundness = v);
-        Add(groups, "Vignette feather", 0, 100, start.VignetteFeather, (s, v) => s.VignetteFeather = v);
-        Add(groups, "Vignette highlights", -100, 100, start.VignetteHighlights, (s, v) => s.VignetteHighlights = v);
-        Add(groups, "Grain amount", 0, 100, start.GrainAmount, (s, v) => s.GrainAmount = v);
-        Add(groups, "Grain size", 0, 100, start.GrainSize, (s, v) => s.GrainSize = v);
-        Add(groups, "Grain roughness", 0, 100, start.GrainRoughness, (s, v) => s.GrainRoughness = v);
+        Add(groups, "Vignette midpoint", 0, 100, start.VignetteMidpoint, (s, v) => s.VignetteMidpoint = v, reset: _defaults.VignetteMidpoint);
+        Add(groups, "Vignette roundness", -100, 100, start.VignetteRoundness, (s, v) => s.VignetteRoundness = v, reset: _defaults.VignetteRoundness);
+        Add(groups, "Vignette feather", 0, 100, start.VignetteFeather, (s, v) => s.VignetteFeather = v, reset: _defaults.VignetteFeather);
+        Add(groups, "Vignette highlights", -100, 100, start.VignetteHighlights, (s, v) => s.VignetteHighlights = v, reset: _defaults.VignetteHighlights);
+        Add(groups, "Grain amount", 0, 100, start.GrainAmount, (s, v) => s.GrainAmount = v, reset: _defaults.GrainAmount);
+        Add(groups, "Grain size", 0, 100, start.GrainSize, (s, v) => s.GrainSize = v, reset: _defaults.GrainSize);
+        Add(groups, "Grain roughness", 0, 100, start.GrainRoughness, (s, v) => s.GrainRoughness = v, reset: _defaults.GrainRoughness);
 
         groups.Children.Add(Heading("Detail"));
-        Add(groups, "Sharpen amount", 0, 150, start.SharpenAmount, (s, v) => s.SharpenAmount = v);
-        Add(groups, "Sharpen radius", 0.5, 100, start.SharpenRadius, (s, v) => s.SharpenRadius = v, "0.0");
-        Add(groups, "Sharpen detail", 0, 100, start.SharpenDetail, (s, v) => s.SharpenDetail = v);
-        Add(groups, "Sharpen masking", 0, 100, start.SharpenMasking, (s, v) => s.SharpenMasking = v);
-        Add(groups, "Noise luminance", 0, 100, start.NoiseLuminance, (s, v) => s.NoiseLuminance = v);
-        Add(groups, "Noise luminance detail", 0, 100, start.NoiseLuminanceDetail, (s, v) => s.NoiseLuminanceDetail = v);
-        Add(groups, "Noise luminance contrast", 0, 100, start.NoiseLuminanceContrast, (s, v) => s.NoiseLuminanceContrast = v);
-        Add(groups, "Noise color", 0, 100, start.NoiseColor, (s, v) => s.NoiseColor = v);
-        Add(groups, "Noise color detail", 0, 100, start.NoiseColorDetail, (s, v) => s.NoiseColorDetail = v);
-        Add(groups, "Noise color smoothness", 0, 100, start.NoiseColorSmoothness, (s, v) => s.NoiseColorSmoothness = v);
+        Add(groups, "Sharpen amount", 0, 150, start.SharpenAmount, (s, v) => s.SharpenAmount = v, reset: _defaults.SharpenAmount);
+        Add(groups, "Sharpen radius", 0.5, 100, start.SharpenRadius, (s, v) => s.SharpenRadius = v, "0.0", reset: _defaults.SharpenRadius);
+        Add(groups, "Sharpen detail", 0, 100, start.SharpenDetail, (s, v) => s.SharpenDetail = v, reset: _defaults.SharpenDetail);
+        Add(groups, "Sharpen masking", 0, 100, start.SharpenMasking, (s, v) => s.SharpenMasking = v, reset: _defaults.SharpenMasking);
+        Add(groups, "Noise luminance", 0, 100, start.NoiseLuminance, (s, v) => s.NoiseLuminance = v, reset: _defaults.NoiseLuminance);
+        Add(groups, "Noise luminance detail", 0, 100, start.NoiseLuminanceDetail, (s, v) => s.NoiseLuminanceDetail = v, reset: _defaults.NoiseLuminanceDetail);
+        Add(groups, "Noise luminance contrast", 0, 100, start.NoiseLuminanceContrast, (s, v) => s.NoiseLuminanceContrast = v, reset: _defaults.NoiseLuminanceContrast);
+        Add(groups, "Noise color", 0, 100, start.NoiseColor, (s, v) => s.NoiseColor = v, reset: _defaults.NoiseColor);
+        Add(groups, "Noise color detail", 0, 100, start.NoiseColorDetail, (s, v) => s.NoiseColorDetail = v, reset: _defaults.NoiseColorDetail);
+        Add(groups, "Noise color smoothness", 0, 100, start.NoiseColorSmoothness, (s, v) => s.NoiseColorSmoothness = v, reset: _defaults.NoiseColorSmoothness);
 
         groups.Children.Add(Heading("Optics"));
-        Add(groups, "Remove chromatic aberration", 0, 1, start.RemoveChromaticAberration ? 1 : 0, (s, v) => s.RemoveChromaticAberration = v > 0.5, "0");
-        Add(groups, "Lens profile", 0, 1, start.EnableLensProfile ? 1 : 0, (s, v) => s.EnableLensProfile = v > 0.5, "0");
-        Add(groups, "Profile distortion", 0, 100, start.ProfileDistortion, (s, v) => s.ProfileDistortion = v);
-        Add(groups, "Profile vignetting", 0, 100, start.ProfileVignetting, (s, v) => s.ProfileVignetting = v);
-        Add(groups, "Distortion", -100, 100, start.Distortion, (s, v) => s.Distortion = v);
-        Add(groups, "Purple amount", 0, 100, start.PurpleAmount, (s, v) => s.PurpleAmount = v);
-        Add(groups, "Purple hue low", 0, 360, start.PurpleHueLow, (s, v) => s.PurpleHueLow = v);
-        Add(groups, "Purple hue high", 0, 360, start.PurpleHueHigh, (s, v) => s.PurpleHueHigh = v);
-        Add(groups, "Green amount", 0, 100, start.GreenAmount, (s, v) => s.GreenAmount = v);
-        Add(groups, "Green hue low", 0, 360, start.GreenHueLow, (s, v) => s.GreenHueLow = v);
-        Add(groups, "Green hue high", 0, 360, start.GreenHueHigh, (s, v) => s.GreenHueHigh = v);
-        Add(groups, "Lens vignette", -100, 100, start.OpticsVignetteAmount, (s, v) => s.OpticsVignetteAmount = v);
-        Add(groups, "Lens vignette midpoint", 0, 100, start.OpticsVignetteMidpoint, (s, v) => s.OpticsVignetteMidpoint = v);
+        Add(groups, "Remove chromatic aberration", 0, 1, start.RemoveChromaticAberration ? 1 : 0, (s, v) => s.RemoveChromaticAberration = v > 0.5, "0", reset: _defaults.RemoveChromaticAberration ? 1 : 0);
+        Add(groups, "Lens profile", 0, 1, start.EnableLensProfile ? 1 : 0, (s, v) => s.EnableLensProfile = v > 0.5, "0", reset: _defaults.EnableLensProfile ? 1 : 0);
+        Add(groups, "Profile distortion", 0, 100, start.ProfileDistortion, (s, v) => s.ProfileDistortion = v, reset: _defaults.ProfileDistortion);
+        Add(groups, "Profile vignetting", 0, 100, start.ProfileVignetting, (s, v) => s.ProfileVignetting = v, reset: _defaults.ProfileVignetting);
+        Add(groups, "Distortion", -100, 100, start.Distortion, (s, v) => s.Distortion = v, reset: _defaults.Distortion);
+        Add(groups, "Purple amount", 0, 100, start.PurpleAmount, (s, v) => s.PurpleAmount = v, reset: _defaults.PurpleAmount);
+        Add(groups, "Purple hue low", 0, 360, start.PurpleHueLow, (s, v) => s.PurpleHueLow = v, reset: _defaults.PurpleHueLow);
+        Add(groups, "Purple hue high", 0, 360, start.PurpleHueHigh, (s, v) => s.PurpleHueHigh = v, reset: _defaults.PurpleHueHigh);
+        Add(groups, "Green amount", 0, 100, start.GreenAmount, (s, v) => s.GreenAmount = v, reset: _defaults.GreenAmount);
+        Add(groups, "Green hue low", 0, 360, start.GreenHueLow, (s, v) => s.GreenHueLow = v, reset: _defaults.GreenHueLow);
+        Add(groups, "Green hue high", 0, 360, start.GreenHueHigh, (s, v) => s.GreenHueHigh = v, reset: _defaults.GreenHueHigh);
+        Add(groups, "Lens vignette", -100, 100, start.OpticsVignetteAmount, (s, v) => s.OpticsVignetteAmount = v, reset: _defaults.OpticsVignetteAmount);
+        Add(groups, "Lens vignette midpoint", 0, 100, start.OpticsVignetteMidpoint, (s, v) => s.OpticsVignetteMidpoint = v, reset: _defaults.OpticsVignetteMidpoint);
 
         groups.Children.Add(Heading("Geometry"));
         // Guided upright is the Mac's own: a line drawn on the picture that should be level or upright. It sits
@@ -382,34 +385,34 @@ internal sealed class CameraRawPanel
         groups.Children.Add(_guideNote);
         RefreshGuides();
         groups.Children.Add(Choice("Projection", _geometryProjection, ["Perspective", "Rectilinear"]));
-        Add(groups, "Vertical", -100, 100, start.Geometry.Vertical, (s, v) => s.Geometry.Vertical = v);
-        Add(groups, "Horizontal", -100, 100, start.Geometry.Horizontal, (s, v) => s.Geometry.Horizontal = v);
-        Add(groups, "Rotate", -45, 45, start.Geometry.Rotate, (s, v) => s.Geometry.Rotate = v);
-        Add(groups, "Aspect", -100, 100, start.Geometry.Aspect, (s, v) => s.Geometry.Aspect = v);
-        Add(groups, "Scale", -100, 100, start.Geometry.Scale, (s, v) => s.Geometry.Scale = v);
-        Add(groups, "Offset X", -100, 100, start.Geometry.OffsetX, (s, v) => s.Geometry.OffsetX = v);
-        Add(groups, "Offset Y", -100, 100, start.Geometry.OffsetY, (s, v) => s.Geometry.OffsetY = v);
+        Add(groups, "Vertical", -100, 100, start.Geometry.Vertical, (s, v) => s.Geometry.Vertical = v, reset: _defaults.Geometry.Vertical);
+        Add(groups, "Horizontal", -100, 100, start.Geometry.Horizontal, (s, v) => s.Geometry.Horizontal = v, reset: _defaults.Geometry.Horizontal);
+        Add(groups, "Rotate", -45, 45, start.Geometry.Rotate, (s, v) => s.Geometry.Rotate = v, reset: _defaults.Geometry.Rotate);
+        Add(groups, "Aspect", -100, 100, start.Geometry.Aspect, (s, v) => s.Geometry.Aspect = v, reset: _defaults.Geometry.Aspect);
+        Add(groups, "Scale", -100, 100, start.Geometry.Scale, (s, v) => s.Geometry.Scale = v, reset: _defaults.Geometry.Scale);
+        Add(groups, "Offset X", -100, 100, start.Geometry.OffsetX, (s, v) => s.Geometry.OffsetX = v, reset: _defaults.Geometry.OffsetX);
+        Add(groups, "Offset Y", -100, 100, start.Geometry.OffsetY, (s, v) => s.Geometry.OffsetY = v, reset: _defaults.Geometry.OffsetY);
         Add(groups, "Constrain crop", 0, 1, start.Geometry.ConstrainCrop ? 1 : 0,
             (s, v) => s.Geometry.ConstrainCrop = v > 0.5, "0");
 
         groups.Children.Add(Heading("Calibration"));
-        Add(groups, "Process version", 1, 6, start.ProcessVersion, (s, v) => s.ProcessVersion = (int)Math.Round(v), "0");
-        Add(groups, "Shadow tint", -100, 100, start.ShadowTint, (s, v) => s.ShadowTint = v);
-        Add(groups, "Red hue", -100, 100, start.RedHue, (s, v) => s.RedHue = v);
-        Add(groups, "Red saturation", -100, 100, start.RedSaturation, (s, v) => s.RedSaturation = v);
-        Add(groups, "Green hue", -100, 100, start.GreenHue, (s, v) => s.GreenHue = v);
-        Add(groups, "Green saturation", -100, 100, start.GreenSaturation, (s, v) => s.GreenSaturation = v);
-        Add(groups, "Blue hue", -100, 100, start.BlueHue, (s, v) => s.BlueHue = v);
-        Add(groups, "Blue saturation", -100, 100, start.BlueSaturation, (s, v) => s.BlueSaturation = v);
+        Add(groups, "Process version", 1, 6, start.ProcessVersion, (s, v) => s.ProcessVersion = (int)Math.Round(v), "0", reset: _defaults.ProcessVersion);
+        Add(groups, "Shadow tint", -100, 100, start.ShadowTint, (s, v) => s.ShadowTint = v, reset: _defaults.ShadowTint);
+        Add(groups, "Red hue", -100, 100, start.RedHue, (s, v) => s.RedHue = v, reset: _defaults.RedHue);
+        Add(groups, "Red saturation", -100, 100, start.RedSaturation, (s, v) => s.RedSaturation = v, reset: _defaults.RedSaturation);
+        Add(groups, "Green hue", -100, 100, start.GreenHue, (s, v) => s.GreenHue = v, reset: _defaults.GreenHue);
+        Add(groups, "Green saturation", -100, 100, start.GreenSaturation, (s, v) => s.GreenSaturation = v, reset: _defaults.GreenSaturation);
+        Add(groups, "Blue hue", -100, 100, start.BlueHue, (s, v) => s.BlueHue = v, reset: _defaults.BlueHue);
+        Add(groups, "Blue saturation", -100, 100, start.BlueSaturation, (s, v) => s.BlueSaturation = v, reset: _defaults.BlueSaturation);
 
         groups.Children.Add(Heading("Curve"));
-        Add(groups, "Curve Shadows", -100, 100, start.CurveShadows, (s, v) => s.CurveShadows = v);
-        Add(groups, "Curve Darks", -100, 100, start.CurveDarks, (s, v) => s.CurveDarks = v);
-        Add(groups, "Curve Lights", -100, 100, start.CurveLights, (s, v) => s.CurveLights = v);
-        Add(groups, "Curve Highlights", -100, 100, start.CurveHighlights, (s, v) => s.CurveHighlights = v);
-        Add(groups, "Curve Shadow Split", 0, 100, start.CurveShadowSplit, (s, v) => s.CurveShadowSplit = v);
-        Add(groups, "Curve Dark Split", 0, 100, start.CurveDarkSplit, (s, v) => s.CurveDarkSplit = v);
-        Add(groups, "Curve Light Split", 0, 100, start.CurveLightSplit, (s, v) => s.CurveLightSplit = v);
+        Add(groups, "Curve Shadows", -100, 100, start.CurveShadows, (s, v) => s.CurveShadows = v, reset: _defaults.CurveShadows);
+        Add(groups, "Curve Darks", -100, 100, start.CurveDarks, (s, v) => s.CurveDarks = v, reset: _defaults.CurveDarks);
+        Add(groups, "Curve Lights", -100, 100, start.CurveLights, (s, v) => s.CurveLights = v, reset: _defaults.CurveLights);
+        Add(groups, "Curve Highlights", -100, 100, start.CurveHighlights, (s, v) => s.CurveHighlights = v, reset: _defaults.CurveHighlights);
+        Add(groups, "Curve Shadow Split", 0, 100, start.CurveShadowSplit, (s, v) => s.CurveShadowSplit = v, reset: _defaults.CurveShadowSplit);
+        Add(groups, "Curve Dark Split", 0, 100, start.CurveDarkSplit, (s, v) => s.CurveDarkSplit = v, reset: _defaults.CurveDarkSplit);
+        Add(groups, "Curve Light Split", 0, 100, start.CurveLightSplit, (s, v) => s.CurveLightSplit = v, reset: _defaults.CurveLightSplit);
 
         _curveChannel.ItemsSource = new[] { "Whole picture", "Red", "Green", "Blue" };
         _curveChannel.SelectedIndex = Math.Clamp((int)start.Curve.Channel, 0, 3);
@@ -419,7 +422,7 @@ internal sealed class CameraRawPanel
         _curve.Changed += RefreshPreview;
         groups.Children.Add(_curveChannel);
         groups.Children.Add(_curve);
-        Add(groups, "Refine saturation", -100, 100, start.RefineSaturation, (s, v) => s.RefineSaturation = v);
+        Add(groups, "Refine saturation", -100, 100, start.RefineSaturation, (s, v) => s.RefineSaturation = v, reset: _defaults.RefineSaturation);
 
         groups.Children.Add(Heading("Color mixer"));
         // The hues come first in the mixer's own places and then the saturations, which is the order the
@@ -462,27 +465,27 @@ internal sealed class CameraRawPanel
         Add(groups, "Turn the hue", -100, 100, 0, (_, v) => Point(point => point.HueShift = v));
         Add(groups, "Raise the saturation", -100, 100, 0, (_, v) => Point(point => point.SaturationShift = v));
         Add(groups, "Move the lightness", -100, 100, 0, (_, v) => Point(point => point.LuminanceShift = v));
-        Add(groups, "Hue range", 5, 180, 30, (_, v) => Point(point => point.HueRange = v), "0");
-        Add(groups, "Saturation range", 0.05, 1, 0.4, (_, v) => Point(point => point.SaturationRange = v), "0.00");
-        Add(groups, "Lightness range", 0.05, 1, 0.4, (_, v) => Point(point => point.LuminanceRange = v), "0.00");
+        Add(groups, "Hue range", 5, 180, 30, (_, v) => Point(point => point.HueRange = v), "0", reset: 30);
+        Add(groups, "Saturation range", 0.05, 1, 0.4, (_, v) => Point(point => point.SaturationRange = v), "0.00", reset: 0.4);
+        Add(groups, "Lightness range", 0.05, 1, 0.4, (_, v) => Point(point => point.LuminanceRange = v), "0.00", reset: 0.4);
         foreach (var point in start.Points) _pointList.Add(point.Normalized());
         if (_pointList.Count > 0) _points.SelectedIndex = 0;
 
         groups.Children.Add(Heading("Color grading"));
-        Add(groups, "Shadows: hue", 0, 360, start.ShadowHue, (s, v) => s.ShadowHue = v, "0");
-        Add(groups, "Shadows: amount", 0, 100, start.ShadowSaturation, (s, v) => s.ShadowSaturation = v, "0");
-        Add(groups, "Shadows: lightness", -100, 100, start.ShadowLuminance, (s, v) => s.ShadowLuminance = v);
-        Add(groups, "Midtones: hue", 0, 360, start.MidtoneHue, (s, v) => s.MidtoneHue = v, "0");
-        Add(groups, "Midtones: amount", 0, 100, start.MidtoneSaturation, (s, v) => s.MidtoneSaturation = v, "0");
-        Add(groups, "Midtones: lightness", -100, 100, start.MidtoneLuminance, (s, v) => s.MidtoneLuminance = v);
-        Add(groups, "Highlights: hue", 0, 360, start.HighlightHue, (s, v) => s.HighlightHue = v, "0");
-        Add(groups, "Highlights: amount", 0, 100, start.HighlightSaturation, (s, v) => s.HighlightSaturation = v, "0");
-        Add(groups, "Highlights: lightness", -100, 100, start.HighlightLuminance, (s, v) => s.HighlightLuminance = v);
-        Add(groups, "Whole picture: hue", 0, 360, start.GlobalHue, (s, v) => s.GlobalHue = v, "0");
-        Add(groups, "Whole picture: amount", 0, 100, start.GlobalSaturation, (s, v) => s.GlobalSaturation = v, "0");
-        Add(groups, "Whole picture: lightness", -100, 100, start.GlobalLuminance, (s, v) => s.GlobalLuminance = v);
-        Add(groups, "Grading blending", 0, 100, start.GradeBlending, (s, v) => s.GradeBlending = v, "0");
-        Add(groups, "Grading balance", -100, 100, start.GradeBalance, (s, v) => s.GradeBalance = v);
+        Add(groups, "Shadows: hue", 0, 360, start.ShadowHue, (s, v) => s.ShadowHue = v, "0", reset: _defaults.ShadowHue);
+        Add(groups, "Shadows: amount", 0, 100, start.ShadowSaturation, (s, v) => s.ShadowSaturation = v, "0", reset: _defaults.ShadowSaturation);
+        Add(groups, "Shadows: lightness", -100, 100, start.ShadowLuminance, (s, v) => s.ShadowLuminance = v, reset: _defaults.ShadowLuminance);
+        Add(groups, "Midtones: hue", 0, 360, start.MidtoneHue, (s, v) => s.MidtoneHue = v, "0", reset: _defaults.MidtoneHue);
+        Add(groups, "Midtones: amount", 0, 100, start.MidtoneSaturation, (s, v) => s.MidtoneSaturation = v, "0", reset: _defaults.MidtoneSaturation);
+        Add(groups, "Midtones: lightness", -100, 100, start.MidtoneLuminance, (s, v) => s.MidtoneLuminance = v, reset: _defaults.MidtoneLuminance);
+        Add(groups, "Highlights: hue", 0, 360, start.HighlightHue, (s, v) => s.HighlightHue = v, "0", reset: _defaults.HighlightHue);
+        Add(groups, "Highlights: amount", 0, 100, start.HighlightSaturation, (s, v) => s.HighlightSaturation = v, "0", reset: _defaults.HighlightSaturation);
+        Add(groups, "Highlights: lightness", -100, 100, start.HighlightLuminance, (s, v) => s.HighlightLuminance = v, reset: _defaults.HighlightLuminance);
+        Add(groups, "Whole picture: hue", 0, 360, start.GlobalHue, (s, v) => s.GlobalHue = v, "0", reset: _defaults.GlobalHue);
+        Add(groups, "Whole picture: amount", 0, 100, start.GlobalSaturation, (s, v) => s.GlobalSaturation = v, "0", reset: _defaults.GlobalSaturation);
+        Add(groups, "Whole picture: lightness", -100, 100, start.GlobalLuminance, (s, v) => s.GlobalLuminance = v, reset: _defaults.GlobalLuminance);
+        Add(groups, "Grading blending", 0, 100, start.GradeBlending, (s, v) => s.GradeBlending = v, "0", reset: _defaults.GradeBlending);
+        Add(groups, "Grading balance", -100, 100, start.GradeBalance, (s, v) => s.GradeBalance = v, reset: _defaults.GradeBalance);
 
         _glowStyle.SelectedIndex = start.GlowStyle;
         _vignetteStyle.SelectedIndex = start.VignetteStyle;
@@ -687,17 +690,43 @@ internal sealed class CameraRawPanel
     /// <summary>One of the mixer's numbers, or nothing when the settings came without their twenty-four.</summary>
     private static double At(double[] mixer, int index) => index < mixer.Length ? mixer[index] : 0;
 
-    private static Control Heading(string text) => new TextBlock
+    private readonly CameraRawSettings _defaults = new();
+    private string _group = "";
+    private readonly Dictionary<string, CheckBox> _groupEnabled = [];
+    private readonly List<(string Group, Slider Slider, Action<CameraRawSettings, double> Set, double Default)> _groupRows = [];
+    private bool _resetting;
+    private Control Heading(string text)
     {
-        Text = Localize.Text(text),
-        FontWeight = FontWeight.SemiBold,
-        Margin = new Thickness(0, 10, 0, 2),
-    };
+        _group = text;
+        var title = new TextBlock { Text = Localize.Text(text), FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        var enabled = new CheckBox { IsChecked = true, Content = Localize.Text("Preview"), FontSize = 11, MinHeight = 24 };
+        _groupEnabled[text] = enabled; enabled.IsCheckedChanged += (_, _) => RefreshPreview();
+        var reset = new Button { Content = "↺", Tag = "reset-raw-" + text, Width = 28, Height = 24, MinHeight = 0, Padding = new Thickness(0) };
+        ToolTip.SetTip(reset, Localize.Text("Reset") + " " + Localize.Text(text)); reset.Click += (_, _) => ResetGroup(text);
+        var row = new DockPanel { Margin = new Thickness(0, 10, 0, 2) };
+        DockPanel.SetDock(reset, Dock.Right); DockPanel.SetDock(enabled, Dock.Right); row.Children.Add(reset); row.Children.Add(enabled); row.Children.Add(title); return row;
+    }
+    internal void ResetGroup(string group)
+    {
+        _resetting = true;
+        try
+        {
+            foreach (var row in _groupRows.Where(r => r.Group == group)) row.Slider.Value = row.Default;
+            if (group == "Effects") { _glowStyle.SelectedIndex = _defaults.GlowStyle; _vignetteStyle.SelectedIndex = _defaults.VignetteStyle; }
+            if (group == "Curve" && _curve is not null) { _curve.Curves = new(); _curveChannel.SelectedIndex = 0; }
+            if (group == "Geometry") { _geometryProjection.SelectedIndex = 0; _uprightChoice.SelectedIndex = 0; ClearGuides(); }
+            if (group is "Point color" or "Color mixer") { _pointList.Clear(); _points.ItemsSource = null; _points.SelectedIndex = -1; }
+            if (_groupEnabled.TryGetValue(group, out var enabled)) enabled.IsChecked = true;
+        }
+        finally { _resetting = false; }
+        RefreshPreview();
+    }
 
     private void Add(StackPanel parent, string label, double least, double most, double value,
-        Action<CameraRawSettings, double> set, string format = "0.#")
+        Action<CameraRawSettings, double> set, string format = "0.#", double reset = 0)
     {
-        var slider = new Slider { Minimum = least, Maximum = most, Value = value, Width = 260 };
+        var slider = new Slider { Minimum = least, Maximum = most, Value = value, MinWidth = 40, Height = 28, MinHeight = 0, Margin = new Thickness(8,0) };
+        CompactSlider.Apply(slider);
         var readout = new TextBlock { Text = Localize.Text(""), Width = 44, VerticalAlignment = VerticalAlignment.Center };
         void UpdateReadout() => readout.Text = slider.Value.ToString(format);
         slider.PropertyChanged += (_, change) =>
@@ -707,18 +736,11 @@ internal sealed class CameraRawPanel
             RefreshPreview();
         };
         UpdateReadout();
-        parent.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Children =
-            {
-                new TextBlock { Text = Localize.Text(label), Width = 190, VerticalAlignment = VerticalAlignment.Center },
-                slider,
-                readout,
-            },
-        });
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("150,*,44"), MinHeight = 30 };
+        var title = new TextBlock { Text = Localize.Text(label), FontSize = 12, TextWrapping = Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+        row.Children.Add(title); Grid.SetColumn(slider, 1); row.Children.Add(slider); Grid.SetColumn(readout, 2); row.Children.Add(readout); parent.Children.Add(row);
         _rows.Add((slider, set, readout, format));
+        _groupRows.Add((_group, slider, set, reset));
         _labelled[label] = slider;
     }
 

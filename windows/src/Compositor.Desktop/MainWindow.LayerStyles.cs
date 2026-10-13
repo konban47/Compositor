@@ -25,6 +25,7 @@ public sealed partial class MainWindow
         if (_styleOpen || _document is not { } document || Selected is not { } id
             || document.Layers.FirstOrDefault(l => l.ID == id) is not { } layer
             || LayerProtection.Effective(document, id).HasFlag(LayerLocks.All)) return;
+        using var sharedEdit = LockSharedEdit();
         _styleOpen = true; var original = LayerStyleDialog.Capture(layer);
         var originalEffects = layer.Effects; var originalBlending = layer.Blending;
         (LayerStylePreset Style, string Name)? result = null;

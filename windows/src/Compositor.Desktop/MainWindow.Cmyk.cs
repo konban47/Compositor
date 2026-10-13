@@ -11,10 +11,8 @@ public sealed partial class MainWindow
     private MenuItem CmykMenu()
     {
         var menu = new MenuItem { Header = "CMYK" };
-        var proof = new MenuItem { Header = Localize.Text("Proof Colors"), ToggleType = MenuItemToggleType.CheckBox };
-        var gamut = new MenuItem { Header = Localize.Text("Gamut Warning"), ToggleType = MenuItemToggleType.CheckBox };
-        proof.Click += (_, _) => { _canvas.ProofColors = !_canvas.ProofColors; _canvas.InvalidateVisual(); };
-        gamut.Click += (_, _) => { _canvas.GamutWarning = !_canvas.GamutWarning; _canvas.InvalidateVisual(); };
+        var proof = Command("Proof Colors", ToggleProofColors, "Proof Colors"); proof.ToggleType = MenuItemToggleType.CheckBox;
+        var gamut = Command("Gamut Warning", ToggleGamutWarning, "Gamut Warning"); gamut.ToggleType = MenuItemToggleType.CheckBox;
         menu.Items.Add(proof); menu.Items.Add(gamut); menu.Items.Add(new Separator());
         foreach (var (name, profile) in new[] { ("US Web Coated (SWOP)", ColorProfiles.USWebCoatedSWOP), ("Coated FOGRA39", ColorProfiles.CoatedFOGRA39) })
             menu.Items.Add(Command(name, () => SelectCmykProfile(profile.ToByteArray())));
@@ -22,6 +20,8 @@ public sealed partial class MainWindow
         menu.SubmenuOpened += (_, _) => { proof.IsChecked = _canvas.ProofColors; gamut.IsChecked = _canvas.GamutWarning; };
         return menu;
     }
+    private void ToggleProofColors() { _canvas.ProofColors = !_canvas.ProofColors; _canvas.InvalidateVisual(); }
+    private void ToggleGamutWarning() { _canvas.GamutWarning = !_canvas.GamutWarning; _canvas.InvalidateVisual(); }
     private void SelectCmykProfile(byte[] profile)
     {
         if (_document is not { } doc) return;

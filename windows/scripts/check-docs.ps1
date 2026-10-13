@@ -104,5 +104,11 @@ foreach ($field in @('styleRuns','maskVectorEvenOdd','geometry','tateChuYoko','b
 }
 if (!(Read-Repo 'windows/TYPE-AND-MASKS.md').Contains("**$version Preview**")) { throw 'Type and mask guide is stale.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--type-mask-checks')) { throw 'Type/mask UI checks missing from CI.' }
+$windowGuide = Read-Repo 'windows/WINDOW-MENU.md'
+if (!$windowGuide.Contains("**$version Preview**")) { throw 'Window guide is stale.' }
+foreach ($feature in @('工作区','参考线','Ctrl+Esc','Skia','ATN','5 fps')) { if (!$windowGuide.Contains($feature)) { throw "Window guide missing $feature." } }
+if (!$formatDoc.Contains('`artboardID`')) { throw 'Artboard guide ownership is undocumented.' }
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--docking-checks')) { throw 'Docking checks missing from CI.' }
+if (!(Read-Repo 'windows/scripts/package.ps1').Contains('WINDOW-MENU.md')) { throw 'Window guide missing from package.' }
 & (Join-Path $PSScriptRoot 'check-upstream-ui.ps1')
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

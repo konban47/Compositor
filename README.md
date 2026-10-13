@@ -1,17 +1,19 @@
 # Compositor for Windows
 
+窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](windows/WINDOW-MENU.md)。
+
 源自 [Robbie Tilton 的 Compositor（macOS 原项目）](https://github.com/robbietilton/Compositor)。感谢 Robbie Tilton / Wonder Assembly 以 MIT 许可证开源，也感谢 [chenguisen 的 Windows 移植](https://github.com/chenguisen/Compositor/tree/compositor_win)为本项目提供基础。
 
 本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
 
-[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.1.1) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.1.1.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
+[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.1.2) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.1.2.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
 
 ## 安装
 
 目标系统：Windows 10 1809 及以上、Windows 11，64 位 x64。
 
-- **安装版**：运行 `Compositor-Windows-1.5.1.1-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.5.1.1-x64-portable.zip`，运行 `Compositor.exe`。
+- **安装版**：运行 `Compositor-Windows-1.5.1.2-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.5.1.2-x64-portable.zip`，运行 `Compositor.exe`。
 - 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
 - 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
 
@@ -61,7 +63,7 @@
 
 ## 功能
 
-本版统一首选项、设置接入与性能见[首选项手册](windows/PREFERENCES.md)，图层菜单和钢笔辅助线见[图层菜单手册](windows/LAYER-MENU.md)。编辑菜单、选择性粘贴、变形、预设、颜色与首选项见[编辑菜单手册](windows/EDIT-MENU.md)，图标来源见[设计记录](windows/design/README.md)。图像模式、计算、变量、分析和属性排版见[图像与属性手册](windows/IMAGE-WORKSPACE.md)，插件安装及接口见[插件说明](windows/PLUGINS.md)。光标、网格、19 个工具及上游 UI 复用见[工具使用说明](windows/PROFESSIONAL-TOOLS.md)。置入、复制、其他工具及按钮／图标说明见[新增编辑工具手册](windows/EDITING-TOOLS.md)。工作区与 API 配置见 [工作区使用说明](windows/WORKSPACE.md)，上游对应关系与验证见 [1.5.1.1 更新说明](windows/UPDATES-1.5.1.1.md)。
+本版统一首选项、设置接入与性能见[首选项手册](windows/PREFERENCES.md)，图层菜单和钢笔辅助线见[图层菜单手册](windows/LAYER-MENU.md)。编辑菜单、选择性粘贴、变形、预设、颜色与首选项见[编辑菜单手册](windows/EDIT-MENU.md)，图标来源见[设计记录](windows/design/README.md)。图像模式、计算、变量、分析和属性排版见[图像与属性手册](windows/IMAGE-WORKSPACE.md)，插件安装及接口见[插件说明](windows/PLUGINS.md)。光标、网格、19 个工具及上游 UI 复用见[工具使用说明](windows/PROFESSIONAL-TOOLS.md)。置入、复制、其他工具及按钮／图标说明见[新增编辑工具手册](windows/EDITING-TOOLS.md)。工作区与 API 配置见 [工作区使用说明](windows/WORKSPACE.md)，上游对应关系与验证见 [1.5.1.2 更新说明](windows/UPDATES-1.5.1.2.md)。
 
 - 图层缩略图、搜索和类型筛选、锁定、分组折叠、链接、不透明度与填充；24 种混合模式、蒙版、调整图层和图层样式。
 - RGB 分通道显示与编辑、Alpha 通道新建／复制／重命名／删除、选区存取及灰度绘制。
@@ -72,11 +74,11 @@
 - 多标签页、撤销／重做、历史快照、从状态新建独立文档、异步保存、未保存关闭保护和独立 Windows 更新频道。
 - 中文界面使用 Photoshop 常见术语，提供中文输入法接口、随包中文字体和中文换行。
 
-本版读取 v1–v20 项目。文字范围样式、几何、PSD 矢量蒙版孔洞和 ICC 配置使用 **Windows 扩展格式 v20**；新增八类可编辑调整层使用 **Windows 扩展格式 v19**；图像模式／位深、变量／数据组、测量记录及新版文字布局使用 **Windows 扩展格式 v18**；切片、注释、计数、颜色取样点和测量使用 **Windows 扩展格式 v17**；直排文字和开放路径描边使用 **Windows 扩展格式 v16**；新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 **Windows 扩展格式 v15**；使用高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，或使用任意轮廓形状时保存为 **Windows 扩展格式 v14**；使用非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式时保存为 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时保存为 v12，其余为 v11。旧版不接受超出其支持范围的版本；最新 macOS 1.5.1 支持至 v13，其 16 位 PNG 与 v13 EXR 可读，但不理解 Windows v13–v20 扩展。[文件格式与兼容性](docs/project-format.md#windows-extension-version-20)
+本版读取 v1–v21 项目。画板参考线归属使用 **Windows 扩展格式 v21**；文字范围样式、几何、PSD 矢量蒙版孔洞和 ICC 配置使用 **Windows 扩展格式 v20**；新增八类可编辑调整层使用 **Windows 扩展格式 v19**；图像模式／位深、变量／数据组、测量记录及新版文字布局使用 **Windows 扩展格式 v18**；切片、注释、计数、颜色取样点和测量使用 **Windows 扩展格式 v17**；直排文字和开放路径描边使用 **Windows 扩展格式 v16**；新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 **Windows 扩展格式 v15**；使用高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，或使用任意轮廓形状时保存为 **Windows 扩展格式 v14**；使用非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式时保存为 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时保存为 v12，其余为 v11。旧版不接受超出其支持范围的版本；最新 macOS 1.5.1 支持至 v13，其 16 位 PNG 与 v13 EXR 可读，但不理解 Windows v13–v21 扩展。[文件格式与兼容性](docs/project-format.md#windows-extension-version-20)
 
 ## 验证与当前状态
 
-**1.5.1.1 Preview** 修复 PSD 可编辑文字和矢量蒙版导入，新增文字选区格式、字体候选与文字菜单、蒙版右键菜单及侧栏调整；浅色主题与紧凑控件同步，对齐分布基准线统一粗细。已合并上游 **1.5.1 / `f2747c4`**，接入 CMYK 导入、软打样／导出和渐进模糊。核心测试 **1151 项**；CI 增加文字／蒙版专项检查。见[文字与蒙版手册](windows/TYPE-AND-MASKS.md)及[持续集成](https://github.com/konban47/Compositor/actions/workflows/windows.yml)。
+**1.5.1.2 Preview** 修复浅色图层／通道背景、文字面板字号／关闭、样式滑块裁切和 Esc 文字丢失；新增窗口菜单、浮动面板、工作区与参考线交互。合并上游 **`e8c9e29`**，接入 Camera Raw 分栏重置和快捷键改进。核心测试 **1153 项**；中英文 CI 新增窗口专项检查。详见[本版更新](windows/UPDATES-1.5.1.2.md)。
 
 [图层样式与右键菜单使用说明](windows/LAYER-STYLES.md)记录每个菜单项、快捷键、格式和 Photoshop 差异。样式使用 CPU 近似渲染；遮住所有对象采用离线显著性连通区域，不是 Adobe 实例识别；智能对象保存本应用图层源，不提供 PSD 智能对象往返。
 

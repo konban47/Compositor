@@ -482,7 +482,7 @@ public sealed partial class CanvasView : Control
             switch (e.Key)
             {
                 case Key.Escape:
-                    if (EditorPreferences.Current.EscapeCommitsText) TextCommitted?.Invoke(); else TextCancelled?.Invoke();
+                    if (e.KeyModifiers.HasFlag(KeyModifiers.Control)) TextCancelled?.Invoke(); else TextCommitted?.Invoke();
                     e.Handled = true;
                     return;
                 case Key.Enter or Key.Return when e.KeyModifiers.HasFlag(KeyModifiers.Control):
@@ -874,7 +874,8 @@ public sealed partial class CanvasView : Control
             var extent = Math.Sqrt(Bounds.Width * Bounds.Width + Bounds.Height * Bounds.Height);
             if (guide.Axis == Format.GuideAxis.Vertical) { y1 = -extent; y2 = extent; }
             else { x1 = -extent; x2 = extent; }
-            context.DrawLine(GuideLineStyle == 0 ? Skin.GuidePen : new Pen(Skin.GuidePen.Brush, 1) { DashStyle = GuideLineStyle == 1 ? DashStyle.Dash : DashStyle.Dot }, new Point(x1, y1), new Point(x2, y2));
+            var guidePen = new Pen(SelectedGuides.Contains(guide.ID) ? Skin.AccentBrush : Skin.GuidePen.Brush, 1) { DashStyle = GuideLineStyle == 0 ? null : GuideLineStyle == 1 ? DashStyle.Dash : DashStyle.Dot };
+            context.DrawLine(guidePen, new Point(x1, y1), new Point(x2, y2));
         }
     }
 
@@ -1474,6 +1475,7 @@ public sealed partial class CanvasView : Control
         TrackToolPointer(e);
         var properties = e.GetCurrentPoint(this).Properties;
         if (properties.IsRightButtonPressed) ContextPoint = ToDocument(e.GetPosition(this));
+        if (SelectGuidePointer(e)) return;
         if (NavigatorPress(e) || ViewToolPress(e)) return;
         if (properties.IsMiddleButtonPressed || (PanEnabled && properties.IsLeftButtonPressed && !UprightDrawing && !EyedropperOnClick))
         {

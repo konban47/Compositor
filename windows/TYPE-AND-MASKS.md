@@ -1,6 +1,6 @@
 # 文字、蒙版与排版
 
-适用于 Windows **1.5.1.1 Preview**。
+适用于 Windows **1.5.1.2 Preview**。
 
 ## PSD 与文字编辑
 
@@ -29,3 +29,5 @@
 “导出为”每次默认 RGB。选择 CMYK 可导出含 ICC 的 JPEG／TIFF／单页 PDF，透明部分按背景色铺底。TIFF 的“文档模式”保留当前 Lab／灰度等模式。PNG／EXR 保持 RGB。渐进模糊支持线性／径向、起止半径、位置百分比、反转、预览和重复上次滤镜，使用 12 级浮点高斯结果插值；位置通过面板数值控制，当前输出限制在图层边界内，与上游可拖动控制线及边缘扩展有差异。
 
 新范围样式、文字几何、矢量填充规则、附加颜色标签和 ICC 配置需要[Windows 格式 v20](../docs/project-format.md#windows-extension-version-20)。OpenCL 迁移保持暂缓，渲染仍采用 Skia。
+
+文字输入后按 Esc 提交并结束编辑，Ctrl+Esc 取消本次编辑。文字面板的 × 可关闭，拖动标签可浮动，详情见 [窗口菜单手册](WINDOW-MENU.md)。

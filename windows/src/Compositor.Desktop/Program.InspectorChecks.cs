@@ -45,7 +45,7 @@ public sealed partial class MainWindow
         var pixels = new SKBitmap(Bitmaps.ColorInfo(160, 100)); pixels.Erase(SKColors.CornflowerBlue);
         var layer = new ImageLayer(Guid.NewGuid(), ImportedImage.Create(pixels, "图像 / Image"), new LayerTransform(70, 80, 160, 100), "图像 / Image");
         document.Layers.Add(layer); AdoptImported(document, "Import Image"); SetTool(Tool.Move); Pump(); _canvas.ActualSize();
-        var view = _mainMenu!.Items.OfType<MenuItem>().Single(item => item.Items.OfType<MenuItem>().Any(child => child.Header?.ToString() == Localize.Text("Navigator")));
+        var view = _mainMenu!.Items.OfType<MenuItem>().Single(item => !Equals(item.Tag, "_Window") && item.Items.OfType<MenuItem>().Any(child => child.Header?.ToString() == Localize.Text("Navigator")));
         view.IsSubMenuOpen = true; Pump();
         var navigator = view.Items.OfType<MenuItem>().Single(item => item.Header?.ToString() == Localize.Text("Navigator"));
         Click(navigator);
@@ -134,6 +134,6 @@ public sealed partial class MainWindow
         _properties.Children.OfType<Expander>().Single(section => Equals(section.Tag, "property-section-Transform")).IsExpanded = false;
         Save("text");
         using (var finalFrame = this.CaptureRenderedFrame()) finalFrame!.Save(output, new PngBitmapEncoderOptions());
-        Check(!Localize.IsChinese || _inspectorTabs.Items.OfType<TabItem>().Select(item => item.Header?.ToString()).SequenceEqual(new[] { "属性", "历史记录" }), "Inspector headings are untranslated.");
+        Check(!Localize.IsChinese || _inspectorTabs.Items.OfType<TabItem>().Select(item => (item.Header as Control)?.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => (t.Tag as string)?.StartsWith("panel-handle-", StringComparison.Ordinal) == true)?.Text).SequenceEqual(new[] { "属性", "历史记录" }), "Inspector headings are untranslated.");
     }
 }

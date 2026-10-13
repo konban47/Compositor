@@ -1,6 +1,6 @@
 param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\dist'),
-    [string]$Version = '1.5.1.1',
+    [string]$Version = '1.5.1.2',
     [string]$Dotnet = 'dotnet',
     [switch]$Installer
 )
@@ -17,7 +17,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Desktop publish failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'CLI publish failed.' }
 Copy-Item -LiteralPath "$repo\LICENSE" -Destination "$bundle\LICENSE.txt"
 Copy-Item -LiteralPath "$repo\windows\README.md" -Destination "$bundle\README.md"
-Copy-Item -LiteralPath "$repo\windows\THIRD-PARTY-NOTICES.md", "$repo\windows\RESEARCH.md", "$repo\windows\UPDATES-1.4.7.1.md", "$repo\windows\UPDATES-1.4.8.1.md", "$repo\windows\UPDATES-1.4.8.2.md", "$repo\windows\UPDATES-1.4.9.1.md", "$repo\windows\UPDATES-1.4.9.2.md", "$repo\windows\UPDATES-1.4.9.3.md", "$repo\windows\UPDATES-1.4.9.4.md", "$repo\windows\UPDATES-1.4.10.0.md", "$repo\windows\UPDATES-1.4.10.1.md", "$repo\windows\UPDATES-1.4.10.2.md", "$repo\windows\UPDATES-1.5.1.1.md", "$repo\windows\TYPE-AND-MASKS.md", "$repo\windows\PREFERENCES.md", "$repo\windows\LAYER-MENU.md", "$repo\windows\EDIT-MENU.md", "$repo\windows\PROFESSIONAL-TOOLS.md", "$repo\windows\UPSTREAM-UI.json", "$repo\windows\EDITING-TOOLS.md", "$repo\windows\LAYER-STYLES.md", "$repo\windows\WORKSPACE.md", "$repo\windows\IMAGE-WORKSPACE.md", "$repo\windows\PLUGINS.md" -Destination $bundle
+Copy-Item -LiteralPath "$repo\windows\THIRD-PARTY-NOTICES.md", "$repo\windows\RESEARCH.md", "$repo\windows\UPDATES-1.4.7.1.md", "$repo\windows\UPDATES-1.4.8.1.md", "$repo\windows\UPDATES-1.4.8.2.md", "$repo\windows\UPDATES-1.4.9.1.md", "$repo\windows\UPDATES-1.4.9.2.md", "$repo\windows\UPDATES-1.4.9.3.md", "$repo\windows\UPDATES-1.4.9.4.md", "$repo\windows\UPDATES-1.4.10.0.md", "$repo\windows\UPDATES-1.4.10.1.md", "$repo\windows\UPDATES-1.4.10.2.md", "$repo\windows\UPDATES-1.5.1.1.md", "$repo\windows\UPDATES-1.5.1.2.md", "$repo\windows\WINDOW-MENU.md", "$repo\windows\TYPE-AND-MASKS.md", "$repo\windows\PREFERENCES.md", "$repo\windows\LAYER-MENU.md", "$repo\windows\EDIT-MENU.md", "$repo\windows\PROFESSIONAL-TOOLS.md", "$repo\windows\UPSTREAM-UI.json", "$repo\windows\EDITING-TOOLS.md", "$repo\windows\LAYER-STYLES.md", "$repo\windows\WORKSPACE.md", "$repo\windows\IMAGE-WORKSPACE.md", "$repo\windows\PLUGINS.md" -Destination $bundle
 Copy-Item -LiteralPath "$repo\windows\design" -Destination $bundle -Recurse
 Copy-Item -LiteralPath "$repo\windows\licenses" -Destination $bundle -Recurse
 New-Item -ItemType Directory -Path "$bundle\redist" -Force | Out-Null

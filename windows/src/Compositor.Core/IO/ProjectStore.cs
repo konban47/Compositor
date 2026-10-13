@@ -162,6 +162,7 @@ public static class ProjectStore
         var ids = new HashSet<Guid>();
         foreach (var guide in guides)
         {
+            if (guide.ArtboardID is not null && manifest.Version < 21) throw new ProjectException(ProjectError.Invalid);
             if (!ids.Add(guide.ID) || !double.IsFinite(guide.Position) || Math.Abs(guide.Position) > 1_000_000)
             {
                 throw new ProjectException(ProjectError.Invalid);

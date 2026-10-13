@@ -25,6 +25,10 @@ internal sealed class EditorPreferences
     public string OcioDestination { get; set; } = "srgb_texture";
     public HashSet<string> HiddenMenus { get; set; } = [];
     public string Language { get; set; } = "";
+    public bool LockWorkspace { get; set; }
+    public string ActiveWorkspace { get; set; } = "Essentials";
+    public Dictionary<string, List<string>> Actions { get; set; } = [];
+    public Dictionary<string, WorkspaceLayout> Workspaces { get; set; } = [];
     public int Theme { get; set; }
     public int UiFontSize { get; set; } = 12;
     public bool Tooltips { get; set; } = true;
@@ -37,6 +41,8 @@ internal sealed class EditorPreferences
     public int CheckerSize { get; set; } = 10;
     public string CheckerLight { get; set; } = "#454545";
     public string CheckerDark { get; set; } = "#383838";
+    public string PasteboardPreset { get; set; } = "Default";
+    public string CustomPasteboard { get; set; } = "#282828";
     public string Pasteboard { get; set; } = "#282828";
     public int GuideStyle { get; set; }
     public string GuideColor { get; set; } = "#00FFFF";
@@ -56,7 +62,7 @@ internal sealed class EditorPreferences
     public bool SmartOnPlace { get; set; }
     public bool SkipPlacement { get; set; }
     public bool ExportTransparency { get; set; } = true;
-    public bool EscapeCommitsText { get; set; }
+    public bool EscapeCommitsText { get; set; } = true;
     public bool PlaceholderText { get; set; }
     public double DefaultFontSize { get; set; } = 48;
     public double NewResolution { get; set; } = 72;
@@ -86,6 +92,11 @@ internal sealed class EditorPreferences
         CheckerSize = Math.Clamp(CheckerSize, 2, 32); GpuCacheMB = Math.Clamp(GpuCacheMB, 128, 2048);
         RecentFiles = Math.Clamp(RecentFiles, 0, 100); RecoveryMinutes = Math.Clamp(RecoveryMinutes, 1, 60);
         CheckerLight = Color(CheckerLight, "#454545"); CheckerDark = Color(CheckerDark, "#383838");
+        CustomPasteboard = Color(CustomPasteboard, "#282828");
+        Actions ??= []; foreach (var key in Actions.Keys.ToArray()) if (key.Length > 100 || Actions[key] is null || Actions[key].Count > 200 || Actions.Count > 100) Actions.Remove(key);
+        Workspaces ??= []; foreach (var key in Workspaces.Keys.ToArray()) if (string.IsNullOrWhiteSpace(key) || key.Length > 100 || Workspaces[key] is null || Workspaces[key].Panels is null || Workspaces.Count > 50) Workspaces.Remove(key);
+        ActiveWorkspace ??= "Essentials";
+        PasteboardPreset = PasteboardPreset is "Default" or "Black" or "Dark Gray" or "Medium Gray" or "Light Gray" or "Custom" ? PasteboardPreset : "Default";
         Pasteboard = Color(Pasteboard, "#282828"); GuideColor = Color(GuideColor, "#00FFFF");
         GridColor = Color(GridColor, "#B3B3B3"); PathColor = Color(PathColor, "#1473E6");
         Language = Language is "en" or "zh-CN" ? Language : "";
@@ -105,7 +116,9 @@ internal sealed class EditorPreferences
         try
         {
             if (!File.Exists(PathName) || new FileInfo(PathName).Length > 1024 * 1024) return new();
-            var p = JsonSerializer.Deserialize<EditorPreferences>(File.ReadAllText(PathName)) ?? new();
+            var json = File.ReadAllText(PathName); var p = JsonSerializer.Deserialize<EditorPreferences>(json) ?? new();
+            using var fields = JsonDocument.Parse(json);
+            if (!fields.RootElement.TryGetProperty(nameof(PasteboardPreset), out _) && p.Pasteboard != "#282828") { p.PasteboardPreset = "Custom"; p.CustomPasteboard = p.Pasteboard; }
             p.Normalize(); return p;
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException) { return new(); }

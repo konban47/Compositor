@@ -8,6 +8,8 @@ public sealed class CanvasGuide
     [JsonRequired] public Guid ID { get; set; }
     [JsonRequired] public GuideAxis Axis { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Guid? ArtboardID { get; set; }
+
     /// <summary>Document pixels: Y for a horizontal guide, X for a vertical one.</summary>
     [JsonRequired] public double Position { get; set; }
 }

@@ -203,12 +203,14 @@ internal sealed class ShortcutDialog : DialogWindow
             Foreground = Skin.LabelBrush,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        Grid.SetColumn(button, 1);
+        var clear = new Button { Content = "×", Tag = "clear-shortcut-" + definition.ID, Width = 26, Height = 28, MinHeight = 0, Padding = new Thickness(0), IsEnabled = chord.IsBound };
+        ToolTip.SetTip(clear, Localize.Text("Clear Shortcut")); clear.Click += (_, _) => { _draft[definition.ID] = ShortcutChord.Unbound; StopRecording(); };
+        Grid.SetColumn(clear, 2); Grid.SetColumn(button, 1);
         return new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            ColumnDefinitions = new ColumnDefinitions("*,Auto,30"),
             Margin = new Thickness(0, 1, 0, 1),
-            Children = { name, button },
+            Children = { name, button, clear },
         };
     }
 
@@ -225,14 +227,14 @@ internal sealed class ShortcutDialog : DialogWindow
             StopRecording();
             return;
         }
-        if (e.Key is Key.Back or Key.Delete && e.KeyModifiers == KeyModifiers.None)
+        if (e.Key == Key.Back && e.KeyModifiers == KeyModifiers.None)
         {
             _draft[id] = ShortcutChord.Unbound;
             StopRecording();
             return;
         }
         // Somebody letting go of Control is not asking for Control to be a shortcut.
-        if (ShortcutKeys.Bare(e.Key)) return;
+        if (ShortcutKeys.Bare(e.Key) || e.Key is Key.None or Key.DeadCharProcessed or Key.ImeProcessed) return;
         if (e.KeyModifiers.HasFlag(KeyModifiers.Meta))
         {
             _complaint.Text = Localize.Text("The Windows key is reserved by Windows");

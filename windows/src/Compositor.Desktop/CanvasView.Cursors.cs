@@ -21,6 +21,7 @@ public sealed partial class CanvasView
     internal bool BrushOutlineShowing => _toolPointer is not null && BrushOutlineEnabled && !SourceTargetShowing && !PanEnabled && !IsPanning;
     internal void UpdateToolCursor()
     {
+        if (UpdateGuideCursor()) return;
         ActiveCursorKind = IsPanning ? StandardCursorType.SizeAll : PanEnabled ? StandardCursorType.Hand
             : TypeOnClick ? StandardCursorType.Ibeam : BrushOutlineEnabled || PenCursorEnabled && EditorPreferences.Current.PenCursor ? StandardCursorType.None : StandardCursorType.Arrow;
         if (!ToolCursors.TryGetValue(ActiveCursorKind, out var cursor)) ToolCursors[ActiveCursorKind] = cursor = new Cursor(ActiveCursorKind);
@@ -36,6 +37,7 @@ public sealed partial class CanvasView
     { _sourceModifier = false; UpdateToolCursor(); base.OnLostFocus(e); }
     private void DrawToolCursor(DrawingContext context)
     {
+        if (HoveredGuide is not null) return;
         if (_painting && EditorPreferences.Current.HidePaintingCursor) return;
         if (_toolPointer is not { } pointer || _document is null || PanEnabled || IsPanning) return;
         void Target(Point point, bool ring)
@@ -65,7 +67,8 @@ public sealed partial class CanvasView
         if (SampleSourceOnClick && CloneSource is { } source)
         {
             var offset = Brush.CloneAligned ? CloneOffset : null;
-            if (_painting && _stroke.Count > 0) offset ??= new SKPointI((int)(source.X - _stroke[0].X), (int)(source.Y - _stroke[0].Y));
+            if (HoveredGuide is not null) return;
+        if (_painting && _stroke.Count > 0) offset ??= new SKPointI((int)(source.X - _stroke[0].X), (int)(source.Y - _stroke[0].Y));
             var from = offset is { } delta && !_sourceModifier ? ToDocument(pointer) + new SKPoint(delta.X, delta.Y) : source;
             Target(ToScreen(from), false);
         }

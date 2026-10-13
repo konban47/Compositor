@@ -65,7 +65,7 @@ public sealed class CanvasDocument : IDisposable
         // was taken at, or moving a guide could not be undone.
         copy.Guides.AddRange(Guides.Select(guide => new CanvasGuide
         {
-            ID = guide.ID,
+            ID = guide.ID, ArtboardID = guide.ArtboardID,
             Axis = guide.Axis,
             Position = guide.Position,
         }));

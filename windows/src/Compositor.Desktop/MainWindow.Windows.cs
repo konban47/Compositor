@@ -52,7 +52,7 @@ public sealed partial class MainWindow
         _confirmingClose = true;
         try
         {
-            foreach (var tab in _tabs.ToArray())
+            foreach (var tab in _tabs.Where(tab => !HasOtherView(tab)).ToArray())
                 if (!await MayReplace(tab)) return;
             _closeApproved = true;
             Close();

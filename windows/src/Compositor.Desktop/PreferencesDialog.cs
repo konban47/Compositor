@@ -96,7 +96,8 @@ internal sealed class PreferencesDialog : DialogWindow
         page.Choice("Color Theme", ["Darkest", "Dark Gray", "Light Gray", "Lightest"], p.Theme, v => p.Theme = v);
         page.Choice("Language", ["English", "简体中文"], (p.Language == "zh-CN" || p.Language == "" && Localize.IsChinese) ? 1 : 0, v => p.Language = v == 1 ? "zh-CN" : "en");
         page.Number("UI Font Size", p.UiFontSize, 10, 18, v => p.UiFontSize = (int)v);
-        page.Color("Pasteboard Color", p.Pasteboard, v => p.Pasteboard = v);
+        page.Check("Use Theme Pasteboard", p.PasteboardPreset == "Default", v => p.PasteboardPreset = v ? "Default" : "Custom");
+        page.Color("Pasteboard Color", p.Pasteboard, v => { p.Pasteboard = p.CustomPasteboard = v; p.PasteboardPreset = "Custom"; });
         page.Description("Theme changes apply immediately. UI font size and language take effect after restarting Compositor.");
         page = Page("Workspace");
         page.Check("Large Document Tabs", p.LargeTabs, v => p.LargeTabs = v);
@@ -178,7 +179,7 @@ internal sealed class PreferencesDialog : DialogWindow
         page = Page("Type");
         page.Text("Default Font", p.DefaultFont, v => p.DefaultFont = v);
         page.Number("Default Type Size (pixels)", p.DefaultFontSize, 1, 1000, v => p.DefaultFontSize = v);
-        page.Check("Use Escape to Commit Text", p.EscapeCommitsText, v => p.EscapeCommitsText = v);
+        page.Description("Escape keeps entered text. Ctrl+Escape cancels the current text edit.");
         page.Check("Fill New Type Layers with Placeholder Text", p.PlaceholderText, v => p.PlaceholderText = v);
         page.Description("Font fallback is provided by the text renderer. IME composition retains priority over Escape and Enter shortcuts.");
         page = Page("Technology Previews");

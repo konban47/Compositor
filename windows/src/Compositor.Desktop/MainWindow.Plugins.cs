@@ -50,11 +50,12 @@ public sealed partial class MainWindow
             header.Children.Add(options); DockPanel.SetDock(header, Dock.Top); panel.Children.Add(header);
             panel.Children.Add(new ScrollViewer { Content = _pluginList });
             _pluginTab = new TabItem { Header = Localize.Text("Plugins"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Content = panel }; _inspectorTabs.Items.Add(_pluginTab);
+            RegisterPanel("Plugins", _inspectorTabs, _pluginTab);
         }
-        _inspectorTabs.SelectedItem = _pluginTab; RefreshPluginPanel();
+        ShowDockPanel("Plugins"); RefreshPluginPanel();
     }
     private void ClosePluginsPanel()
-    { if (_pluginTab is not null) _inspectorTabs.Items.Remove(_pluginTab); _pluginTab = null; _inspectorTabs.SelectedIndex = 0; }
+    { if (_dockPanels.TryGetValue("Plugins", out var panel)) HidePanel(panel); }
     private void RefreshPluginPanel()
     {
         _pluginList.Children.Clear(); var plugins = PluginHost.List();

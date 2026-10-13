@@ -340,6 +340,7 @@ public sealed partial class MainWindow : Window
         _canvas.DistortStarted = DistortStarted;
         _canvas.DistortChanged = DistortChanged;
         _canvas.DistortFinished = DistortFinished;
+        _canvas.GuideSettingsRequested = () => _ = EditPreferences("Guides, Grid and Slices");
         _canvas.GuideDragStarted = GuideDragStarted;
         _canvas.GuideMoved = GuideMoved;
         _canvas.GuideDragFinished = GuideDragFinished;
@@ -455,6 +456,8 @@ public sealed partial class MainWindow : Window
         InitializeInteraction();
         _tabs.Add(_open);
         Content = Layout();
+        InitializePanelDocking();
+        InitializeDocumentWindows();
         ApplyPreferences();
         RefreshTabs();
         UpdateLayerMenu();
@@ -579,6 +582,7 @@ public sealed partial class MainWindow : Window
                         Command("_Clear Guides", ClearGuides),
                     },
                 },
+                BuildWindowMenu(),
                 BuildPluginsMenu(),
                 new MenuItem
                 {
@@ -624,7 +628,8 @@ public sealed partial class MainWindow : Window
         DockPanel.SetDock(menu, Dock.Top);
         DockPanel.SetDock(tabs, Dock.Top);
         // The options bar sits under the toolbar and over the canvas, as the Mac's tool header does.
-        DockPanel.SetDock(_optionsBar, Dock.Top);
+        _optionDockSlot = DockTool("Options", _optionsBar);
+        DockPanel.SetDock(_optionDockSlot, Dock.Top);
         DockPanel.SetDock(_placementBar, Dock.Top);
         // Docking order is what decides which panel is outermost: the Camera Raw panel takes the window's own
         // right edge and the Layers panel steps aside while it is up, as the Mac's docked panel covers it.
@@ -633,20 +638,22 @@ public sealed partial class MainWindow : Window
         DockPanel.SetDock(statusBar, Dock.Bottom);
         root.Children.Add(menu);
         root.Children.Add(tabs);
-        root.Children.Add(_optionsBar);
+        root.Children.Add(_optionDockSlot);
         root.Children.Add(_placementBar);
         root.Children.Add(_cameraRawHost);
         root.Children.Add(_layersSide);
         root.Children.Add(statusBar);
+        var contextBar = BuildContextualBar(); DockPanel.SetDock(contextBar, Dock.Bottom); root.Children.Add(contextBar);
         // The rail runs down the left of the canvas, as the Mac's does, and the canvas takes the rest.
         var body = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
         var views = Views();
-        Grid.SetColumn(_rail, 0);
+        _toolDockSlot = DockTool("Tools", _rail);
+        Grid.SetColumn(_toolDockSlot, 0);
         Grid.SetColumn(views, 1);
-        body.Children.Add(_rail);
+        body.Children.Add(_toolDockSlot);
         body.Children.Add(views);
         root.Children.Add(body);
-        _chrome = [menu, tabs, _optionsBar, _placementBar, _cameraRawHost, _layersSide, statusBar, _rail, _rulerAcross, _rulerDown, _rulerCorner];
+        _chrome = [contextBar, menu, tabs, _optionDockSlot, _placementBar, _cameraRawHost, _layersSide, statusBar, _toolDockSlot, _rulerAcross, _rulerDown, _rulerCorner];
         return root;
     }
 
@@ -974,6 +981,8 @@ public sealed partial class MainWindow : Window
         Does("Toggle Last State", ToggleLastState);
         Does("Fade", () => _ = FadeLastEdit());
         Does("Preferences", () => _ = EditPreferences("General"));
+        foreach (var panel in new[] { "Brush Settings", "Color", "Layers", "Info", "Actions" }) Does(panel + " Panel", () => ToggleWindowPanel(panel));
+        Does("Proof Colors", ToggleProofColors); Does("Gamut Warning", ToggleGamutWarning);
         Does("Color Settings", () => _ = ColorSettings());
         Does("Keyboard Shortcuts", () => _ = KeyboardShortcuts());
         Does("Menus", () => _ = CustomizeMenus());
@@ -2777,14 +2786,14 @@ public sealed partial class MainWindow : Window
         if (ReferenceEquals(tab, _placementTab)) FinishPlacement(true);
         if (_tabs.Count == 1 && tab.Document is null && tab.Path is null) return;
         if (ReferenceEquals(tab, _open)) { FinishPen(); CommitText(); }
-        if (!await MayReplace(tab)) return;
+        if (!HasOtherView(tab) && !await MayReplace(tab)) return;
         var at = _tabs.IndexOf(tab);
         if (at < 0) return;
         var wasOpen = ReferenceEquals(tab, _open);
         _tabs.RemoveAt(at);
         _smartTabs.Remove(tab);
         if (_tabs.Count == 0) _tabs.Add(new Tab());
-        tab.Document?.Dispose();
+        if (!HasOtherView(tab)) tab.Document?.Dispose();
         var next = _tabs[Math.Min(at, _tabs.Count - 1)];
         if (wasOpen)
         {
@@ -4446,6 +4455,7 @@ public sealed partial class MainWindow : Window
         var at = Where(axis, ruler, onRuler);
         _history.Begin("New Guide", document, Selected);
         _pulledGuide = GuideEdits.Add(document, axis, at);
+        AssignGuideOwner(document, _pulledGuide);
         _guidesVisible = true;
         _showGuides.IsChecked = true;
         PushViewSwitches();
@@ -4709,6 +4719,7 @@ public sealed partial class MainWindow : Window
         if (_document is not { } current) return;
         _history.Begin("New Guide", current, Selected);
         var made = GuideEdits.Add(current, asked.Axis, asked.Position);
+        AssignGuideOwner(current, made);
         _history.End(current, Selected);
         if (made is null)
         {
@@ -4771,6 +4782,7 @@ public sealed partial class MainWindow : Window
     private void StartPreview(FilterPreview? preview, Guid? layerID)
     {
         if (preview is null) return;
+        _sharedPreviewLease ??= LockSharedEdit();
         _preview = preview;
         _previewLayer = layerID;
         _canvas.PreviewDocument = preview.Document;
@@ -4862,6 +4874,7 @@ public sealed partial class MainWindow : Window
 
     private void StopPreview()
     {
+        _sharedPreviewLease?.Dispose(); _sharedPreviewLease = null;
         _previewTimer?.Stop();
         _previewApply = null;
         _previewLayer = null;
@@ -5923,6 +5936,8 @@ public sealed partial class MainWindow : Window
     /// <summary>Repaints the canvas and says where the history stands.</summary>
     private void Refresh()
     {
+        RefreshDocumentWindows();
+        RefreshUtilityPanels();
         UpdatePlacementBar();
         UpdateChannelView();
         _canvas.InvalidateVisual();

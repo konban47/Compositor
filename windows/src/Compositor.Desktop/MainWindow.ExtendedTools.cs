@@ -169,6 +169,7 @@ public sealed partial class MainWindow
     }
     private void BuildCanvasMenu(ContextMenu menu)
     {
+        if (BuildGuideAndPasteboardMenu(menu)) return;
         foreach (var (label, action) in new (string, Action)[] { ("Copy", Copy), ("Paste", Paste), ("Finish Path", () => FinishPen()), ("Cancel Path", () => CancelPen()) })
         { var item = new MenuItem { Header = Localize.Text(label), IsEnabled = label.Contains("Path") ? _pen is not null : _document is not null }; item.Click += (_, _) => action(); menu.Items.Add(item); }
     }

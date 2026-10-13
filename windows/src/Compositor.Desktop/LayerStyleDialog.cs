@@ -138,9 +138,9 @@ internal sealed class LayerStyleDialog : DialogWindow
     private void Heading(string text) => _options.Children.Add(new TextBlock { Text = Localize.Text(text), FontSize = 14, FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 8, 0, 4) });
     private void Number(string label, double value, double min, double max, Action<double> set, double step = 1)
     {
-        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("160,*,85"), Height = 32, Margin = new Thickness(0, 2) };
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("160,*,85"), MinHeight = 36, Margin = new Thickness(0, 2) };
         row.Children.Add(new TextBlock { Text = Localize.Text(label), VerticalAlignment = VerticalAlignment.Center });
-        var slider = new Slider { Minimum = min, Maximum = max, Value = Math.Clamp(value, min, max), Margin = new Thickness(0, 0, 8, 0) };
+        var slider = new Slider { Template = CompactSlider.Template, Minimum = min, Maximum = max, Value = Math.Clamp(value, min, max), MinHeight = 0, Height = 32, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 12, 0) };
         var number = new NumericUpDown { Minimum = (decimal)min, Maximum = (decimal)max, Value = (decimal)Math.Clamp(value, min, max), Increment = (decimal)step, FormatString = "0.##", ShowButtonSpinner = false, MinHeight = 28, Height = 28, Tag = label };
         var changing = false;
         number.ValueChanged += (_, _) => { if (changing) return; changing = true; slider.Value = (double)(number.Value ?? (decimal)value); set(slider.Value); changing = false; Schedule(); };

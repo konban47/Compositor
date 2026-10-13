@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Templates;
+using Avalonia.Data;
 using Avalonia.Media;
 using Avalonia.Styling;
 
@@ -41,6 +43,26 @@ internal static class EditorTheme
         var selected = new Style(s => s.OfType<ListBoxItem>().Class(":selected"));
         selected.Setters.Add(new Setter(TemplatedControl.BackgroundProperty, Skin.AccentBrush));
         selected.Setters.Add(new Setter(TemplatedControl.ForegroundProperty, Brushes.White)); styles.Add(selected);
+        // Explicit row template: Fluent's inner presenter otherwise retains its own state brushes.
+        var rowTemplate = new Style(s => s.OfType<ListBoxItem>());
+        rowTemplate.Setters.Add(new Setter(TemplatedControl.TemplateProperty, new FuncControlTemplate<ListBoxItem>((owner, _) => new ContentPresenter
+        {
+            Name = "PART_ContentPresenter", Padding = owner.Padding,
+            [!ContentPresenter.ContentProperty] = new TemplateBinding(ContentControl.ContentProperty),
+            [!ContentPresenter.ContentTemplateProperty] = new TemplateBinding(ContentControl.ContentTemplateProperty),
+            [!ContentPresenter.BackgroundProperty] = new TemplateBinding(TemplatedControl.BackgroundProperty),
+            [!ContentPresenter.HorizontalContentAlignmentProperty] = new TemplateBinding(ContentControl.HorizontalContentAlignmentProperty),
+            [!ContentPresenter.VerticalContentAlignmentProperty] = new TemplateBinding(ContentControl.VerticalContentAlignmentProperty),
+        })));
+        styles.Add(rowTemplate);
+        var menuRows = new Style(s => s.OfType<MenuItem>());
+        menuRows.Setters.Add(new Setter(Control.MinHeightProperty, 24d));
+        menuRows.Setters.Add(new Setter(TemplatedControl.PaddingProperty, new Thickness(7, 2)));
+        menuRows.Setters.Add(new Setter(TemplatedControl.FontSizeProperty, 12d)); styles.Add(menuRows);
+        var tabs = new Style(s => s.OfType<TabItem>());
+        tabs.Setters.Add(new Setter(TemplatedControl.FontSizeProperty, 12d));
+        tabs.Setters.Add(new Setter(TemplatedControl.PaddingProperty, new Thickness(7, 3)));
+        tabs.Setters.Add(new Setter(Control.MinHeightProperty, 28d)); styles.Add(tabs);
         var disabled = new Style(s => s.OfType<Button>().Class(":disabled"));
         disabled.Setters.Add(new Setter(Visual.OpacityProperty, .45d)); styles.Add(disabled);
     }

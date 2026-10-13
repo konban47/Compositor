@@ -28,6 +28,7 @@ internal static partial class Program
         if (args is ["--professional-checks", var professionalOutput]) return ProfessionalChecks(professionalOutput);
         if (args is ["--editing-checks", var editingOutput]) return EditingChecks(editingOutput);
         if (args is ["--layer-style-checks", var styleOutput]) return LayerStyleChecks(styleOutput);
+        if (args is ["--docking-checks", var dockingOutput]) return DockingChecks(dockingOutput);
         if (args is ["--windows-checks", var windowsOutput]) return WindowsChecks(windowsOutput);
         if (args is ["--panel-checks", var panelOutput]) return PanelChecks(panelOutput);
         if (args is ["--workspace-checks", var workspaceOutput]) return WorkspaceChecks(workspaceOutput);

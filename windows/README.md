@@ -1,15 +1,17 @@
 # Compositor for Windows — 简体中文 / English
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.5.1.1 Preview**。
+窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](WINDOW-MENU.md)。
+
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.5.1.2 Preview**。
 
 [下载 Windows 发行包](https://github.com/konban47/Compositor/releases) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
 
-本版合并上游 1.5.1（`f2747c42ac1a08234d3209621b9e4c85d6a619ed`）。PSD 可编辑文字／矢量蒙版、范围格式、字体浏览器、文字菜单和蒙版侧栏见 [TYPE-AND-MASKS.md](TYPE-AND-MASKS.md)。新字段使用 Windows v20。
+本版合并上游 1.5.1（`e8c9e29701528413cc0e608d61187c1c61790add`）。PSD 可编辑文字／矢量蒙版、范围格式、字体浏览器、文字菜单和蒙版侧栏见 [TYPE-AND-MASKS.md](TYPE-AND-MASKS.md)。画板参考线归属使用 Windows v21，文字／蒙版相关字段继续使用 v20。
 
 ## 使用
 
 - 目标平台：Windows 10 1809 及以上、Windows 11，**x64**。不提供 32 位或原生 ARM64 包。
-- 安装版：运行 `Compositor-Windows-1.5.1.1-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
+- 安装版：运行 `Compositor-Windows-1.5.1.2-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
 - 免安装版：解压整个 `*-portable.zip`，运行文件夹中的 `Compositor.exe`。自带 .NET 运行时，无需安装 .NET SDK。若系统缺少 Visual C++ 2015–2022 x64 运行库，先运行随包提供的 `redist/vc_redist.x64.exe`。
 - 程序与安装包目前未做商业代码签名。只从本仓库下载；`SHA256SUMS.txt` 可用于校验文件完整性。
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
@@ -18,6 +20,12 @@
 - 普通图像、PSD/PSB、相机 RAW 通过“文件 → 导入图像”打开；PSD 转换限制会在导入报告中显示。PNG/JPEG/PDF/TIFF/EXR 通过“导出为”菜单输出；PDF 为单页合成图像。
 - 可将项目文件夹或图像路径作为参数：`Compositor.exe "D:\图片\项目.comp"`。
 - 设置保存在 `%APPDATA%\CompositorWindows`。卸载不会删除项目文件和个人设置。
+
+## 1.5.1.2 窗口、参考线和界面修复
+
+- 窗口菜单、面板关闭／拖出／停靠、工作区保存／恢复与多文档窗口排列。
+- 修复浅色图层／通道行、文字标签字号、样式滑块和 Esc 文字保留；参考线交互和编辑区背景菜单。
+- 移植上游 Camera Raw 分栏重置、滚动条留白和快捷键编辑改进。范围与操作见 [WINDOW-MENU.md](WINDOW-MENU.md)。
 
 ## 1.5.1.1 文字、蒙版、排版与 CMYK 更新
 
@@ -29,8 +37,8 @@
 - 钢笔族使用笔形光标和控制柄辅助线；光标移动只刷新覆盖层。支持的图层以 Skia 场景缓存并使用实际 GPU 上下文重放，复杂效果仍回退参考合成器。
 - 图层菜单按参考图整理，增加填充、蒙版、排列、形状布尔、修边及八类可编辑调整层；后者使用 Windows v19 格式。
 - OpenCL 迁移暂缓，继续使用 Skia。OpenCL、30 位显示和暂存盘换出不作为已实现功能；设置窗口明确说明。
-- **1151 项核心测试、CI 包含 18 组英文与 12 组中文界面检查**；包内包含设置接入、性能验证与功能边界说明。
-- [首选项与接入审查](PREFERENCES.md) · [图层菜单与钢笔](LAYER-MENU.md) · [本版更新](UPDATES-1.5.1.1.md)。以下版本段落为历史记录。
+- **1153 项核心测试、CI 包含 19 组英文与 13 组中文界面检查**；包内包含设置接入、性能验证与功能边界说明。
+- [首选项与接入审查](PREFERENCES.md) · [图层菜单与钢笔](LAYER-MENU.md) · [本版更新](UPDATES-1.5.1.2.md)。以下版本段落为历史记录。
 
 ## 1.4.10.1 界面、编辑菜单与 HDR 更新
 
@@ -114,11 +122,11 @@
 
 ### 项目兼容性
 
-当前读取版本 1–20。字符范围样式、文字几何、矢量孔洞规则、额外标签色和 ICC 配置使用 Windows 扩展 v20；新增八类可编辑调整层使用 Windows 扩展 v19；图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，最新上游 macOS 1.5.1 支持 v1–v13，其中 v12 的 16 位 PNG 和 v13 EXR 可以读取，但不支持 Windows v13–v20 字段。清除新增字段后可恢复相应较低版本；交付合成结果可导出 PNG。详细字段见 [项目格式 v15](../docs/project-format.md#windows-extension-version-15)。
+当前读取版本 1–21。画板参考线归属使用 Windows 扩展 v21；字符范围样式、文字几何、矢量孔洞规则、额外标签色和 ICC 配置使用 Windows 扩展 v20；新增八类可编辑调整层使用 Windows 扩展 v19；图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，最新上游 macOS 1.5.1 支持 v1–v13，其中 v12 的 16 位 PNG 和 v13 EXR 可以读取，但不支持 Windows v13–v21 字段。清除新增字段后可恢复相应较低版本；交付合成结果可导出 PNG。详细字段见 [项目格式 v15](../docs/project-format.md#windows-extension-version-15)。
 
 ## 功能与迁移范围
 
-保留 `.comp` 格式版本 1–11 的读写并增加 Windows 扩展 v12–v20、图层与组、24 种混合模式、蒙版和剪贴蒙版、调整图层、图层样式、选区、绘画/仿制/修复/涂抹/液化、可编辑文字和形状、裁剪/变换、参考线、色阶/曲线/色相饱和度、Camera Raw 调整、仿色、内容识别填充、导出以及撤销/重做。
+保留 `.comp` 格式版本 1–11 的读写并增加 Windows 扩展 v12–v21、图层与组、24 种混合模式、蒙版和剪贴蒙版、调整图层、图层样式、选区、绘画/仿制/修复/涂抹/液化、可编辑文字和形状、裁剪/变换、参考线、色阶/曲线/色相饱和度、Camera Raw 调整、仿色、内容识别填充、导出以及撤销/重做。
 
 在已有 MIT Windows 移植基础上增加：
 
@@ -172,7 +180,7 @@ CLI 位于包内 `cli/Compositor.Cli.exe`，运行 `--help` 查看命令。
 
 ## English
 
-An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, updated through upstream macOS 1.5.1 and commit f2747c4, with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
+An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, updated through upstream macOS 1.5.1 and commit e8c9e29, with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 

@@ -229,3 +229,9 @@ Windows 1.5.1.1 reads versions 1–20 and writes the lowest version required. Th
 PSD TySh/EngineData and vector masks are translated into these existing text/path fields. Unsupported PSD metadata is reported and keeps a stored pixel fallback where possible. A layer with both pixel and vector masks is combined into the current single-mask representation; enabled flags determine the combined coverage. This does not claim complete PSD round-trip interchange.
 
 Font favorites, font-preview size, named character/paragraph styles, mask display color/opacity, remembered refinement settings, thumbnail sizes/cropping and active proof/gamut toggles are editor state, not per-project fields. Select and Mask applies pixel coverage, optional color decontamination and the selected output action. Progressive Blur is a destructive pixel filter, so its parameter bag does not increase the project format version.
+
+## Windows extension version 21
+
+An optional guide `artboardID` identifies the artboard selected when that guide was created. Coordinates remain document-space pixels; guide drawing is not clipped to that artboard. Missing or null values identify canvas guides. An owner that no longer exists is treated as a canvas guide. This permits artboard deletion without discarding its guides. The field is preserved by history, independent document copies, rotation, save and reload. Non-null ownership requires version 21; ordinary guides retain their previous version requirements. Old Windows builds reject v21. Upstream macOS does not implement this Windows extension.
+
+Guide selection, hover color and floating window/view state are not document fields. Named workspaces and pasteboard preferences are user settings. Shared document windows reference one document/history; closing a view does not dispose the other view's pixels.

@@ -60,6 +60,7 @@ public sealed partial class MainWindow
     private void SavePreferenceChanges() { try { EditorPreferences.Current.Save(); } catch (Exception error) { Say(error.Message); } }
     private void ResetWorkspace()
     {
+        ResetDockPanels();
         ExitScreenMode(); foreach (var control in _chrome) control.IsVisible = true;
         var layout = ToolCatalog.Defaults(); layout.Save(ToolbarLayout.DefaultPath, ToolCatalog.IDs);
         _rail.ApplyLayout(layout); _rail.ShowColours(BrushColour(), BackgroundColour()); _rail.ShowShortcuts(_keys);

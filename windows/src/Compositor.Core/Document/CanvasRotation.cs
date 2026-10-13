@@ -31,7 +31,7 @@ public static class CanvasRotation
         {
             var guide = document.Guides[i];
             var vertical = guide.Axis == GuideAxis.Vertical;
-            document.Guides[i] = new CanvasGuide { ID = guide.ID,
+            document.Guides[i] = new CanvasGuide { ID = guide.ID, ArtboardID = guide.ArtboardID,
                 Axis = vertical ? GuideAxis.Horizontal : GuideAxis.Vertical,
                 Position = vertical ? clockwise ? guide.Position : width - guide.Position
                     : clockwise ? height - guide.Position : guide.Position };

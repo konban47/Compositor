@@ -89,7 +89,7 @@ internal static class Skin
 
     public static readonly IBrush RulerFaceBrush = new SolidColorBrush(RulerFace);
     public static readonly IBrush ChromeBrush = new SolidColorBrush(Chrome);
-    public static IBrush PasteboardBrush => new SolidColorBrush(Color.Parse(EditorPreferences.Current.Pasteboard));
+    public static IBrush PasteboardBrush => new SolidColorBrush(EditorPreferences.Current.PasteboardPreset == "Default" ? Tone(0x28, 0x45, 0xA0, 0xC0) : Color.Parse(EditorPreferences.Current.Pasteboard));
     public static readonly IBrush SurfaceDarkBrush = new SolidColorBrush(SurfaceDark);
     public static readonly IBrush SurfaceControlBrush = new SolidColorBrush(SurfaceControl);
     public static readonly IBrush SurfaceControlHoverBrush = new SolidColorBrush(SurfaceControlHover);

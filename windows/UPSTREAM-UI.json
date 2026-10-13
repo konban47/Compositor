@@ -1,6 +1,6 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "f2747c42ac1a08234d3209621b9e4c85d6a619ed",
+  "commit": "e8c9e29701528413cc0e608d61187c1c61790add",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
@@ -43,6 +43,18 @@
     {
       "path": "Compositor/Document/DeepLayers.swift",
       "sha256": "2057f849da01052aa03293d7d3412210c6fab9f8941e44e081f5ae8f11a1b0f0"
+    },
+    {
+      "path": "Compositor/Document/CameraRawReset.swift",
+      "sha256": "823525120e81bb733632df3793a7930fcca994933c09e5ad0ed059f9731e60a9"
+    },
+    {
+      "path": "Compositor/UI/CameraRawControls.swift",
+      "sha256": "e2736e6aab4b33271c030514f0c8f108b37b74047b07a096647788402efb8aeb"
+    },
+    {
+      "path": "Compositor/UI/KeyboardShortcuts.swift",
+      "sha256": "b6fa4749980d96c8dbdbbd2783009169de8b9d4aa42b4150a8231334845c7955"
     }
   ],
   "directPorts": [

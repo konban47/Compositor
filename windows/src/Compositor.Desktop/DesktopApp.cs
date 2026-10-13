@@ -36,6 +36,7 @@ public sealed class DesktopApp : Application
         {
             var window = new MainWindow();
             desktop.MainWindow = window;
+            desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnLastWindowClose;
             window.Opened += async (_, _) =>
             {
                 if (desktop.Args is ["--performance-checks", var input, var report])

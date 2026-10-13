@@ -51,7 +51,9 @@ public sealed partial class MainWindow
         var image = _mainMenu.Items.OfType<MenuItem>().Single(m => m.Header?.ToString() == Localize.Text("_Image"));
         Check(image.Items.OfType<MenuItem>().Single(m => m.Header?.ToString() == Localize.Text("Adjustments")).Items.OfType<MenuItem>().Count() >= 22, "Image adjustments are missing.");
         image.IsSubMenuOpen = true; Save("image-menu"); image.IsSubMenuOpen = false;
-        OpenPluginsPanel(); Pump(); Check(_inspectorTabs.Items.OfType<TabItem>().Any(t => t.Header?.ToString() == Localize.Text("Plugins")), "Plugin panel not opened."); Save("plugins"); OpenInspector(0);
+        OpenPluginsPanel(); Pump(); Check(_dockPanels.GetValueOrDefault("Plugins") is { Visible: true }, "Plugin panel not opened."); Save("plugins");
+        var pluginPanel = _dockPanels["Plugins"]; FloatPanel(pluginPanel); Pump(); Check(pluginPanel.Floating is not null, "Plugin panel did not float.");
+        ClosePluginsPanel(); OpenPluginsPanel(); Pump(); Check(pluginPanel.Visible && pluginPanel.Tab!.IsVisible, "Plugin panel did not reopen."); OpenInspector(0);
         _layers.SelectedItems?.Clear(); _layers.SelectedIndex = -1; BuildProperties(); Pump();
         Check(_properties.GetVisualDescendants().OfType<NumericUpDown>().Any(n => Equals(n.Tag, "canvas-width")), "Document canvas properties missing."); Save("document-properties");
         Reselect(layer.ID); BuildProperties(); Pump();
