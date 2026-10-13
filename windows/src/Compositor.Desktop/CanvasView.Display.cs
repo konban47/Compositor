@@ -10,6 +10,7 @@ namespace Compositor.Desktop;
 
 public sealed partial class CanvasView
 {
+    internal bool ProofColors, GamutWarning;
     private readonly DisplaySceneCache _sceneCache = new();
     private DisplayScene? _displayScene;
     private CanvasDocument? _sceneDocument;
@@ -28,7 +29,7 @@ public sealed partial class CanvasView
     {
         if (!_sceneDirty && ReferenceEquals(document, _sceneDocument)) return;
         _displayScene?.Dispose(); _displayScene = null;
-        if (EditorPreferences.Current.AcceleratedCanvas && DisplayChannels == ColorChannels.RGB && AlphaDisplay is null)
+        if (!ProofColors && !GamutWarning && EditorPreferences.Current.AcceleratedCanvas && DisplayChannels == ColorChannels.RGB && AlphaDisplay is null)
             _displayScene = _sceneCache.Build(document);
         _sceneDocument = document; _sceneDirty = false; SceneBuildCount++;
     }

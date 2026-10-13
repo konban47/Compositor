@@ -37,7 +37,8 @@ public static class ProjectStore
         }
 
         var version = manifest.Version;
-        if (manifest.ImageSettings is { } imageSettings && (version < 18 || !imageSettings.IsValid)
+        if (version < 20 && manifest.Layers.Any(l => l.Label > LayerLabel.Gray)) throw new ProjectException(ProjectError.Invalid);
+        if (manifest.ImageSettings is { } imageSettings && (version < 18 || !imageSettings.IsValid || version < 20 && imageSettings.CmykProfile is not null)
             || manifest.MeasurementScale is { } scale && (version < 18 || !scale.IsValid)
             || manifest.Variables is { } variables && (version < 18 || variables.Count > 10000 || variables.Any(v => v is null
                 || !Enum.IsDefined(v.Kind) || string.IsNullOrWhiteSpace(v.Name) || v.Name.Length > 128
@@ -82,7 +83,7 @@ public static class ProjectStore
                 if (!text.IsValid || text.Vertical is not null && version < 16
                     || (text.ColorRuns is not null && version < 10)
                     || (text.FontRuns is not null && version < 11)
-                    || (text.HasTypography && version < 13)
+                    || ((text.StyleRuns is not null || text.Geometry is not null || text.Layout is { BottomLeading: true } or { TateChuYoko: true } or { Smoothing: > TextSmoothing.Smooth }) && version < 20) || (text.HasTypography && version < 13)
                     || (text.HasAdvancedTypography && version < 14) || (text.Layout is not null && version < 18)
                     || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null)
                 {

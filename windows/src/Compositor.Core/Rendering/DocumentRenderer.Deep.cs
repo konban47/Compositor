@@ -13,12 +13,13 @@ public static partial class DocumentRenderer
     public static bool SupportsDeepComposite(CanvasDocument document) => document.Layers.All(l =>
         !l.IsGroup && l.Effects is null && l.Blending is null && l.MaskSourceID is null
         && (l.Adjustment is null || l.BlendMode == LayerBlendMode.Normal && DeepAdjustments.Supports(l.Adjustment)) && BlendModes.Skia(BlendModes.From(l.BlendMode)) is not null);
-    public static SKBitmap RenderDeep(CanvasDocument document)
+    public static SKBitmap RenderDeep(CanvasDocument document, SKRectI? region = null)
     {
-        if (!SupportsDeepComposite(document)) { using var display = Render(document); return DeepPixels.From(display); }
-        var info = DeepPixels.Info(document.Width, document.Height).WithAlphaType(SKAlphaType.Premul);
+        if (!SupportsDeepComposite(document)) { using var display = region is { } requested ? RenderRegion(document, requested) : Render(document); return DeepPixels.From(display); }
+        var area = region ?? SKRectI.Create(document.Width, document.Height);
+        var info = DeepPixels.Info(area.Width, area.Height).WithAlphaType(SKAlphaType.Premul);
         using var output = Bitmaps.Allocate(info); output.Erase(document.Image.Background is { } bg ? (SKColor)bg : SKColors.Transparent);
-        var byId = document.Layers.ToDictionary(l => l.ID); var canvasPlacement = new Model.LayerTransform(0, 0, document.Width, document.Height);
+        var byId = document.Layers.ToDictionary(l => l.ID); var canvasPlacement = new Model.LayerTransform(area.Left, area.Top, area.Width, area.Height);
         foreach (var layer in document.Layers)
         {
             if (layer.IsGroup || !layer.IsVisible) continue;
@@ -33,7 +34,7 @@ public static partial class DocumentRenderer
                 using var surface = new SKCanvas(raster); surface.DrawBitmap(straight, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest));
             }
             else if (layer.Asset is { } asset)
-            { using var surface = new SKCanvas(raster); using var paint = new SKPaint { IsAntialias = true }; DrawTransformed(surface, asset.WorkingImage, layer.Transform, SKBlendMode.SrcOver, paint); }
+            { using var surface = new SKCanvas(raster); using var paint = new SKPaint { IsAntialias = true }; surface.Translate(-area.Left, -area.Top); DrawTransformed(surface, asset.WorkingImage, layer.Transform, SKBlendMode.SrcOver, paint); }
             else continue;
             var rgba = MemoryMarshal.Cast<byte, float>(raster.GetPixelSpan());
             foreach (var item in chain)

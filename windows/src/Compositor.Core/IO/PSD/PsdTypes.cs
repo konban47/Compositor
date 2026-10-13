@@ -50,6 +50,8 @@ internal sealed class PsdRecord
 
     /// <summary>Parsed adjustment settings, when the layer's blocks map onto one.</summary>
     public Format.LayerAdjustment? Adjustment { get; set; }
+    public PsdText.Source? Text { get; set; }
+    public PsdVectorMask.Source? VectorMask { get; set; }
 
     public PsdRect Bounds { get; set; }
     public SKBitmap? Image { get; set; }
@@ -66,6 +68,7 @@ internal sealed class PsdRecord
 /// <summary>A parsed Photoshop file: its canvas, and its layers bottom to top with folders among them.</summary>
 internal sealed class PsdDocument
 {
+    public byte[]? CmykProfile { get; init; }
     public int Width { get; init; }
     public int Height { get; init; }
     public double Resolution { get; set; } = 72;

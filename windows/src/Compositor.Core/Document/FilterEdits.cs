@@ -30,6 +30,7 @@ public enum FilterKind
     /// <summary>Radial distortion: either direction straightens a lens.</summary>
     LensCorrection,
     Scanlines,
+    ProgressiveBlur,
 }
 
 /// <summary>
@@ -42,6 +43,14 @@ public enum FilterKind
 /// </summary>
 public sealed class FilterSettings
 {
+    public double ProgressiveFrom { get; set; }
+    public double ProgressiveTo { get; set; } = 20;
+    public double ProgressiveStartX { get; set; } = 50;
+    public double ProgressiveStartY { get; set; } = 35;
+    public double ProgressiveEndX { get; set; } = 50;
+    public double ProgressiveEndY { get; set; } = 100;
+    public bool ProgressiveRadial { get; set; }
+    public bool ProgressiveInverted { get; set; }
     public ScanlineSettings Scanlines { get; set; } = new();
     /// <summary>How far the distortion is pushed at ±100, as a share of the corner's distance.</summary>
     public const double LensStrength = 0.35;
@@ -109,6 +118,7 @@ public sealed class FilterSettings
     /// <summary>Whether the amounts this filter reads are ones it may use.</summary>
     public bool IsValid(FilterKind kind) => kind switch
     {
+        FilterKind.ProgressiveBlur => Within(ProgressiveFrom, 0, 250) && Within(ProgressiveTo, 0, 250) && new[] { ProgressiveStartX, ProgressiveStartY, ProgressiveEndX, ProgressiveEndY }.All(v => Within(v, -1000, 1000)),
         FilterKind.Scanlines => Scanlines.IsValid,
         FilterKind.GaussianBlur => Within(BlurRadius, 0.1, 250),
         FilterKind.MotionBlur => Within(MotionAngle, -90, 90) && Within(MotionDistance, 1, 2000),
@@ -127,6 +137,7 @@ public sealed class FilterSettings
     /// <summary>Whether this filter would change anything at all.</summary>
     public bool DoesAnything(FilterKind kind) => kind switch
     {
+        FilterKind.ProgressiveBlur => ProgressiveFrom > 0 || ProgressiveTo > 0,
         FilterKind.Scanlines => true,
         FilterKind.GaussianBlur => BlurRadius > 0,
         FilterKind.MotionBlur => MotionDistance > 0,
@@ -174,6 +185,11 @@ public static class FilterEdits
     {
         if (!settings.IsValid(kind) || !settings.DoesAnything(kind)) return false;
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { } layer) return false;
+        if (kind == FilterKind.ProgressiveBlur && layer.Asset is { } progressiveSource)
+        {
+            using var blurred = ProgressiveBlur.Apply(progressiveSource.WorkingImage, settings);
+            return ImageAdjustments.SetPixels(document, layer, blurred);
+        }
         if (kind == FilterKind.GaussianBlur && layer.Asset is { } deepSource && (deepSource.Deep is not null || settings.PreserveTransparency))
         {
             using var blurred = DeepAdjustments.Blur(deepSource.WorkingImage, settings.BlurRadius, settings.PreserveTransparency);

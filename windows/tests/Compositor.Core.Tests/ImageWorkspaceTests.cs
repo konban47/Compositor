@@ -68,7 +68,7 @@ public sealed class ImageWorkspaceTests
     {
         using var doc = ImageImporter.NewDocument(Gradient());
         Assert.True(ImageModeEdits.Convert(doc, new ImageSettings { Mode = mode, Depth = 16 }));
-        using var exported = ExportImage.Encode(doc, new ExportOptions(ExportFormat.Tiff, doc.Width, doc.Height));
+        using var exported = ExportImage.Encode(doc, new ExportOptions(ExportFormat.Tiff, doc.Width, doc.Height, NativeColorMode: true));
         var metadata = new ImageMagick.MagickImageInfo(exported.Bytes);
         Assert.Equal(mode == ImageMode.CMYK ? ImageMagick.ColorSpace.CMYK : mode == ImageMode.Lab ? ImageMagick.ColorSpace.Lab : ImageMagick.ColorSpace.Gray, metadata.ColorSpace);
         using var loaded = DeepImageCodec.Decode(exported.Bytes, "round trip"); Assert.Equal(16, loaded.BitDepth); Assert.Equal(mode, loaded.ColorMode);

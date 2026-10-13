@@ -90,11 +90,12 @@ public sealed partial class MainWindow
         var density = _properties.GetVisualDescendants().OfType<NumericUpDown>().Single(input => Equals(input.Tag, "mask-density"));
         density.Value = 45; density.RaiseEvent(new KeyEventArgs { RoutedEvent = KeyDownEvent, Key = Key.Enter }); Pump();
         Check(Current().Mask!.Density == .45, "Mask density field did not commit."); Save("mask");
-        var refine = RefineMask(); Pump(); var refineDialog = OwnedWindows.OfType<MaskRefineDialog>().Single();
-        refineDialog.GetVisualDescendants().OfType<NumericUpDown>().Single(input => Equals(input.Tag, "Shift Edge (px)")).Value = 3;
-        refineDialog.GetVisualDescendants().OfType<Button>().Single(button => button.Content?.ToString() == Localize.Text("Preview")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
-        Check(_canvas.PreviewDocument is not null, "Select and Mask did not show its preview.");
-        refineDialog.GetVisualDescendants().OfType<Button>().Single(button => button.Content?.ToString() == Localize.Text("Cancel")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+        var refine = RefineMask(); Pump();
+        var shift = _properties.GetVisualDescendants().OfType<NumericUpDown>().Single(input => Equals(input.Tag, "refine-Shift Edge (%)"));
+        shift.Value = 30; shift.RaiseEvent(new KeyEventArgs { RoutedEvent = KeyDownEvent, Key = Key.Enter }); Pump();
+        _properties.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Tag, "Preview")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+        Check(_canvas.PreviewDocument is not null, "Select and Mask did not show its preview."); Save("select-mask-properties");
+        _properties.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Tag, "Cancel")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
         Check(refine.IsCompletedSuccessfully && _canvas.PreviewDocument is null && Current().Mask!.Density == .45, "Select and Mask cancel changed the mask or left a preview.");
         var previousCoverage = Current().Mask!.Asset; var originalSelection = document.Selection;
         ColorRange(layer.ID); Pump();

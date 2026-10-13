@@ -31,6 +31,7 @@ public sealed class ProjectLayerRecord
     public double? MaskDensity { get; set; }
     public double? MaskFeather { get; set; }
     public string? MaskVectorPath { get; set; }
+    public bool? MaskVectorEvenOdd { get; set; }
 
     /// <summary>A shape layer's shape, drawn again when the layer is scaled.</summary>
     public LayerShapeStyle? Shape { get; set; }

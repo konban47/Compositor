@@ -211,3 +211,21 @@ Windows 1.4.10.2 reads versions 1–19 and writes the lowest necessary version. 
 Example inside a layer record: `"adjustment": {"kind":"Extended","extended":{"kind":"BrightnessContrast","values":{"Brightness":25,"Contrast":10}}}`. Blend, opacity, clipping and mask fields keep their existing meanings. A project with these layers writes v19 even if no other Windows extension is used. Pixel-only application of the same operation does not itself require v19.
 
 UI preferences, GPU cache limits, cached display scenes, recovery scheduling and cursor settings are not project fields. GPU display acceleration does not change the saved format or replace original layer pixels.
+
+## Windows extension version 20
+
+Windows 1.5.1.1 reads versions 1–20 and writes the lowest version required. These additions require v20. Previous Windows and macOS versions cannot read v20 projects.
+
+| Field | Representation |
+| --- | --- |
+| layer `maskVectorEvenOdd` | Optional boolean alongside `maskVectorPath`. True selects even-odd filling, used for PSD subpaths/holes. The grayscale fallback is retained. Absent/false preserves the existing winding rule. |
+| text `styleRuns` | Optional nonempty ordered list of `{location,length,style}`. Indices are UTF-16; lengths positive; ranges must not overlap or exceed `content`. Each `style` is a flat `LayerTextStyle` with empty content, no nested runs, color runs, font runs or frame. Runs can override font, size, color, decorations, OpenType and character layout. Uncovered characters inherit the layer style. The editor moves/deletes ranges with text and selects by grapheme boundaries. |
+| text `geometry` | Optional `{shape,bend,horizontalDistortion,verticalDistortion}`. Shape Block/Circle/Arch/Bowtie; the three numbers are finite percentages in −100…100. Geometry remains editable and is rendered into the text layer's pixel fallback. |
+| text `layout.bottomLeading`, `layout.tateChuYoko` | Boolean defaults false. Bottom-leading changes baseline placement; tate-chu-yoko groups a styled run horizontally inside a vertical column. |
+| text `layout.smoothing` | Adds WindowsLcd and Windows to the earlier enum values. These select Skia font edging/hinting, not a DirectWrite/Photoshop engine. |
+| layer `label` | Adds Teal, Indigo, Magenta and Purple; existing enum values retain their order and meaning. |
+| `imageSettings.cmykProfile` | Optional base64-encoded CMYK ICC bytes, 128 bytes to 4 MiB, with CMYK color-space and acsp header signatures. The profile describes proof/output inks; saved layer pixels remain sRGB. The existing overall manifest budget still applies. |
+
+PSD TySh/EngineData and vector masks are translated into these existing text/path fields. Unsupported PSD metadata is reported and keeps a stored pixel fallback where possible. A layer with both pixel and vector masks is combined into the current single-mask representation; enabled flags determine the combined coverage. This does not claim complete PSD round-trip interchange.
+
+Font favorites, font-preview size, named character/paragraph styles, mask display color/opacity, remembered refinement settings, thumbnail sizes/cropping and active proof/gamut toggles are editor state, not per-project fields. Select and Mask applies pixel coverage, optional color decontamination and the selected output action. Progressive Blur is a destructive pixel filter, so its parameter bag does not increase the project format version.

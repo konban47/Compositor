@@ -267,6 +267,13 @@ public sealed partial class CanvasView : Control
     }
 
     /// <summary>Text that was typed, a newline included.</summary>
+    public double? RefinementOpacity { get; set; }
+    public bool ShowsMaskOverlay { get; set; }
+    public Avalonia.Media.Imaging.Bitmap? MaskOverlay { get; set; }
+    public IReadOnlyList<SKPoint[]> TextSelection { get; set; } = [];
+    public Action<Key>? TextCommand { get; set; }
+    public Action<SKPoint>? TextDragged { get; set; }
+    private bool _textDrag;
     public Action<string>? TextTyped { get; set; }
 
     /// <summary>The delete key.</summary>
@@ -276,7 +283,7 @@ public sealed partial class CanvasView : Control
     public Action? TextDeleted { get; set; }
 
     /// <summary>An arrow or Home or End: which way the caret goes through the words.</summary>
-    public Action<TextSession.TextMove>? TextMoved { get; set; }
+    public Action<TextSession.TextMove, bool>? TextMoved { get; set; }
 
     /// <summary>Ctrl and Enter, or a click outside the text.</summary>
     public Action? TextCommitted { get; set; }
@@ -445,7 +452,7 @@ public sealed partial class CanvasView : Control
     {
         TextEditing = false;
         RequeryInputMethod();
-        TextCaret = null;
+        TextCaret = null; TextSelection = []; _textDrag = false;
         _caretBlink.Stop();
         InvalidateVisual();
     }
@@ -470,6 +477,8 @@ public sealed partial class CanvasView : Control
         if (TextEditing && _preedit.Length > 0) { e.Handled = true; return; }
         if (TextEditing)
         {
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key is Key.A or Key.C or Key.X or Key.V)
+            { TextCommand?.Invoke(e.Key); e.Handled = true; return; }
             switch (e.Key)
             {
                 case Key.Escape:
@@ -493,8 +502,7 @@ public sealed partial class CanvasView : Control
                     e.Handled = true;
                     return;
                 case Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End:
-                    // With Shift held these would take a selection; there is none inside the text yet.
-                    if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) break;
+
                     TextMoved?.Invoke(e.Key switch
                     {
                         Key.Left => TextSession.TextMove.Left,
@@ -503,7 +511,7 @@ public sealed partial class CanvasView : Control
                         Key.Down => TextSession.TextMove.Down,
                         Key.Home => TextSession.TextMove.Home,
                         _ => TextSession.TextMove.End,
-                    });
+                    }, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
                     e.Handled = true;
                     return;
             }
@@ -675,7 +683,13 @@ public sealed partial class CanvasView : Control
         UpdateDisplayScene(document);
         if (_displayScene is null && (_composite is null || _compositeDirty || !ReferenceEquals(document, _compositeDocument) || region != _compositeRegion))
         {
-            using var rendered = DocumentRenderer.RenderRegion(document, region);
+            using var deepFrame = document.Layers.Any(l => l.Asset?.Deep is not null) && DocumentRenderer.SupportsDeepComposite(document) ? DocumentRenderer.RenderDeep(document, region) : null;
+            using var rendered = deepFrame is null ? DocumentRenderer.RenderRegion(document, region) : DeepPixels.Preview(deepFrame);
+            if (ProofColors || GamutWarning)
+            {
+                using var proof = Compositor.Core.IO.CmykColor.Proof(rendered, document.Image.CmykProfile ?? Compositor.Core.IO.CmykColor.DefaultProfile, ProofColors, GamutWarning);
+                proof.GetPixelSpan().CopyTo(rendered.GetPixelSpan());
+            }
             ChannelEdits.View(rendered, DisplayChannels, AlphaDisplay is null);
             if (AlphaDisplay is { } alpha)
             {
@@ -687,7 +701,7 @@ public sealed partial class CanvasView : Control
                     if (DisplayChannels == ColorChannels.None) rendered.SetPixel(x, y, new SKColor(value, value, value));
                     else
                     {
-                        var color = rendered.GetPixel(x, y); var mask = (255 - value) / 510.0;
+                        var color = rendered.GetPixel(x, y); var mask = (255 - value) / 255.0 * (RefinementOpacity ?? .5);
                         rendered.SetPixel(x, y, new SKColor((byte)(color.Red * (1 - mask) + 255 * mask),
                             (byte)(color.Green * (1 - mask)), (byte)(color.Blue * (1 - mask)), 255));
                     }
@@ -867,7 +881,19 @@ public sealed partial class CanvasView : Control
     /// <summary>The caret, drawn over everything else while text is being typed.</summary>
     private void DrawCaret(DrawingContext context)
     {
-        if (!TextEditing || !_caretOn || TextCaret is not { } caret) return;
+        if (ShowsMaskOverlay && MaskOverlay is { } mask)
+        {
+            var a = ToScreen(new SKPoint(0, 0)); var b = ToScreen(new SKPoint(_document?.Width ?? 1, _document?.Height ?? 1));
+            context.DrawImage(mask, new Rect(a, b));
+        }
+        if (!TextEditing) return;
+        foreach (var polygon in TextSelection)
+        {
+            var path = new StreamGeometry(); using (var draw = path.Open())
+            { draw.BeginFigure(ToScreen(polygon[0]), true); foreach (var p in polygon.Skip(1)) draw.LineTo(ToScreen(p)); draw.EndFigure(true); }
+            context.DrawGeometry(new SolidColorBrush(Color.FromArgb(110, 35, 125, 235)), null, path);
+        }
+        if (!_caretOn || TextCaret is not { } caret) return;
         var top = ToScreen(new SKPoint(caret.Left, caret.Top));
         var bottom = ToScreen(new SKPoint(caret.Right, caret.Bottom));
         context.DrawLine(CaretPen, top, bottom);
@@ -1607,6 +1633,7 @@ public sealed partial class CanvasView : Control
         {
             e.Handled = true;
             TextClicked?.Invoke(ToDocument(e.GetPosition(this)));
+            _textDrag = TextEditing; if (_textDrag) e.Pointer.Capture(this);
             return;
         }
         if (SampleSourceOnClick && e.KeyModifiers.HasFlag(KeyModifiers.Alt)
@@ -1713,6 +1740,7 @@ public sealed partial class CanvasView : Control
         // stop while a stroke is being painted.
         if (ViewToolMove(e)) return;
         PointerMovedAt?.Invoke(ToDocument(now));
+        if (_textDrag) { TextDragged?.Invoke(ToDocument(now)); e.Handled = true; return; }
         // Dragging a vector outline's node or handle: where it has been put, in the outline's own pixels.
         if (_nodeDragging && _nodeGrab is { } grab && DocumentToPath is { } toOutline)
         {
@@ -1864,6 +1892,7 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
+        if (_textDrag) { _textDrag = false; e.Pointer.Capture(null); e.Handled = true; return; }
         if (_customDragging) { _customDragging = false; CustomReleased?.Invoke(); e.Pointer.Capture(null); e.Handled = true; return; }
         if (_nodeDragging)
         {

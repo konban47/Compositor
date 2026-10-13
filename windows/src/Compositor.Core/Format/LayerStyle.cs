@@ -11,7 +11,7 @@ public enum BevelKind { InnerBevel, OuterBevel, Emboss, PillowEmboss, StrokeEmbo
 public enum StrokePosition { Outside, Inside, Center }
 public enum KnockoutKind { None, Shallow, Deep }
 public enum BlendIfChannel { Gray, Red, Green, Blue }
-public enum LayerLabel { None, Red, Orange, Yellow, Green, Blue, Violet, Gray }
+public enum LayerLabel { None, Red, Orange, Yellow, Green, Blue, Violet, Gray, Teal, Indigo, Magenta, Purple }
 public enum LayerContainer { Group, Frame, Artboard }
 
 /// <summary>One editable instance. Version 15 leaves the original six effect records readable.</summary>

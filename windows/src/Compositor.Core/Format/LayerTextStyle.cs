@@ -3,6 +3,25 @@ namespace Compositor.Core.Format;
 /// <summary>An editable text layer's metadata; the PNG remains the display and export fallback.</summary>
 public sealed class LayerTextStyle
 {
+    public TextGeometry? Geometry { get; set; }
+    public List<LayerTextStyleRun>? StyleRuns { get; set; }
+    private bool StyleRunsAreValid
+    {
+        get
+        {
+            if (StyleRuns is null) return true;
+            if (StyleRuns.Count is 0 or > 100000) return false;
+            var end = 0;
+            foreach (var run in StyleRuns)
+            {
+                if (run is null || run.Location < end || run.Length <= 0 || run.Location > Content.Length - run.Length
+                    || run.Style is null || run.Style.StyleRuns is not null || run.Style.ColorRuns is not null || run.Style.FontRuns is not null
+                    || run.Style.Content is not "" || !run.Style.IsValid) return false;
+                end = run.Location + run.Length;
+            }
+            return true;
+        }
+    }
     public TextLayoutOptions? Layout { get; set; }
     public bool? Vertical { get; set; }
     public string Content { get; set; } = "Text";
@@ -81,9 +100,9 @@ public sealed class LayerTextStyle
         && Color.IsValid(Red, Green, Blue)
         && double.IsFinite(Tracking) && Tracking is >= -100 and <= 1000
         && double.IsFinite(Leading) && Leading is >= 0 and <= 5000
-        && ColorRunsAreValid && FontRunsAreValid
+        && ColorRunsAreValid && FontRunsAreValid && StyleRunsAreValid
         && (Superscript is not true || Subscript is not true)
-        && FeaturesAreValid && LanguageIsValid && (Layout?.IsValid ?? true);
+        && (Geometry?.IsValid ?? true) && FeaturesAreValid && LanguageIsValid && (Layout?.IsValid ?? true);
 
     /// <summary>Feature tags are four ASCII letters or digits, at most 64 of them, and unique.</summary>
     private bool FeaturesAreValid
@@ -160,6 +179,13 @@ public sealed class LayerTextStyle
     /// <summary>Swift's `Character.isNewline`: the separators a font name may not hold.</summary>
     private static bool ContainsNewline(string value) =>
         value.Any(character => character is '\n' or '\r' or '\u000b' or '\u000c' or '\u0085' or '\u2028' or '\u2029');
+}
+
+public sealed class LayerTextStyleRun
+{
+    public int Location { get; set; }
+    public int Length { get; set; }
+    public LayerTextStyle Style { get; set; } = new() { Content = "" };
 }
 
 public sealed class LayerTextColorRun

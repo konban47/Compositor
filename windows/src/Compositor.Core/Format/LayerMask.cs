@@ -14,6 +14,7 @@ public sealed class LayerMask
     public double? MaskDensity { get; set; }
     public double? MaskFeather { get; set; }
     public string? MaskVectorPath { get; set; }
+    public bool? MaskVectorEvenOdd { get; set; }
 
     public static LayerMask FromRecord(ProjectLayerRecord layer) => new()
     {
@@ -22,6 +23,7 @@ public sealed class LayerMask
         MaskPlacement = layer.MaskPlacement,
         MaskLinked = layer.MaskLinked,
         MaskDensity = layer.MaskDensity, MaskFeather = layer.MaskFeather, MaskVectorPath = layer.MaskVectorPath,
+        MaskVectorEvenOdd = layer.MaskVectorEvenOdd,
     };
 
     public void ApplyTo(ProjectLayerRecord layer)
@@ -31,6 +33,7 @@ public sealed class LayerMask
         layer.MaskPlacement = MaskPlacement;
         layer.MaskLinked = MaskLinked;
         layer.MaskDensity = MaskDensity; layer.MaskFeather = MaskFeather; layer.MaskVectorPath = MaskVectorPath;
+        layer.MaskVectorEvenOdd = MaskVectorEvenOdd;
     }
 
     /// <summary>The only filename a layer's mask may use.</summary>
@@ -51,6 +54,7 @@ public sealed class LayerMask
     /// </summary>
     public bool IsValid(int version, bool isGroup, Guid layerID)
     {
+        if (MaskVectorEvenOdd is not null && (version < 20 || MaskVectorPath is null)) return false;
         if (MaskFile is not null)
         {
             var earliest = isGroup ? 6 : 4;

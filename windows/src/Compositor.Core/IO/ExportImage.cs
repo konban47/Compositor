@@ -6,10 +6,10 @@ namespace Compositor.Core.IO;
 
 public enum ExportFormat { Png, Jpeg, Pdf, Tiff, Exr }
 public sealed record ExportOptions(ExportFormat Format, int Width, int Height, int Quality = 90,
-    bool Transparency = true, SKColor? Background = null, double Resolution = 72)
+    bool Transparency = true, SKColor? Background = null, double Resolution = 72, byte[]? CmykProfile = null, bool NativeColorMode = false)
 {
     public string Extension => Format switch { ExportFormat.Jpeg => "jpg", ExportFormat.Pdf => "pdf", ExportFormat.Tiff => "tif", ExportFormat.Exr => "exr", _ => "png" };
-    public bool IsValid => Enum.IsDefined(Format) && Width > 0 && Height > 0
+    public bool IsValid => (CmykProfile is null || CmykColor.IsProfile(CmykProfile) && Format is ExportFormat.Jpeg or ExportFormat.Tiff or ExportFormat.Pdf) && Enum.IsDefined(Format) && Width > 0 && Height > 0
         && Width <= DocumentLimits.MaxSide && Height <= DocumentLimits.MaxSide
         && (long)Width * Height <= DocumentLimits.MaxSurfacePixels && Quality is >= 1 and <= 100
         && double.IsFinite(Resolution) && Resolution is >= 1 and <= 9600;
@@ -42,9 +42,10 @@ public static class ExportImage
         }
         byte[] bytes;
         using var image = SKImage.FromBitmap(pixels);
-        if (options.Format == ExportFormat.Exr) bytes = DeepImageCodec.EncodeExr(pixels);
+        if (options.CmykProfile is not null) bytes = CmykColor.Encode(pixels, options);
+        else if (options.Format == ExportFormat.Exr) bytes = DeepImageCodec.EncodeExr(pixels);
         else if (options.Format == ExportFormat.Tiff || options.Format == ExportFormat.Png && (document.Image.Depth > 8 || document.Image.Mode != Compositor.Core.Format.ImageMode.RGB || original.ColorType == SKColorType.RgbaF32))
-            bytes = DeepImageCodec.EncodeMode(pixels, document.Image with { Depth = Math.Max(document.Image.Depth, document.Layers.Select(l => l.Asset?.BitDepth ?? 8).DefaultIfEmpty(8).Max()) }, options.Format == ExportFormat.Tiff, options.Resolution);
+            bytes = DeepImageCodec.EncodeMode(pixels, document.Image with { Mode = options.NativeColorMode && options.Format == ExportFormat.Tiff ? document.Image.Mode : Compositor.Core.Format.ImageMode.RGB, Depth = Math.Max(document.Image.Depth, document.Layers.Select(l => l.Asset?.BitDepth ?? 8).DefaultIfEmpty(8).Max()) }, options.Format == ExportFormat.Tiff, options.Resolution);
         else if (options.Format == ExportFormat.Pdf)
         {
             using var stream = new MemoryStream();
@@ -64,7 +65,7 @@ public static class ExportImage
             bytes = data.ToArray();
         }
         // JPEG preview includes actual compression artifacts. PDF is a single flattened image page.
-        using var decoded = options.Format == ExportFormat.Jpeg ? SKBitmap.Decode(bytes) : null;
+        using var decoded = options.CmykProfile is not null ? CmykColor.Proof(pixels, options.CmykProfile) : options.Format == ExportFormat.Jpeg ? SKBitmap.Decode(bytes) : null;
         var source = decoded ?? pixels;
         var factor = Math.Min(1, 520.0 / Math.Max(source.Width, source.Height));
         var preview = source.Resize(Bitmaps.ColorInfo(Math.Max(1, (int)(source.Width * factor)), Math.Max(1, (int)(source.Height * factor))),

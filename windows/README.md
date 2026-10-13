@@ -1,13 +1,15 @@
 # Compositor for Windows — 简体中文 / English
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.4.10.2 Preview**。
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.5.1.1 Preview**。
 
 [下载 Windows 发行包](https://github.com/konban47/Compositor/releases) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
+
+本版合并上游 1.5.1（`f2747c42ac1a08234d3209621b9e4c85d6a619ed`）。PSD 可编辑文字／矢量蒙版、范围格式、字体浏览器、文字菜单和蒙版侧栏见 [TYPE-AND-MASKS.md](TYPE-AND-MASKS.md)。新字段使用 Windows v20。
 
 ## 使用
 
 - 目标平台：Windows 10 1809 及以上、Windows 11，**x64**。不提供 32 位或原生 ARM64 包。
-- 安装版：运行 `Compositor-Windows-1.4.10.2-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
+- 安装版：运行 `Compositor-Windows-1.5.1.1-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
 - 免安装版：解压整个 `*-portable.zip`，运行文件夹中的 `Compositor.exe`。自带 .NET 运行时，无需安装 .NET SDK。若系统缺少 Visual C++ 2015–2022 x64 运行库，先运行随包提供的 `redist/vc_redist.x64.exe`。
 - 程序与安装包目前未做商业代码签名。只从本仓库下载；`SHA256SUMS.txt` 可用于校验文件完整性。
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
@@ -17,14 +19,18 @@
 - 可将项目文件夹或图像路径作为参数：`Compositor.exe "D:\图片\项目.comp"`。
 - 设置保存在 `%APPDATA%\CompositorWindows`。卸载不会删除项目文件和个人设置。
 
-## 1.4.10.2 首选项、图层菜单与大图显示
+## 1.5.1.1 文字、蒙版、排版与 CMYK 更新
+
+- PSD 文字／矢量蒙版、字符范围格式、字体候选、文字菜单和五种面板；蒙版及缩览图菜单和“选择并遮住”属性侧栏。
+- 按参考图重绘对齐／分布，统一居中基准线粗细；控件紧凑，浅色主题立即更新。
+- 合并上游 1.5.1，接入 ICC CMYK 校样／导出、默认 RGB、浮点区域显示及渐进模糊。
 
 - Ctrl+K 打开统一首选项：19 个分类、中英文搜索、草稿确定／取消／重置及高级图形弹窗。设置接入已有工具、历史、恢复副本、导出、标尺、文字、主题和 GPU 配置。
 - 钢笔族使用笔形光标和控制柄辅助线；光标移动只刷新覆盖层。支持的图层以 Skia 场景缓存并使用实际 GPU 上下文重放，复杂效果仍回退参考合成器。
 - 图层菜单按参考图整理，增加填充、蒙版、排列、形状布尔、修边及八类可编辑调整层；后者使用 Windows v19 格式。
 - OpenCL 迁移暂缓，继续使用 Skia。OpenCL、30 位显示和暂存盘换出不作为已实现功能；设置窗口明确说明。
-- **1132 项核心测试、17 组英文与 11 组中文界面检查**；包内包含设置接入、性能验证与功能边界说明。
-- [首选项与接入审查](PREFERENCES.md) · [图层菜单与钢笔](LAYER-MENU.md) · [本版更新](UPDATES-1.4.10.2.md)。以下版本段落为历史记录。
+- **1151 项核心测试、CI 包含 18 组英文与 12 组中文界面检查**；包内包含设置接入、性能验证与功能边界说明。
+- [首选项与接入审查](PREFERENCES.md) · [图层菜单与钢笔](LAYER-MENU.md) · [本版更新](UPDATES-1.5.1.1.md)。以下版本段落为历史记录。
 
 ## 1.4.10.1 界面、编辑菜单与 HDR 更新
 
@@ -108,11 +114,11 @@
 
 ### 项目兼容性
 
-当前读取版本 1–19。新增八类可编辑调整层使用 Windows 扩展 v19；图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，最新上游 macOS 1.4.10 支持 v1–v13，其中 v12 的 16 位 PNG 和 v13 EXR 可以读取，但不支持 Windows v13–v19 字段。清除新增字段后可恢复相应较低版本；交付合成结果可导出 PNG。详细字段见 [项目格式 v15](../docs/project-format.md#windows-extension-version-15)。
+当前读取版本 1–20。字符范围样式、文字几何、矢量孔洞规则、额外标签色和 ICC 配置使用 Windows 扩展 v20；新增八类可编辑调整层使用 Windows 扩展 v19；图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，最新上游 macOS 1.5.1 支持 v1–v13，其中 v12 的 16 位 PNG 和 v13 EXR 可以读取，但不支持 Windows v13–v20 字段。清除新增字段后可恢复相应较低版本；交付合成结果可导出 PNG。详细字段见 [项目格式 v15](../docs/project-format.md#windows-extension-version-15)。
 
 ## 功能与迁移范围
 
-保留 `.comp` 格式版本 1–11 的读写并增加 Windows 扩展 v12–v19、图层与组、24 种混合模式、蒙版和剪贴蒙版、调整图层、图层样式、选区、绘画/仿制/修复/涂抹/液化、可编辑文字和形状、裁剪/变换、参考线、色阶/曲线/色相饱和度、Camera Raw 调整、仿色、内容识别填充、导出以及撤销/重做。
+保留 `.comp` 格式版本 1–11 的读写并增加 Windows 扩展 v12–v20、图层与组、24 种混合模式、蒙版和剪贴蒙版、调整图层、图层样式、选区、绘画/仿制/修复/涂抹/液化、可编辑文字和形状、裁剪/变换、参考线、色阶/曲线/色相饱和度、Camera Raw 调整、仿色、内容识别填充、导出以及撤销/重做。
 
 在已有 MIT Windows 移植基础上增加：
 
@@ -136,7 +142,7 @@
 - Bloom/Glow 的实现近似原视觉效果；相机 RAW 先经 LibRaw 解码为 16 位 sRGB 再进入调整面板，不是完整的传感器域 RAW 流程。Camera Raw 点颜色从前景色加入，原生 Mac 面板的直接取样交互未完全复刻。
 - PSD/PSB 不是 Photoshop 的完整可编辑往返格式；不支持的项目按导入报告说明处理。可导出 PNG/JPEG/PDF/TIFF，不提供 PSD 写回；PDF 不保留矢量文字和图层。
 - 删除剪贴来源提供“烘焙后删除／释放链接后删除／取消”，支持撤销。图层支持拖动排序；跨项目图层拖放等交互仍与原生 Mac 不同。
-- 通道编辑面板为 RGB 和最多 64 个 Alpha 通道；图像菜单提供 CMYK/Lab TIFF 转换及通道计算，但工作合成为 sRGB，不提供原生 CMYK/Lab 通道编辑、ICC 印刷软打样或专色。Alpha 为全画布灰度图，单通道受 200 MP 和文档资源预算限制；导出预览同样受单表面限制，8 位 RGB 大画布仍可用分块“导出 PNG”；16／32 位或其他模式的导出受单表面上限限制。扫描线光晕使用 CPU 全分辨率模糊，与 macOS 缩小预览算法存在轻微差异。
+- 通道编辑面板为 RGB 和最多 64 个 Alpha 通道；图像菜单提供 CMYK/Lab TIFF 转换及通道计算，但工作合成为 sRGB，提供 ICC 软打样、色域警告和 CMYK JPEG／TIFF／PDF 输出；不提供原生 CMYK/Lab 通道编辑或专色。Alpha 为全画布灰度图，单通道受 200 MP 和文档资源预算限制；导出预览同样受单表面限制，8 位 RGB 大画布仍可用分块“导出 PNG”；16／32 位或其他模式的导出受单表面上限限制。扫描线光晕使用 CPU 全分辨率模糊，与 macOS 缩小预览算法存在轻微差异。
 - 属性面板现提供 OpenType 特性开关（连字、字距调整和 `dlig`／`onum`／`frac`／`ss01` 等特性标签）、小型大写、全部大写、上标、下标、自动／从左到右／从右到左方向、动态文字标记（`{width}`、`{date}` 等），以及“转换为框架”和“转换为矢量形状”。文字以 Skia 加 HarfBuzz 塑形，阿拉伯语、希伯来语及诸多印度语系文字获得连写、上下文形变和从右到左排序；拉丁、中文等无上下文形变的文字仍逐字排版以保留逐字颜色与字体。
 - 东亚排版加入避头尾（行首禁则、行尾禁则）与最简标点挤压；`Wrap` 对 CJK 逐字断行并对拉丁按词断行。双向排版使用完整的 Unicode 双向算法（UAX #9，规则 P1–P3／X1–X9／W1–W7／N0–N2／I1–I2／L1–L4），含配对括号、NSM、孤立符与镜像，字形类别取自 Unicode 18.0.0 数据。逐行按嵌入级重排后交由 HarfBuzz 按各段方向塑形，混排阿拉伯语、希伯来语、拉丁与数字均按规范排序；仅个别含嵌套显式方向覆盖符（U+202A–U+202E）与括号的极端用例可能与参考实现差一级。
 - 文字“转换为矢量形状”用字形轮廓生成标准化 SVG 路径的形状图层；“转换为框架”把点文字变为段落框。矢量蒙版从选区路径创建并按路径重绘、保存 PNG 回退。**路径选择／直接选择工具**可移动形状或矢量蒙版的整个路径、拖动节点与手柄，双击加点、Alt 单击删点；节点编辑支持 M/L/C/Q/Z 命令，弧线路径不可编辑。反相、画笔、平滑和移动边缘仍会栅格化矢量蒙版；羽化与密度保持可调元数据。
@@ -166,7 +172,7 @@ CLI 位于包内 `cli/Compositor.Cli.exe`，运行 `--help` 查看命令。
 
 ## English
 
-An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, updated through upstream macOS 1.4.10 and commit f5ae5ba, with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
+An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, updated through upstream macOS 1.5.1 and commit f2747c4, with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 

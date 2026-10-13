@@ -260,6 +260,7 @@ public sealed partial class MainWindow
         _lockLayer.IsEnabled = layer is not null;
         _showingAppearance = false;
         foreach (var thumbnail in _layerThumbnails) thumbnail.InvalidateVisual();
+        UpdateMaskOverlay(); RefreshTypePanels();
         if (_panelTabs.SelectedIndex == 1) RefreshChannels();
     }
 }
@@ -267,22 +268,33 @@ public sealed partial class MainWindow
 internal sealed class LayerThumbnail(Func<SKBitmap?> source, string kind = "") : Control
 {
     public Func<bool>? Active { get; init; }
+    public bool HideImage { get; init; }
+    public Func<(Compositor.Core.Model.LayerTransform? Transform, int Width, int Height)>? LayerBounds { get; init; }
     public override void Render(DrawingContext context)
     {
         if (Active?.Invoke() == true) context.DrawRectangle(null, new Pen(Skin.AccentBrush, 2), new Rect(1, 1, Math.Max(0, Bounds.Width - 2), Math.Max(0, Bounds.Height - 2)));
         if (kind == "folder")
         {
-            using (context.PushTransform(Matrix.CreateTranslation(4, 6)))
+            using (context.PushTransform(Matrix.CreateTranslation(4, 6) * Matrix.CreateScale(Bounds.Width / 32, Bounds.Height / 32)))
                 context.DrawGeometry(Skin.SecondaryBrush, new Pen(Skin.LabelBrush, 1), StreamGeometry.Parse("M1,2 L10,2 L13,6 L25,6 L25,21 L1,21 Z"));
             return;
         }
         var box = new Rect(0, 0, Bounds.Width, Bounds.Height);
         context.DrawRectangle(Skin.Checker, new Pen(Skin.SecondaryBrush, 1), box);
-        if (source() is { } pixels)
+        if (!HideImage && source() is { } pixels)
         {
             using var image = CanvasView.ToImage(pixels);
             var scale = Math.Min(Bounds.Width / pixels.Width, Bounds.Height / pixels.Height);
-            context.DrawImage(image, new Rect((Bounds.Width - pixels.Width * scale) / 2,
+            using var clip = context.PushClip(box);
+            if (!EditorPreferences.Current.ThumbnailLayerBounds && LayerBounds?.Invoke() is { Transform: { } transform } bounds)
+            {
+                var ratio = Math.Min(Bounds.Width / bounds.Width, Bounds.Height / bounds.Height);
+                var matrix = Compositor.Core.Document.BrushEdits.PixelToDocument(transform, pixels.Width, pixels.Height);
+                var placed = new Matrix(matrix.ScaleX, matrix.SkewY, matrix.SkewX, matrix.ScaleY, matrix.TransX, matrix.TransY)
+                    * Matrix.CreateScale(ratio, ratio) * Matrix.CreateTranslation((Bounds.Width - bounds.Width * ratio) / 2, (Bounds.Height - bounds.Height * ratio) / 2);
+                using (context.PushTransform(placed)) context.DrawImage(image, new Rect(0, 0, pixels.Width, pixels.Height));
+            }
+            else context.DrawImage(image, new Rect((Bounds.Width - pixels.Width * scale) / 2,
                 (Bounds.Height - pixels.Height * scale) / 2, pixels.Width * scale, pixels.Height * scale));
         }
         else if (kind.Length > 0)

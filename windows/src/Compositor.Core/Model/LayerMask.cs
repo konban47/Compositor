@@ -8,13 +8,14 @@ namespace Compositor.Core.Model;
 /// </summary>
 public sealed class LayerMask : IDisposable
 {
-    public LayerMask(ImportedImage asset, bool isEnabled = true, LayerTransform? placement = null, bool isLinked = true, double density = 1, double feather = 0, string? vectorPath = null)
+    public LayerMask(ImportedImage asset, bool isEnabled = true, LayerTransform? placement = null, bool isLinked = true, double density = 1, double feather = 0, string? vectorPath = null, bool vectorEvenOdd = false)
     {
         Asset = asset;
         IsEnabled = isEnabled;
         Placement = placement;
         IsLinked = isLinked;
         Density = density; Feather = feather; VectorPath = vectorPath;
+        VectorEvenOdd = vectorEvenOdd;
     }
 
     public ImportedImage Asset { get; private set; }
@@ -29,7 +30,16 @@ public sealed class LayerMask : IDisposable
     public double Density { get; set; } = 1;
     public double Feather { get; set; }
     public string? VectorPath { get; set; }
-    public LayerMask Clone() => new(Asset, IsEnabled, Placement, IsLinked, Density, Feather, VectorPath);
+    public bool VectorEvenOdd { get; set; }
+    public LayerMask Clone() => new(Asset, IsEnabled, Placement, IsLinked, Density, Feather, VectorPath, VectorEvenOdd);
+    public SKPath? CreateVectorPath(string? data = null)
+    {
+        if ((data ?? VectorPath) is not { } svg) return null;
+        var path = SKPath.ParseSvgPathData(svg);
+        if (path is null || !VectorEvenOdd) return path;
+        using (path)
+        using (var builder = new SKPathBuilder(path) { FillType = SKPathFillType.EvenOdd }) return builder.Detach();
+    }
 
     public SKBitmap? EnabledImage => IsEnabled ? Asset.Image : null;
 
@@ -49,7 +59,7 @@ public sealed class LayerMask : IDisposable
     }
 
     /// <summary>The same mask with new pixels, still enabled or not, linked or not, and where it sits.</summary>
-    public LayerMask Replacing(ImportedImage asset) => new(asset, IsEnabled, Placement, IsLinked, Density, Feather, ReferenceEquals(asset.Image, Asset.Image) ? VectorPath : null);
+    public LayerMask Replacing(ImportedImage asset) => new(asset, IsEnabled, Placement, IsLinked, Density, Feather, ReferenceEquals(asset.Image, Asset.Image) ? VectorPath : null, VectorEvenOdd);
 
     /// <summary>
     /// Where the mask sits once its layer moves: carried along when linked, left where it was when

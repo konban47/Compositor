@@ -332,7 +332,7 @@ public static class ImageImporter
     /// <summary>A canvas holding the image at its own size, as a new project starts.</summary>
     public static CanvasDocument NewDocument(ImportedImage image, double resolution = 72)
     {
-        var document = new CanvasDocument(Guid.NewGuid(), image.Width, image.Height, resolution) { Image = new Compositor.Core.Format.ImageSettings { Mode = image.ColorMode, Depth = image.BitDepth } };
+        var document = new CanvasDocument(Guid.NewGuid(), image.Width, image.Height, resolution) { Image = new Compositor.Core.Format.ImageSettings { Mode = image.ColorMode, Depth = image.BitDepth, CmykProfile = image.CmykProfile } };
         document.Layers.Add(Layer(image));
         return document;
     }

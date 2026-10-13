@@ -1,3 +1,4 @@
+using Avalonia.Input.Platform;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
@@ -321,7 +322,7 @@ public sealed partial class MainWindow : Window
         // The picker is a window of its own and the app is left running until the last window closes, so it
         // goes with the editor rather than being left behind to hold the session open.
         Closing += ConfirmWindowClose;
-        Closed += (_, _) => { _recoveryTimer?.Stop(); _picker?.Close(); _channelThumbnail?.Dispose(); foreach (var image in _channelImages) image.Dispose(); };
+        Closed += (_, _) => { CloseMaskWorkspace(); _canvas.MaskOverlay?.Dispose(); _recoveryTimer?.Stop(); _picker?.Close(); _channelThumbnail?.Dispose(); foreach (var image in _channelImages) image.Dispose(); };
         Background = Skin.ChromeBrush;
         // The window's plain labels (a heading, a readout) take their colour from here, as the Mac's do from
         // the appearance; controls that name their own text keep it.
@@ -366,6 +367,8 @@ public sealed partial class MainWindow : Window
         _canvas.TextBackspaced = BackspacedText;
         _canvas.TextDeleted = DeletedText;
         _canvas.TextMoved = MovedTextCaret;
+        _canvas.TextDragged = point => { if (_document is { } doc && _text is { } text && text.PlaceCaret(doc, point, true)) ShowTextCaret(); };
+        _canvas.TextCommand = key => _ = TextClipboard(key);
         _canvas.TextCommitted = CommitText;
         _canvas.TextCancelled = CancelText;
         _canvas.TransformStarted = TransformStarted;
@@ -508,6 +511,7 @@ public sealed partial class MainWindow : Window
                         Command("_Camera Raw Filter…", CameraRawFilter),
                         new Separator(),
                         Command("_Gaussian Blur…", () => _ = ApplyFilter(FilterKind.GaussianBlur)),
+                        Command("Progressive Blur…", () => _ = ApplyFilter(FilterKind.ProgressiveBlur)),
                         Command("Scanlines…", () => _ = ApplyFilter(FilterKind.Scanlines)),
                         Command("_Motion Blur…", () => _ = ApplyFilter(FilterKind.MotionBlur)),
                         Command("Add _Noise…", () => _ = ApplyFilter(FilterKind.AddNoise)),
@@ -521,6 +525,7 @@ public sealed partial class MainWindow : Window
                         Command("Lens _Correction…", () => _ = ApplyFilter(FilterKind.LensCorrection)),
                     },
                 },
+                BuildTypeMenu(),
                 BuildToolsMenu(),
                 new MenuItem
                 {
@@ -560,7 +565,7 @@ public sealed partial class MainWindow : Window
                         _lockGuides,
                         _showTransform,
                         _pixelGrid,
-                        NavigatorMenu(),
+                        NavigatorMenu(), CmykMenu(),
                         Command("Properties", () => OpenInspector(0)),
                         Command("History", () => OpenInspector(1)),
                         _snapping,
@@ -5147,6 +5152,8 @@ public sealed partial class MainWindow : Window
             is { } target)
         {
             _text = TextSession.Editing(target);
+            _text.PlaceCaret(document, origin);
+            Reselect(target.ID);
             _history.Begin("Edit Text", document, target.ID);
         }
         else
@@ -5199,10 +5206,10 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>An arrow or Home or End: the caret moves through the words, and is drawn where it lands.</summary>
-    private void MovedTextCaret(TextSession.TextMove move)
+    private void MovedTextCaret(TextSession.TextMove move, bool extend = false)
     {
         if (_text is not { } session) return;
-        if (session.MoveCaret(move)) ShowTextCaret();
+        if (session.MoveCaret(move, extend)) ShowTextCaret();
     }
 
     /// <summary>Puts the caret where the text ends and keeps the panel on the layer being typed on.</summary>
@@ -5219,8 +5226,28 @@ public sealed partial class MainWindow : Window
         Refresh();
     }
 
-    private void ShowTextCaret() =>
+    private void ShowTextCaret()
+    {
         _canvas.TextCaret = _document is { } document && _text is { } session ? session.Caret(document) : null;
+        _canvas.TextSelection = _document is { } doc && _text is { } text ? text.SelectionPolygons(doc) : [];
+        _canvas.InvalidateOverlay();
+    }
+    private async Task TextClipboard(Key key)
+    {
+        if (_text is not { } session || _document is not { } document) return;
+        if (key == Key.A) { session.SelectAll(); ShowTextCaret(); return; }
+        if (Clipboard is null) return;
+        if (key is Key.C or Key.X && session.SelectionLength > 0)
+        {
+            await Clipboard.SetTextAsync(session.SelectedText);
+            if (key == Key.X && ReferenceEquals(session, _text) && session.Delete(document)) ShowText();
+        }
+        if (key == Key.V)
+        {
+            var value = await Clipboard.TryGetTextAsync();
+            if (value is not null && ReferenceEquals(session, _text) && session.Type(document, value.Replace("\r\n", "\n"))) ShowText();
+        }
+    }
 
     /// <summary>Ctrl and Enter: the words are kept, and the whole session is one undo step.</summary>
     private void CommitText()

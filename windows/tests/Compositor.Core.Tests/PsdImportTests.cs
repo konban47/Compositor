@@ -12,7 +12,7 @@ namespace Compositor.Core.Tests;
 /// itself: the header, one image resource, the layer and mask section with folders, masks and PackBits
 /// rows, the merged image data, and the PNG save and render an import feeds.
 /// </summary>
-public class PsdImportTests : IDisposable
+public partial class PsdImportTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "CompositorPsd-" + Guid.NewGuid().ToString("N"));
 
@@ -282,6 +282,7 @@ public class PsdImportTests : IDisposable
         public List<byte[]> Planes = [];
         public bool Raw;
         public byte[]? Levels;
+        public List<(string Key, byte[] Data)> Additional = [];
         public byte[]? MaskPlane;
         public int MaskTop, MaskLeft, MaskBottom, MaskRight;
         public byte MaskDefault = 255;
@@ -576,6 +577,8 @@ public class PsdImportTests : IDisposable
             writer.Byte(layer.Fill);
             writer.Byte(0);
         }
+        foreach (var (key, data) in layer.Additional)
+        { writer.Ascii("8BIM"); writer.Ascii(key); writer.U32(data.Length); writer.Bytes(data); if (data.Length % 2 != 0) writer.Byte(0); }
         if (layer.Levels is { } levels)
         {
             writer.Ascii("8BIM");

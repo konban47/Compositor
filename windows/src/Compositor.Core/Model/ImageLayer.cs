@@ -122,7 +122,7 @@ public sealed class ImageLayer : IDisposable
         : right is not null && ReferenceEquals(left.Asset.Image, right.Asset.Image)
             && left.IsEnabled == right.IsEnabled && left.IsLinked == right.IsLinked
             && left.Placement == right.Placement && left.Density == right.Density && left.Feather == right.Feather
-            && left.VectorPath == right.VectorPath;
+            && left.VectorPath == right.VectorPath && left.VectorEvenOdd == right.VectorEvenOdd;
 
     public double EffectiveOpacity(IReadOnlyDictionary<Guid, ImageLayer> byID) =>
         LayerOpacity.Effective(this, byID);

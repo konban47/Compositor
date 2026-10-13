@@ -89,7 +89,7 @@ internal ref struct PsdCursor(ReadOnlySpan<byte> data)
 internal static class PsdReader
 {
     /// <summary>Channels a layer holds that Compositor uses; spot and other channel IDs are skipped before decode.</summary>
-    private static readonly int[] UnpackedChannelIds = [-1, 0, 1, 2, -2];
+    private static readonly int[] UnpackedChannelIds = [-1, 0, 1, 2, 3, -2];
 
     /// <summary>Additional layer keys whose length is eight bytes in a large document.</summary>
     private static readonly string[] PsbLargeKeys =
@@ -121,13 +121,13 @@ internal static class PsdReader
         {
             throw PsdFailure.TooLarge;
         }
-        if (depth != 8 || mode != 3) throw PsdFailure.ColorMode;
+        if (depth != 8 || mode is not (3 or 4)) throw PsdFailure.ColorMode;
 
         cursor.Skip((int)cursor.U32());
         var resourcesLength = (int)cursor.U32();
         var resourcesEnd = cursor.Offset + resourcesLength;
         if (resourcesEnd > data.Length) throw PsdFailure.Truncated;
-        var resolution = 72.0;
+        var resolution = 72.0; byte[]? cmykProfile = null;
         while (cursor.Offset + 12 <= resourcesEnd)
         {
             if (cursor.Ascii(4) != "8BIM") break;
@@ -143,12 +143,13 @@ internal static class PsdReader
                 if (!double.IsFinite(resolution) || resolution < 1) resolution = 72;
                 resolution = Math.Min(9600, Math.Max(1, resolution));
             }
+            if (id == 1039 && mode == 4 && length <= 4 * 1024 * 1024) { cursor.Offset = dataStart; var embedded = cursor.Bytes(length).ToArray(); if (CmykColor.IsProfile(embedded)) cmykProfile = embedded; }
             cursor.Offset = dataStart + length;
             if (length % 2 == 1) cursor.Skip(1);
         }
         cursor.Offset = resourcesEnd;
 
-        var document = new PsdDocument { Width = canvasWidth, Height = canvasHeight, Resolution = resolution };
+        var document = new PsdDocument { Width = canvasWidth, Height = canvasHeight, Resolution = resolution, CmykProfile = mode == 4 ? cmykProfile ?? CmykColor.DefaultProfile : null };
         var layerSection = CheckedLength(isPsb ? cursor.U64() : cursor.U32());
         var layerSectionEnd = cursor.Offset + layerSection;
         if (layerSectionEnd > data.Length) throw PsdFailure.Truncated;
@@ -180,7 +181,7 @@ internal static class PsdReader
         var usedPixels = 0;
         foreach (var layer in raw)
         {
-            DecodeChannels(ref cursor, layer, remainingPixels - usedPixels, isPsb);
+            DecodeChannels(ref cursor, layer, remainingPixels - usedPixels, isPsb, document.CmykProfile);
             if (layer.Image is { } image) usedPixels += image.Width * image.Height;
         }
         cursor.Offset = layerSectionEnd;
@@ -218,6 +219,8 @@ internal static class PsdReader
 
         /// <summary>Parsed adjustment settings, when the layer's blocks map onto one.</summary>
         public LayerAdjustment? Adjustment;
+        public PsdText.Source? Text;
+        public byte[]? VectorMask;
     }
 
     private static int CheckedLength(ulong value)
@@ -304,6 +307,8 @@ internal static class PsdReader
             cursor.Skip(length);
             if (length % 2 == 1) cursor.Skip(1);
             layer.Extra[key] = (payload, length);
+            if (key is "TySh" or "tySh") layer.Text = PsdText.Read(data.Slice(payload, length));
+            if (key is "vmsk" or "vsms" && length <= 4_000_000) layer.VectorMask = data.Slice(payload, length).ToArray();
             if (key == "luni" && UnicodeName(data.Slice(payload, length)) is { } unicode) layer.Name = unicode;
             if (key == "iOpa" && length >= 1) layer.Fill = data[payload];
             if ((key == "lsct" || key == "lsdk") && length >= 4) layer.Section = (int)ReadU32(data.Slice(payload));
@@ -405,7 +410,7 @@ internal static class PsdReader
         }
     }
 
-    private static void DecodeChannels(ref PsdCursor cursor, RawLayer layer, int remainingPixels, bool isPsb)
+    private static void DecodeChannels(ref PsdCursor cursor, RawLayer layer, int remainingPixels, bool isPsb, byte[]? cmykProfile)
     {
         var planes = new Dictionary<int, byte[]>();
         var width = Width(layer);
@@ -456,7 +461,8 @@ internal static class PsdReader
         {
             throw PsdFailure.Truncated;
         }
-        layer.Image = PsdChannelCoder.Rgba(width, height, red, green, blue, alpha);
+        planes.TryGetValue(3, out var black);
+        layer.Image = cmykProfile is null ? PsdChannelCoder.Rgba(width, height, red, green, blue, alpha) : CmykColor.Decode(width, height, red, green, blue, black, alpha, cmykProfile);
     }
 
     private static List<PsdRecord> Assemble(List<RawLayer> raw, int canvasWidth, int canvasHeight)
@@ -494,13 +500,16 @@ internal static class PsdReader
                     ? new PsdRect(0, 0, canvasWidth, canvasHeight)
                     : new PsdRect(layer.Left, layer.Top, layer.Right, layer.Bottom),
                 Image = isGroup ? null : layer.Image,
-                Mask = layer.MaskFromRender ? null : layer.MaskImage,
+                Mask = layer.MaskImage,
                 MaskBounds = new PsdRect(layer.MaskLeft, layer.MaskTop, layer.MaskRight, layer.MaskBottom),
                 MaskDefault = layer.MaskDefault,
                 MaskEnabled = !layer.MaskDisabled,
                 MaskLinked = layer.MaskLinked,
                 Adjustment = layer.Adjustment,
+                Text = layer.Text,
+                VectorMask = layer.VectorMask is { } vector ? PsdVectorMask.Read(vector, canvasWidth, canvasHeight) : null,
             };
+            if (layer.MaskFromRender && record.VectorMask is not null) { layer.MaskImage?.Dispose(); record.Mask = null; }
             var hasEffects = record.Kind == PsdLayerKind.Effects;
             // A fill that is not fully opaque is only kept apart from the opacity for effect layers, which
             // Photoshop stores without their effect.
@@ -544,40 +553,23 @@ internal static class PsdReader
         var width = document.Width;
         var height = document.Height;
         if ((long)width * height > Math.Max(0, remainingPixels)) throw PsdFailure.TooLarge;
-        var planes = Math.Clamp(channelCount, 3, 4);
-        var compression = cursor.U16();
-        byte[]? red;
-        byte[]? green;
-        byte[]? blue;
-        byte[]? alpha = null;
-        if (compression == 0)
-        {
-            red = cursor.Bytes(width * height).ToArray();
-            green = cursor.Bytes(width * height).ToArray();
-            blue = cursor.Bytes(width * height).ToArray();
-            if (planes == 4) alpha = cursor.Bytes(width * height).ToArray();
-        }
+        var baseChannels = document.CmykProfile is null ? 3 : 4;
+        var planes = Math.Clamp(channelCount, baseChannels, baseChannels + 1); var compression = cursor.U16();
+        var channels = new byte[planes][];
+        if (compression == 0) for (var i = 0; i < planes; i++) channels[i] = cursor.Bytes(width * height).ToArray();
         else if (compression == 1)
         {
-            var data = cursor.Rest;
-            var offset = 0;
-            var counts = PsdChannelCoder.RowCounts(data, ref offset, height * planes, isPsb);
-            red = PsdChannelCoder.PackRows(width, height, data, counts, ref offset, null);
-            green = PsdChannelCoder.PackRows(width, height, data, counts, ref offset, null, height);
-            blue = PsdChannelCoder.PackRows(width, height, data, counts, ref offset, null, height * 2);
-            if (planes == 4) alpha = PsdChannelCoder.PackRows(width, height, data, counts, ref offset, null, height * 3);
+            var data = cursor.Rest; var offset = 0; var counts = PsdChannelCoder.RowCounts(data, ref offset, height * planes, isPsb);
+            for (var i = 0; i < planes; i++) channels[i] = PsdChannelCoder.PackRows(width, height, data, counts, ref offset, null, height * i);
             cursor.Skip(offset);
         }
-        else
-        {
-            throw PsdFailure.Compression;
-        }
-
+        else throw PsdFailure.Compression;
+        var alpha = planes > baseChannels ? channels[baseChannels] : null;
         document.Layers.Add(new PsdRecord
         {
             Name = flattenedName.Length == 0 ? "Background" : flattenedName,
             Bounds = new PsdRect(0, 0, width, height),
-            Image = PsdChannelCoder.Rgba(width, height, red, green, blue, alpha),
+            Image = document.CmykProfile is null ? PsdChannelCoder.Rgba(width, height, channels[0], channels[1], channels[2], alpha) : CmykColor.Decode(width, height, channels[0], channels[1], channels[2], channels[3], alpha, document.CmykProfile),
         });
         return document;
     }

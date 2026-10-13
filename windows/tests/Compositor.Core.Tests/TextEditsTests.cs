@@ -201,21 +201,21 @@ public class TextEditsTests : IDisposable
     }
 
     [Fact]
-    public void EditingTheStyleDrawsTheLayerAgainAboutItsMiddle()
+    public void EditingTheStylePreservesItsTopLeftAnchor()
     {
         using var document = new CanvasDocument(Guid.NewGuid(), 600, 300);
         var id = TextEdits.Add(document, Style("Hello", 36), new SKPoint(20, 30));
         Assert.NotNull(id);
         var layer = document.Layers.Single();
-        var centreX = layer.Transform.CenterX;
-        var centreY = layer.Transform.CenterY;
+        var originX = layer.Transform.X;
+        var originY = layer.Transform.Y;
         var wasSmall = layer.Asset!.Width;
 
         var bigger = Style("Hello", 72);
         Assert.True(TextEdits.SetStyle(document, id!.Value, bigger));
         Assert.True(layer.Asset!.Width > wasSmall);
-        Assert.Equal(centreX, layer.Transform.CenterX, 6);
-        Assert.Equal(centreY, layer.Transform.CenterY, 6);
+        Assert.Equal(originX, layer.Transform.X, 6);
+        Assert.Equal(originY, layer.Transform.Y, 6);
         Assert.Equal(72, layer.LiveText!.FontSize);
     }
 

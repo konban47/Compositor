@@ -17,29 +17,29 @@ internal static class Skin
     // ---- Photoshop Layout & Surface Colours ----
 
     /// <summary>Upstream ContentView surface: Color(white: 0.14), rounded to #242424.</summary>
-    public static readonly Color Chrome = Tone(0x24, 0x50, 0xB8, 0xEE);
+    public static Color Chrome => Tone(0x24, 0x50, 0xB8, 0xEE);
     private static Color Tone(byte a, byte b, byte c, byte d) { var v = new[] { a, b, c, d }[EditorPreferences.Current.Theme]; return Color.FromRgb(v, v, v); }
 
     /// <summary>Photoshop workspace pasteboard behind document canvas (#282828).</summary>
     public static readonly Color Pasteboard = Color.FromRgb(0x28, 0x28, 0x28);
 
     /// <summary>Deep recessed background for text inputs, number fields, listboxes, and slider tracks (#222222).</summary>
-    public static readonly Color SurfaceDark = Tone(0x22, 0x44, 0xD0, 0xFF);
+    public static Color SurfaceDark => Tone(0x22, 0x44, 0xD0, 0xFF);
 
     /// <summary>Standard Photoshop button and toggle surface (#3D3D3D).</summary>
-    public static readonly Color SurfaceControl = Tone(0x3D, 0x60, 0xC8, 0xE0);
+    public static Color SurfaceControl => Tone(0x3D, 0x60, 0xC8, 0xE0);
 
     /// <summary>Photoshop control hover state (#4C4C4C).</summary>
-    public static readonly Color SurfaceControlHover = Tone(0x4C, 0x70, 0xD8, 0xD0);
+    public static Color SurfaceControlHover => Tone(0x4C, 0x70, 0xD8, 0xD0);
 
     /// <summary>Photoshop control pressed and active tool sunken state (#252525).</summary>
-    public static readonly Color SurfaceControlPressed = Tone(0x25, 0x40, 0xA8, 0xC0);
+    public static Color SurfaceControlPressed => Tone(0x25, 0x40, 0xA8, 0xC0);
 
     /// <summary>Subtle 1px border between docked workspace sections (#262626).</summary>
-    public static readonly Color BorderSubtle = Tone(0x26, 0x40, 0xA0, 0xC0);
+    public static Color BorderSubtle => Tone(0x26, 0x40, 0xA0, 0xC0);
 
     /// <summary>Standard 1px control outline border (#464646).</summary>
-    public static readonly Color BorderControl = Tone(0x46, 0x70, 0x90, 0xB0);
+    public static Color BorderControl => Tone(0x46, 0x70, 0x90, 0xB0);
 
     /// <summary>The transparency checker: Photoshop default neutral dark squares (#383838 and #454545).</summary>
     public static readonly Color CheckerBase = Color.FromRgb(0x38, 0x38, 0x38);
@@ -64,10 +64,10 @@ internal static class Skin
     public static readonly Color CropDim = Color.FromArgb(0x99, 0x00, 0x00, 0x00);
 
     /// <summary>Photoshop ruler face, tick, label and edge (#2C2C2C, #808080, #B0B0B0, #1E1E1E).</summary>
-    public static readonly Color RulerFace = Color.FromRgb(0x2C, 0x2C, 0x2C);
+    public static Color RulerFace => Tone(0x2C, 0x55, 0xCF, 0xE8);
     public static readonly Color RulerTick = Color.FromRgb(0x80, 0x80, 0x80);
-    public static readonly Color RulerLabel = Color.FromRgb(0xB0, 0xB0, 0xB0);
-    public static readonly Color RulerEdge = Color.FromRgb(0x1E, 0x1E, 0x1E);
+    public static Color RulerLabel => Secondary;
+    public static Color RulerEdge => BorderSubtle;
 
     // ---- Adobe Photoshop Accent & Typography Colours ----
 
@@ -79,14 +79,15 @@ internal static class Skin
     public static readonly Color AccentPressed = Color.FromRgb(0x0D, 0x5B, 0xBD);
 
     /// <summary>Photoshop primary text label: clean light grey (#E1E1E1).</summary>
-    public static readonly Color Label = Tone(0xE1, 0xEE, 0x22, 0x11);
+    public static Color Label => Tone(0xE1, 0xEE, 0x22, 0x11);
     /// <summary>Photoshop secondary text label: neutral medium grey (#9E9E9E).</summary>
-    public static readonly Color Secondary = Tone(0x9E, 0xCC, 0x50, 0x60);
+    public static Color Secondary => Tone(0x9E, 0xCC, 0x50, 0x60);
     /// <summary>Photoshop disabled text: muted dark grey (#666666).</summary>
     public static readonly Color Disabled = Color.FromRgb(0x66, 0x66, 0x66);
 
     // ---- App Surface Brushes ----
 
+    public static readonly IBrush RulerFaceBrush = new SolidColorBrush(RulerFace);
     public static readonly IBrush ChromeBrush = new SolidColorBrush(Chrome);
     public static IBrush PasteboardBrush => new SolidColorBrush(Color.Parse(EditorPreferences.Current.Pasteboard));
     public static readonly IBrush SurfaceDarkBrush = new SolidColorBrush(SurfaceDark);
@@ -99,6 +100,17 @@ internal static class Skin
     public static readonly IBrush SecondaryBrush = new SolidColorBrush(Secondary);
     public static readonly IBrush DisabledBrush = new SolidColorBrush(Disabled);
     public static readonly IBrush AccentBrush = new SolidColorBrush(Accent);
+
+    public static void RefreshPalette()
+    {
+        foreach (var (brush, color) in new[] { (ChromeBrush, Chrome), (SurfaceDarkBrush, SurfaceDark),
+            (SurfaceControlBrush, SurfaceControl), (SurfaceControlHoverBrush, SurfaceControlHover),
+            (SurfaceControlPressedBrush, SurfaceControlPressed), (BorderSubtleBrush, BorderSubtle),
+            (BorderControlBrush, BorderControl), (LabelBrush, Label), (SecondaryBrush, Secondary), (MenuRule, BorderControl), (RulerFaceBrush, RulerFace) })
+            if (brush is SolidColorBrush mutable) mutable.Color = color;
+        var ink = EditorPreferences.Current.Theme >= 2 ? Colors.Black : Colors.White;
+        foreach (var brush in new[] { TabFront, TabBack, TabFrontEdge, TabBackEdge }) if (brush is SolidColorBrush mutable) mutable.Color = ink;
+    }
 
     /// <summary>Upstream ProjectTabs active capsule: white at 12%.</summary>
     public static readonly IBrush TabFront = new SolidColorBrush(Colors.White, .12);

@@ -24,7 +24,7 @@ public sealed class TextSession
         LayerID = layer;
         // The caret starts after whatever is already there, so a session that is typed into rather than
         // clicked into adds to the end — which is where it has always gone.
-        CaretIndex = style.Content?.Length ?? 0;
+        AnchorIndex = CaretIndex = style.Content?.Length ?? 0;
     }
 
     /// <summary>The layer the words are on, once they have one: a session with no characters has no layer.</summary>
@@ -35,6 +35,25 @@ public sealed class TextSession
 
     /// <summary>How many characters are in front of the caret, from 0 to the length of the words.</summary>
     public int CaretIndex { get; private set; }
+    public int AnchorIndex { get; private set; }
+    public int SelectionStart => Math.Min(AnchorIndex, CaretIndex);
+    public int SelectionLength => Math.Abs(AnchorIndex - CaretIndex);
+    public string SelectedText => Content.Substring(SelectionStart, SelectionLength);
+    public void SelectAll() { AnchorIndex = 0; CaretIndex = Content.Length; }
+    public void SelectRange(int start, int length)
+    {
+        var stops = System.Globalization.StringInfo.ParseCombiningCharacters(Content).Append(Content.Length).ToArray();
+        AnchorIndex = stops.Last(n => n <= Math.Clamp(start, 0, Content.Length));
+        CaretIndex = stops.First(n => n >= Math.Clamp(start + length, AnchorIndex, Content.Length));
+    }
+    public bool ApplyStyle(CanvasDocument document, Action<LayerTextStyle> change, bool wholeLayer = false)
+    {
+        var previous = _style;
+        _style = SelectionLength > 0 && !wholeLayer ? TextRanges.Apply(_style, SelectionStart, SelectionLength, change) : TextEdits.Copy(_style);
+        if (SelectionLength == 0 || wholeLayer) { change(_style); _style.StyleRuns = _style.StyleRuns?.Select(r => { var value = TextRanges.Flat(r.Style); change(value); return new LayerTextStyleRun { Location = r.Location, Length = r.Length, Style = value }; }).ToList(); }
+        if (_style.IsValid && Draw(document)) return true;
+        _style = previous; return false;
+    }
 
     /// <summary>The style the words are being drawn with, as they stand.</summary>
     public LayerTextStyle Style => _style;
@@ -62,7 +81,7 @@ public sealed class TextSession
     public bool Type(CanvasDocument document, string typed)
     {
         if (typed.Length == 0) return false;
-        return Splice(document, CaretIndex, 0, typed);
+        return Splice(document, SelectionStart, SelectionLength, typed);
     }
 
     /// <summary>
@@ -71,18 +90,19 @@ public sealed class TextSession
     /// </summary>
     public bool Backspace(CanvasDocument document)
     {
+        if (SelectionLength > 0) return Splice(document, SelectionStart, SelectionLength, "");
         if (CaretIndex == 0) return false;
-        var length = char.IsLowSurrogate(_style.Content[CaretIndex - 1]) && CaretIndex >= 2
-            && char.IsHighSurrogate(_style.Content[CaretIndex - 2]) ? 2 : 1;
+        var previous = System.Globalization.StringInfo.ParseCombiningCharacters(Content).Last(i => i < CaretIndex);
+        var length = CaretIndex - previous;
         return Splice(document, CaretIndex - length, length, "");
     }
 
     /// <summary>The delete key: the character after the caret goes. Nothing happens at the end.</summary>
     public bool Delete(CanvasDocument document)
     {
+        if (SelectionLength > 0) return Splice(document, SelectionStart, SelectionLength, "");
         if (CaretIndex >= _style.Content.Length) return false;
-        var length = char.IsHighSurrogate(_style.Content[CaretIndex]) && CaretIndex + 1 < _style.Content.Length
-            && char.IsLowSurrogate(_style.Content[CaretIndex + 1]) ? 2 : 1;
+        var length = System.Globalization.StringInfo.GetNextTextElementLength(Content, CaretIndex);
         return Splice(document, CaretIndex, length, "");
     }
 
@@ -91,14 +111,17 @@ public sealed class TextSession
     /// keeping its place along the line as far as that line reaches — counted by characters rather than by
     /// what is drawn, so on a wrapped line it can land a character or two from where the eye expects.
     /// </summary>
-    public bool MoveCaret(TextMove move)
+    public bool MoveCaret(TextMove move, bool extend = false)
     {
         var content = _style.Content;
+        if (!extend && SelectionLength > 0 && move is TextMove.Left or TextMove.Right)
+        { CaretIndex = move == TextMove.Left ? SelectionStart : SelectionStart + SelectionLength; AnchorIndex = CaretIndex; return true; }
+        var graphemes = System.Globalization.StringInfo.ParseCombiningCharacters(content).Append(content.Length).ToArray();
         if (_style.Vertical == true) move = move switch { TextMove.Up => TextMove.Left, TextMove.Down => TextMove.Right, TextMove.Left => TextMove.Down, TextMove.Right => TextMove.Up, _ => move };
         var wanted = move switch
         {
-            TextMove.Left => CaretIndex > 0 ? CaretIndex - (PairBefore(content, CaretIndex) ? 2 : 1) : 0,
-            TextMove.Right => CaretIndex < content.Length ? CaretIndex + (PairAt(content, CaretIndex) ? 2 : 1) : content.Length,
+            TextMove.Left => CaretIndex > 0 ? graphemes.Last(i => i < CaretIndex) : 0,
+            TextMove.Right => CaretIndex < content.Length ? graphemes.First(i => i > CaretIndex) : content.Length,
             TextMove.Home => StartOfLine(content, CaretIndex),
             TextMove.End => EndOfLine(content, CaretIndex),
             TextMove.Up => NeighbouringLine(content, CaretIndex, -1),
@@ -106,42 +129,58 @@ public sealed class TextSession
         };
         if (wanted == CaretIndex) return false;
         CaretIndex = Math.Clamp(wanted, 0, content.Length);
+        if (!extend) AnchorIndex = CaretIndex;
         return true;
     }
 
     /// <summary>Where a click puts the caret: at the nearest place on the line it was clicked on.</summary>
-    public bool PlaceCaret(CanvasDocument document, SKPoint point)
+    public bool PlaceCaret(CanvasDocument document, SKPoint point, bool extend = false)
     {
-        var box = Box(document);
-        var best = CaretIndex;
-        var nearest = double.MaxValue;
-        for (var index = 0; index <= _style.Content.Length; index++)
+        var transform = Transform(document);
+        if (!transform.TryInvert(out var inverse)) return false;
+        var local = inverse.MapPoint(point);
+        var caret = TextEdits.CaretStops(_style).MinBy(s => _style.Vertical == true
+            ? Math.Abs(s.Point.X - local.X) * 1000 + Math.Abs(s.Point.Y - local.Y)
+            : Math.Abs(s.Point.Y - local.Y) * 1000 + Math.Abs(s.Point.X - local.X));
+        var changed = caret.Index != CaretIndex || !extend && SelectionLength > 0;
+        CaretIndex = caret.Index; if (!extend) AnchorIndex = CaretIndex;
+        return changed;
+    }
+
+    public SKMatrix Transform(CanvasDocument document)
+    {
+        var layer = document.Layers.FirstOrDefault(l => l.ID == LayerID);
+        return layer?.Asset is { } asset ? BrushEdits.PixelToDocument(layer.Transform, asset.Width, asset.Height)
+            : SKMatrix.CreateTranslation(_origin.X, _origin.Y);
+    }
+
+    public IReadOnlyList<SKPoint[]> SelectionPolygons(CanvasDocument document)
+    {
+        if (SelectionLength == 0) return [];
+        var stops = TextEdits.CaretStops(_style); var transform = Transform(document); var polygons = new List<SKPoint[]>();
+        for (var i = 0; i + 1 < stops.Count; i++)
         {
-            var at = TextEdits.Caret(_style, index);
-            // Only the lines the click is on are in the running, so the nearest place is measured across.
-            if (_style.Vertical != true && Math.Abs(box.Top + at.Y - point.Y) > _style.LineHeight) continue;
-            var distance = _style.Vertical == true ? SKPoint.Distance(new SKPoint(box.Left + at.X, box.Top + at.Y), point) : Math.Abs(box.Left + at.X - point.X);
-            if (distance >= nearest) continue;
-            nearest = distance;
-            best = index;
+            var a = stops[i]; var b = stops[i + 1];
+            if (a.Index < SelectionStart || a.Index >= SelectionStart + SelectionLength) continue;
+            var size = (float)TextRanges.At(_style, a.Index).FontSize;
+            var rect = _style.Vertical == true ? SKRect.Create(a.Point.X - size / 2, a.Point.Y, size, Math.Abs(a.Point.X - b.Point.X) < 1 ? Math.Max(2, b.Point.Y - a.Point.Y) : size)
+                : SKRect.Create(Math.Min(a.Point.X, b.Point.X), a.Point.Y - size * .85f, Math.Abs(a.Point.Y - b.Point.Y) < 1 ? Math.Max(2, Math.Abs(b.Point.X - a.Point.X)) : Math.Max(2, size * .35f), size * 1.1f);
+            polygons.Add(transform.MapPoints([new(rect.Left, rect.Top), new(rect.Right, rect.Top), new(rect.Right, rect.Bottom), new(rect.Left, rect.Bottom)]));
         }
-        if (best == CaretIndex) return false;
-        CaretIndex = best;
-        return true;
+        return polygons;
     }
 
     /// <summary>Takes characters out and puts others in their place, and draws the layer again.</summary>
     private bool Splice(CanvasDocument document, int at, int remove, string insert)
     {
-        var next = Copy(_style);
-        next.Content = next.Content.Remove(at, remove).Insert(at, insert);
+        var next = TextRanges.Splice(_style, at, remove, insert);
         var before = _style;
-        var caret = CaretIndex;
+        var caret = CaretIndex; var anchor = AnchorIndex;
         _style = next;
-        CaretIndex = at + insert.Length;
+        AnchorIndex = CaretIndex = at + insert.Length;
         if (Draw(document)) return true;
         _style = before;
-        CaretIndex = caret;
+        CaretIndex = caret; AnchorIndex = anchor;
         return false;
     }
 
@@ -153,6 +192,7 @@ public sealed class TextSession
 
     private static int StartOfLine(string content, int index)
     {
+        if (content.Length == 0) return 0;
         var at = content.LastIndexOf('\n', Math.Max(0, Math.Min(index, content.Length) - 1));
         return at < 0 ? 0 : at + 1;
     }
@@ -191,7 +231,7 @@ public sealed class TextSession
     /// </summary>
     public Guid? Commit(CanvasDocument document)
     {
-        if (LayerID is { } id && !string.IsNullOrWhiteSpace(_style.Content)) return id;
+        if (LayerID is { } id && (_original is not null || !string.IsNullOrWhiteSpace(_style.Content))) return id;
         Cancel(document);
         return null;
     }
@@ -220,17 +260,22 @@ public sealed class TextSession
     }
 
     /// <summary>Whether a document point is inside the text, so a click there stays in the session.</summary>
-    public bool Contains(CanvasDocument document, SKPoint point) =>
-        Box(document).Contains(new SKPointI((int)Math.Floor(point.X), (int)Math.Floor(point.Y)));
+    public bool Contains(CanvasDocument document, SKPoint point)
+    {
+        if (!Transform(document).TryInvert(out var inverse)) return false;
+        var local = inverse.MapPoint(point); var size = TextEdits.BoxSize(_style);
+        return local.X >= 0 && local.Y >= 0 && local.X < size.Width && local.Y < size.Height;
+    }
 
     /// <summary>The caret, in document pixels: a thin box where it sits, as tall as the type.</summary>
     public SKRect Caret(CanvasDocument document)
     {
-        var box = Box(document);
         var caret = TextEdits.Caret(_style, CaretIndex);
-        var size = (float)_style.FontSize;
-        if (_style.Vertical == true) return SKRect.Create(box.Left + caret.X - size / 2, box.Top + caret.Y, size, 2);
-        return SKRect.Create(box.Left + caret.X, box.Top + caret.Y - size * 0.8f, 2, size);
+        var size = (float)TextRanges.At(_style, Math.Max(0, CaretIndex - 1)).FontSize;
+        var transform = Transform(document);
+        var first = transform.MapPoint(_style.Vertical == true ? new SKPoint(caret.X - size / 2, caret.Y) : new SKPoint(caret.X, caret.Y - size * .8f));
+        var last = transform.MapPoint(_style.Vertical == true ? new SKPoint(caret.X + size / 2, caret.Y) : new SKPoint(caret.X, caret.Y + size * .2f));
+        return new SKRect(first.X, first.Y, last.X, last.Y);
     }
 
     /// <summary>Draws the words: a new layer on the first character, and the same layer drawn again after.</summary>
@@ -257,23 +302,5 @@ public sealed class TextSession
     }
 
     /// <summary>A copy, so that editing a session does not change the layer it came from.</summary>
-    private static LayerTextStyle Copy(LayerTextStyle style) => new()
-    {
-        Content = style.Content,
-        FontName = style.FontName,
-        FontSize = style.FontSize,
-        Red = style.Red,
-        Green = style.Green,
-        Blue = style.Blue,
-        Alignment = style.Alignment,
-        Tracking = style.Tracking,
-        Leading = style.Leading,
-        BoxSize = style.BoxSize,
-        ColorRuns = style.ColorRuns,
-        FontRuns = style.FontRuns,
-        Bold = style.Bold, Italic = style.Italic, Underline = style.Underline, Strikethrough = style.Strikethrough,
-        SmallCaps = style.SmallCaps, AllCaps = style.AllCaps, Superscript = style.Superscript, Subscript = style.Subscript,
-        Ligatures = style.Ligatures, Kerning = style.Kerning, Features = style.Features, Direction = style.Direction,
-        Vertical = style.Vertical, ComplexShaping = style.ComplexShaping, Language = style.Language, Dynamic = style.Dynamic,
-    };
+    private static LayerTextStyle Copy(LayerTextStyle style) => TextEdits.Copy(style);
 }

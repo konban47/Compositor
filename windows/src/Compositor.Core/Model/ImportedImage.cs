@@ -25,6 +25,7 @@ public sealed class ImportedImage : IDisposable
     public string Name { get; private set; }
     public Compositor.Core.Format.ImageMode ColorMode { get; set; } = Compositor.Core.Format.ImageMode.RGB;
     public SKBitmap? Deep { get; private init; }
+    public byte[]? CmykProfile { get; set; }
     public int BitDepth { get; private init; } = 8;
     public SKBitmap WorkingImage => Deep ?? Image;
 

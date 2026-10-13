@@ -6,13 +6,14 @@ public enum ImageMode { Bitmap, Grayscale, Duotone, Indexed, RGB, CMYK, Lab, Mul
 
 public sealed record ImageSettings
 {
+    public byte[]? CmykProfile { get; init; }
     public uint? Background { get; init; }
     public ImageMode Mode { get; init; } = ImageMode.RGB;
     public int Depth { get; init; } = 8;
     public uint[]? Palette { get; init; }
     public uint Ink { get; init; } = 0xFF352818;
-    [JsonIgnore] public bool IsDefault => Mode == ImageMode.RGB && Depth == 8 && Palette is null && Background is null;
-    [JsonIgnore] public bool IsValid => Enum.IsDefined(Mode) && Depth is 8 or 16 or 32
+    [JsonIgnore] public bool IsDefault => CmykProfile is null && Mode == ImageMode.RGB && Depth == 8 && Palette is null && Background is null;
+    [JsonIgnore] public bool IsValid => (CmykProfile is null || IO.CmykColor.IsProfile(CmykProfile)) && Enum.IsDefined(Mode) && Depth is 8 or 16 or 32
         && (Mode is not (ImageMode.Bitmap or ImageMode.Indexed or ImageMode.Duotone) || Depth == 8)
         && (Palette is null || Palette.Length is >= 2 and <= 256);
 }

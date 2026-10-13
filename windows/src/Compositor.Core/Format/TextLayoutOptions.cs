@@ -3,6 +3,8 @@ namespace Compositor.Core.Format;
 /// <summary>Windows format 18: editable character scaling and paragraph layout, in layer pixels.</summary>
 public sealed record TextLayoutOptions
 {
+    public bool TateChuYoko { get; init; }
+    public bool BottomLeading { get; init; }
     public double HorizontalScale { get; init; } = 100;
     public double VerticalScale { get; init; } = 100;
     public double BaselineShift { get; init; }
@@ -22,4 +24,4 @@ public sealed record TextLayoutOptions
         && double.IsFinite(Tsume) && Tsume is >= 0 and <= 100 && Enum.IsDefined(Justification) && Enum.IsDefined(Smoothing);
 }
 public enum TextJustification { None, LastLeft, LastCenter, LastRight, All }
-public enum TextSmoothing { None, Sharp, Crisp, Strong, Smooth }
+public enum TextSmoothing { None, Sharp, Crisp, Strong, Smooth, WindowsLcd, Windows }

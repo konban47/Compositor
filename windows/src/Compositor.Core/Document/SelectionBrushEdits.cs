@@ -36,7 +36,7 @@ public static class SelectionBrushEdits
         var mask = result.Selection.Coverage(SKRectI.Create(doc.Width, doc.Height));
         return mask is not null && Combine(doc, mask, 1, mode);
     }
-    private static bool Combine(CanvasDocument doc, SKBitmap mask, double opacity, SelectionPaintMode mode)
+    public static bool Combine(CanvasDocument doc, SKBitmap mask, double opacity, SelectionPaintMode mode)
     {
         using var previous = doc.Selection.Path is null ? null : doc.Selection.Coverage(SKRectI.Create(doc.Width, doc.Height));
         for (var y = 0; y < doc.Height; y++) for (var x = 0; x < doc.Width; x++)

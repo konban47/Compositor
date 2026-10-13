@@ -39,6 +39,7 @@ internal sealed class FilterDialog : DialogWindow
         _amounts = start.Copy();
         Title = Localize.Text(kind switch
         {
+            FilterKind.ProgressiveBlur => "Progressive Blur",
             FilterKind.Scanlines => "Scanlines",
             FilterKind.GaussianBlur => "Gaussian Blur",
             FilterKind.MotionBlur => "Motion Blur",
@@ -57,6 +58,17 @@ internal sealed class FilterDialog : DialogWindow
         var group = new StackPanel { Margin = new Thickness(16), Spacing = 4 };
         switch (kind)
         {
+            case FilterKind.ProgressiveBlur:
+                Height = 620;
+                Add(group, "From Radius (px)", 0, 250, start.ProgressiveFrom, 0, (s, v) => s.ProgressiveFrom = v);
+                Add(group, "To Radius (px)", 0, 250, start.ProgressiveTo, 20, (s, v) => s.ProgressiveTo = v);
+                Add(group, "Start X (%)", -100, 200, start.ProgressiveStartX, 50, (s, v) => s.ProgressiveStartX = v);
+                Add(group, "Start Y (%)", -100, 200, start.ProgressiveStartY, 35, (s, v) => s.ProgressiveStartY = v);
+                Add(group, "End X (%)", -100, 200, start.ProgressiveEndX, 50, (s, v) => s.ProgressiveEndX = v);
+                Add(group, "End Y (%)", -100, 200, start.ProgressiveEndY, 100, (s, v) => s.ProgressiveEndY = v);
+                Check(group, "Radial", start.ProgressiveRadial, (s, v) => s.ProgressiveRadial = v);
+                Check(group, "Invert", start.ProgressiveInverted, (s, v) => s.ProgressiveInverted = v);
+                break;
             case FilterKind.Scanlines:
                 Height = 690;
                 Add(group, "Line Spacing", 2, 32, start.Scanlines.Spacing, 4, (s, v) => s.Scanlines.Spacing = Math.Round(v), "0");

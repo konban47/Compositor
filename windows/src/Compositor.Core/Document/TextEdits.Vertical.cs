@@ -11,15 +11,31 @@ public static partial class TextEdits
         var pieces = new List<Piece>(); var positions = new List<Stop>();
         var limit = style.BoxSize is { } box ? Math.Max(style.FontSize, box.Height - 2 * Padding) : double.PositiveInfinity;
         var advance = Math.Max(1, style.FontSize + style.Tracking); var y = 0.0; var column = 0; height = 0;
+        var consumed = 0;
         var elements = System.Globalization.StringInfo.GetTextElementEnumerator(content);
         while (elements.MoveNext())
         {
             var text = elements.GetTextElement(); var index = elements.ElementIndex;
+            if (index < consumed) continue;
+            var flat = TextRanges.At(style, index); var tate = flat.Layout?.TateChuYoko == true;
+            if (tate)
+            {
+                var end = index + text.Length;
+                while (end < content.Length && content[end] != '\n' && ReferenceEquals(TextRanges.At(style, end), flat)) end += System.Globalization.StringInfo.GetNextTextElementLength(content, end);
+                text = content[index..end]; consumed = end;
+            }
             if (text.Contains('\n') || y > 0 && y + advance > limit)
             { height = Math.Max(height, y); column++; y = 0; if (text.Contains('\n')) continue; }
             var run = new List<Piece>(); var ignored = new List<Stop>();
             BuildPlain(content, index, index + text.Length, style, fonts, colors, (float)(Padding + y + Baseline(style)), run, ignored);
-            var runWidth = run.Sum(p => p.Width); var x = -column * style.LineHeight;
+            var runWidth = run.Sum(p => p.Width);
+            if (tate && runWidth > style.FontSize)
+            {
+                var fit = (float)(style.FontSize / runWidth);
+                for (var i = 0; i < run.Count; i++) run[i] = run[i] with { X = run[i].X * fit, Width = run[i].Width * fit, Horizontal = run[i].Horizontal * fit };
+                runWidth = (float)style.FontSize;
+            }
+            var x = -column * style.LineHeight;
             pieces.AddRange(run.Select(p => p with { X = (float)(Padding + x + (style.LineHeight - runWidth) / 2 + p.X) }));
             positions.Add(new Stop(index, (float)(Padding + x + style.LineHeight / 2), (float)(Padding + y)));
             y += advance; positions.Add(new Stop(index + text.Length, (float)(Padding + x + style.LineHeight / 2), (float)(Padding + y)));

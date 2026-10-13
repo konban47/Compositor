@@ -80,7 +80,7 @@ public sealed class DisplaySceneCache : IDisposable
                 using var maskPaint = new SKPaint { IsAntialias = true, Color = SKColors.White };
                 if (mask.VectorPath is { } svg)
                 {
-                    using var path = SKPath.ParseSvgPathData(svg);
+                    using var path = mask.CreateVectorPath(svg);
                     canvas.Save(); canvas.Concat(Document.BrushEdits.PixelToDocument(placement, mask.Asset.Width, mask.Asset.Height));
                     if (path is not null) canvas.DrawPath(path, maskPaint);
                     canvas.Restore();

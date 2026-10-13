@@ -20,6 +20,12 @@ public sealed class DesktopApp : Application
     }
 
     private FluentTheme? _theme;
+    internal void RefreshAppearance()
+    {
+        Skin.RefreshPalette();
+        RequestedThemeVariant = EditorPreferences.Current.Theme >= 2 ? ThemeVariant.Light : ThemeVariant.Dark;
+        if (_theme is { } theme) Skin.Apply(theme);
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {

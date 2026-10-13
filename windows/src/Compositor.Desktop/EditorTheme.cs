@@ -35,6 +35,12 @@ internal static class EditorTheme
             style.Setters.Add(new Setter(ContentPresenter.BackgroundProperty, fill));
             style.Setters.Add(new Setter(ContentPresenter.BorderBrushProperty, Skin.BorderControlBrush)); styles.Add(style);
         }
+        var rows = new Style(s => s.OfType<ListBoxItem>());
+        rows.Setters.Add(new Setter(TemplatedControl.BackgroundProperty, Skin.SurfaceDarkBrush));
+        rows.Setters.Add(new Setter(TemplatedControl.ForegroundProperty, Skin.LabelBrush)); styles.Add(rows);
+        var selected = new Style(s => s.OfType<ListBoxItem>().Class(":selected"));
+        selected.Setters.Add(new Setter(TemplatedControl.BackgroundProperty, Skin.AccentBrush));
+        selected.Setters.Add(new Setter(TemplatedControl.ForegroundProperty, Brushes.White)); styles.Add(selected);
         var disabled = new Style(s => s.OfType<Button>().Class(":disabled"));
         disabled.Setters.Add(new Setter(Visual.OpacityProperty, .45d)); styles.Add(disabled);
     }

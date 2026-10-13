@@ -74,6 +74,7 @@ public sealed partial class MainWindow
     private void BuildProperties()
     {
         _properties.Children.Clear();
+        if (BuildMaskWorkspace()) return;
         if (_document is not { } document) { _properties.Children.Add(PropertyLabel("Open a document to view its properties")); return; }
         var layer = PropertyLayer;
         if (layer is null)
@@ -122,9 +123,9 @@ public sealed partial class MainWindow
             Content = Localize.Text(text),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Center,
-            MinHeight = 30,
+            MinHeight = 26,
             FontSize = 12,
-            Padding = new Thickness(8, 4),
+            Padding = new Thickness(6, 2),
             CornerRadius = new CornerRadius(2),
             Background = PropertyFieldSurface,
             BorderBrush = PropertyLine,
@@ -137,7 +138,7 @@ public sealed partial class MainWindow
     }
     private static Button InspectorButton(string icon, string text, Action action)
     {
-        var button = new Button { Content = new InspectorGlyph(icon), Width = 32, Height = 30, Padding = new Thickness(5, 4), CornerRadius = new CornerRadius(2),
+        var button = new Button { Content = new InspectorGlyph(icon), Width = 30, Height = 26, Padding = new Thickness(4, 2), BorderThickness = new Thickness(0), CornerRadius = new CornerRadius(2),
             Background = Brushes.Transparent, Tag = text };
         ToolTip.SetTip(button, Localize.Text(text));
         Avalonia.Automation.AutomationProperties.SetName(button, Localize.Text(text));
@@ -147,19 +148,20 @@ public sealed partial class MainWindow
     {
         var row = new Grid { ColumnDefinitions = new ColumnDefinitions("24,*") };
         row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Foreground = Skin.LabelBrush });
-        input.MinHeight = 28;
+        input.MinHeight = 24;
         Grid.SetColumn(input, 1); row.Children.Add(input); return row;
     }
     private static readonly IBrush PropertySurface = Skin.ChromeBrush;
     private static readonly IBrush PropertyFieldSurface = Skin.SurfaceControlBrush;
     private static readonly IBrush PropertyLine = Skin.BorderControlBrush;
-    private void PropertyHeading(string title, string icon) => _properties.Children.Add(new Border { Padding = new Thickness(10, 8), BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(0, 0, 0, 1),
-        Child = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Children = {
+    private void PropertyHeading(string title, string icon) => _properties.Children.Add(new Border { Padding = new Thickness(8, 5), BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(0, 0, 0, 1),
+        Child = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = {
             new Border { Width = 28, Height = 28, Padding = new Thickness(3), CornerRadius = new CornerRadius(2), Background = PropertyFieldSurface, BorderBrush = PropertyLine, BorderThickness = new Thickness(1), Child = new InspectorGlyph(icon) },
             new TextBlock { Text = Localize.Text(title), FontSize = 13, VerticalAlignment = VerticalAlignment.Center } } } });
     private void Section(string title, params Control[] contents)
     {
-        var body = new StackPanel { Spacing = 10, Margin = new Thickness(10, 6, 12, 16), MinWidth = 256, MaxWidth = 312, HorizontalAlignment = HorizontalAlignment.Left };
+        if (_propertySectionFilter is not null && !_propertySectionFilter.Contains(title)) return;
+        var body = new StackPanel { Spacing = 6, Margin = new Thickness(8, 4, 10, 9), MinWidth = 236, MaxWidth = 290, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var item in contents) body.Children.Add(item);
         // Keep Expander semantics and keyboard access, with the flat header/dividers from the reference.
         var section = new Expander { Header = Localize.Text(title == "Transform" ? "Transform Properties" : title), Tag = "property-section-" + title, Content = body,
@@ -168,7 +170,7 @@ public sealed partial class MainWindow
         section.Template = new FuncControlTemplate<Expander>((owner, scope) =>
         {
             var arrow = new TextBlock { Text = owner.IsExpanded ? "⌄" : "›", Width = 14, VerticalAlignment = VerticalAlignment.Center, FontSize = 14 };
-            var header = new Button { Height = 34, Padding = new Thickness(8, 4), Background = Brushes.Transparent, BorderThickness = new Thickness(0), CornerRadius = new CornerRadius(0), HorizontalAlignment = HorizontalAlignment.Stretch,
+            var header = new Button { Height = 28, Padding = new Thickness(6, 2), Background = Brushes.Transparent, BorderThickness = new Thickness(0), CornerRadius = new CornerRadius(0), HorizontalAlignment = HorizontalAlignment.Stretch,
                 Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3, Children = { arrow, new TextBlock { Text = owner.Header?.ToString(), FontSize = 12.5, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center } } } };
             var content = new ContentPresenter { Content = owner.Content, IsVisible = owner.IsExpanded, HorizontalContentAlignment = HorizontalAlignment.Stretch };
             header.Click += (_, _) => owner.IsExpanded = !owner.IsExpanded;
@@ -176,7 +178,7 @@ public sealed partial class MainWindow
             return new Border { BorderThickness = new Thickness(0, 0, 0, 1), BorderBrush = Skin.BorderControlBrush, Child = new StackPanel { Children = { header, content } } };
         });
         section.PropertyChanged += (_, e) => { if (e.Property == Expander.IsExpandedProperty) _propertySections[title] = section.IsExpanded; };
-        _properties.Children.Add(section);
+        (_propertyDestination ?? _properties).Children.Add(section);
     }
     private Control MoreProperties(string section, Control extra, bool expanded = false)
     {
@@ -185,18 +187,18 @@ public sealed partial class MainWindow
         button.Tag = "property-more-" + section; button.Width = 28; button.Height = 24;
         button.HorizontalAlignment = HorizontalAlignment.Right; button.Background = PropertyFieldSurface;
         button.BorderBrush = PropertyLine; button.BorderThickness = new Thickness(1);
-        return new StackPanel { Spacing = 10, Children = { extra, button } };
+        return new StackPanel { Spacing = 6, Children = { extra, button } };
     }
     private static ComboBox PropertyChoice(string tag, string[] labels, int selected, Action<int> changed)
     {
         var combo = new ComboBox { Tag = tag, ItemsSource = labels.Select(Localize.Text).ToArray(), SelectedIndex = selected,
-            MinHeight = 28, Padding = new Thickness(5, 2), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 24, Padding = new Thickness(5, 2), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Stretch,
             Background = PropertyFieldSurface, BorderBrush = PropertyLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(1) };
         ToolTip.SetTip(combo, Localize.Text(tag)); combo.SelectionChanged += (_, _) => { if (combo.SelectedIndex >= 0) changed(combo.SelectedIndex); }; return combo;
     }
     private static ToggleButton PropertyToggle(string icon, string text, bool selected, Action<bool> changed)
     {
-        var button = new ToggleButton { Content = new InspectorGlyph(icon), Tag = text, IsChecked = selected, Background = selected ? PropertyFieldSurface : Brushes.Transparent, BorderBrush = PropertyLine, BorderThickness = new Thickness(selected ? 1 : 0), Width = 30, MinHeight = 30, Height = 30, Padding = new Thickness(4), CornerRadius = new CornerRadius(2) };
+        var button = new ToggleButton { Content = new InspectorGlyph(icon), Tag = text, IsChecked = selected, Background = selected ? PropertyFieldSurface : Brushes.Transparent, BorderBrush = PropertyLine, BorderThickness = new Thickness(selected ? 1 : 0), Width = 28, MinHeight = 26, Height = 26, Padding = new Thickness(4), CornerRadius = new CornerRadius(2) };
         button.Template = new FuncControlTemplate<ToggleButton>((owner, scope) =>
         {
             var border = new Border { CornerRadius = new CornerRadius(2), Padding = new Thickness(4), BorderBrush = PropertyLine,
@@ -225,7 +227,7 @@ public sealed partial class MainWindow
             FormatString = "0.##",
             ShowButtonSpinner = false,
             Increment = 1,
-            Height = 28, MinHeight = 28,
+            Height = 24, MinHeight = 24,
             Padding = new Thickness(5, 2),
             FontSize = 12,
             CornerRadius = new CornerRadius(1),
@@ -291,7 +293,7 @@ public sealed partial class MainWindow
 
     private void BuildAlignmentProperties()
     {
-        var all = new StackPanel { Spacing = 9 };
+        var all = new StackPanel { Spacing = 5 };
         Control Row(params string[] labels)
         {
             var row = new UniformGrid { Columns = labels.Length, HorizontalAlignment = HorizontalAlignment.Left };
@@ -305,7 +307,7 @@ public sealed partial class MainWindow
         }
         all.Children.Add(PropertyLabel("Align:"));
         all.Children.Add(Row("Align Left", "Align H Center", "Align Right", "Align Top", "Align V Center", "Align Bottom"));
-        var extra = new StackPanel { Spacing = 10 };
+        var extra = new StackPanel { Spacing = 6 };
         extra.Children.Add(new Separator());
         extra.Children.Add(PropertyLabel("Distribute:"));
         extra.Children.Add(Row("Distribute Top", "Distribute Vertically", "Distribute Bottom", "Distribute Left", "Distribute Horizontally", "Distribute Right"));
@@ -335,7 +337,7 @@ public sealed partial class MainWindow
             slider.PointerReleased += (_, _) => apply(slider.Value); slider.KeyUp += (_, _) => apply(slider.Value);
             return new StackPanel { Spacing = 4, Children = { PropertyField(title, PropertyNumber(tag, value, 0, maximum, apply)), slider } };
         }
-        var body = new StackPanel { Spacing = 10, IsEnabled = !LayerProtection.Effective(_document!, layer.ID).HasFlag(LayerLocks.All) && !LayerProtection.Effective(_document!, layer.ID).HasFlag(LayerLocks.Pixels) };
+        var body = new StackPanel { Spacing = 6, IsEnabled = !LayerProtection.Effective(_document!, layer.ID).HasFlag(LayerLocks.All) && !LayerProtection.Effective(_document!, layer.ID).HasFlag(LayerLocks.Pixels) };
         body.Children.Add(Amount("Density (%)", "mask-density", mask.Density * 100, 100, value => Change(value / 100, mask.Feather)));
         body.Children.Add(Amount("Feather (px)", "mask-feather", mask.Feather, 1000, value => Change(mask.Density, value)));
         body.Children.Add(PropertyAction("Select and Mask…", () => _ = RefineMask()));
@@ -386,24 +388,6 @@ public sealed partial class MainWindow
         Reselect(id); SetPaintingMask(true);
     }
 
-    private async Task RefineMask()
-    {
-        if (_document is not { } document || PropertyLayer is not { Mask: { } mask } layer) return;
-        var original = document.Clone(); var revision = _history.CurrentRevision;
-        try
-        {
-            var result = await MaskRefineDialog.Ask(this, mask, settings =>
-            {
-                var draft = original.Clone();
-                MaskProperties.Refine(draft, layer.ID, settings.Density, settings.Feather, settings.Shift, settings.Smooth);
-                _canvas.PreviewDocument = draft; _canvas.InvalidateVisual();
-            });
-            if (result is null || !ReferenceEquals(document, _document) || _history.CurrentRevision != revision) return;
-            Edit("Refine Mask", () => MaskProperties.Refine(document, layer.ID, result.Density, result.Feather, result.Shift, result.Smooth));
-            Reselect(layer.ID);
-        }
-        finally { _canvas.PreviewDocument = null; _canvas.InvalidateVisual(); }
-    }
     private async Task ConfirmDeleteMask()
     {
         if (_document is not { } document || PropertyLayer is not { Mask: not null } layer) return;

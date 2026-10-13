@@ -24,7 +24,7 @@ public sealed class PsdImport
 /// <summary>
 /// Reads Photoshop <c>.psd</c> and <c>.psb</c> files from Adobe's *Photoshop File Formats Specification*
 /// (2019 HTML edition: File Header, Color Mode Data, Image Resources, Layer and Mask Information, Image
-/// Data). Only the 8-bit RGB files the Mac build accepts are read; anything else is refused rather than
+/// Data). Only the 8-bit RGB and CMYK files the Mac build accepts are read; anything else is refused rather than
 /// misread.
 /// </summary>
 public static class PsdImporter

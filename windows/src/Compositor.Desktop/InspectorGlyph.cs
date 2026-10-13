@@ -10,6 +10,7 @@ internal sealed class InspectorGlyph(string kind) : Control
     protected override Size MeasureOverride(Size availableSize) => new(22, 22);
     public override void Render(DrawingContext context)
     {
+        if (AlignmentGlyph.Draw(context, kind, Bounds.Size)) return;
         if (EditorIcon.Draw(context, kind, Bounds.Size)) return;
         var glyph = kind switch {
             "bold" => "B", "italic" => "I", "all-caps" => "TT", "small-caps" => "Tᴛ", "superscript" => "T¹", "subscript" => "T₁", "underline" => "T̲", "strike" => "T̶",
@@ -26,38 +27,6 @@ internal sealed class InspectorGlyph(string kind) : Control
         {
             for (var i = 0; i < 5; i++) { var length = kind.StartsWith("justify") && i < 4 || i % 2 == 0 ? 18 : 12; var x = kind == "paragraph-1" || kind == "justify-2" ? (22 - length) / 2 : kind == "paragraph-2" || kind == "justify-3" ? 20 - length : 2; Line(x, 3 + i * 4, x + length, 3 + i * 4); }
             if (kind.StartsWith("indent") || kind.StartsWith("space")) { Line(1, 10, 6, 10); Line(3, 7, 6, 10); Line(3, 13, 6, 10); }
-            return;
-        }
-        if (kind.StartsWith("Align") || kind.StartsWith("Distribute"))
-        {
-            var vertical = kind.Contains("Top") || kind.Contains("Bottom") || kind.Contains("V Center") || kind.Contains("Vertic");
-            using var turn = context.PushTransform(vertical ? Matrix.CreateTranslation(-11, -11) * Matrix.CreateRotation(Math.PI / 2) * Matrix.CreateTranslation(11, 11) : Matrix.Identity);
-            var middle = kind.Contains("Center") || kind is "Distribute Horizontally" or "Distribute Vertically";
-            var end = kind.Contains("Right") || kind.Contains("Bottom");
-            if (kind.StartsWith("Align"))
-            {
-                var axis = middle ? 11 : end ? 19 : 3; Line(axis, 2, axis, 20);
-                for (var i = 0; i < 2; i++)
-                {
-                    var width = i == 0 ? 11 : 7;
-                    var x = middle ? axis - width / 2.0 : end ? axis - width - 2 : axis + 2;
-                    context.FillRectangle(Skin.LabelBrush, new Rect(x, 5 + i * 8, width, 4));
-                }
-            }
-            else if (kind.Contains("Spacing"))
-            {
-                Line(3, 2, 3, 20); Line(19, 2, 19, 20);
-                context.FillRectangle(Skin.LabelBrush, new Rect(7, 4, 3, 14));
-                context.FillRectangle(Skin.LabelBrush, new Rect(13, 4, 3, 14));
-            }
-            else
-            {
-                foreach (var x in new[] { 4, 11, 18 })
-                {
-                    Line(x, 2, x, 20);
-                    context.FillRectangle(Skin.LabelBrush, new Rect(middle ? x - 2 : end ? x - 4 : x, 7, 4, 8));
-                }
-            }
             return;
         }
         var data = kind switch

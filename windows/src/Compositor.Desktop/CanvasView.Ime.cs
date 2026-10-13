@@ -39,7 +39,7 @@ public sealed partial class CanvasView
             if (TextCaret is not { } caret) return new Rect(0, 0, 1, 20);
             var top = ToScreen(new SkiaSharp.SKPoint(caret.Left, caret.Top));
             var bottom = ToScreen(new SkiaSharp.SKPoint(caret.Right, caret.Bottom));
-            return new Rect(top.X, top.Y, Math.Max(1, bottom.X - top.X), Math.Max(16, bottom.Y - top.Y));
+            return new Rect(Math.Min(top.X, bottom.X), Math.Min(top.Y, bottom.Y), Math.Max(1, Math.Abs(bottom.X - top.X)), Math.Max(16, Math.Abs(bottom.Y - top.Y)));
         }
     }
 

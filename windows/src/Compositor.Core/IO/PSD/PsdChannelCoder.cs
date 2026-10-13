@@ -186,7 +186,7 @@ internal static class PsdFailure
         "This Photoshop file uses a format version Compositor can't read.");
 
     public static ImportException ColorMode => new(ImportError.Unsupported,
-        "Only 8-bit RGB Photoshop files can be imported.");
+        "Only 8-bit RGB or CMYK Photoshop files can be imported.");
 
     public static ImportException Compression => new(ImportError.Unsupported,
         "This Photoshop file uses a layer compression method that isn't supported.");

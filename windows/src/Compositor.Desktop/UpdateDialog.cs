@@ -15,7 +15,7 @@ internal sealed class UpdateDialog : DialogWindow
     private UpdateDialog(string title, string message, string? page, string? notes)
     {
         Title = Localize.Text(title);
-        Width = 460;
+        Width = 660;
         SizeToContent = SizeToContent.Height;
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;

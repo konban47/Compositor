@@ -184,6 +184,7 @@ public sealed class CanvasDocument : IDisposable
         MaskDensity = layer.Mask is { Density: not 1 } mask ? mask.Density : null,
         MaskFeather = layer.Mask is { Feather: not 0 } soft ? soft.Feather : null,
         MaskVectorPath = layer.Mask?.VectorPath,
+        MaskVectorEvenOdd = layer.Mask is { VectorPath: not null, VectorEvenOdd: true } ? true : null,
         Shape = layer.LiveShape,
         Effects = layer.Effects,
         Blending = layer.Blending,

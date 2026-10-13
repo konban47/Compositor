@@ -28,7 +28,7 @@ public sealed partial class MainWindow
         if (mode is ImageMode.Bitmap or ImageMode.Indexed) dialog.Check("Dither", true, v => dither = v);
         if (mode == ImageMode.Bitmap) dialog.Number("Threshold", 128, 0, 255, v => threshold = v / 255);
         if (mode == ImageMode.Duotone) ColorInput(dialog, "Ink Color", options.Ink, v => options = options with { Ink = v });
-        if (mode is ImageMode.CMYK or ImageMode.Lab) dialog.Description("The canvas uses an RGB preview. Use Export Color-Mode TIFF to write the document's native color channels.");
+        if (mode is ImageMode.CMYK or ImageMode.Lab) dialog.Description("The canvas uses an RGB preview. In Export As choose TIFF and Document Mode to write native color channels. Choose CMYK for ICC-managed printing.");
         if (!await dialog.ShowDialog<bool>(this) || !ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
         Edit("Convert Color Mode", () => ImageModeEdits.Convert(doc, options, colors, dither, threshold));
         _open.ActiveAlpha = null; _open.VisibleChannels = ColorChannels.RGB; doc.EditChannels = ColorChannels.RGB; Refresh();

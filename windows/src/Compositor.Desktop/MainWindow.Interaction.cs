@@ -149,7 +149,7 @@ public sealed partial class MainWindow
         panel.Children.Add(eye);
         if (layer.Label != Compositor.Core.Format.LayerLabel.None)
         {
-            var color = layer.Label switch { Compositor.Core.Format.LayerLabel.Red => "#994c4c", Compositor.Core.Format.LayerLabel.Orange => "#996432", Compositor.Core.Format.LayerLabel.Yellow => "#8d853c", Compositor.Core.Format.LayerLabel.Green => "#4e7c4e", Compositor.Core.Format.LayerLabel.Blue => "#47668a", Compositor.Core.Format.LayerLabel.Violet => "#785489", _ => "#686868" };
+            var color = layer.Label switch { Compositor.Core.Format.LayerLabel.Red => "#994c4c", Compositor.Core.Format.LayerLabel.Orange => "#996432", Compositor.Core.Format.LayerLabel.Yellow => "#8d853c", Compositor.Core.Format.LayerLabel.Green => "#4e7c4e", Compositor.Core.Format.LayerLabel.Blue => "#47668a", Compositor.Core.Format.LayerLabel.Violet => "#785489", Compositor.Core.Format.LayerLabel.Teal => "#19969a", Compositor.Core.Format.LayerLabel.Indigo => "#655bf0", Compositor.Core.Format.LayerLabel.Magenta => "#d62d93", Compositor.Core.Format.LayerLabel.Purple => "#ba38c8", _ => "#686868" };
             eye.Background = new SolidColorBrush(Avalonia.Media.Color.Parse(color));
         }
         if (layer.Effects is not null || layer.Blending is { IsDefault: false })
@@ -170,11 +170,12 @@ public sealed partial class MainWindow
         Grid.SetColumn(arrow, 1); panel.Children.Add(arrow);
         var thumbnail = new LayerThumbnail(() => Current()?.LiveText is not null ? null : Current()?.Asset?.Thumbnail,
             layer.IsGroup ? "folder" : layer.LiveText is not null ? "T" : layer.Adjustment is not null ? "◐" : "")
-            { Width = 32, Height = 32, Margin = new Thickness(layer.IsGroup ? 0 : depth * 12, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Active = () => Selected == layer.ID && !MaskTarget };
+            { Width = EditorPreferences.Current.LayerThumbnailSize == 0 ? 20 : EditorPreferences.Current.LayerThumbnailSize, Height = EditorPreferences.Current.LayerThumbnailSize == 0 ? 20 : EditorPreferences.Current.LayerThumbnailSize, HideImage = EditorPreferences.Current.LayerThumbnailSize == 0, LayerBounds = () => (Current()?.Transform, _document?.Width ?? 1, _document?.Height ?? 1), Margin = new Thickness(layer.IsGroup ? 0 : depth * 12, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Active = () => Selected == layer.ID && !MaskTarget };
         if (layer.Asset?.BitDepth > 8) notes = (layer.Asset.BitDepth == 32 ? "HDR" : "16-Bit") + (string.IsNullOrEmpty(notes) ? "" : " · " + notes);
         _layerThumbnails.Add(thumbnail);
         thumbnail.PointerPressed += (_, e) =>
         {
+            if (e.GetCurrentPoint(thumbnail).Properties.IsRightButtonPressed) { OpenThumbnailContext(thumbnail, layer); e.Handled = true; return; }
             if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
             { SelectLayerRow(layer.ID); SelectLayerPixels(); e.Handled = true; }
             else { SelectLayerRow(layer.ID); SetPaintingMask(false); e.Handled = true; }
@@ -190,7 +191,7 @@ public sealed partial class MainWindow
             var mask = new LayerThumbnail(() => Current()?.Mask?.Asset.Thumbnail) { Width = 30, Height = 30, Margin = new Thickness(3), Active = () => Selected == layer.ID && MaskTarget };
             _layerThumbnails.Add(mask); ToolTip.SetTip(mask, Localize.Text("Edit Layer Mask"));
             mask.DoubleTapped += (_, e) => { SelectLayerRow(layer.ID); SetPaintingMask(true); OpenInspector(0); e.Handled = true; };
-            mask.PointerPressed += (_, e) => { SelectLayerRow(layer.ID); SetPaintingMask(true); e.Handled = true; };
+            mask.PointerPressed += (_, e) => { if (e.GetCurrentPoint(mask).Properties.IsRightButtonPressed) { OpenMaskContext(mask, layer); e.Handled = true; return; } SelectLayerRow(layer.ID); SetPaintingMask(true); e.Handled = true; };
             Grid.SetColumn(mask, 4); panel.Children.Add(mask);
         }
         var name = new TextBlock { Text = layer.Name + (layer.LinkID is not null ? "  ↔" : ""), Foreground = Ink, FontSize = 12,

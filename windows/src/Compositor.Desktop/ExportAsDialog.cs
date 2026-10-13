@@ -54,6 +54,7 @@ internal sealed class ExportAsDialog : DialogWindow
         BorderBrush = Skin.BorderControlBrush,
         VerticalContentAlignment = VerticalAlignment.Center,
     };
+    private readonly ComboBox _colorSpace = new() { ItemsSource = new[] { "RGB", "CMYK", Localize.Text("Document Mode (TIFF)") }, SelectedIndex = 0, Height = 24, Width = 170 };
     private readonly Image _preview = new() { Stretch = Stretch.Uniform, Margin = new Thickness(12) };
     private readonly TextBlock _size = new() { TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Skin.SecondaryBrush };
     private readonly Button _export = new()
@@ -98,7 +99,7 @@ internal sealed class ExportAsDialog : DialogWindow
         }
         currentFormat.Items.Add(more);
         var formatMenu = new Menu { Width = 170, Height = 30, Background = Skin.SurfaceControlBrush }; formatMenu.Items.Add(currentFormat);
-        Add("Format", formatMenu); Add("Width, pixels", _width); Add("Height, pixels", _height);
+        Add("Format", formatMenu); Add("Color Space", _colorSpace); Add("Width, pixels", _width); Add("Height, pixels", _height);
         controls.Children.Add(_linked); Add("Quality", _quality); controls.Children.Add(_transparent); Add("Background", _background);
         controls.Children.Add(_size);
         if (document.Image.Depth > 8)
@@ -127,6 +128,7 @@ internal sealed class ExportAsDialog : DialogWindow
         Grid.SetColumn(controls, 1); layout.Children.Add(new ScrollViewer { Content = controls, [Grid.ColumnProperty] = 1 }); Content = layout;
         _width.ValueChanged += (_, _) => DimensionChanged(true);
         _height.ValueChanged += (_, _) => DimensionChanged(false);
+        _colorSpace.SelectionChanged += (_, _) => Queue();
         _format.SelectionChanged += (_, _) => Queue(); _quality.ValueChanged += (_, _) => Queue();
         _transparent.IsCheckedChanged += (_, _) => Queue(); _background.SelectionChanged += (_, _) => Queue();
         _timer.Tick += async (_, _) => { _timer.Stop(); await RenderPreview(); };
@@ -150,7 +152,7 @@ internal sealed class ExportAsDialog : DialogWindow
         VerticalContentAlignment = VerticalAlignment.Center,
     };
     private ExportOptions Options() => new((ExportFormat)_format.SelectedIndex, (int)(_width.Value ?? 1), (int)(_height.Value ?? 1),
-        (int)(_quality.Value ?? 90), _transparent.IsChecked == true, _background.SelectedIndex == 1 ? SKColors.Black : SKColors.White, _format.SelectedIndex == 2 ? EditorPreferences.Current.PdfResolution : _document.Resolution);
+        (int)(_quality.Value ?? 90), _transparent.IsChecked == true, _background.SelectedIndex == 1 ? SKColors.Black : SKColors.White, _format.SelectedIndex == 2 ? EditorPreferences.Current.PdfResolution : _document.Resolution, _colorSpace.SelectedIndex == 1 && _format.SelectedIndex is 1 or 2 or 3 ? _document.Image.CmykProfile ?? CmykColor.DefaultProfile : null, _colorSpace.SelectedIndex == 2 && _format.SelectedIndex == 3);
     private void DimensionChanged(bool width)
     {
         if (_changing) return;
@@ -165,8 +167,9 @@ internal sealed class ExportAsDialog : DialogWindow
     private void Queue()
     {
         if (_closed) return;
+        _colorSpace.IsEnabled = _format.SelectedIndex is 1 or 2 or 3; if (!_colorSpace.IsEnabled || _colorSpace.SelectedIndex == 2 && _format.SelectedIndex != 3) _colorSpace.SelectedIndex = 0;
         _revision++; _export.IsEnabled = false; _quality.IsEnabled = _format.SelectedIndex == 1;
-        _transparent.IsEnabled = _format.SelectedIndex is 0 or 3 or 4;
+        _transparent.IsEnabled = _colorSpace.SelectedIndex == 0 && _format.SelectedIndex is 0 or 3 or 4;
         _background.IsEnabled = _format.SelectedIndex is not (0 or 3 or 4) || _transparent.IsChecked != true;
         _size.Text = Localize.Text("Rendering preview…"); _timer.Stop(); _timer.Start();
     }

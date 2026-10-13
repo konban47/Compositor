@@ -137,30 +137,12 @@ internal sealed class TextDialog : DialogWindow
 
     private void Accept(LayerTextStyle original)
     {
-        var style = new LayerTextStyle
-        {
-            Content = _content.Text ?? "",
-            FontName = string.IsNullOrWhiteSpace(_font.Text) ? original.FontName : _font.Text.Trim(),
-            FontSize = original.FontSize,
-            Red = original.Red,
-            Green = original.Green,
-            Blue = original.Blue,
-            Alignment = _alignment.SelectedIndex switch
-            {
-                1 => TextAlignment.Center,
-                2 => TextAlignment.Right,
-                _ => TextAlignment.Left,
-            },
-            Tracking = original.Tracking,
-            Leading = original.Leading,
-            Bold = original.Bold, Italic = original.Italic, Underline = original.Underline, Strikethrough = original.Strikethrough,
-            BoxSize = original.BoxSize,
-            ColorRuns = original.ColorRuns,
-            FontRuns = original.FontRuns, Vertical = original.Vertical,
-            SmallCaps = original.SmallCaps, AllCaps = original.AllCaps, Superscript = original.Superscript, Subscript = original.Subscript,
-            Ligatures = original.Ligatures, Kerning = original.Kerning, Features = original.Features, Direction = original.Direction,
-            ComplexShaping = original.ComplexShaping, Language = original.Language, Dynamic = original.Dynamic,
-        };
+        var content = _content.Text ?? "";
+        var prefix = 0; while (prefix < content.Length && prefix < original.Content.Length && content[prefix] == original.Content[prefix]) prefix++;
+        var suffix = 0; while (suffix < content.Length - prefix && suffix < original.Content.Length - prefix && content[^(suffix + 1)] == original.Content[^(suffix + 1)]) suffix++;
+        var style = Compositor.Core.Document.TextRanges.Splice(original, prefix, original.Content.Length - prefix - suffix, content.Substring(prefix, content.Length - prefix - suffix));
+        style.FontName = string.IsNullOrWhiteSpace(_font.Text) ? original.FontName : _font.Text.Trim();
+        style.Alignment = _alignment.SelectedIndex switch { 1 => TextAlignment.Center, 2 => TextAlignment.Right, _ => TextAlignment.Left };
         if (Number(_size.Text, 1, 2000) is not { } size) return;
         style.FontSize = size;
         if (Colour(_colour.Text) is not { } colour) return;
@@ -169,6 +151,13 @@ internal sealed class TextDialog : DialogWindow
         style.Tracking = tracking;
         if (Number(_leading.Text, 0, 5000) is not { } leading) return;
         style.Leading = leading;
+        if (style.StyleRuns is not null) foreach (var run in style.StyleRuns)
+        {
+            if (style.FontName != original.FontName) run.Style.FontName = style.FontName;
+            if (style.FontSize != original.FontSize) run.Style.FontSize = style.FontSize;
+            if ((style.Red, style.Green, style.Blue) != (original.Red, original.Green, original.Blue)) (run.Style.Red, run.Style.Green, run.Style.Blue) = (style.Red, style.Green, style.Blue);
+            if (style.Tracking != original.Tracking) run.Style.Tracking = style.Tracking;
+        }
         if (!style.IsValid) return;
         _result = style;
         Close();

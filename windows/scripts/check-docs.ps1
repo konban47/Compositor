@@ -99,5 +99,10 @@ foreach ($feature in @('OpenCL','Skia','30 位','恢复副本','草稿','暂存�
     if (!$preferences.Contains($feature)) { throw "Preferences guide missing $feature." }
 }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--preferences-checks')) { throw 'Preferences UI checks missing from CI.' }
+foreach ($field in @('styleRuns','maskVectorEvenOdd','geometry','tateChuYoko','bottomLeading','cmykProfile')) {
+    if (!$formatDoc.Contains('`' + $field + '`') -and !$formatDoc.Contains('.' + $field + '`')) { throw "Undocumented v20 field: $field" }
+}
+if (!(Read-Repo 'windows/TYPE-AND-MASKS.md').Contains("**$version Preview**")) { throw 'Type and mask guide is stale.' }
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--type-mask-checks')) { throw 'Type/mask UI checks missing from CI.' }
 & (Join-Path $PSScriptRoot 'check-upstream-ui.ps1')
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

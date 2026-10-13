@@ -21,6 +21,7 @@ internal static partial class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args is ["--type-mask-checks", var typeMaskOutput]) return TypeMaskChecks(typeMaskOutput);
         if (args is ["--preferences-checks", var preferencesOutput]) return PreferencesChecks(preferencesOutput);
         if (args is ["--edit-workspace-checks", var editWorkspaceOutput]) return EditWorkspaceChecks(editWorkspaceOutput);
         if (args is ["--image-workspace-checks", var imageWorkspaceOutput]) return ImageWorkspaceChecks(imageWorkspaceOutput);

@@ -25,6 +25,7 @@ internal static class PsdDocumentBuilder
                 AddLayer(document, layer, records, images, masks, notes, remainingPixels, ref usedMaskPixels);
             }
             ResolveClipping(document, records, notes);
+            if (images.Values.Sum(i => (long)i.Width * i.Height) + masks.Values.Sum(i => (long)i.Width * i.Height) > remainingPixels) throw PsdFailure.TooLarge;
         }
         catch
         {
@@ -35,7 +36,8 @@ internal static class PsdDocumentBuilder
 
         var manifest = new ProjectManifest
         {
-            Version = 11,
+            Version = document.CmykProfile is not null || records.Any(l => l.MaskVectorEvenOdd is not null || l.Text?.StyleRuns is not null) ? 20 : records.Any(l => l.Text is not null) ? 18 : 11,
+            ImageSettings = document.CmykProfile is null ? null : new ImageSettings { CmykProfile = document.CmykProfile },
             DocumentID = Guid.NewGuid(),
             Width = document.Width,
             Height = document.Height,
@@ -60,7 +62,7 @@ internal static class PsdDocumentBuilder
         switch (layer.Kind)
         {
             case PsdLayerKind.Text:
-                notes.Add(new PsdConversionNote(name, "Editable Photoshop text becomes pixels and can't be retyped."));
+                if (layer.Text is null) notes.Add(new PsdConversionNote(name, "This Photoshop text descriptor could not be decoded; its stored pixels were kept."));
                 break;
             case PsdLayerKind.SmartObject:
                 notes.Add(new PsdConversionNote(name, "The smart object was rasterized. Linked contents can't be edited."));
@@ -69,8 +71,7 @@ internal static class PsdDocumentBuilder
                 notes.Add(new PsdConversionNote(name, "Layer effects were discarded, so the appearance may differ."));
                 break;
             case PsdLayerKind.Vector:
-                // Simple shapes and text stay editable on the Mac; here they keep the pixels Photoshop stored.
-                notes.Add(new PsdConversionNote(name, "Vector shape was rasterized to pixels."));
+                if (layer.VectorMask is null) notes.Add(new PsdConversionNote(name, "Vector shape was rasterized to pixels."));
                 break;
         }
         if (layer.IsGroup)
@@ -125,6 +126,13 @@ internal static class PsdDocumentBuilder
             Adjustment = adjustment,
         };
 
+        if (!layer.IsGroup && layer.Text is { } text && PsdText.Render(text) is { } rendered)
+        {
+            image?.Dispose(); image = rendered.Image; record.Transform = rendered.Transform; record.Text = text.Style;
+            foreach (var note in text.Notes) notes.Add(new(name, note));
+            notes.Add(new(name, "Text is editable. Font substitution and text layout can differ from Photoshop."));
+        }
+
         if (image is not null)
         {
             record.ImageFile = Format.LayerMask.ExpectedImageFile(layer.Id);
@@ -138,6 +146,41 @@ internal static class PsdDocumentBuilder
             record.MaskEnabled = layer.MaskEnabled;
             record.MaskLinked = layer.MaskLinked;
             masks[layer.Id] = ImportedImage.Create(mask, "Layer Mask");
+        }
+        if (layer.VectorMask is { } vector)
+        {
+            var width = image?.Width ?? canvas.Width; var height = image?.Height ?? canvas.Height;
+            if ((long)width * height > DocumentLimits.MaxSurfacePixels) throw PsdFailure.TooLarge;
+            using var path = SKPath.ParseSvgPathData(vector.Path);
+            if (path is not null && Document.BrushEdits.PixelToDocument(record.Transform.ToRuntime(), width, height).TryInvert(out var inverse))
+            {
+                path.Transform(inverse);
+                using var builder = new SKPathBuilder(path) { FillType = SKPathFillType.EvenOdd };
+                using var localPath = builder.Detach();
+                var coverage = new SKBitmap(Bitmaps.MaskInfo(width, height)); coverage.Erase(SKColors.Black);
+                using (var drawing = new SKCanvas(coverage))
+                using (var paint = new SKPaint { IsAntialias = true, Color = SKColors.White }) drawing.DrawPath(localPath, paint);
+                if (masks.TryGetValue(layer.Id, out var pixelMask))
+                {
+                    // Preserve both coverages in the current single-mask model, rather than discard a user mask.
+                    if (vector.Enabled)
+                    {
+                        record.MaskEnabled = true;
+                        var output = coverage.GetPixelSpan(); var original = pixelMask.Image.GetPixelSpan();
+                        for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
+                            output[y * coverage.RowBytes + x] = (byte)(output[y * coverage.RowBytes + x] * (layer.MaskEnabled ? original[y * pixelMask.Image.RowBytes + x] : 255) / 255);
+                        pixelMask.Dispose(); masks[layer.Id] = ImportedImage.Create(coverage, "Combined Mask");
+                    }
+                    else coverage.Dispose();
+                    notes.Add(new(name, "The pixel and vector masks were combined into one pixel mask."));
+                }
+                else
+                {
+                    masks[layer.Id] = ImportedImage.Create(coverage, "Vector Mask");
+                    record.MaskFile = Format.LayerMask.ExpectedFile(layer.Id); record.MaskEnabled = vector.Enabled; record.MaskLinked = vector.Linked;
+                    record.MaskVectorPath = localPath.IsEmpty ? "M0 0Z" : localPath.ToSvgPathData(); record.MaskVectorEvenOdd = true;
+                }
+            }
         }
         records.Add(record);
     }

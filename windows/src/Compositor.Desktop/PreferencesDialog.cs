@@ -97,7 +97,7 @@ internal sealed class PreferencesDialog : DialogWindow
         page.Choice("Language", ["English", "简体中文"], (p.Language == "zh-CN" || p.Language == "" && Localize.IsChinese) ? 1 : 0, v => p.Language = v == 1 ? "zh-CN" : "en");
         page.Number("UI Font Size", p.UiFontSize, 10, 18, v => p.UiFontSize = (int)v);
         page.Color("Pasteboard Color", p.Pasteboard, v => p.Pasteboard = v);
-        page.Description("Theme, UI font size and language take effect after restarting Compositor.");
+        page.Description("Theme changes apply immediately. UI font size and language take effect after restarting Compositor.");
         page = Page("Workspace");
         page.Check("Large Document Tabs", p.LargeTabs, v => p.LargeTabs = v);
         page.Description("Documents use tabs. Panel layout and toolbar visibility are stored with the workspace configuration.");
@@ -159,7 +159,7 @@ internal sealed class PreferencesDialog : DialogWindow
         page.Number("Checker Size", p.CheckerSize, 2, 32, v => p.CheckerSize = (int)v);
         page.Color("Checker Light Color", p.CheckerLight, v => p.CheckerLight = v);
         page.Color("Checker Dark Color", p.CheckerDark, v => p.CheckerDark = v);
-        page.Description("Checker colors affect the display only. Gamut warnings require an output ICC proofing transform and are not available.");
+        page.Description("Checker colors affect the display only. Choose View > CMYK for ICC proof colors and gamut warnings.");
         page = Page("Units and Rulers");
         page.Choice("Ruler Units", ["Pixels", "Inches", "Centimeters", "Points"], p.RulerUnit, v => p.RulerUnit = v);
         page.Number("New Document Resolution", p.NewResolution, 1, 9600, v => p.NewResolution = v);

@@ -65,14 +65,16 @@ public static partial class TextEdits
         using var paint = new SKPaint { IsAntialias = style.Layout?.Smoothing != TextSmoothing.None };
         foreach (var piece in pieces)
         {
+            canvas.Save(); canvas.RotateDegrees(piece.Angle, piece.X, piece.Y);
             paint.Color = piece.Colour;
+            var drawStyle = piece.Style ?? style;
             using var font = new SKFont(piece.Typeface, (float)(style.FontSize * piece.Scale))
             {
                 ScaleX = piece.Horizontal,
-                Edging = style.Layout?.Smoothing == TextSmoothing.None ? SKFontEdging.Alias : SKFontEdging.Antialias,
-                Hinting = style.Layout?.Smoothing is TextSmoothing.Sharp or TextSmoothing.Crisp ? SKFontHinting.Full : SKFontHinting.Normal,
-                Embolden = style.Bold == true || style.Layout?.Smoothing == TextSmoothing.Strong,
-                SkewX = style.Italic == true ? -.25f : 0,
+                Edging = drawStyle.Layout?.Smoothing == TextSmoothing.None ? SKFontEdging.Alias : drawStyle.Layout?.Smoothing == TextSmoothing.WindowsLcd ? SKFontEdging.SubpixelAntialias : SKFontEdging.Antialias,
+                Hinting = drawStyle.Layout?.Smoothing is TextSmoothing.Sharp or TextSmoothing.Crisp or TextSmoothing.Windows ? SKFontHinting.Full : SKFontHinting.Normal,
+                Embolden = drawStyle.Bold == true || drawStyle.Layout?.Smoothing == TextSmoothing.Strong,
+                SkewX = drawStyle.Italic == true ? -.25f : 0,
             };
             if (piece.Shaped)
             {
@@ -91,8 +93,9 @@ public static partial class TextEdits
                 canvas.DrawText(piece.Text, piece.X, piece.Y, SKTextAlign.Left, font, paint);
             }
             paint.StrokeWidth = Math.Max(1, (float)style.FontSize / 16);
-            if (style.Underline == true) canvas.DrawLine(piece.X, piece.Y + (float)style.FontSize * .1f, piece.X + piece.Width, piece.Y + (float)style.FontSize * .1f, paint);
-            if (style.Strikethrough == true) canvas.DrawLine(piece.X, piece.Y - (float)style.FontSize * .3f, piece.X + piece.Width, piece.Y - (float)style.FontSize * .3f, paint);
+            if (drawStyle.Underline == true) canvas.DrawLine(piece.X, piece.Y + (float)style.FontSize * .1f, piece.X + piece.Width, piece.Y + (float)style.FontSize * .1f, paint);
+            if (drawStyle.Strikethrough == true) canvas.DrawLine(piece.X, piece.Y - (float)style.FontSize * .3f, piece.X + piece.Width, piece.Y - (float)style.FontSize * .3f, paint);
+            canvas.Restore();
         }
         return image;
     }
@@ -108,13 +111,14 @@ public static partial class TextEdits
         using var builder = new SKPathBuilder();
         foreach (var piece in pieces)
         {
+            var drawStyle = piece.Style ?? style;
             using var font = new SKFont(piece.Typeface, (float)(style.FontSize * piece.Scale))
             {
                 ScaleX = piece.Horizontal,
-                Edging = style.Layout?.Smoothing == TextSmoothing.None ? SKFontEdging.Alias : SKFontEdging.Antialias,
-                Hinting = style.Layout?.Smoothing is TextSmoothing.Sharp or TextSmoothing.Crisp ? SKFontHinting.Full : SKFontHinting.Normal,
-                Embolden = style.Bold == true || style.Layout?.Smoothing == TextSmoothing.Strong,
-                SkewX = style.Italic == true ? -.25f : 0,
+                Edging = drawStyle.Layout?.Smoothing == TextSmoothing.None ? SKFontEdging.Alias : drawStyle.Layout?.Smoothing == TextSmoothing.WindowsLcd ? SKFontEdging.SubpixelAntialias : SKFontEdging.Antialias,
+                Hinting = drawStyle.Layout?.Smoothing is TextSmoothing.Sharp or TextSmoothing.Crisp or TextSmoothing.Windows ? SKFontHinting.Full : SKFontHinting.Normal,
+                Embolden = drawStyle.Bold == true || drawStyle.Layout?.Smoothing == TextSmoothing.Strong,
+                SkewX = drawStyle.Italic == true ? -.25f : 0,
             };
             if (piece.Shaped)
             {
@@ -123,13 +127,14 @@ public static partial class TextEdits
                     using var glyph = font.GetGlyphPath(piece.Glyphs[index]);
                     if (glyph is null) continue;
                     glyph.Transform(SKMatrix.CreateTranslation(piece.X + piece.Positions![index].X, piece.Y + piece.Positions[index].Y));
+                    if (piece.Angle != 0) glyph.Transform(SKMatrix.CreateRotationDegrees(piece.Angle, piece.X, piece.Y));
                     builder.AddPath(glyph);
                 }
             }
             else
             {
                 using var text = font.GetTextPath(piece.Text, new SKPoint(piece.X, piece.Y));
-                if (text is not null) builder.AddPath(text);
+                if (text is not null) { if (piece.Angle != 0) text.Transform(SKMatrix.CreateRotationDegrees(piece.Angle, piece.X, piece.Y)); builder.AddPath(text); }
             }
         }
         return builder.Detach();
@@ -159,23 +164,23 @@ public static partial class TextEdits
     {
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { } layer) return false;
         if (Image(style, Variables(document, LayerName(style.Content))) is not { } image) return false;
-        // The box may have changed with the text, so the layer is re-placed about the middle it had.
-        var centreX = layer.Transform.CenterX;
-        var centreY = layer.Transform.CenterY;
+        // Keep the local top-left anchor and existing scale/rotation when typing changes the bounds.
+        var before = layer.Transform;
+        var oldWidth = layer.Asset?.Width ?? image.Width; var oldHeight = layer.Asset?.Height ?? image.Height;
+        var placement = BrushEdits.PixelToDocument(before, oldWidth, oldHeight);
+        var anchor = placement.MapPoint(0, 0);
         var keepsItsPlace = layer.Text is not null;
         var name = LayerName(style.Content);
         layer.Asset = ImportedImage.Create(image, name);
         layer.Text = new LayerText(style, image);
         layer.Name = name;
-        layer.Transform = keepsItsPlace
-            ? layer.Transform with
-            {
-                Width = image.Width,
-                Height = image.Height,
-                X = centreX - image.Width / 2.0,
-                Y = centreY - image.Height / 2.0,
-            }
-            : new Model.LayerTransform(layer.Transform.X, layer.Transform.Y, image.Width, image.Height);
+        if (keepsItsPlace)
+        {
+            var resized = before with { Width = image.Width * before.Width / oldWidth, Height = image.Height * before.Height / oldHeight };
+            var moved = BrushEdits.PixelToDocument(resized, image.Width, image.Height).MapPoint(0, 0);
+            layer.Transform = resized with { X = resized.X + anchor.X - moved.X, Y = resized.Y + anchor.Y - moved.Y };
+        }
+        else layer.Transform = new Model.LayerTransform(before.X, before.Y, image.Width, image.Height);
         return true;
     }
 
@@ -257,6 +262,14 @@ public static partial class TextEdits
     /// </summary>
     public static SKPoint Caret(LayerTextStyle style) => Caret(style, (style.Content ?? "").Length);
 
+    public static IReadOnlyList<(int Index, SKPoint Point)> CaretStops(LayerTextStyle style)
+    {
+        var stops = new List<Stop>(); Layout(style, null, out _, out _, stops);
+        if (stops.Count == 0) return [(0, new((float)Padding, (float)(Padding + Baseline(style))))];
+        return stops.GroupBy(s => s.Index).Select(g => g.Last()).OrderBy(s => s.Index)
+            .Select(s => (s.Index, new SKPoint(s.X, s.Y))).ToArray();
+    }
+
     /// <summary>
     /// Where the caret sits with <paramref name="index"/> characters in front of it: at the place the text
     /// before it ends, on the line that falls on. An index past the end is the end, and one on a character
@@ -295,12 +308,12 @@ public static partial class TextEdits
     /// <summary>The face to set text in, falling back to the system face as the Mac build falls back.</summary>
     public static SKTypeface Typeface(string? fontName) =>
         Faces.GetOrAdd(fontName ?? "", name => name.Length > 0
-            ? SKTypeface.FromFamilyName(name) ?? SKTypeface.Default
+            ? FontCatalog.Resolve(name)
             : SKTypeface.Default);
 
     /// <summary>One run to draw, with the face and colour it is set in, where it goes and how big it is.</summary>
     private readonly record struct Piece(string Text, SKTypeface Typeface, SKColor Colour, float X, float Y,
-        float Scale, float Shift, float Width, bool Shaped, ushort[]? Glyphs, SKPoint[]? Positions, float Horizontal = 1);
+        float Scale, float Shift, float Width, bool Shaped, ushort[]? Glyphs, SKPoint[]? Positions, float Horizontal = 1, LayerTextStyle? Style = null, float Angle = 0);
 
     /// <summary>
     /// The text laid out: every run with its place, and how big the whole paragraph came out. Lines break
@@ -317,12 +330,12 @@ public static partial class TextEdits
         {
             var p = pieces[i]; pieces[i] = p with { X = (float)(Padding + (p.X - Padding) * sx),
                 Y = (float)(Padding + (p.Y - Padding - options.BaselineShift) * sy), Width = (float)(p.Width * sx),
-                Scale = (float)(p.Scale * sy), Horizontal = (float)(sx / sy),
+                Scale = (float)(p.Scale * sy), Horizontal = (float)(p.Horizontal * sx / sy),
                 Positions = p.Positions?.Select(v => new SKPoint((float)(v.X * sx), (float)(v.Y * sy))).ToArray() };
         }
         if (stops is not null) for (var i = 0; i < stops.Count; i++) stops[i] = stops[i] with {
             X = (float)(Padding + (stops[i].X - Padding) * sx), Y = (float)(Padding + (stops[i].Y - Padding - options.BaselineShift) * sy) };
-        measuredWidth *= sx; measuredHeight *= sy; return pieces;
+        measuredWidth *= sx; measuredHeight *= sy; return GeometryLayout(pieces, style, stops, ref measuredWidth, ref measuredHeight);
     }
 
     private static List<Piece> NaturalLayout(LayerTextStyle style, TextVariables? variables,
@@ -348,10 +361,13 @@ public static partial class TextEdits
             {
                 var indent = options.LeftIndent + (from == start ? options.FirstLineIndent : 0);
                 var available = limit - (from == start ? options.FirstLineIndent : 0);
-                var y = (float)(Padding + yOffset + baseline);
+                var activeStyles = (style.StyleRuns ?? []).Where(r => r.Location < to && r.Location + r.Length > from).Select(r => r.Style).ToArray();
+                var lineBaseline = options.BottomLeading ? lineHeight - Metrics(style.FontName, style.FontSize).Descent : Math.Max(baseline, activeStyles.Select(Baseline).DefaultIfEmpty(baseline).Max());
+                var actualHeight = Math.Max(lineHeight, activeStyles.Select(s => s.LineHeight).DefaultIfEmpty(lineHeight).Max());
+                var y = (float)(Padding + yOffset + lineBaseline);
                 var linePieces = new List<Piece>();
                 var lineStops = new List<Stop>();
-                if (Shapes(style, content, from, to) || NeedsReorder(content, from, to))
+                if (Shapes(style, content, from, to) || style.StyleRuns?.Any(r => r.Location < to && r.Location + r.Length > from && Shapes(r.Style, content, from, to)) == true || NeedsReorder(content, from, to))
                     BuildBidi(content, from, to, style, fonts, colours, y, linePieces, lineStops);
                 else
                     BuildPlain(content, from, to, style, fonts, colours, y, linePieces, lineStops);
@@ -376,7 +392,7 @@ public static partial class TextEdits
                 pieces.AddRange(linePieces);
                 stops?.AddRange(lineStops);
                 measuredWidth = Math.Max(measuredWidth, width + indent + options.RightIndent);
-                yOffset += lineHeight;
+                yOffset += actualHeight;
             }
             yOffset += options.SpaceAfter;
         }
@@ -427,10 +443,14 @@ public static partial class TextEdits
         var index = from;
         while (index < to)
         {
-            var text = Display(style, content, index, to, out var taken, out var scale, out var shift);
+            var runStyle = TextRanges.At(style, index);
+            var text = Display(runStyle, content, index, to, out var taken, out var scale, out var shift);
             var typeface = ForText(fonts[index], text);
-            var width = (float)Advance(text, typeface, style, scale);
-            pieces.Add(new Piece(text, typeface, colours[index], (float)x, y + shift, scale, shift, width, false, null, null));
+            var sx = (runStyle.Layout?.HorizontalScale ?? 100) / (style.Layout?.HorizontalScale ?? 100);
+            var sy = (runStyle.Layout?.VerticalScale ?? 100) / (style.Layout?.VerticalScale ?? 100);
+            shift -= (float)((runStyle.Layout?.BaselineShift ?? 0) - (style.Layout?.BaselineShift ?? 0));
+            var width = (float)(Advance(text, typeface, runStyle, scale) * sx);
+            pieces.Add(new Piece(text, typeface, colours[index], (float)x, y + shift, (float)(scale * sy * runStyle.FontSize / style.FontSize), shift, width, false, null, null, Horizontal: (float)(sx / sy), Style: runStyle));
             stops.Add(new Stop(index, (float)x, y));
             x += width;
             index += taken;
@@ -440,7 +460,7 @@ public static partial class TextEdits
 
     /// <summary>One shaped run after reordering: the level it sits at, and where it lies in the words.</summary>
     private readonly record struct ShapedRun(string Text, SKTypeface Typeface, SKColor Colour, float Scale,
-        float Shift, byte Level, TextShaping.Run Shaped, int Start, int End);
+        float Shift, byte Level, TextShaping.Run Shaped, int Start, int End, LayerTextStyle Style);
 
     /// <summary>
     /// Lays a line out the way the Unicode Bidirectional Algorithm says: the levels decide which runs read
@@ -472,43 +492,65 @@ public static partial class TextEdits
             var level = levels[cursor];
             var typeface = fonts[starts[cursor]];
             var colour = colours[starts[cursor]];
-            var scale = DisplayScale(style, content, starts[cursor]);
-            var shift = DisplayShift(style);
+            var runStyle = TextRanges.At(style, starts[cursor]);
+            var scale = DisplayScale(runStyle, content, starts[cursor]);
+            var shift = DisplayShift(runStyle) - (float)((runStyle.Layout?.BaselineShift ?? 0) - (style.Layout?.BaselineShift ?? 0));
             var text = new StringBuilder();
             var start = cursor;
             while (cursor < count && !removed[cursor] && levels[cursor] == level
                 && ReferenceEquals(fonts[starts[cursor]], typeface) && colours[starts[cursor]] == colour
-                && Math.Abs(DisplayScale(style, content, starts[cursor]) - scale) < 1e-6)
+                && ReferenceEquals(TextRanges.At(style, starts[cursor]), runStyle)
+                && Math.Abs(DisplayScale(runStyle, content, starts[cursor]) - scale) < 1e-6)
             {
                 var codepoint = (level & 1) == 1 ? Bidi.Mirror(codepoints[cursor]) : codepoints[cursor];
                 text.Append(char.ConvertFromUtf32(codepoint));
                 cursor++;
             }
             var runText = text.ToString();
-            if (style.AllCaps == true || style.SmallCaps == true) runText = runText.ToUpperInvariant();
+            if (runStyle.AllCaps == true || runStyle.SmallCaps == true) runText = runText.ToUpperInvariant();
             var direction = (level & 1) == 1 ? TextDirection.RightToLeft : TextDirection.LeftToRight;
-            var shaped = TextShaping.Shape(typeface, style.FontSize * scale, runText, direction,
-                style.Ligatures ?? true, style.Kerning ?? true, style.Features, style.Language);
-            runs.Add(new ShapedRun(runText, typeface, colour, scale, shift, level, shaped, start, cursor));
+            var shaped = TextShaping.Shape(typeface, runStyle.FontSize * scale, runText, direction,
+                runStyle.Ligatures ?? true, runStyle.Kerning ?? true, runStyle.Features, runStyle.Language);
+            runs.Add(new ShapedRun(runText, typeface, colour, scale, shift, level, shaped, start, cursor, runStyle));
         }
         var visual = RunOrder(runs);
 
         var x = 0.0;
-        var tracking = (float)style.Tracking;
+
         var lineStops = new List<Stop>();
         foreach (var run in visual)
         {
-            var positions = run.Shaped.Positions;
+            var sx = (float)((run.Style.Layout?.HorizontalScale ?? 100) / (style.Layout?.HorizontalScale ?? 100));
+            var sy = (float)((run.Style.Layout?.VerticalScale ?? 100) / (style.Layout?.VerticalScale ?? 100));
+            var positions = run.Shaped.Positions.Select(p => new SKPoint(p.X * sx, p.Y * sy)).ToArray();
+            var tracking = (float)run.Style.Tracking;
             if (tracking != 0)
             {
                 for (var at = 0; at < positions.Length; at++)
                     positions[at] = new SKPoint(positions[at].X + tracking * at, positions[at].Y);
             }
-            var width = run.Shaped.Width + tracking * Math.Max(0, positions.Length - 1);
-            pieces.Add(new Piece(run.Text, run.Typeface, run.Colour, (float)x, y + run.Shift, run.Scale, run.Shift,
-                width, true, run.Shaped.Glyphs, positions));
-            lineStops.Add(new Stop(starts[run.Start], (float)x, y + run.Shift));
-            lineStops.Add(new Stop(run.End < count ? starts[run.End] : to, (float)(x + width), y + run.Shift));
+            var width = run.Shaped.Width * sx + tracking * Math.Max(0, positions.Length - 1);
+            pieces.Add(new Piece(run.Text, run.Typeface, run.Colour, (float)x, y + run.Shift, (float)(run.Scale * sy * run.Style.FontSize / style.FontSize), run.Shift,
+                width, true, run.Shaped.Glyphs, positions, Horizontal: sx / sy, Style: run.Style));
+            var boundaries = StringInfo.ParseCombiningCharacters(run.Text).Append(run.Text.Length).ToArray();
+            foreach (var offset in boundaries)
+            {
+                var at = (float)width * offset / Math.Max(1, run.Text.Length);
+                if (run.Shaped.Clusters is { } clusters && run.Shaped.Advances is { } advances && clusters.Length > 0)
+                {
+                    var cluster = clusters.Where(c => c <= offset).DefaultIfEmpty(0u).Max();
+                    var next = clusters.Where(c => c > cluster).DefaultIfEmpty((uint)run.Text.Length).Min();
+                    var indices = Enumerable.Range(0, clusters.Length).Where(i => clusters[i] == cluster).ToArray();
+                    if (indices.Length > 0)
+                    {
+                        var left = indices.Min(i => positions[i].X); var right = indices.Max(i => positions[i].X + advances[i] * sx);
+                        var t = Math.Clamp((offset - cluster) / (double)Math.Max(1, next - cluster), 0, 1);
+                        at = (float)((run.Level & 1) == 1 ? right - (right - left) * t : left + (right - left) * t);
+                    }
+                }
+                else if ((run.Level & 1) == 1) at = width - at;
+                lineStops.Add(new Stop(starts[run.Start] + offset, (float)x + at, y));
+            }
             x += width;
         }
         lineStops.Sort((left, right) => left.Index.CompareTo(right.Index));
@@ -711,7 +753,8 @@ public static partial class TextEdits
         while (index < to)
         {
             var text = NextElement(content, index, to, out var taken);
-            width += Advance(text, ForText(fonts[index], text), style, DisplayScale(style, content, index));
+            var runStyle = TextRanges.At(style, index);
+            width += Advance(text, ForText(fonts[index], text), runStyle, DisplayScale(runStyle, content, index)) * (runStyle.Layout?.HorizontalScale ?? 100) / (style.Layout?.HorizontalScale ?? 100);
             index += taken;
         }
         return width;
@@ -737,6 +780,8 @@ public static partial class TextEdits
             var set = ToColour(run.Red, run.Green, run.Blue);
             for (var index = run.Location; index < run.Location + run.Length; index++) colours[index] = set;
         }
+        foreach (var run in style.StyleRuns ?? [])
+            for (var i = run.Location; i < Math.Min(length, run.Location + run.Length); i++) colours[i] = ToColour(run.Style.Red, run.Style.Green, run.Style.Blue);
         return colours;
     }
 
@@ -752,6 +797,8 @@ public static partial class TextEdits
             var set = Typeface(run.FontName);
             for (var index = run.Location; index < run.Location + run.Length; index++) fonts[index] = set;
         }
+        foreach (var run in style.StyleRuns ?? [])
+        { var face = Typeface(run.Style.FontName); for (var i = run.Location; i < Math.Min(length, run.Location + run.Length); i++) fonts[i] = face; }
         return fonts;
     }
 
@@ -767,9 +814,9 @@ public static partial class TextEdits
         (byte)Math.Clamp(Math.Round(blue * 255), 0, 255));
 
     /// <summary>A copy of a style, so an edit does not change the layer it came from.</summary>
-    internal static LayerTextStyle Copy(LayerTextStyle style) => new()
+    public static LayerTextStyle Copy(LayerTextStyle style) => new()
     {
-        Layout = style.Layout, Vertical = style.Vertical,
+        Layout = style.Layout, Vertical = style.Vertical, StyleRuns = style.StyleRuns, Geometry = style.Geometry,
         Content = style.Content,
         FontName = style.FontName,
         FontSize = style.FontSize,

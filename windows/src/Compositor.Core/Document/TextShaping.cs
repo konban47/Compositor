@@ -17,7 +17,7 @@ internal static class TextShaping
     private static readonly object Gate = new();
 
     /// <summary>One shaped run: the glyphs, where each sits, and how wide the run came out.</summary>
-    internal readonly record struct Run(ushort[] Glyphs, SKPoint[] Positions, float Width);
+    internal readonly record struct Run(ushort[] Glyphs, SKPoint[] Positions, float Width, uint[]? Clusters = null, float[]? Advances = null);
 
     /// <summary>A HarfBuzz face and font kept alive, with the stream its blob borrows from.</summary>
     private sealed class ShapedFont : IDisposable
@@ -110,14 +110,16 @@ internal static class TextShaping
                 var positions = buffer.GlyphPositions;
                 var glyphs = new ushort[infos.Length];
                 var points = new SKPoint[infos.Length];
+                var advances = new float[infos.Length]; var clusters = new uint[infos.Length];
                 var x = 0f;
                 for (var index = 0; index < infos.Length; index++)
                 {
                     glyphs[index] = (ushort)infos[index].Codepoint;
+                    clusters[index] = infos[index].Cluster; advances[index] = positions[index].XAdvance / 64f;
                     points[index] = new SKPoint(x + positions[index].XOffset / 64f, -positions[index].YOffset / 64f);
                     x += positions[index].XAdvance / 64f;
                 }
-                return new Run(glyphs, points, x);
+                return new Run(glyphs, points, x, clusters, advances);
             }
         }
         catch (Exception)

@@ -11,7 +11,7 @@ namespace Compositor.Desktop;
 /// </summary>
 internal static class UpstreamArtwork
 {
-    internal const double ButtonSide = 36, ButtonRadius = 7, RailWidth = 56, RailSpacing = 10;
+    internal const double ButtonSide = 36, ButtonRadius = 7, RailWidth = 56, RailSpacing = 2;
     internal const byte SelectedFillAlpha = 31, SelectedBorderAlpha = 36;
     private static readonly bool[,] Gradient = MakeGradient();
     private static bool[,] MakeGradient()

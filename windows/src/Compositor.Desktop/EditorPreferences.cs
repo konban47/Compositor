@@ -60,6 +60,16 @@ internal sealed class EditorPreferences
     public bool PlaceholderText { get; set; }
     public double DefaultFontSize { get; set; } = 48;
     public double NewResolution { get; set; } = 72;
+    public Compositor.Core.Document.MaskRefinementSettings? MaskRefinementPreset { get; set; }
+    public Compositor.Core.Format.LayerTextStyle? DefaultTypeStyle { get; set; }
+    public Dictionary<string, Compositor.Core.Format.LayerTextStyle> CharacterStyles { get; set; } = [];
+    public Dictionary<string, Compositor.Core.Format.LayerTextStyle> ParagraphStyles { get; set; } = [];
+    public HashSet<string> FavoriteFonts { get; set; } = [];
+    public int FontPreviewSize { get; set; } = 3;
+    public int LayerThumbnailSize { get; set; } = 32;
+    public bool ThumbnailLayerBounds { get; set; } = true;
+    public string MaskOverlayColor { get; set; } = "#FF0000";
+    public double MaskOverlayOpacity { get; set; } = 50;
     public bool ShowSliceNumbers { get; set; } = true;
     internal EditorPreferences Copy() => JsonSerializer.Deserialize<EditorPreferences>(JsonSerializer.Serialize(this))!;
     internal static void Commit(EditorPreferences draft) { draft.Normalize(); draft.Save(); Current = draft.Copy(); }
@@ -79,7 +89,13 @@ internal sealed class EditorPreferences
         Pasteboard = Color(Pasteboard, "#282828"); GuideColor = Color(GuideColor, "#00FFFF");
         GridColor = Color(GridColor, "#B3B3B3"); PathColor = Color(PathColor, "#1473E6");
         Language = Language is "en" or "zh-CN" ? Language : "";
-        HiddenMenus ??= [];
+        CharacterStyles ??= []; ParagraphStyles ??= [];
+        foreach (var styles in new[] { CharacterStyles, ParagraphStyles }) foreach (var key in styles.Keys.ToArray())
+            if (styles[key] is not { IsValid: true } || key.Length > 100 || styles.Count > 200) styles.Remove(key);
+        if (DefaultTypeStyle is not null && !DefaultTypeStyle.IsValid) DefaultTypeStyle = null;
+        HiddenMenus ??= []; FavoriteFonts ??= []; FavoriteFonts = FavoriteFonts.Where(f => !string.IsNullOrWhiteSpace(f) && f.Length <= 200).Take(500).ToHashSet(); FontPreviewSize = Math.Clamp(FontPreviewSize, 0, 5);
+        LayerThumbnailSize = LayerThumbnailSize is 0 or 32 or 48 or 64 ? LayerThumbnailSize : 32;
+        MaskOverlayColor = Color(MaskOverlayColor, "#FF0000"); MaskOverlayOpacity = Finite(MaskOverlayOpacity, 0, 100, 50);
     }
     private static double Finite(double n, double min, double max, double fallback) => double.IsFinite(n) ? Math.Clamp(n, min, max) : fallback;
     internal static bool ValidColor(string? value) => value is { Length: 7 } && value[0] == '#' && value.Skip(1).All(Uri.IsHexDigit);

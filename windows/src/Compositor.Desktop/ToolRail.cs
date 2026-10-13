@@ -172,7 +172,7 @@ internal sealed class ToolRail : Grid
     }
     private Control Tools()
     {
-        var column = new StackPanel { Orientation = Orientation.Vertical, Spacing = UpstreamArtwork.RailSpacing, Margin = new Thickness(0, 16, 0, 12), HorizontalAlignment = HorizontalAlignment.Center };
+        var column = new StackPanel { Orientation = Orientation.Vertical, Spacing = UpstreamArtwork.RailSpacing, Margin = new Thickness(0, 6, 0, 6), HorizontalAlignment = HorizontalAlignment.Center };
         foreach (var ids in _layout.Groups)
         {
             var group = ids.Select(Enum.Parse<Tool>).ToList(); if (group.Count == 0) continue;

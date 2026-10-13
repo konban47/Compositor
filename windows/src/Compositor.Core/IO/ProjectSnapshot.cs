@@ -32,7 +32,7 @@ public sealed class ProjectSnapshot : IDisposable
     {
         if (layer.MaskFile is null || !Masks.TryGetValue(layer.ID, out var asset)) return null;
         return new Model.LayerMask(asset, layer.MaskEnabled ?? true,
-            layer.MaskPlacement?.ToRuntime(), layer.MaskLinked ?? true, layer.MaskDensity ?? 1, layer.MaskFeather ?? 0, layer.MaskVectorPath);
+            layer.MaskPlacement?.ToRuntime(), layer.MaskLinked ?? true, layer.MaskDensity ?? 1, layer.MaskFeather ?? 0, layer.MaskVectorPath, layer.MaskVectorEvenOdd ?? false);
     }
 
     /// <summary>The rows the layers panel draws, and the layers a renderer draws, in document order.</summary>
@@ -94,7 +94,7 @@ public sealed class ProjectSnapshot : IDisposable
         var defaultMeasurementFields = document.MeasurementFields.SequenceEqual(new[] { "Area", "Perimeter", "Width", "Height", "Length", "Angle", "Count", "Mean" });
         var manifest = new ProjectManifest
         {
-            Version = document.Layers.Any(l => l.Adjustment?.Extended is not null) ? 19 : !document.Image.IsDefault || document.Variables.Count > 0 || document.DataSets.Count > 0
+            Version = document.Image.CmykProfile is not null || document.Layers.Any(l => l.Label > LayerLabel.Gray || l.Mask is { VectorPath: not null, VectorEvenOdd: true } || l.LiveText?.StyleRuns is not null || l.LiveText?.Geometry is not null || l.LiveText?.Layout is { BottomLeading: true } or { TateChuYoko: true } or { Smoothing: > TextSmoothing.Smooth }) ? 20 : document.Layers.Any(l => l.Adjustment?.Extended is not null) ? 19 : !document.Image.IsDefault || document.Variables.Count > 0 || document.DataSets.Count > 0
                 || document.MeasurementScale != new MeasurementScale() || document.Measurements.Count > 0
                 || document.Layers.Any(l => l.Asset?.Deep is not null || l.LiveText?.Layout is not null) || !defaultMeasurementFields ? 18
                 : document.Marks.Count > 0 ? 17 : document.Layers.Any(layer => layer.LiveText?.Vertical is not null || layer.LiveShape is { Kind: ShapeKind.Path, LineWidth: not null }) ? 16

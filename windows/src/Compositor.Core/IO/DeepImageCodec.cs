@@ -21,9 +21,11 @@ public static class DeepImageCodec
         if (info.Width > DocumentLimits.MaxSide || info.Height > DocumentLimits.MaxSide || (long)info.Width * info.Height > remainingPixels)
             throw new ImportException(ImportError.TooLarge);
         using var image = new MagickImage(bytes); var mode = image.ColorSpace switch { ColorSpace.CMYK => ImageMode.CMYK, ColorSpace.Lab => ImageMode.Lab, ColorSpace.Gray => ImageMode.Grayscale, _ => ImageMode.RGB }; var depth = image.Depth > 16 ? 32 : image.Depth > 8 ? 16 : 8;
+        var cmykProfile = mode == ImageMode.CMYK ? image.GetColorProfile()?.ToByteArray() ?? CmykColor.DefaultProfile : null;
         image.AutoOrient();
         var linear = info.Format is MagickFormat.Exr or MagickFormat.Hdr;
-        if (!linear) image.ColorSpace = ColorSpace.sRGB;
+        if (cmykProfile is not null) image.TransformColorSpace(new ColorProfile(cmykProfile), ColorProfiles.SRGB);
+        else if (!linear) image.ColorSpace = ColorSpace.sRGB;
         image.ColorType = ColorType.TrueColorAlpha;
         using var pixels = image.GetPixels(); var source = pixels.ToArray() ?? throw new InvalidDataException("Empty decoded image.");
         var result = Bitmaps.Allocate(DeepPixels.Info((int)image.Width, (int)image.Height));
@@ -44,7 +46,7 @@ public static class DeepImageCodec
         ImportedImage imported;
         if (depth > 8) imported = ImportedImage.CreateDeep(result, name, depth);
         else { using (result) imported = ImportedImage.Create(DeepPixels.Preview(result), name); }
-        imported.ColorMode = mode; return imported;
+        imported.ColorMode = mode; imported.CmykProfile = cmykProfile; return imported;
     }
     public static byte[] EncodeMode(SKBitmap pixels, ImageSettings settings, bool tiff, double resolution)
     {

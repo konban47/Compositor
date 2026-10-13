@@ -23,7 +23,7 @@ public static class MaskProperties
             using var paint = new SKPaint { IsAntialias = true, Color = SKColors.White };
             if (mask.VectorPath is { } pathData)
             {
-                using var path = SKPath.ParseSvgPathData(pathData);
+                using var path = mask.CreateVectorPath(pathData);
                 if (path is not null) canvas.DrawPath(path, paint);
             }
             else canvas.DrawBitmap(mask.Asset.Image, 0, 0, new SKSamplingOptions(SKFilterMode.Linear), paint);
@@ -151,7 +151,7 @@ public static class MaskProperties
     public static bool SetVectorPath(CanvasDocument document, Guid id, string svg)
     {
         if (document.Layers.FirstOrDefault(layer => layer.ID == id) is not { Mask: { } mask } layer) return false;
-        using var path = SKPath.ParseSvgPathData(svg);
+        using var path = mask.CreateVectorPath(svg);
         if (path is null) return false;
         var width = mask.Asset.Width;
         var height = mask.Asset.Height;

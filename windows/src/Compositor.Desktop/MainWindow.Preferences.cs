@@ -36,6 +36,8 @@ public sealed partial class MainWindow
     private void ApplyPreferences()
     {
         var p = EditorPreferences.Current;
+        if (Avalonia.Application.Current is DesktopApp app) app.RefreshAppearance();
+        foreach (var visual in Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(this)) visual.InvalidateVisual();
         foreach (var tab in _tabs) { tab.History.Configure(p.HistorySteps, p.HistoryMB * 1024 * 1024, tab.Document); tab.History.AllowNonLinear = p.NonLinearHistory; }
         _canvas.PreciseBrushCursor = p.PreciseCursor; _canvas.ShowsTransparency = p.ShowTransparency; _canvas.UpdateToolCursor();
         _options.ShowsSampleRing = p.SampleRing; _options.Brush = _options.Brush with { Smoothing = p.BrushSmoothing };

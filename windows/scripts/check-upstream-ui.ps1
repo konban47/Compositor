@@ -8,7 +8,7 @@ foreach ($file in $manifest.files) {
     if ($digest -ne $file.sha256) { throw "Upstream UI source changed: $($file.path). Review its Windows port and update provenance." }
 }
 $ported = Get-Content -LiteralPath (Join-Path $repo $manifest.implementation) -Raw -Encoding utf8
-foreach ($token in @('Clone','Gradient','Polygon','Object','ButtonSide = 36','ButtonRadius = 7','RailWidth = 56','RailSpacing = 10')) {
+foreach ($token in @('Clone','Gradient','Polygon','Object','ButtonSide = 36','ButtonRadius = 7','RailWidth = 56','RailSpacing = 2')) {
     if (!$ported.Contains($token)) { throw "Upstream artwork mapping missing: $token" }
 }
 foreach ($asset in @($manifest.generatedCounterparts.reference, $manifest.generatedCounterparts.implementation, $manifest.generatedCounterparts.provenance)) {
