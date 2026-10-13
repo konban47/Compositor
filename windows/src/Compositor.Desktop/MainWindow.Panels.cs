@@ -120,7 +120,7 @@ public sealed partial class MainWindow
         DockPanel.SetDock(footer, Dock.Bottom); layers.Children.Add(footer); layers.Children.Add(_layers);
         _panelTabs.Items.Add(new TabItem { Header = Localize.Text("Layers"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Content = layers });
         _panelTabs.Items.Add(new TabItem { Header = Localize.Text("Channels"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Content = BuildChannelsPanel() });
-        _panelTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _panelTabs) && _panelTabs.SelectedIndex == 1) RefreshChannels(); };
+        _panelTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _panelTabs) && _dockPanels.GetValueOrDefault("Channels")?.Tab == _panelTabs.SelectedItem) RefreshChannels(); };
         _panelTabs.SelectedIndex = 0;
         return BuildInspector(_panelTabs);
     }
@@ -261,7 +261,7 @@ public sealed partial class MainWindow
         _showingAppearance = false;
         foreach (var thumbnail in _layerThumbnails) thumbnail.InvalidateVisual();
         UpdateMaskOverlay(); RefreshTypePanels();
-        if (_panelTabs.SelectedIndex == 1) RefreshChannels();
+        if (_dockPanels.GetValueOrDefault("Channels") is { Visible: true }) RefreshChannels();
     }
 }
 

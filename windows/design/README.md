@@ -1,6 +1,6 @@
 # 图标与控件设计来源
 
-适用于 Windows 1.5.1.1。上游基线为 `f2747c42ac1a08234d3209621b9e4c85d6a619ed`，文件哈希及对应代码见 [UPSTREAM-UI.json](../UPSTREAM-UI.json)。
+适用于 Windows 1.5.1.3。上游基线为 `e8c9e29701528413cc0e608d61187c1c61790add`，文件哈希及对应代码见 [UPSTREAM-UI.json](../UPSTREAM-UI.json)。
 
 ## 直接移植与系统资源
 
@@ -27,3 +27,7 @@
 提示词要点：compact dark Photoshop-style alignment/distribution panel; fourteen flat monochrome icons; six alignment icons, six distribution icons and two equal-spacing icons; every alignment/reference line exactly 1.5 logical pixels, same color and opacity including centered axes; preserve the supplied screenshot's row order, unequal object geometry and orientation; no shadows, texture or gradients.
 
 运行时由 `AlignmentGlyph.cs` 在 22×22 逻辑网格绘制。所有基准线共用一个 1.5 像素 Pen；分布图案为两组不同长度对象及各自的边缘／中心线，六种排列使用统一转置规则。按钮没有位图裁切或网络依赖，随主题自动变色。`--type-mask-checks` 输出实际控件的三倍分辨率图以及浅色主题、文字选区、字体候选、蒙版侧栏截图。[实际控件预览](alignment-distribution-native.png)是测试程序直接渲染的结果。
+
+## 浮窗与面板折叠图标（1.5.1.3）
+
+使用 imagegen skill，经内置 imagegen 为 35 个面板／工具窗口逐一生成专属参考稿。设计思路参考 Photoshop 的面板语义，延续项目单色、统一线宽和紧凑留白；不使用 Photoshop 原始图标文件，不改动左侧 69 个工具的按钮图标。完整提示词、生成稿、SVG 与深浅主题实际预览见 [面板图标设计说明](panel-icons/README.md)。

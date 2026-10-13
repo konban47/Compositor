@@ -46,7 +46,6 @@ public sealed partial class MainWindow
             }
             MenuItem Sub(string name) { var row = new MenuItem { Header = Localize.Text(name), Tag = name }; menu.Items.Add(row); return row; }
             void Add(string name, Action action, bool requiresType = true) => menu.Items.Add(Item(name, action, !requiresType || text is not null));
-            Add("More Fonts from Adobe Fonts…", () => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://fonts.adobe.com/fonts") { UseShellExecute = true }), false);
             var panels = Sub("Panels");
             foreach (var name in new[] { "Character", "Paragraph", "Glyphs", "Character Styles", "Paragraph Styles" }) panels.Items.Add(Item(name + " Panel", () => OpenTypePanel(name)));
             menu.Items.Add(new Separator());

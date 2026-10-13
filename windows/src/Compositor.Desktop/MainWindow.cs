@@ -902,6 +902,7 @@ public sealed partial class MainWindow : Window
     {
         // The Windows key is Windows', and a chord made with it is not one the table can hold.
         if (e.Handled || e.KeyModifiers.HasFlag(KeyModifiers.Meta)) return;
+        if (_cancelDockDrag is not null && e.Key == Key.Escape) { _cancelDockDrag(); e.Handled = true; return; }
         if (!Typing() && e.Key == Key.Escape && (_canvasOnly || _editingFullscreen)) { ExitScreenMode(); e.Handled = true; return; }
         if (!Typing() && ProfessionalKey(e)) { e.Handled = true; return; }
         if (!Typing() && e.Key is Key.Delete or Key.Back && e.KeyModifiers == KeyModifiers.None

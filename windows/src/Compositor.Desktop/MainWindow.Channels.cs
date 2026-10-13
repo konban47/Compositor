@@ -48,7 +48,7 @@ public sealed partial class MainWindow
         if (_document?.Channels.Any(c => c.IsTemporary) == true) ToggleQuickMask();
         _open.ActiveAlpha = null; _open.VisibleChannels = channel;
         if (_document is { } document) document.EditChannels = channel;
-        _panelTabs.SelectedIndex = 1;
+        ShowDockPanel("Channels");
         UpdateChannelView(); RefreshChannels();
     }
 
@@ -149,7 +149,7 @@ public sealed partial class MainWindow
         Edit("New Channel", () => (id = ChannelEdits.Add(document, name, selection)) is not null);
         if (id is null) { Say("A document can contain up to 64 alpha channels."); return; }
         _open.ActiveAlpha = id; _open.VisibleChannels = ColorChannels.None;
-        _panelTabs.SelectedIndex = 1; UpdateChannelView(); RefreshChannels();
+        ShowDockPanel("Channels"); UpdateChannelView(); RefreshChannels();
     }
 
     private void DeleteAlpha()

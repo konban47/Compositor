@@ -1,0 +1,255 @@
+{
+  "date": "2026-10-13",
+  "release": "1.5.1.3",
+  "mode": "built-in imagegen",
+  "model": "Not exposed by the built-in tool",
+  "scope": "35 collapsed panels and floating tools; left toolbar unchanged",
+  "runtime": "../../src/Compositor.Desktop/DockPanelGlyph.cs",
+  "icons": [
+    {
+      "name": "Layers",
+      "slug": "layers",
+      "reference": "references/layers.png",
+      "vector": "svg/layers.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE dedicated collapsed Layers panel icon for the Compositor desktop photo editor. Subject: three evenly spaced stacked diamond-shaped sheets, recognizable Photoshop-inspired layer-stack semantics, an original drawing. Style: extremely clean flat monochrome UI glyph, consistent 1.65-unit strokes on a 24-unit design grid, subtly rounded line ends and joins, match professional dark photo-editor toolbar symbols. Composition: square image, centered within an 18 by 18 unit area of the 24-unit canvas with balanced 3-unit empty margins. Palette: solid neutral light gray #D3D3D3 only. Real transparent background. Legible at 22 pixels. No words, letters, captions, border, button, shadow, gradients, textures, glow or decorative detail. Precisely uniform stroke thickness in all directions."
+    },
+    {
+      "name": "Properties",
+      "slug": "properties",
+      "reference": "references/properties.png",
+      "vector": "svg/properties.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Properties. Subject: three horizontal slider tracks with three small rectangular handles at distinct positions."
+    },
+    {
+      "name": "History",
+      "slug": "history",
+      "reference": "references/history.png",
+      "vector": "svg/history.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: History. Subject: counterclockwise history arrow around a simple clock with two hands."
+    },
+    {
+      "name": "Channels",
+      "slug": "channels",
+      "reference": "references/channels.png",
+      "vector": "svg/channels.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Channels. Subject: three overlapping rectangular channel plates diagonally staggered, clean separated outlines."
+    },
+    {
+      "name": "Materials",
+      "slug": "materials",
+      "reference": "references/materials.png",
+      "vector": "svg/materials.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Materials. Subject: a folded square material sample with three broad diagonal hatch lines."
+    },
+    {
+      "name": "Measurement Log",
+      "slug": "measurement-log",
+      "reference": "references/measurement-log.png",
+      "vector": "svg/measurement-log.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Measurement Log. Subject: a clipboard with three horizontal measurement rows and a short ruler edge."
+    },
+    {
+      "name": "Navigator",
+      "slug": "navigator",
+      "reference": "references/navigator.png",
+      "vector": "svg/navigator.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Navigator. Subject: a rectangular canvas with a small outlined viewport rectangle in its upper left corner and a tiny crosshair."
+    },
+    {
+      "name": "Adjustments",
+      "slug": "adjustments",
+      "reference": "references/adjustments.png",
+      "vector": "svg/adjustments.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Adjustments. Subject: one circle divided vertically into one solid half and one outline half, with two small horizontal adjustment ticks."
+    },
+    {
+      "name": "Actions",
+      "slug": "actions",
+      "reference": "references/actions.png",
+      "vector": "svg/actions.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Actions. Subject: a clean right-pointing play triangle with two short horizontal action-list lines to its left."
+    },
+    {
+      "name": "Paragraph",
+      "slug": "paragraph",
+      "reference": "references/paragraph.png",
+      "vector": "svg/paragraph.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Paragraph. Subject: a single classic pilcrow paragraph mark, strong and simple."
+    },
+    {
+      "name": "Paragraph Styles",
+      "slug": "paragraph-styles",
+      "reference": "references/paragraph-styles.png",
+      "vector": "svg/paragraph-styles.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Paragraph Styles. Subject: a classic pilcrow paragraph mark inside one square frame."
+    },
+    {
+      "name": "Clone Source",
+      "slug": "clone-source",
+      "reference": "references/clone-source.png",
+      "vector": "svg/clone-source.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Clone Source. Subject: a rubber stamp with a tiny crosshair beside its lower right corner."
+    },
+    {
+      "name": "Tool Presets",
+      "slug": "tool-presets",
+      "reference": "references/tool-presets.png",
+      "vector": "svg/tool-presets.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Tool Presets. Subject: an angled wrench with one small preset bookmark tab at its right."
+    },
+    {
+      "name": "Brushes",
+      "slug": "brushes",
+      "reference": "references/brushes.png",
+      "vector": "svg/brushes.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Brushes. Subject: two parallel angled paintbrushes with simple clear different-sized brush tips."
+    },
+    {
+      "name": "Brush Settings",
+      "slug": "brush-settings",
+      "reference": "references/brush-settings.png",
+      "vector": "svg/brush-settings.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Brush Settings. Subject: one diagonal paintbrush above two short horizontal slider tracks."
+    },
+    {
+      "name": "Gradients",
+      "slug": "gradients",
+      "reference": "references/gradients.png",
+      "vector": "svg/gradients.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Gradients. Subject: a horizontal rectangle containing four vertical bars of steadily increasing thickness, all same monochrome."
+    },
+    {
+      "name": "Libraries",
+      "slug": "libraries",
+      "reference": "references/libraries.png",
+      "vector": "svg/libraries.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Libraries. Subject: three upright book spines on a short horizontal shelf, last book slightly tilted."
+    },
+    {
+      "name": "Paths",
+      "slug": "paths",
+      "reference": "references/paths.png",
+      "vector": "svg/paths.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Paths. Subject: a single cubic Bezier curve with two square anchor nodes and two circular handle endpoints."
+    },
+    {
+      "name": "Swatches",
+      "slug": "swatches",
+      "reference": "references/swatches.png",
+      "vector": "svg/swatches.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Swatches. Subject: four equal filled squares in a precise two-by-two grid."
+    },
+    {
+      "name": "Timeline",
+      "slug": "timeline",
+      "reference": "references/timeline.png",
+      "vector": "svg/timeline.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Timeline. Subject: three horizontal animation tracks with a vertical playhead and one diamond keyframe."
+    },
+    {
+      "name": "Patterns",
+      "slug": "patterns",
+      "reference": "references/patterns.png",
+      "vector": "svg/patterns.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Patterns. Subject: four interlocking diamond outlines arranged as a seamless repeat motif."
+    },
+    {
+      "name": "Layer Comps",
+      "slug": "layer-comps",
+      "reference": "references/layer-comps.png",
+      "vector": "svg/layer-comps.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Layer Comps. Subject: two overlapping document sheets, front sheet with a clear checkmark."
+    },
+    {
+      "name": "Info",
+      "slug": "info",
+      "reference": "references/info.png",
+      "vector": "svg/info.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Info. Subject: a lowercase information i inside a simple circle."
+    },
+    {
+      "name": "Shapes",
+      "slug": "shapes",
+      "reference": "references/shapes.png",
+      "vector": "svg/shapes.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Shapes. Subject: one outlined square and an overlapping outlined circle."
+    },
+    {
+      "name": "Color",
+      "slug": "color",
+      "reference": "references/color.png",
+      "vector": "svg/color.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Color. Subject: an artist palette with three cutout wells and a thumb hole, minimal flat silhouette."
+    },
+    {
+      "name": "Styles",
+      "slug": "styles",
+      "reference": "references/styles.png",
+      "vector": "svg/styles.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Styles. Subject: a small square object with a simple four-point sparkle at its upper right."
+    },
+    {
+      "name": "Histogram",
+      "slug": "histogram",
+      "reference": "references/histogram.png",
+      "vector": "svg/histogram.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Histogram. Subject: five touching narrow histogram bars of unequal heights rising to a central peak then falling, baseline."
+    },
+    {
+      "name": "Notes",
+      "slug": "notes",
+      "reference": "references/notes.png",
+      "vector": "svg/notes.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Notes. Subject: a rectangular sticky note with its lower right corner folded up, two short text-like horizontal strokes."
+    },
+    {
+      "name": "Character",
+      "slug": "character",
+      "reference": "references/character.png",
+      "vector": "svg/character.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Character. Subject: a capital T and a smaller lowercase t side by side, simple clean sans-serif type symbol."
+    },
+    {
+      "name": "Character Styles",
+      "slug": "character-styles",
+      "reference": "references/character-styles.png",
+      "vector": "svg/character-styles.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Character Styles. Subject: a single clean capital T within a square frame."
+    },
+    {
+      "name": "Glyphs",
+      "slug": "glyphs",
+      "reference": "references/glyphs.png",
+      "vector": "svg/glyphs.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Glyphs. Subject: four little typographic marks in a two-by-two arrangement: A, ampersand, omega, and small asterisk."
+    },
+    {
+      "name": "Plugins",
+      "slug": "plugins",
+      "reference": "references/plugins.png",
+      "vector": "svg/plugins.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Plugins. Subject: one simple jigsaw puzzle piece with a top round protrusion and one side round recess."
+    },
+    {
+      "name": "Tools",
+      "slug": "tools",
+      "reference": "references/tools.png",
+      "vector": "svg/tools.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Tools. Subject: a diagonal paintbrush crossing a simple wrench."
+    },
+    {
+      "name": "Options",
+      "slug": "options",
+      "reference": "references/options.png",
+      "vector": "svg/options.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Options. Subject: two horizontal slider tracks with circular handles, unlike three-track Properties icon."
+    },
+    {
+      "name": "Contextual Task Bar",
+      "slug": "contextual-task-bar",
+      "reference": "references/contextual-task-bar.png",
+      "vector": "svg/contextual-task-bar.svg",
+      "prompt": "Use case: logo-brand. Asset type: ONE original monochrome collapsed panel icon for Compositor, inspired by Photoshop panel semantics but drawn for this project. Style: professional minimal flat photo-editor UI glyph, crisp vector-like contours, consistent 1.65-unit stroke thickness on a 24-unit square grid, very slightly rounded line ends and joins. Center within an 18 by 18 unit area with equal 3-unit margins. Pure light gray #D3D3D3 on perfectly uniform solid dark #242424 background. Use simple robust geometry legible at 22 pixels. No texture, gradients, shadow, glow, perspective, borders around the image, button container, labels, captions, watermark or extra decorations. Every necessary line has the SAME thickness. Only include letterforms when explicitly specified as the functional symbol. Panel: Contextual Task Bar. Subject: a short horizontal toolbar rectangle with three square button dots and a small pointer arrow below."
+    }
+  ]
+}

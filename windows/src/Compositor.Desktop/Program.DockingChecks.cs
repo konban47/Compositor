@@ -60,15 +60,17 @@ public sealed partial class MainWindow
             Click(panel.Tab.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "close-panel-" + name)));
             Check(!panel.Visible && !panel.Tab.IsVisible, "Panel close failed: " + name); OpenWindowPanel(name); HidePanel(panel);
         }
+        DockLayoutSelfCheck(output);
+        PanelIconSelfCheck(output);
         ResetDockPanels(); OpenTypePanel("Character"); Pump(); var character = _dockPanels["Character"];
         var handle = character.Tab!.GetVisualDescendants().OfType<TextBlock>().Single(t => Equals(t.Tag, "panel-handle-Character"));
         var handleAt = handle.TranslatePoint(new Point(8, 7), this)!.Value;
         this.MouseDown(handleAt, MouseButton.Left); this.MouseMove(handleAt + new Vector(-300, 90), RawInputModifiers.LeftMouseButton); this.MouseUp(handleAt + new Vector(-300, 90), MouseButton.Left); Pump();
-        Check(character.Floating is not null && character.Tab!.Content is null, "Dragging panel did not create a separate window."); Save(character.Floating!, "floating-character");
+        Check(character.Floating is not null && ReferenceEquals(TopLevel.GetTopLevel(character.Body), character.Floating), "Dragging panel did not create a separate window."); Save(character.Floating!, "floating-character");
         Click(character.Floating!.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "dock-panel-Character")));
         Check(character.Floating is null && ReferenceEquals(character.Tab!.Content, character.Body), "Docking lost panel content.");
         FloatPanel(character); character.Floating!.Close(); Pump(); Check(!character.Visible, "Native close left floating panel active."); OpenTypePanel("Character");
-        Check(character.Visible && character.Tab!.Content == character.Body, "Closed floating panel could not reopen.");
+        Check(character.Visible && character.Tab!.Content == character.Body && character.Floating is not null, "Closed floating panel could not reopen."); DockPanelBack(character);
         EditorPreferences.Current.LockWorkspace = true; FloatPanel(character); Check(character.Floating is null, "Locked workspace detached a panel."); EditorPreferences.Current.LockWorkspace = false;
         ApplyWorkspace("Photography"); Check(_dockPanels["Histogram"].Visible && _dockPanels["Navigator"].Visible, "Photography layout missing panels."); ApplyWorkspace("Essentials");
         EditorPreferences.Current.Workspaces["Dock Test"] = new() { Panels = [new("Character", true, true, Position.X + 90, Position.Y + 120, 350, 520)] };
@@ -76,7 +78,8 @@ public sealed partial class MainWindow
         ApplyWorkspace("Dock Test"); Check(character.Floating is not null && character.Floating.Width == 350, "Saved workspace did not restore floating geometry.");
         EditorPreferences.Current.Workspaces.Remove("Dock Test"); ApplyWorkspace("Essentials");
         var menu = _mainMenu!.Items.OfType<MenuItem>().Single(m => Equals(m.Tag, "_Window")); menu.IsSubMenuOpen = true; Pump();
-        Check(menu.Items.OfType<MenuItem>().Any(m => Equals(m.Tag, "Arrange")) && menu.Items.OfType<MenuItem>().Any(m => Equals(m.Tag, "Workspace")), "Window menu incomplete."); Save(this, "window-menu"); menu.IsSubMenuOpen = false;
+        Check(menu.Items.OfType<MenuItem>().Any(m => Equals(m.Tag, "Arrange")) && menu.Items.OfType<MenuItem>().Any(m => Equals(m.Tag, "Workspace")), "Window menu incomplete."); Check(!menu.Items.OfType<MenuItem>().Any(m => m.Header?.ToString()?.Contains("Exchange", StringComparison.OrdinalIgnoreCase) == true), "Exchange entry remains.");
+        Check(!BuildTypeMenu().Items.OfType<MenuItem>().Any(m => m.Header?.ToString()?.Contains("Adobe Fonts", StringComparison.OrdinalIgnoreCase) == true), "Adobe Fonts entry remains."); Save(this, "window-menu"); menu.IsSubMenuOpen = false;
 
         void Finish(Task task) { for (var i = 0; i < 300 && !task.IsCompleted; i++) { Pump(); Thread.Sleep(10); } Check(task.IsCompleted, "Clipboard did not finish."); task.GetAwaiter().GetResult(); Pump(); }
         void TextKey(Key key) { this.KeyPress(key, RawInputModifiers.Control, PhysicalKey.None, null); this.KeyRelease(key, RawInputModifiers.Control, PhysicalKey.None, null); Pump(); }

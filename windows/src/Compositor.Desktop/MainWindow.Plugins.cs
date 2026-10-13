@@ -45,7 +45,7 @@ public sealed partial class MainWindow
             {
                 var context = new ContextMenu(); context.Items.Add(Command("Manage Plugins…", () => _ = ManagePlugins()));
                 context.Items.Add(new Separator()); context.Items.Add(Command("Close", ClosePluginsPanel));
-                context.Items.Add(Command("Close Tab Group", () => { ClosePluginsPanel(); _layersSide.IsVisible = false; })); context.Open(options);
+                context.Items.Add(Command("Close Tab Group", () => { if (_dockPanels.GetValueOrDefault("Plugins")?.Group is { } group) foreach (var entry in Members(group).ToArray()) HidePanel(entry); })); context.Open(options);
             };
             header.Children.Add(options); DockPanel.SetDock(header, Dock.Top); panel.Children.Add(header);
             panel.Children.Add(new ScrollViewer { Content = _pluginList });

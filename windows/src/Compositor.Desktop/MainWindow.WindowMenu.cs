@@ -3,8 +3,14 @@ using Avalonia.Controls.Primitives;
 
 namespace Compositor.Desktop;
 
-internal sealed record WorkspacePanelState(string Name, bool Visible, bool Floating, int X = 0, int Y = 0, double Width = 340, double Height = 510);
-internal sealed class WorkspaceLayout { public List<WorkspacePanelState> Panels { get; set; } = []; }
+internal sealed record WorkspacePanelState(string Name, bool Visible, bool Floating, int X = 0, int Y = 0, double Width = 340, double Height = 510, string? Group = null, int Order = 0, int Column = 0, int Row = 0, bool Collapsed = false, bool Active = false, string? ReturnGroup = null, double Weight = 1, double ColumnWeight = 1, double ExpandedHeight = 510, double ExpandedWidth = 340);
+internal sealed class WorkspaceLayout
+{
+    public List<WorkspacePanelState> Panels { get; set; } = [];
+    public double SidebarWidth { get; set; } = 340;
+    public bool SidebarCollapsed { get; set; }
+    public bool ContextBarPinned { get; set; }
+}
 
 public sealed partial class MainWindow
 {
@@ -37,7 +43,6 @@ public sealed partial class MainWindow
             var locked = Command("Lock Workspace", () => { EditorPreferences.Current.LockWorkspace = !EditorPreferences.Current.LockWorkspace; SavePreferenceChanges(); });
             locked.ToggleType = MenuItemToggleType.CheckBox; locked.IsChecked = EditorPreferences.Current.LockWorkspace; workspace.Items.Add(locked); root.Items.Add(workspace);
             root.Items.Add(new Separator());
-            root.Items.Add(Command("Find Extensions on Exchange…", () => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://exchange.adobe.com/") { UseShellExecute = true })));
             root.Items.Add(Command("Extensions", () => _ = ManagePlugins())); root.Items.Add(new Separator());
             foreach (var name in WindowPanelNames)
             {
@@ -49,8 +54,7 @@ public sealed partial class MainWindow
             root.Items.Add(new Separator());
             foreach (var name in new[] { "Options", "Tools" })
             {
-                var item = Command(name, () => { if (_dockPanels.TryGetValue(name, out var entry) && entry.Visible) HidePanel(entry); else if (name == "Plugins") OpenPluginsPanel();
-        else ShowDockPanel(name); });
+                var item = Command(name, () => { if (_dockPanels.TryGetValue(name, out var entry) && entry.Visible) HidePanel(entry); else ShowDockPanel(name); });
                 item.ToggleType = MenuItemToggleType.CheckBox; item.IsChecked = _dockPanels.GetValueOrDefault(name)?.Visible == true; root.Items.Add(item);
             }
             var context = Command("Contextual Task Bar", () => { var panel = _dockPanels["Contextual Task Bar"]; if (panel.Visible) HidePanel(panel); else ShowDockPanel(panel.Name); });
@@ -82,7 +86,7 @@ public sealed partial class MainWindow
     private async Task SaveWorkspace()
     {
         var name = await TextPrompt.Ask(this, "New Workspace", "Name", "My Workspace"); if (string.IsNullOrWhiteSpace(name)) return;
-        EditorPreferences.Current.Workspaces[name.Trim()] = new() { Panels = _dockPanels.Values.Select(p => new WorkspacePanelState(p.Name, p.Visible, p.Floating is not null, p.Floating?.Position.X ?? 0, p.Floating?.Position.Y ?? 0, p.Floating?.Width ?? 340, p.Floating?.Height ?? 510)).ToList() };
+        EditorPreferences.Current.Workspaces[name.Trim()] = CaptureDockWorkspace();
         EditorPreferences.Current.ActiveWorkspace = name.Trim(); SavePreferenceChanges();
     }
     private async Task DeleteWorkspace()
@@ -96,19 +100,7 @@ public sealed partial class MainWindow
         var locked = EditorPreferences.Current.LockWorkspace; EditorPreferences.Current.LockWorkspace = false; ResetDockPanels();
         if (EditorPreferences.Current.Workspaces.TryGetValue(name, out var layout))
         {
-            foreach (var saved in layout.Panels.Take(80))
-            {
-                if (!WindowPanelNames.Contains(saved.Name) && saved.Name is not ("Tools" or "Options" or "Contextual Task Bar" or "Plugins")) continue;
-                OpenWindowPanel(saved.Name); if (!_dockPanels.TryGetValue(saved.Name, out var panel)) continue;
-                if (!saved.Visible) { HidePanel(panel); continue; }
-                if (saved.Floating)
-                {
-                    var position = new Avalonia.PixelPoint(saved.X, saved.Y);
-                    if (!Screens.All.Any(s => s.WorkingArea.Contains(position))) position = new(Position.X + 80, Position.Y + 100);
-                    FloatPanel(panel, position);
-                    if (panel.Floating is { } window) { window.Width = Math.Clamp(saved.Width, 76, 2000); window.Height = Math.Clamp(saved.Height, 100, 1600); }
-                }
-            }
+            RestoreDockWorkspace(layout);
         }
         else foreach (var panel in name switch
         {

@@ -110,5 +110,15 @@ foreach ($feature in @('工作区','参考线','Ctrl+Esc','Skia','ATN','5 fps'))
 if (!$formatDoc.Contains('`artboardID`')) { throw 'Artboard guide ownership is undocumented.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--docking-checks')) { throw 'Docking checks missing from CI.' }
 if (!(Read-Repo 'windows/scripts/package.ps1').Contains('WINDOW-MENU.md')) { throw 'Window guide missing from package.' }
+$panelIcons = (Read-Repo 'windows/design/panel-icons/prompts.json') | ConvertFrom-Json
+$glyphs = Read-Repo 'windows/src/Compositor.Desktop/DockPanelGlyph.cs'
+if ($panelIcons.icons.Count -ne 35 -or !$windowGuide.Contains('35 个专属')) { throw 'Collapsed icon coverage or guide is stale.' }
+foreach ($icon in $panelIcons.icons) {
+    if (!$glyphs.Contains('["' + $icon.name + '"]')) { throw "Missing runtime panel icon: $($icon.name)" }
+    foreach ($asset in @($icon.reference, $icon.vector)) {
+        if (!(Test-Path -LiteralPath (Join-Path $repo "windows/design/panel-icons/$asset"))) { throw "Missing panel design asset: $asset" }
+    }
+    if (!$icon.prompt) { throw "Missing imagegen prompt: $($icon.name)" }
+}
 & (Join-Path $PSScriptRoot 'check-upstream-ui.ps1')
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

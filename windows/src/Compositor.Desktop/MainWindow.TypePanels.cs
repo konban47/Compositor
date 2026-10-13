@@ -17,7 +17,7 @@ public sealed partial class MainWindow
     private HashSet<string>? _propertySectionFilter;
     private void OpenTypePanel(string name)
     {
-        var tab = _inspectorTabs.Items.OfType<TabItem>().FirstOrDefault(t => Equals(t.Tag, "type-panel-" + name));
+        var tab = _dockPanels.GetValueOrDefault(name)?.Tab;
         if (tab is null)
         {
             var body = new StackPanel { Spacing = 6, Margin = new Thickness(8) }; _typePanels[name] = body;

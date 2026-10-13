@@ -6,14 +6,16 @@
 
 本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
 
-[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.1.2) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.1.2.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
+[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.1.3) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.1.3.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
+
+本版另增加 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](windows/design/panel-icons/README.md)。
 
 ## 安装
 
 目标系统：Windows 10 1809 及以上、Windows 11，64 位 x64。
 
-- **安装版**：运行 `Compositor-Windows-1.5.1.2-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.5.1.2-x64-portable.zip`，运行 `Compositor.exe`。
+- **安装版**：运行 `Compositor-Windows-1.5.1.3-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.5.1.3-x64-portable.zip`，运行 `Compositor.exe`。
 - 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
 - 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
 
@@ -63,7 +65,7 @@
 
 ## 功能
 
-本版统一首选项、设置接入与性能见[首选项手册](windows/PREFERENCES.md)，图层菜单和钢笔辅助线见[图层菜单手册](windows/LAYER-MENU.md)。编辑菜单、选择性粘贴、变形、预设、颜色与首选项见[编辑菜单手册](windows/EDIT-MENU.md)，图标来源见[设计记录](windows/design/README.md)。图像模式、计算、变量、分析和属性排版见[图像与属性手册](windows/IMAGE-WORKSPACE.md)，插件安装及接口见[插件说明](windows/PLUGINS.md)。光标、网格、19 个工具及上游 UI 复用见[工具使用说明](windows/PROFESSIONAL-TOOLS.md)。置入、复制、其他工具及按钮／图标说明见[新增编辑工具手册](windows/EDITING-TOOLS.md)。工作区与 API 配置见 [工作区使用说明](windows/WORKSPACE.md)，上游对应关系与验证见 [1.5.1.2 更新说明](windows/UPDATES-1.5.1.2.md)。
+本版统一首选项、设置接入与性能见[首选项手册](windows/PREFERENCES.md)，图层菜单和钢笔辅助线见[图层菜单手册](windows/LAYER-MENU.md)。编辑菜单、选择性粘贴、变形、预设、颜色与首选项见[编辑菜单手册](windows/EDIT-MENU.md)，图标来源见[设计记录](windows/design/README.md)。图像模式、计算、变量、分析和属性排版见[图像与属性手册](windows/IMAGE-WORKSPACE.md)，插件安装及接口见[插件说明](windows/PLUGINS.md)。光标、网格、19 个工具及上游 UI 复用见[工具使用说明](windows/PROFESSIONAL-TOOLS.md)。置入、复制、其他工具及按钮／图标说明见[新增编辑工具手册](windows/EDITING-TOOLS.md)。工作区与 API 配置见 [工作区使用说明](windows/WORKSPACE.md)，上游对应关系与验证见 [1.5.1.3 更新说明](windows/UPDATES-1.5.1.3.md)。
 
 - 图层缩略图、搜索和类型筛选、锁定、分组折叠、链接、不透明度与填充；24 种混合模式、蒙版、调整图层和图层样式。
 - RGB 分通道显示与编辑、Alpha 通道新建／复制／重命名／删除、选区存取及灰度绘制。
@@ -78,7 +80,7 @@
 
 ## 验证与当前状态
 
-**1.5.1.2 Preview** 修复浅色图层／通道背景、文字面板字号／关闭、样式滑块裁切和 Esc 文字丢失；新增窗口菜单、浮动面板、工作区与参考线交互。合并上游 **`e8c9e29`**，接入 Camera Raw 分栏重置和快捷键改进。核心测试 **1153 项**；中英文 CI 新增窗口专项检查。详见[本版更新](windows/UPDATES-1.5.1.2.md)。
+**1.5.1.3 Preview** 修复图层／通道及属性标签点击，支持浮窗标签跨组合并、排序、分栏、整组拖动、图标折叠和工作区恢复；移除 Exchange 与 Adobe Fonts 外链入口。上游检查至 **`e8c9e29`**，本次没有更新提交。核心测试 **1153 项**；中英文 CI 覆盖停靠专项。详见[本版更新](windows/UPDATES-1.5.1.3.md)。
 
 [图层样式与右键菜单使用说明](windows/LAYER-STYLES.md)记录每个菜单项、快捷键、格式和 Photoshop 差异。样式使用 CPU 近似渲染；遮住所有对象采用离线显著性连通区域，不是 Adobe 实例识别；智能对象保存本应用图层源，不提供 PSD 智能对象往返。
 

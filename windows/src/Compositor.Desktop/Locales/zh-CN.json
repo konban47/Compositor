@@ -2349,8 +2349,6 @@
   "Medium": "中",
   "Medium Thumbnails": "中缩览图",
   "Monospace": "等宽",
-  "More Fonts from Adobe Fonts…": "来自 Adobe Fonts 的更多字体…",
-  "More Fonts…": "更多字体…",
   "New Character Style": "新建字符样式",
   "New Layer": "新建图层",
   "New Layer with Layer Mask": "新建带图层蒙版的图层",
@@ -2471,7 +2469,6 @@
   "Keyboard Shortcuts…": "键盘快捷键…",
   "Menus…": "菜单…",
   "Lock Workspace": "锁定工作区",
-  "Find Extensions on Exchange…": "在 Exchange 上查找扩展…",
   "Extensions": "扩展",
   "Materials": "材质",
   "Measurement Log…": "测量记录…",
@@ -2550,5 +2547,13 @@
   "Color Panel": "颜色面板",
   "Layers Panel": "图层面板",
   "Info Panel": "信息面板",
-  "Actions Panel": "动作面板"
+  "Actions Panel": "动作面板",
+  "Float Tab Group": "浮动选项卡组",
+  "Collapse or Expand Panels": "折叠或展开面板",
+  "Expand Panels": "展开面板",
+  "Collapse Panels to Icons": "将面板折叠为图标",
+  "Panel Options": "面板选项",
+  "More Properties": "更多属性",
+  "Reset Bar Position": "重置栏位置",
+  "Pin Bar Position": "固定栏位置"
 }

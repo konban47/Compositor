@@ -42,18 +42,12 @@ public sealed partial class MainWindow
             Content = new ScrollViewer { Content = _properties, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } });
         _inspectorTabs.Items.Add(new TabItem { Header = Localize.Text("History"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Content = BuildHistoryPanel() });
         _inspectorTabs.SelectedIndex = 0;
-        var dock = new Grid { RowDefinitions = new RowDefinitions("6*,4,4*") };
-        _inspectorTabs.MinHeight = 100; layers.MinHeight = 150;
-        dock.Children.Add(_inspectorTabs);
-        var splitter = new GridSplitter { ResizeDirection = GridResizeDirection.Rows, HorizontalAlignment = HorizontalAlignment.Stretch, Background = Skin.BorderSubtleBrush };
-        Grid.SetRow(splitter, 1); dock.Children.Add(splitter);
-        Grid.SetRow(layers, 2); dock.Children.Add(layers);
-        return dock;
+        return _dockRoot;
     }
 
     private void OpenInspector(int tab)
     {
-        _layersSide.IsVisible = true; _inspectorTabs.SelectedIndex = tab;
+        _layersSide.IsVisible = true;
         if (_dockPanels.Count > 0) ShowDockPanel(tab == 0 ? "Properties" : "History");
         RefreshInspector();
     }

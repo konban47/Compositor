@@ -29,7 +29,6 @@ internal static class FontBrowser
         var root = new Grid { Width = 630, Height = 450, RowDefinitions = new("Auto,Auto,*"), Background = Skin.ChromeBrush };
         var title = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         title.Children.Add(new TextBlock { Text = Localize.Text("Your Fonts"), FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-        title.Children.Add(FormDialog.ActionButton("More Fonts…", () => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://fonts.adobe.com/fonts") { UseShellExecute = true })));
         root.Children.Add(title);
         var search = new TextBox { PlaceholderText = Localize.Text("Search fonts"), Text = "", Width = 320, Tag = "font-search" };
         var favorites = new ToggleButton { Content = "☆", Tag = "font-favorites", Width = 30 };
