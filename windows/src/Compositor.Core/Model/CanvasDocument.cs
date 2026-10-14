@@ -190,6 +190,7 @@ public sealed class CanvasDocument : IDisposable
         Blending = layer.Blending,
         Label = layer.Label == LayerLabel.None ? null : layer.Label,
         Container = layer.Container == LayerContainer.Group ? null : layer.Container,
+        ArtboardBackground = layer.Container == LayerContainer.Artboard && layer.ArtboardBackground != 0xffffffff ? layer.ArtboardBackground : null,
         SmartObjectFile = layer.SmartObject is null ? null : SmartObjectData.FileName(layer.ID),
         SmartObjectID = layer.SmartObject?.ID,
         Text = layer.LiveText,

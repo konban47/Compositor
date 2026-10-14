@@ -45,9 +45,10 @@ public sealed partial class MainWindow
         var pixels = new SKBitmap(Bitmaps.ColorInfo(220, 150)); pixels.Erase(new SKColor(80, 120, 180));
         var layer = new ImageLayer(Guid.NewGuid(), ImportedImage.Create(pixels, "Pixel"), new Compositor.Core.Model.LayerTransform(40, 50, 220, 150), "Pixel"); doc.Layers.Add(layer);
         AdoptImported(doc, "Import Image"); OpenInspector(0); Pump();
-        var tools = _mainMenu!.Items.OfType<MenuItem>().Single(m => m.Header?.ToString() == Localize.Text("_Tools"));
+        var edit = _mainMenu!.Items.OfType<MenuItem>().Single(m => m.Header?.ToString() == Localize.Text("_Edit"));
+        var tools = edit.Items.OfType<MenuItem>().Single(m => m.Header?.ToString() == Localize.Text("_Tools"));
         Check(tools.Items.OfType<MenuItem>().Count() <= 14 && _toolItems.Count >= 65, "Tool grouping lost tools or remains too long.");
-        tools.IsSubMenuOpen = true; Save("tools-menu"); tools.IsSubMenuOpen = false;
+        edit.IsSubMenuOpen = true; tools.IsSubMenuOpen = true; Save("tools-menu"); tools.IsSubMenuOpen = false; edit.IsSubMenuOpen = false;
         var image = _mainMenu.Items.OfType<MenuItem>().Single(m => m.Header?.ToString() == Localize.Text("_Image"));
         Check(image.Items.OfType<MenuItem>().Single(m => m.Header?.ToString() == Localize.Text("Adjustments")).Items.OfType<MenuItem>().Count() >= 22, "Image adjustments are missing.");
         image.IsSubMenuOpen = true; Save("image-menu"); image.IsSubMenuOpen = false;

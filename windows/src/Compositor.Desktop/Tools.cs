@@ -76,6 +76,7 @@ internal enum Tool
     MixerBrush,
 
     TypeMask,
+    Artboard,
 
 }
 

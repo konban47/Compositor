@@ -60,7 +60,11 @@ public sealed partial class MainWindow
                 if (saved.Visible && saved.Floating && (saved.Group is null || panel.Slot is not null))
                 {
                     FloatPanel(panel, WorkspacePosition(saved));
-                    if (panel.Floating is { } window) { window.Width = WorkspaceSize(saved.Width, 90, 2000, 340); window.Height = WorkspaceSize(saved.Height, 52, 1600, 510); }
+                    if (panel.Floating is { } window)
+                    {
+                        if (panel.Name != "Tools") window.Width = WorkspaceSize(saved.Width, panel.Name == "Options" ? 420 : 90, 3000, 760);
+                        window.Height = panel.Name == "Options" ? 36 : WorkspaceSize(saved.Height, 52, 1600, 510);
+                    }
                 }
                 if (saved.Active && saved.Visible) SelectPanel(panel);
             }

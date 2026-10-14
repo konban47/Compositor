@@ -60,7 +60,7 @@ public sealed partial class MainWindow
             Click(panel.Tab.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "close-panel-" + name)));
             Check(!panel.Visible && !panel.Tab.IsVisible, "Panel close failed: " + name); OpenWindowPanel(name); HidePanel(panel);
         }
-        RawImportSelfCheck();
+        SelectLayerRow(layer.ID); RawImportSelfCheck();
         DockLayoutSelfCheck(output);
         PanelIconSelfCheck(output);
         ResetDockPanels(); OpenTypePanel("Character"); Pump(); var character = _dockPanels["Character"];

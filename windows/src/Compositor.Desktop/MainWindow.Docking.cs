@@ -107,6 +107,10 @@ public sealed partial class MainWindow
         var button = DockButton("", entry.Name, action, tag); button.Width = 30; button.Height = 28;
         button.Content = new DockPanelGlyph(entry.Name) { Width = 22, Height = 22, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false }; return button;
     }
+    private Button DockTitleButton(string text, string hint, Action action, string? tag = null)
+    {
+        var button = DockButton(text, hint, action, tag); button.Height = 11; button.FontSize = 9; return button;
+    }
     private Control PanelHeader(DockPanelEntry entry)
     {
         var header = new DockPanel { Background = Brushes.Transparent, MinHeight = 24 };
@@ -122,11 +126,11 @@ public sealed partial class MainWindow
     {
         Detach(group.Tabs);
         var root = new Grid(); var content = new DockPanel();
-        var grip = new DockPanel { Height = 21, Background = Skin.SurfaceDarkBrush, Tag = "group-handle-" + group.ID };
-        var close = DockButton("×", "Close Tab Group", () => { foreach (var entry in Members(group).ToArray()) HidePanel(entry); }); DockPanel.SetDock(close, Dock.Right); grip.Children.Add(close);
-        var collapse = DockButton(group.Collapsed ? "»" : "«", "Collapse or Expand Panels", () => ToggleGroupCollapse(group), "collapse-group-" + group.ID); DockPanel.SetDock(collapse, Dock.Right); grip.Children.Add(collapse);
+        var grip = new DockPanel { Height = 11, Background = Skin.SurfaceDarkBrush, Tag = "group-handle-" + group.ID };
+        var close = DockTitleButton("×", "Close Tab Group", () => { foreach (var entry in Members(group).ToArray()) HidePanel(entry); }); DockPanel.SetDock(close, Dock.Right); grip.Children.Add(close);
+        var collapse = DockTitleButton(group.Collapsed ? "»" : "«", "Collapse or Expand Panels", () => ToggleGroupCollapse(group), "collapse-group-" + group.ID); DockPanel.SetDock(collapse, Dock.Right); grip.Children.Add(collapse);
         var title = new TextBlock { Text = group.Window is null ? "⋮⋮" : string.Join(" · ", Members(group).Where(p => p.Visible).Select(p => Localize.Text(p.Name))),
-            Tag = "group-title-" + group.ID, FontSize = 11, Foreground = Skin.SecondaryBrush, Margin = new Thickness(6, 1), Background = Brushes.Transparent, TextTrimming = TextTrimming.CharacterEllipsis };
+            Tag = "group-title-" + group.ID, FontSize = 9, Foreground = Skin.SecondaryBrush, Margin = new Thickness(6, 0), Background = Brushes.Transparent, TextTrimming = TextTrimming.CharacterEllipsis };
         grip.Children.Add(title); title.AddHandler(PointerPressedEvent, (_, e) => StartDockDrag(null, group, title, e), RoutingStrategies.Tunnel);
         var menu = new ContextMenu(); menu.Items.Add(Command("Float Tab Group", () => FloatGroup(group))); menu.Items.Add(Command("Collapse or Expand Panels", () => ToggleGroupCollapse(group)));
         menu.Items.Add(Command("Close Tab Group", () => { foreach (var entry in Members(group).ToArray()) HidePanel(entry); })); grip.ContextMenu = menu;

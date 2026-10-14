@@ -17,7 +17,13 @@ namespace Compositor.Desktop;
 internal sealed class ToolRail : Grid
 {
     /// <summary>How wide the rail is, which is the Mac's own 56 points.</summary>
-    private const double RailWidth = UpstreamArtwork.RailWidth;
+    private const double RailWidth = 44;
+    internal bool TwoColumns { get; private set; }
+    internal void SetColumns(bool two)
+    {
+        if (TwoColumns == two) return;
+        TwoColumns = two; Width = two ? 80 : RailWidth; ApplyLayout(_layout);
+    }
 
     private readonly Dictionary<Tool, Button> _buttons = [];
     private readonly Dictionary<Button, List<Tool>> _groups = [];
@@ -172,7 +178,7 @@ internal sealed class ToolRail : Grid
     }
     private Control Tools()
     {
-        var column = new StackPanel { Orientation = Orientation.Vertical, Spacing = UpstreamArtwork.RailSpacing, Margin = new Thickness(0, 6, 0, 6), HorizontalAlignment = HorizontalAlignment.Center };
+        var column = new Avalonia.Controls.Primitives.UniformGrid { Columns = TwoColumns ? 2 : 1, Margin = new Thickness(0, 3), HorizontalAlignment = HorizontalAlignment.Center };
         foreach (var ids in _layout.Groups)
         {
             var group = ids.Select(Enum.Parse<Tool>).ToList(); if (group.Count == 0) continue;

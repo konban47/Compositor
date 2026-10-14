@@ -87,13 +87,12 @@ public sealed partial class MainWindow
         Check(properties.Floating is null && !_dockCollapsed, "Collapsed sidebar did not accept docking.");
         ResetDockPanels(); Pump();
         var tools = _dockPanels["Tools"];
-        TextBlock ToolHandle() => (tools.Floating?.GetVisualDescendants() ?? tools.Slot!.GetVisualDescendants()).OfType<TextBlock>().Single(t => Equals(t.Tag, "panel-handle-Tools"));
         void DragTools(bool right)
         {
             FloatPanel(tools, new PixelPoint(Position.X + 200, Position.Y + 150)); Pump();
-            var buttons = tools.Floating!.GetVisualDescendants().OfType<DockPanel>().First(p => p.Height == 22).Children.OfType<Button>().ToArray();
+            var buttons = tools.Floating!.GetVisualDescendants().OfType<DockPanel>().First(p => p.Height == 11).Children.OfType<Button>().ToArray();
             Check(buttons.Length == 2 && buttons.All(b => Equals(b.Tag, "collapse-tool-Tools") || Equals(b.Tag, "close-panel-Tools")), "Tools floating header must have just collapse and close.");
-            var source = tools.Floating!; var handle = ToolHandle(); var down = handle.TranslatePoint(new Point(7,7), source)!.Value;
+            var source = tools.Floating!; var handle = source.GetVisualDescendants().OfType<Border>().Single(b => Equals(b.Tag, "tool-drag-grip")); var down = handle.TranslatePoint(new Point(12,2), source)!.Value;
             var point = _dockEditorBody!.PointToScreen(new Point(right ? _dockEditorBody!.Bounds.Width - 3 : 3, 140));
             source.MouseDown(down, MouseButton.Left); source.MouseMove(source.PointToClient(point), RawInputModifiers.LeftMouseButton); Pump();
             Check(_dockSidePreview.IsVisible && _dockSidePreview.Height > _dockEditorBody!.Bounds.Height - 2 && _dockSidePreview.BoxShadow.Count > 0 && _dockSidePreview.BoxShadow[0].Blur >= 6, "Tool edge preview/glow missing.");

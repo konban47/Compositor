@@ -47,7 +47,10 @@ internal sealed partial class ToolOptionsBar : Border
         FontSize = 11,
         Foreground = Skin.SecondaryBrush,
     };
-    private readonly StackPanel _cells = new() { Orientation = Orientation.Horizontal, Spacing = 12 };
+    private readonly StackPanel _cells = new() { Orientation = Orientation.Horizontal, Spacing = 6 };
+    private readonly Button _toolPicker = new();
+    internal event Action<string, Control>? MenuAsked;
+    internal event Action? HomeAsked, SearchAsked;
 
     /// <summary>Every row, by the name of the tools it belongs to: a name may cover several controls.</summary>
     private readonly Dictionary<string, List<Control>> _named = [];
@@ -87,14 +90,22 @@ internal sealed partial class ToolOptionsBar : Border
         BorderThickness = new Thickness(0, 0, 0, 1);
         Padding = new Thickness(10, 0, 10, 0);
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-        row.Children.Add(_title);
+        var bar = new DockPanel();
+        var home = IconButton("home", "Home", () => HomeAsked?.Invoke()); DockPanel.SetDock(home, Dock.Left); bar.Children.Add(home);
+        _toolPicker.Width = 44; _toolPicker.Height = 28; _toolPicker.MinWidth = 0; _toolPicker.MinHeight = 0; _toolPicker.Padding = new Thickness(3, 0);
+        _toolPicker.Background = Brushes.Transparent; _toolPicker.BorderThickness = new Thickness(0);
+        _toolPicker.Click += (_, _) => MenuAsked?.Invoke("Tool Presets", _toolPicker); DockPanel.SetDock(_toolPicker, Dock.Left); bar.Children.Add(_toolPicker);
+        var right = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        right.Children.Add(IconButton("Zoom", "Search Tools and Commands", () => SearchAsked?.Invoke()));
+        var workspace = IconButton("workspace", "Workspace", null); workspace.Click += (_, _) => MenuAsked?.Invoke("Workspace", workspace); right.Children.Add(workspace);
+        DockPanel.SetDock(right, Dock.Right); bar.Children.Add(right);
         row.Children.Add(_cells);
-        Child = new ScrollViewer
+        bar.Children.Add(new ScrollViewer
         {
-            Content = row, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            Content = row, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-        };
-        Build(); BuildExtended(); BuildProfessional();
+        }); Child = bar;
+        Build(); BuildExtended(); BuildProfessional(); BuildMoveOptions(); BuildArtboardOptions();
     }
 
     /// <summary>
@@ -128,12 +139,16 @@ internal sealed partial class ToolOptionsBar : Border
             On("corner", ToolCatalog.IsShape(tool) && _options.Shape == ShapeKind.Rectangle);
             On("linewidth", ToolCatalog.IsPen(tool) || ToolCatalog.IsShape(tool) && _options.Shape == ShapeKind.Line);
             On("crop", tool == Tool.Crop);
-            On("transform", tool == Tool.Move && hasDocument);
+            On("transform", false);
+            On("moveOptions", tool == Tool.Move); On("artboardOptions", tool == Tool.Artboard);
+            RefreshMoveOptions(); RefreshArtboardOptions();
             On("type", ToolCatalog.IsType(tool)); ShowExtended(tool); ShowProfessional(tool);
             On("history", tool is Tool.HistoryBrush or Tool.ArtHistory && hasDocument);
             On("path", ToolCatalog.IsPathEditor(tool) && hasDocument);
             On("zoom", tool is Tool.Pan or Tool.Zoom or Tool.RotateView);
             _title.Text = Localize.Text(Names.TryGetValue(tool, out var name) ? name : ToolCatalog.Title(tool));
+            _toolPicker.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3, Children = { ToolRail.Icon(tool), new TextBlock { Text = "⌄", FontSize = 10, VerticalAlignment = VerticalAlignment.Center } } };
+            ToolTip.SetTip(_toolPicker, Localize.Text(ToolCatalog.Title(tool)) + " · " + Localize.Text("Tool Presets"));
             // The marquee's shape and the lasso's kind *are* the tool in hand, so the bar follows the tool
             // rather than the other way round: picking one here asks for the tool the window already has.
             _marqueeShape.SelectedIndex = tool == Tool.Ellipse ? 1 : 0;

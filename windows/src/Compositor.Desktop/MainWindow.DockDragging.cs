@@ -26,7 +26,7 @@ public sealed partial class MainWindow
             var bounds = ScreenBounds(target.Frame); if (!bounds.Contains(point)) continue;
             var scale = (target.Window ?? this).RenderScaling; var p = (point - bounds.TopLeft) / scale;
             var width = bounds.Width / scale; var height = bounds.Height / scale;
-            var placement = p.Y is >= 21 and <= 57 ? DockPlacement.Tabs : p.Y < 12 ? DockPlacement.Above : p.Y > height - 18 ? DockPlacement.Below : p.X < 16 ? DockPlacement.Left : p.X > width - 16 ? DockPlacement.Right : DockPlacement.Tabs;
+            var placement = p.Y is >= 11 and <= 47 ? DockPlacement.Tabs : p.Y < 10 ? DockPlacement.Above : p.Y > height - 18 ? DockPlacement.Below : p.X < 16 ? DockPlacement.Left : p.X > width - 16 ? DockPlacement.Right : DockPlacement.Tabs;
             var index = target.Tabs.Items.Count;
             if (placement == DockPlacement.Tabs)
                 foreach (var entry in Members(target).Where(e => e.Visible))

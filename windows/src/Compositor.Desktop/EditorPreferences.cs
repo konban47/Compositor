@@ -8,6 +8,18 @@ internal sealed class EditorPreferences
     internal static string PathName => Path.Combine(AppPaths.SettingsDirectory, "preferences.json");
     internal static EditorPreferences Current { get; private set; } = Load();
     public int HistorySteps { get; set; } = 100;
+    public bool MoveAutoSelect { get; set; } = true;
+    public bool PresetCurrentOnly { get; set; } = true;
+    public bool PresetSortByTool { get; set; } = true;
+    public int PresetListSize { get; set; } = 1;
+    public bool MoveSelectGroup { get; set; }
+    public bool MoveHoverBounds { get; set; } = true;
+    public bool MoveExpandGroup { get; set; } = true;
+    public bool MoveLayerHoverBounds { get; set; } = true;
+    public bool ArtboardAutoNest { get; set; } = true;
+    public bool ArtboardAutoCanvas { get; set; } = true;
+    public bool ArtboardKeepPosition { get; set; } = true;
+    public bool ArtboardShrinkOnSave { get; set; } = true;
     public int HistoryMB { get; set; } = 256;
     public bool NonLinearHistory { get; set; }
     public bool PreciseCursor { get; set; }

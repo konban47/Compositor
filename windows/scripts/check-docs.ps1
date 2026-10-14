@@ -121,5 +121,7 @@ foreach ($icon in $panelIcons.icons) {
     }
     if (!$icon.prompt) { throw "Missing imagegen prompt: $($icon.name)" }
 }
+if (!$formatDoc.Contains('`artboardBackground`') -or !$windowGuide.Contains('最底部信息栏中间')) { throw 'Artboard background or embedded status scrollbar is undocumented.' }
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--chrome-checks')) { throw 'Chrome checks missing from CI.' }
 & (Join-Path $PSScriptRoot 'check-upstream-ui.ps1')
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

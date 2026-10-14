@@ -51,6 +51,11 @@ public sealed partial class MainWindow
             path = picked.EndsWith(".comp", StringComparison.OrdinalIgnoreCase) ? picked : picked + ".comp";
         }
         if (File.Exists(path)) { Say("Choose a folder name ending in .comp, not an existing file."); return; }
+        if (EditorPreferences.Current.ArtboardShrinkOnSave)
+        {
+            tab.History.Begin("Shrink Artboard Canvas", tab.Document, ReferenceEquals(tab, _open) ? Selected : null);
+            FitArtboardCanvas(tab.Document, true); tab.History.End(tab.Document, ReferenceEquals(tab, _open) ? Selected : null);
+        }
         tab.Saving = WriteTab(tab, path);
         try { await tab.Saving; }
         finally { tab.Saving = null; }

@@ -313,12 +313,13 @@ public sealed partial class MainWindow : Window
         Localize.Prepare(this);
         Icon = new WindowIcon(Avalonia.Platform.AssetLoader.Open(new Uri("avares://Compositor/Assets/compositor.ico")));
         Title = Localize.Text("Compositor");
+        WindowDecorations = WindowDecorations.BorderOnly;
         Width = 1280;
         Height = 820;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         // The two calls a screen has to be asked for are made once the window is open, which is when there is a
         // screen to ask.
-        Opened += (_, _) => FitToScreen();
+        Opened += (_, _) => { FitToScreen(); RestoreNativeWindowCorners(); };
         // The picker is a window of its own and the app is left running until the last window closes, so it
         // goes with the editor rather than being left behind to hold the session open.
         Closing += ConfirmWindowClose;
@@ -386,6 +387,7 @@ public sealed partial class MainWindow : Window
         // The options bar is a face on the same settings the Tools menu moves, so either one marks the other.
         _optionsBar = new ToolOptionsBar(_options);
         WireWorkspaceTools();
+        WireOptionMenus();
         _optionsBar.Changed += OptionsChanged;
         _optionsBar.BrushSettingAsked += which => _ = SetBrush(which);
         _optionsBar.WandSettingAsked += which => _ = SetWand(which);
@@ -454,6 +456,7 @@ public sealed partial class MainWindow : Window
         _lockLayer.Click += (_, _) => ToggleLayerLock();
         _layers.SelectionChanged += (_, _) => { SyncMaskTarget(); UpdateLayerMenu(); ShowTransformBox(); _canvas.InvalidateVisual(); };
         InitializeInteraction();
+        InitializeCanvasNavigation();
         _tabs.Add(_open);
         Content = Layout();
         InitializePanelDocking();
@@ -602,6 +605,7 @@ public sealed partial class MainWindow : Window
         };
 
         _mainMenu = menu;
+        var menuChrome = MenuChrome(menu);
         _layersSide.Child = BuildPanels();
 
         var statusBar = new Border
@@ -610,9 +614,13 @@ public sealed partial class MainWindow : Window
             Background = Skin.SurfaceDarkBrush,
             BorderBrush = Skin.BorderSubtleBrush,
             BorderThickness = new Thickness(0, 1, 0, 0),
-            Child = new DockPanel { Children = { _statusInfo, _status } },
+            Child = new DockPanel { Children = { _statusInfo, _status, _canvasHorizontal } },
         };
         DockPanel.SetDock(_statusInfo, Dock.Left);
+        DockPanel.SetDock(_status, Dock.Right);
+        _status.MaxWidth = 340;
+        _canvasHorizontal.Margin = new Thickness(6, 0);
+        _canvasHorizontal.VerticalAlignment = VerticalAlignment.Center;
 
         var root = new DockPanel();
         // The strip under the menu bar: the New canvas button, the project's tabs, and the view's own zoom
@@ -625,7 +633,7 @@ public sealed partial class MainWindow : Window
             Padding = new Thickness(6, 2, 6, 2),
             Child = Toolbar(),
         };
-        DockPanel.SetDock(menu, Dock.Top);
+        DockPanel.SetDock(menuChrome, Dock.Top);
         DockPanel.SetDock(tabs, Dock.Top);
         // The options bar sits under the toolbar and over the canvas, as the Mac's tool header does.
         _optionDockSlot = DockTool("Options", _optionsBar);
@@ -636,7 +644,7 @@ public sealed partial class MainWindow : Window
         DockPanel.SetDock(_cameraRawHost, Dock.Right);
         DockPanel.SetDock(_layersSide, Dock.Right);
         DockPanel.SetDock(statusBar, Dock.Bottom);
-        root.Children.Add(menu);
+        root.Children.Add(menuChrome);
         root.Children.Add(tabs);
         root.Children.Add(_optionDockSlot);
         root.Children.Add(_placementBar);
@@ -654,7 +662,7 @@ public sealed partial class MainWindow : Window
         body.Children.Add(_toolDockSlot);
         body.Children.Add(views);
         root.Children.Add(body);
-        _chrome = [contextBar, menu, tabs, _optionDockSlot, _placementBar, _cameraRawHost, _layersSide, statusBar, _toolDockSlot, _rulerAcross, _rulerDown, _rulerCorner];
+        _chrome = [contextBar, menuChrome, tabs, _optionDockSlot, _placementBar, _cameraRawHost, _layersSide, statusBar, _toolDockSlot, _rulerAcross, _rulerDown, _rulerCorner, _canvasVertical];
         _dockHintOverlay.Children.Add(_dockSidePreview);
         return new Grid { Children = { root, _dockHintOverlay } };
     }
@@ -744,7 +752,7 @@ public sealed partial class MainWindow : Window
         var lined = new Grid
         {
             RowDefinitions = new RowDefinitions($"{RulerThickness},*"),
-            ColumnDefinitions = new ColumnDefinitions($"{RulerThickness},*"),
+            ColumnDefinitions = new ColumnDefinitions($"{RulerThickness},*,14"),
         };
         Grid.SetRow(_rulerCorner, 0);
         Grid.SetColumn(_rulerCorner, 0);
@@ -761,6 +769,7 @@ public sealed partial class MainWindow : Window
         lined.Children.Add(_rulerAcross);
         lined.Children.Add(_rulerDown);
         lined.Children.Add(_canvas);
+        Grid.SetRow(_canvasVertical, 1); Grid.SetColumn(_canvasVertical, 2); lined.Children.Add(_canvasVertical);
         return lined;
     }
 
@@ -904,6 +913,7 @@ public sealed partial class MainWindow : Window
     {
         // The Windows key is Windows', and a chord made with it is not one the table can hold.
         if (e.Handled || e.KeyModifiers.HasFlag(KeyModifiers.Meta)) return;
+        if (_artboardStart is not null && e.Key == Key.Escape) { _artboardStart = null; _artboardDraft = null; _canvas.CancelDraft(); _canvas.InvalidateOverlay(); e.Handled = true; return; }
         if (_cancelDockDrag is not null && e.Key == Key.Escape) { _cancelDockDrag(); e.Handled = true; return; }
         if (!Typing() && e.Key == Key.Escape && (_canvasOnly || _editingFullscreen)) { ExitScreenMode(); e.Handled = true; return; }
         if (!Typing() && ProfessionalKey(e)) { e.Handled = true; return; }
@@ -1048,7 +1058,7 @@ public sealed partial class MainWindow : Window
         // The tools. A letter that stands for a family — the two marquees, the three brushes — walks the family
         // when it is pressed again, which is what the Mac build's own letters do.
         Does("Hand tool", () => SetTool(Tool.Pan), Shortcuts.Canvas);
-        Does("Move / Transform tool", () => SetTool(Tool.Move), Shortcuts.Canvas);
+        Does("Move / Transform tool", () => ChooseTool(Tool.Move, Tool.Artboard), Shortcuts.Canvas);
         Does("Marquee tool", () => ChooseTool(Tool.Marquee, Tool.Ellipse), Shortcuts.Canvas);
         Does("Lasso tool", () => ChooseTool(Tool.Lasso, Tool.Polygon, Tool.MagneticLasso, Tool.SelectionBrush), Shortcuts.Canvas);
         Does("Magic wand", () => ChooseTool(Tool.Wand, Tool.Object, Tool.QuickSelection), Shortcuts.Canvas);
@@ -2917,10 +2927,9 @@ public sealed partial class MainWindow : Window
             $"{named} Anything not saved is lost.", "Don't Save", "Cancel");
     }
 
-    /// <summary>The layer the panel has selected, or the top one when nothing is: what an edit acts on.</summary>
+    /// <summary>The explicitly selected layer. Empty selection shows document properties and cannot edit a hidden fallback layer.</summary>
     private Guid? Selected =>
         _layers.SelectedIndex >= 0 && _layers.SelectedIndex < _rows.Count ? _rows[_layers.SelectedIndex]
-        : _rows.Count > 0 ? _rows[^1]
         : null;
 
     /// <summary>
@@ -3329,12 +3338,13 @@ public sealed partial class MainWindow : Window
     {
         if (_tool != tool && !(_tool is Tool.Slice or Tool.SliceSelect && tool is Tool.Slice or Tool.SliceSelect))
         { _selectedMark = null; _optionsBar.ProfessionalReadout(""); }
-        if (_tool != tool) CancelProfessionalDraft();
+        if (_tool != tool) { CancelProfessionalDraft(); _artboardStart = null; _artboardDraft = null; }
         if (_pen is not null && !ToolCatalog.IsPen(tool)) FinishPen();
         if (_placementTab is not null && tool != Tool.Move && tool != Tool.Pan) FinishPlacement(true);
-        if (_open.ActiveAlpha is not null && (tool is Tool.Move or Tool.AdjustmentBrush || ToolCatalog.IsType(tool) || ToolCatalog.IsPen(tool) || ToolCatalog.IsPathEditor(tool) || ToolCatalog.IsShape(tool)))
+        if (_open.ActiveAlpha is not null && (tool is Tool.Move or Tool.Artboard or Tool.AdjustmentBrush || ToolCatalog.IsType(tool) || ToolCatalog.IsPen(tool) || ToolCatalog.IsPathEditor(tool) || ToolCatalog.IsShape(tool)))
         { Say("Select RGB to use this command."); return; }
         _tool = tool;
+        _canvas.CursorTool = tool;
         if (ToolCatalog.IsShape(tool)) ConfigureShapeTool(tool);
         _canvas.RotateViewEnabled = tool == Tool.RotateView;
         _canvas.ZoomToolEnabled = tool == Tool.Zoom;
@@ -3361,7 +3371,7 @@ public sealed partial class MainWindow : Window
             if (CropEdits.Valid(held)) _cropFrame = held;
         }
         ShowCropBox();
-        _canvas.TransformEnabled = tool == Tool.Move && _placeMesh is null;
+        _canvas.TransformEnabled = tool is Tool.Move or Tool.Artboard && _placeMesh is null;
         _canvas.ShapePreviewFor = ToolCatalog.IsShape(tool) ? dragged => ShapePlan(dragged) : null;
         _canvas.GuidesDraggable = tool == Tool.Move;
         ShowTransformBox();
@@ -3478,6 +3488,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OptionsChanged()
     {
+        if (_preferencesReady) SavePreferenceChanges();
         if (_preferencesReady && (EditorPreferences.Current.BrushSmoothing != _options.Brush.Smoothing || EditorPreferences.Current.SampleRing != _options.ShowsSampleRing))
         {
             EditorPreferences.Current.BrushSmoothing = _options.Brush.Smoothing; EditorPreferences.Current.SampleRing = _options.ShowsSampleRing; SavePreferenceChanges();
@@ -3501,6 +3512,9 @@ public sealed partial class MainWindow : Window
             ? document.Layers.FirstOrDefault(one => one.ID == id)
             : null;
         _optionsBar.Show(_tool, _document is not null, layer?.Mask is not null);
+        _optionsBar.ShowTransformVisibility(_transformShown);
+        if (_tool == Tool.Artboard && SelectedArtboard is { } board)
+        { _optionsBar.Artboard.Width = (int)board.Transform.Width; _optionsBar.Artboard.Height = (int)board.Transform.Height; _optionsBar.Artboard.Background = board.ArtboardBackground; _optionsBar.RefreshArtboardOptions(); }
         _optionsBar.ShowZoom(_canvas.Zoom * 100);
         _optionsBar.IsVisible = _placementTab is null;
     }
@@ -4583,6 +4597,7 @@ public sealed partial class MainWindow : Window
         PushViewSwitches();
         KeepSwitches();
         Say(_transformShown ? "Transform controls shown" : "Transform controls hidden");
+        _optionsBar.ShowTransformVisibility(_transformShown);
     }
 
     /// <summary>View ▸ Pixel Grid: a line around each document pixel when the view is in far enough.</summary>
@@ -4694,6 +4709,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void UpdateRulers()
     {
+        UpdateCanvasScrollbars();
         var ppi = _document?.Resolution ?? 72;
         _rulerAcross.PixelsPerUnit = _rulerDown.PixelsPerUnit = _propertyRulerUnit switch { 1 => ppi, 2 => ppi / 2.54, 3 => ppi / 72, _ => 1 };
         _rulerAcross.Scale = _canvas.Zoom;
@@ -5873,17 +5889,17 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ShowTransformBox()
     {
-        if (_tool != Tool.Move || _document is not { } document || _layers.SelectedIndex < 0)
+        if (_tool is not (Tool.Move or Tool.Artboard) || _document is not { } document || _layers.SelectedIndex < 0)
         {
             _canvas.TransformBox = null;
             _canvas.DistortEnabled = false;
             return;
         }
         // One box around everything the transform moves, which for one layer is its own.
-        _canvas.TransformBox = MaskTarget && PropertyLayer?.Mask?.IsLinked == false ? PropertyLayer.MaskTransform : TransformEdits.GroupBox(document, SelectedLayers);
+        _canvas.TransformBox = _tool == Tool.Artboard && SelectedArtboard is { } board ? board.Transform : MaskTarget && PropertyLayer?.Mask?.IsLinked == false ? PropertyLayer.MaskTransform : TransformEdits.GroupBox(document, SelectedLayers);
         // A corner can be dragged on its own whenever the box stands for something with pixels: a box around
         // several layers resamples each of them into the shape the box is dragged into.
-        _canvas.DistortEnabled = _canvas.TransformBox is not null && !MaskTarget;
+        _canvas.DistortEnabled = _canvas.TransformBox is not null && !MaskTarget && _tool != Tool.Artboard;
     }
 
     /// <summary>
@@ -5895,7 +5911,7 @@ public sealed partial class MainWindow : Window
         if (_open.ActiveAlpha is not null) return;
         if (_document is not { } document || Selected is not { } id) return;
         _transformMaskOnly = MaskTarget && PropertyLayer?.Mask?.IsLinked == false;
-        if ((_transformMaskOnly ? PropertyLayer?.MaskTransform : TransformEdits.GroupBox(document, SelectedLayers)) is not { } box) return;
+        if ((_tool == Tool.Artboard ? SelectedArtboard?.Transform : _transformMaskOnly ? PropertyLayer?.MaskTransform : TransformEdits.GroupBox(document, SelectedLayers)) is not { } box) return;
         if (!LayerProtection.CanMove(document, id)) return;
         _transforming = id;
         _transformBox = box;
@@ -5919,6 +5935,7 @@ public sealed partial class MainWindow : Window
         _canvas.SnapLines = (lineX, lineY);
         // Every layer is carried along by the box's own move, so several keep the shape they had.
         if (_transformMaskOnly && PropertyLayer?.Mask is { } movingMask) movingMask.Placement = placed;
+        else if (_tool == Tool.Artboard && SelectedArtboard is { } board && (Math.Abs(from.Width - placed.Width) > .01 || Math.Abs(from.Height - placed.Height) > .01)) board.Transform = placed;
         else TransformEdits.Carry(document, _transformOriginals, from, placed);
         _canvas.TransformBox = placed;
         Refresh();
@@ -5929,9 +5946,11 @@ public sealed partial class MainWindow : Window
         if (_document is not { } document || _transforming is not { } id) return;
         _transforming = null;
         _transformMaskOnly = false;
+        NestMovedLayers();
         _transformBox = null;
         _transformOriginals.Clear();
         _canvas.SnapLines = (null, null);
+        if (_tool == Tool.Artboard && EditorPreferences.Current.ArtboardAutoCanvas) FitArtboardCanvas(document, false);
         _history.End(document, id);
         ShowTransformBox();
         Refresh();
@@ -5940,6 +5959,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Repaints the canvas and says where the history stands.</summary>
     private void Refresh()
     {
+        UpdateCanvasScrollbars();
         RefreshDocumentWindows();
         RefreshUtilityPanels();
         UpdatePlacementBar();

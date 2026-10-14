@@ -38,6 +38,8 @@ internal sealed class RulerStrip : Control
 
     /// <summary>The document place at the strip's left end or top, which is the canvas's own origin.</summary>
     public double Origin { get; set; }
+    internal double? PointerPosition { get; set; }
+    internal double? PointerValue { get; set; }
 
     /// <summary>A press on the strip, with the point it landed on: where a new guide goes.</summary>
     public Action<GuideAxis, Point>? Grabbed { get; set; }
@@ -114,6 +116,20 @@ internal sealed class RulerStrip : Control
         // The line the strip shares with the canvas, so the two read as one edge.
         if (across) context.DrawLine(Edge, new Point(0, height - 0.5), new Point(width, height - 0.5));
         else context.DrawLine(Edge, new Point(width - 0.5, 0), new Point(width - 0.5, height));
+        if (PointerPosition is { } position && position >= 0 && position <= length && PointerValue is { } value)
+        {
+            var tracking = new Pen(Skin.AccentBrush, 1);
+            if (across) context.DrawLine(tracking, new Point(position, 0), new Point(position, height));
+            else context.DrawLine(tracking, new Point(0, position), new Point(width, position));
+            var text = new FormattedText((value / PixelsPerUnit).ToString("0.##", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Digits, 9, Skin.LabelBrush);
+            if (across)
+            {
+                var x = Math.Clamp(position + 3, 0, Math.Max(0, width - text.Width - 4));
+                context.FillRectangle(Skin.SurfaceControlBrush, new Rect(x - 1, 0, text.Width + 3, height - 2)); context.DrawText(text, new Point(x, 0));
+            }
+            else using (context.PushTransform(Matrix.CreateRotation(-Math.PI / 2) * Matrix.CreateTranslation(1, Math.Clamp(position + text.Width + 3, Math.Min(text.Width + 2, height), height))))
+            { context.FillRectangle(Skin.SurfaceControlBrush, new Rect(0, 0, text.Width + 3, width - 2)); context.DrawText(text, default); }
+        }
     }
 }
 

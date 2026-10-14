@@ -75,9 +75,9 @@ public sealed partial class MainWindow
             foreach (var group in groups) group.ColumnWeight = width;
             var actual = collapsed ? 36 : width; total += actual; expanded += width;
             _dockRoot.ColumnDefinitions.Add(new ColumnDefinition(actual, GridUnitType.Pixel) { MinWidth = collapsed ? 36 : 100 });
-            var column = new Grid { RowDefinitions = new RowDefinitions("21,*"), Background = Skin.ChromeBrush, Tag = "dock-column-" + id };
+            var column = new Grid { RowDefinitions = new RowDefinitions("11,*"), Background = Skin.ChromeBrush, Tag = "dock-column-" + id };
             _dockColumnFrames[id] = column;
-            var toggle = DockButton(collapsed ? "«" : "»", collapsed ? "Expand Panels" : "Collapse Panels to Icons", () => SetColumnCollapsed(id, !collapsed), (collapsed ? "expand-dock-" : "collapse-dock-") + id);
+            var toggle = DockTitleButton(collapsed ? "«" : "»", collapsed ? "Expand Panels" : "Collapse Panels to Icons", () => SetColumnCollapsed(id, !collapsed), (collapsed ? "expand-dock-" : "collapse-dock-") + id);
             toggle.HorizontalAlignment = HorizontalAlignment.Right; column.Children.Add(toggle);
             if (collapsed)
             {

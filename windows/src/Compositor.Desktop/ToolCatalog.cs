@@ -56,6 +56,7 @@ internal static class ToolCatalog
     internal static bool IsShape(Tool tool) => tool is Tool.Shape or Tool.ShapeEllipse or Tool.Triangle or Tool.PolygonShape or Tool.Star or Tool.Line or Tool.CustomShape;
     internal static string Title(Tool tool) => tool switch
     {
+        Tool.Artboard => "Artboard Tool",
         Tool.SelectionBrush => "Selection Brush Tool",
         Tool.MagneticLasso => "Magnetic Lasso Tool",
         Tool.QuickSelection => "Quick Selection Tool",
@@ -106,6 +107,7 @@ internal static class ToolCatalog
     };
     internal static string Shortcut(Tool tool) => tool switch
     {
+        Tool.Artboard => "Move / Transform tool",
         Tool.Pan => "Hand tool", Tool.Move => "Move / Transform tool", Tool.Marquee or Tool.Ellipse => "Marquee tool",
         Tool.Lasso or Tool.Polygon => "Lasso tool", Tool.Wand or Tool.Object => "Magic wand", Tool.Brush => "Brush tool",
         Tool.SelectionBrush or Tool.MagneticLasso => "Lasso tool",
@@ -126,7 +128,7 @@ internal static class ToolCatalog
     internal static ToolbarLayout Defaults() => new()
     {
         Groups = [
-            ["Move"], ["Marquee", "Ellipse"], ["SelectionBrush", "Lasso", "Polygon", "MagneticLasso"], ["Object", "QuickSelection", "Wand"], ["Crop", "PerspectiveCrop", "Slice", "SliceSelect"], ["Frame"], ["Eyedropper", "ColorSampler", "Ruler", "Note", "Count"],
+            ["Move", "Artboard"], ["Marquee", "Ellipse"], ["SelectionBrush", "Lasso", "Polygon", "MagneticLasso"], ["Object", "QuickSelection", "Wand"], ["Crop", "PerspectiveCrop", "Slice", "SliceSelect"], ["Frame"], ["Eyedropper", "ColorSampler", "Ruler", "Note", "Count"],
             ["Brush", "Pencil", "ColorReplacement", "MixerBrush"], ["Clone", "PatternStamp"], ["HistoryBrush", "ArtHistory"], ["Eraser", "BackgroundEraser", "MagicEraser"],
             ["Gradient", "Bucket"], ["Blur", "Sharpen", "Smudge", "Liquify"], ["Heal", "Remove", "HealingBrush", "Patch", "ContentMove", "RedEye"], ["AdjustmentBrush"], ["Dodge", "Burn", "Sponge"],
             ["Pen", "FreeformPen", "CurvaturePen", "AddAnchor", "DeleteAnchor", "ConvertAnchor"], ["Type", "VerticalType", "VerticalTypeMask", "TypeMask"],

@@ -43,6 +43,7 @@ public sealed class ProjectLayerRecord
     public LayerBlending? Blending { get; set; }
     public LayerLabel? Label { get; set; }
     public LayerContainer? Container { get; set; }
+    public uint? ArtboardBackground { get; set; }
     public string? SmartObjectFile { get; set; }
     public Guid? SmartObjectID { get; set; }
 

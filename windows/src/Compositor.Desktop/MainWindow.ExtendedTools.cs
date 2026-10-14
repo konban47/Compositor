@@ -25,6 +25,7 @@ public sealed partial class MainWindow
     private bool CanvasActionPressed(SKPoint at, KeyModifiers modifiers, int clicks)
     {
         if (_placementTab is not null) return PlacementPressed(at, modifiers);
+        if (ArtboardPressed(at, modifiers)) return true;
         if (ProfessionalPressed(at, modifiers, clicks)) return true;
         if (_tool is Tool.Bucket or Tool.MagicEraser) { PaintBucket(at, _tool == Tool.MagicEraser); return true; }
         if (ToolCatalog.IsPen(_tool))
@@ -71,6 +72,7 @@ public sealed partial class MainWindow
     private void CanvasActionMoved(SKPoint at, KeyModifiers modifiers)
     {
         if (_placementTab is not null) { PlacementMoved(at, modifiers); return; }
+        if (ArtboardMoved(at, modifiers)) return;
         if (ProfessionalMoved(at, modifiers)) return;
         if (_convertDrag is { } convert && _pathNodes is { } editable && _canvas.DocumentToPath is { } map)
         {
@@ -94,6 +96,7 @@ public sealed partial class MainWindow
     }
     private void CanvasActionReleased()
     {
+        if (ArtboardReleased()) return;
         if (ProfessionalReleased()) return;
         if (_convertDrag is not null)
         {
@@ -130,6 +133,8 @@ public sealed partial class MainWindow
     private void DrawEditingOverlay(DrawingContext context, Func<SKPoint, Point> screen)
     {
         DrawProfessionalOverlay(context, screen);
+        DrawArtboardDraft(context, screen);
+        DrawMoveHover(context, screen);
         var pen = new Pen(new SolidColorBrush(Color.Parse(EditorPreferences.Current.PathColor)), EditorPreferences.Current.PathWidth) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
         if (_placementTab is not null && _placePivotVisible && PropertyLayer is { } layer)
         {

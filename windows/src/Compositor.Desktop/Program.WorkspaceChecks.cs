@@ -97,7 +97,7 @@ public sealed partial class MainWindow
         Check(_rail.ButtonFor(Tool.Move) is null,"Saved Extra Tool is still on the rail.");
         read.DisableExtraShortcuts=true;
         foreach(var group in read.Groups) group.Remove(nameof(Tool.Shape)); read.Groups.RemoveAll(g=>g.Count==0); read.Extras.Add(nameof(Tool.Shape));
-        _rail.ApplyLayout(read); SetTool(Tool.Pan); Key(Avalonia.Input.Key.V); Check(_tool==Tool.Pan,"Disabled extra tool still responds to V.");
+        _rail.ApplyLayout(read); SetTool(Tool.Pan); Key(Avalonia.Input.Key.V); Check(_tool==Tool.Artboard,"Move family shortcut did not skip its disabled extra tool.");
         Key(Avalonia.Input.Key.U); Check(ToolCatalog.IsShape(_tool) && _tool!=Tool.Shape,"Shape family shortcut chose a disabled extra tool.");
         _rail.ApplyLayout(ToolCatalog.Defaults()); Pump();
         var shapeOptions = new ShapeSettingsDialog(7,.45,ShapeTemplates.Presets["Heart"],null); shapeOptions.Show(this); Pump(); Save(shapeOptions,"shape-options"); shapeOptions.Close();

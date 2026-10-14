@@ -44,7 +44,7 @@ public static partial class DocumentRenderer
                     using var builder = new SKPathBuilder(); builder.AddPoly([t.Point(0, 0), t.Point(1, 0), t.Point(1, 1), t.Point(0, 1)], true);
                     using var path = builder.Detach();
                     canvas.ClipPath(path, antialias: true);
-                    if (layer.Container == LayerContainer.Artboard) { using var paint = new SKPaint { Color = SKColors.White }; canvas.DrawPath(path, paint); }
+                    if (layer.Container == LayerContainer.Artboard) { using var paint = new SKPaint { Color = new SKColor(layer.ArtboardBackground) }; canvas.DrawPath(path, paint); }
                 }
                 DrawSiblings(ChildrenOf(layer), new Target(pixels, canvas, _region.Location));
             }

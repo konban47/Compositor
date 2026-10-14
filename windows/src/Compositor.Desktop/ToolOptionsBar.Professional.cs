@@ -6,6 +6,8 @@ namespace Compositor.Desktop;
 
 internal sealed class ProfessionalOptions
 {
+    internal void Reset()
+    { var defaults = new ProfessionalOptions(); foreach (var field in typeof(ProfessionalOptions).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)) field.SetValue(this, field.GetValue(defaults)); }
     internal SelectionPaintMode SelectionMode = SelectionPaintMode.Add;
     internal double MagneticWidth = 12, MagneticContrast = 20, MagneticFrequency = 4;
     internal bool SampleAll, EllipseFrame, ExtendMove, PatchDestination, CleanAfterStroke;
@@ -19,11 +21,21 @@ internal sealed partial class ToolOptionsBar
     internal event Action<string>? ProfessionalAsked;
     private readonly TextBlock _professionalReadout = new() { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, MaxWidth = 600 };
     private readonly Dictionary<string, NumericUpDown> _professionalNumbers = [];
+    private readonly Dictionary<string, ComboBox> _professionalChoices = [];
+    private TextBox? _professionalCount;
     internal void RefreshProfessional()
     {
         var loading = _loading; _loading = true;
-        if (_professionalNumbers.TryGetValue("Load %", out var load)) load.Value = (decimal)(_options.Brush.MixerLoad * 100);
-        if (_professionalNumbers.TryGetValue("Mix %", out var mix)) mix.Value = (decimal)(_options.Brush.MixerMix * 100);
+        foreach (var (key, field) in _professionalNumbers)
+            field.Value = (decimal)(key switch {
+                "magnetic/Width" => Professional.MagneticWidth, "magnetic/Edge Contrast" => Professional.MagneticContrast, "magnetic/Frequency" => Professional.MagneticFrequency,
+                "perspective/Width" => Professional.CropWidth, "perspective/Height" => Professional.CropHeight,
+                "redEye/Pupil Size %" => Professional.Pupil * 100, "redEye/Darken %" => Professional.Darken * 100,
+                "replace/Tolerance" => _options.Brush.Tolerance, "mixer/Wet %" => _options.Brush.MixerWet * 100,
+                "mixer/Load %" => _options.Brush.MixerLoad * 100, "mixer/Mix %" => _options.Brush.MixerMix * 100, "mixer/Flow %" => _options.Brush.MixerFlow * 100, _ => (double)(field.Value ?? 0) });
+        foreach (var (key, field) in _professionalChoices)
+            field.SelectedIndex = key switch { "selectPaint" => (int)Professional.SelectionMode, "proSample" => Professional.SampleAll ? 1 : 0, "frame" => Professional.EllipseFrame ? 1 : 0, "patch" => Professional.PatchDestination ? 1 : 0, "contentMove" => Professional.ExtendMove ? 1 : 0, "replace" => _options.Brush.ReplaceMode, _ => field.SelectedIndex };
+        if (_professionalCount is not null) _professionalCount.Text = Professional.CountGroup;
         _loading = loading;
     }
     internal void ProfessionalReadout(string value) { _professionalReadout.Text = value; ToolTip.SetTip(_professionalReadout, value); }
@@ -32,14 +44,14 @@ internal sealed partial class ToolOptionsBar
         void Number(string group, string title, double value, double min, double max, Action<double> set)
         {
             var field = new NumericUpDown { Value = (decimal)value, Minimum = (decimal)min, Maximum = (decimal)max, Width = 72, Height = 30, ShowButtonSpinner = false, FormatString = "0.##" };
-            _professionalNumbers[title] = field;
+            _professionalNumbers[group + "/" + title] = field;
             ToolTip.SetTip(field, Localize.Text(title)); Cell(group, new TextBlock { Text = Localize.Text(title), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center }); Cell(group, field);
             field.ValueChanged += (_, _) => { if (!_loading && field.Value is { } n) { set((double)n); Changed?.Invoke(); } };
         }
         void Choice(string group, string title, string[] values, Action<int> set, int initial = 0)
         {
             var field = new ComboBox { ItemsSource = values.Select(Localize.Text).ToArray(), SelectedIndex = initial, MinWidth = 110, Height = 30 };
-            ToolTip.SetTip(field, Localize.Text(title)); Cell(group, field); field.SelectionChanged += (_, _) => { if (!_loading && field.SelectedIndex >= 0) { set(field.SelectedIndex); Changed?.Invoke(); } };
+            _professionalChoices[group] = field; ToolTip.SetTip(field, Localize.Text(title)); Cell(group, field); field.SelectionChanged += (_, _) => { if (!_loading && field.SelectedIndex >= 0) { set(field.SelectedIndex); Changed?.Invoke(); } };
         }
         void Action(string group, string title) { var button = new Button { Content = Localize.Text(title), Height = 30, Padding = new Thickness(8, 3) }; ToolTip.SetTip(button, Localize.Text(title)); button.Click += (_, _) => ProfessionalAsked?.Invoke(title); Cell(group, button); }
         Choice("selectPaint", "Selection Mode", ["New Selection", "Add to Selection", "Subtract from Selection", "Intersect with Selection"], n => Professional.SelectionMode = (SelectionPaintMode)n, 1);
@@ -55,7 +67,7 @@ internal sealed partial class ToolOptionsBar
         Action("slice", "Slices from Guides"); Action("slice", "Divide Slice…"); Action("slice", "Export Slices…");
         Action("marks", "Edit Annotation…"); Action("marks", "Delete Annotation"); Action("marks", "Clear Tool Annotations");
         Action("ruler", "Straighten Layer");
-        var group = new TextBox { Text = "1", Width = 85, Height = 30 }; ToolTip.SetTip(group, Localize.Text("Count Group")); group.TextChanged += (_, _) => Professional.CountGroup = string.IsNullOrWhiteSpace(group.Text) ? "1" : group.Text[..Math.Min(group.Text.Length, 256)]; Cell("count", group);
+        var group = _professionalCount = new TextBox { Text = "1", Width = 85, Height = 30 }; ToolTip.SetTip(group, Localize.Text("Count Group")); group.TextChanged += (_, _) => Professional.CountGroup = string.IsNullOrWhiteSpace(group.Text) ? "1" : group.Text[..Math.Min(group.Text.Length, 256)]; Cell("count", group);
         Action("count", "Toggle Count Group");
         Choice("patch", "Patch Mode", ["Source", "Destination"], n => Professional.PatchDestination = n == 1);
         Choice("contentMove", "Mode", ["Move", "Extend"], n => Professional.ExtendMove = n == 1);

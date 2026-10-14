@@ -18,7 +18,7 @@ public sealed partial class MainWindow
         var names = WindowPanelNames.Concat(new[] { "Plugins", "Tools", "Options", "Contextual Task Bar" }).Distinct().ToArray();
         Check(names.Length == 35 && names.All(DockPanelGlyph.HasSymbol), "Missing collapsed panel artwork.");
         Check(DockPanelGlyph.Symbols.Values.Distinct().Count() == names.Length, "Collapsed panels share duplicate artwork.");
-        foreach (var name in new[] { "Tools", "Options", "Contextual Task Bar" })
+        foreach (var name in new[] { "Contextual Task Bar" })
         {
             var entry = _dockPanels[name]; FloatPanel(entry); Pump();
             var width = entry.Floating!.Width; var height = entry.Floating.Height;

@@ -636,6 +636,12 @@ public sealed partial class CanvasView : Control
         base.InvalidateVisual();
         ViewportChanged?.Invoke();
     }
+    internal void PanScreenBy(double x, double y)
+    {
+        var start = Unrotate(default); var end = Unrotate(new Point(x, y));
+        _origin = new SKPoint(_origin.X - (float)((end.X - start.X) / _zoom), _origin.Y - (float)((end.Y - start.Y) / _zoom));
+        Moved();
+    }
 
     private void SetZoom(double zoom)
     {
@@ -1045,7 +1051,7 @@ public sealed partial class CanvasView : Control
     private bool beginTransformDrag(LayerTransform box, SKPoint point, KeyModifiers modifiers)
     {
         var handle = TransformHandles
-            ? TransformEdits.HandleAt(box, point, TransformEdits.Grab / _zoom, TransformEdits.RotateGrip / _zoom) : null;
+            ? TransformHandleAt(box, point) : null;
         // Ctrl on a corner takes hold of that corner on its own, which is a distortion: the shape it is
         // dragged into is not a rectangle with an angle, so the pixels are resampled into it on release.
         if (handle is { } corner && Corner(corner) is { } index && DistortEnabled
@@ -1703,7 +1709,7 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerExited(PointerEventArgs e)
     {
-        _toolPointer = null; InvalidateOverlay();
+        _toolPointer = null; PointerTracked?.Invoke(null); InvalidateOverlay();
         PointerLeftCanvas?.Invoke();
         base.OnPointerExited(e);
     }

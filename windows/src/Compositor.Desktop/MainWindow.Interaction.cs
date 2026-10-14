@@ -101,11 +101,12 @@ public sealed partial class MainWindow
     {
         if (_placementTab is not null) return;
         if (_document is not { } document) return;
+        if (_tool == Tool.Artboard) return;
         if (MaskTarget && PropertyLayer?.Mask?.IsLinked == false && PropertyLayer.MaskTransform.Contains(point)) return;
         // Handles retain the current transform. Interior clicks pick the top visible pixel, including overlapping layers.
         if (_canvas.TransformBox is { } box && _transformShown &&
-            TransformEdits.HandleAt(box, point, TransformEdits.Grab / _canvas.Zoom,
-                TransformEdits.RotateGrip / _canvas.Zoom) is not null) return;
+            _canvas.TransformHandleAt(box, point) is not null) return;
+        if (EditorPreferences.Current.MoveAutoSelect == modifiers.HasFlag(KeyModifiers.Control)) return;
         var selectedMembers = TransformEdits.GroupMembers(document, SelectedLayers).Select(layer => layer.ID).ToHashSet();
         var layers = document.Layers.ToDictionary(layer => layer.ID);
         foreach (var entry in document.HierarchyEntries(topFirst: true))
@@ -117,7 +118,16 @@ public sealed partial class MainWindow
             var y = Math.Clamp((int)(at.Y / layer.Transform.Height * asset.Height), 0, asset.Height - 1);
             if (asset.Image.GetPixel(x, y).Alpha == 0) continue;
             if (selectedMembers.Contains(layer.ID)) return;
-            SelectLayerRow(layer.ID, modifiers.HasFlag(KeyModifiers.Shift));
+            var picked = layer;
+            if (EditorPreferences.Current.MoveSelectGroup)
+                while (picked.ParentID is { } parent && layers.TryGetValue(parent, out var owner)) picked = owner;
+            if (EditorPreferences.Current.MoveExpandGroup)
+            {
+                var owner = layer.ParentID; var changed = false;
+                while (owner is { } parent && layers.TryGetValue(parent, out var group)) { changed |= _open.Collapsed.Remove(parent); owner = group.ParentID; }
+                if (changed) ShowLayers(document);
+            }
+            SelectLayerRow(picked.ID, modifiers.HasFlag(KeyModifiers.Shift));
             return;
         }
     }
@@ -148,6 +158,8 @@ public sealed partial class MainWindow
             ShowLayers(document);
         };
         var panel = new Grid { ColumnDefinitions = new ColumnDefinitions("28,Auto,Auto,Auto,Auto,*,26,24"), MinHeight = 36 };
+        panel.PointerEntered += (_, _) => { if (EditorPreferences.Current.MoveLayerHoverBounds) { _moveHoverBox = layer.IsGroup && _document is { } doc ? TransformEdits.GroupBox(doc, [layer.ID]) : layer.Transform; _canvas.InvalidateOverlay(); } };
+        panel.PointerExited += (_, _) => { _moveHoverBox = null; _canvas.InvalidateOverlay(); };
         panel.Children.Add(eye);
         if (layer.Label != Compositor.Core.Format.LayerLabel.None)
         {
@@ -266,7 +278,7 @@ public sealed partial class MainWindow
             if (moved && DropLayersOnTabs(e.GetPosition(this))) { e.Handled = true; return; }
             if (moved && from is { } source && to is { } target && _document is { } document)
             {
-                Edit("Reorder Layers", () => LayerEdits.MoveRelative(document, source, target, above));
+                Edit("Reorder Layers", () => ReorderWithArtboardPosition(document, source, target, above));
                 Reselect(source);
             }
         };

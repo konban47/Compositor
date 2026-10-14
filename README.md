@@ -6,16 +6,20 @@
 
 本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
 
-[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.2.0) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.2.0.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
+[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.2.1) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.2.1.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
 
 本版另增加 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](windows/design/panel-icons/README.md)。
+
+## 1.5.2.1 界面与画板
+
+紧凑主题菜单与无标题选项栏；移动／画板工具选项、工具预设、单／双列窄工具栏、工具光标、坐标追踪标尺，以及嵌入最底部信息栏中间的横向滚动条。操作和边界见[窗口菜单手册](windows/WINDOW-MENU.md#移动画板与视图导航)。
 
 ## 安装
 
 目标系统：Windows 10 1809 及以上、Windows 11，64 位 x64。
 
-- **安装版**：运行 `Compositor-Windows-1.5.2.0-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.5.2.0-x64-portable.zip`，运行 `Compositor.exe`。
+- **安装版**：运行 `Compositor-Windows-1.5.2.1-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.5.2.1-x64-portable.zip`，运行 `Compositor.exe`。
 - 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
 - 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
 
@@ -80,7 +84,7 @@
 
 ## 验证与当前状态
 
-**1.5.2.0 Preview** 修复高亮图标居中、工具栏左右拖动停靠与蓝色柔和光晕；浮窗不再提供返回固定位置按钮，右侧各列独立缩略／展开并保存工作区。移植上游 **1.5.2 / `43d691b`** 的自适应 Camera Raw 阴影处理和 RAW 导入后打开 Camera Raw 入口。核心测试 **1164 项**；中英文 CI 覆盖停靠专项。详见[本版更新](windows/UPDATES-1.5.2.0.md)。
+**1.5.2.1 Preview** 修复高亮图标居中、工具栏左右拖动停靠与蓝色柔和光晕；浮窗不再提供返回固定位置按钮，右侧各列独立缩略／展开并保存工作区。移植上游 **1.5.2 / `43d691b`** 的自适应 Camera Raw 阴影处理和 RAW 导入后打开 Camera Raw 入口。核心测试 **1164 项**；中英文 CI 覆盖停靠专项。详见[本版更新](windows/UPDATES-1.5.2.0.md)。
 
 [图层样式与右键菜单使用说明](windows/LAYER-STYLES.md)记录每个菜单项、快捷键、格式和 Photoshop 差异。样式使用 CPU 近似渲染；遮住所有对象采用离线显著性连通区域，不是 Adobe 实例识别；智能对象保存本应用图层源，不提供 PSD 智能对象往返。
 

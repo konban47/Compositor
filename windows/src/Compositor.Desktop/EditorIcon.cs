@@ -7,6 +7,7 @@ namespace Compositor.Desktop;
 /// <summary>Upstream drawings first, then portable counterparts for system symbols and Windows-only tools.</summary>
 internal sealed class EditorIcon(string kind) : Control
 {
+    internal static string? CursorPath(string kind) => Paths.GetValueOrDefault(kind);
     protected override Size MeasureOverride(Size availableSize) => new(22, 22);
     public override void Render(DrawingContext context) => Draw(context, kind, Bounds.Size);
     internal static bool Draw(DrawingContext context, string kind, Size size)
@@ -28,6 +29,12 @@ internal sealed class EditorIcon(string kind) : Control
     private const string Eye = "M2,12 Q12,0 22,12 Q12,24 2,12 Z M15,12 A3,3 0 1 1 9,12 A3,3 0 1 1 15,12";
     private static readonly Dictionary<string, string> Paths = new(StringComparer.Ordinal)
     {
+        ["Artboard"] = "M4,1 L4,22 M1,4 L22,4 M7,7 L20,7 L20,20 L7,20 Z",
+        ["portrait"] = "M6,2 L18,2 L18,22 L6,22 Z", ["landscape"] = "M2,6 L22,6 L22,18 L2,18 Z",
+        ["new-artboard"] = "M4,1 L4,22 M1,4 L22,4 M7,7 L20,7 L20,20 L7,20 Z M10,13 L17,13 M13.5,10 L13.5,17",
+        ["settings"] = "M10,2 L14,2 L15,6 L19,5 L22,9 L19,12 L22,15 L19,19 L15,18 L14,22 L10,22 L9,18 L5,19 L2,15 L5,12 L2,9 L5,5 L9,6 Z M16,12 A4,4 0 1 1 8,12 A4,4 0 1 1 16,12",
+        ["home"] = "M2,11 L12,2 L22,11 M5,9 L5,22 L10,22 L10,15 L14,15 L14,22 L19,22 L19,9",
+        ["workspace"] = "M2,3 L22,3 L22,21 L2,21 Z M8,3 L8,21 M4,7 L6,7 M4,11 L6,11",
         ["SelectionBrush"] = "M3,10 A7,7 0 1 1 12,19 M3,14 L3,15 M6,18 L7,19 M10,17 L18,6 Q20,4 22,6 L14,18 Q7,24 7,20 Z",
         ["QuickSelection"] = "M3,8 L3,3 L8,3 M13,3 L14,3 M3,12 L3,13 M4,17 L5,18 M10,17 L18,6 Q20,4 22,6 L14,18 Q7,24 7,20 Z",
         ["MagneticLasso"] = "M3,12 L6,3 L21,5 L19,14 L8,18 Z M8,18 L5,22 M10,10 L10,14 Q10,20 15,20 Q20,20 20,14 L20,10 L17,10 L17,14 Q17,17 15,17 Q13,17 13,14 L13,10 Z",

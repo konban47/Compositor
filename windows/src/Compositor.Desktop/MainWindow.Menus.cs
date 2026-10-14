@@ -13,7 +13,7 @@ public sealed partial class MainWindow
             foreach (var tool in tools) group.Items.Add(ToolItem(ToolCatalog.Title(tool), tool, ToolCatalog.Shortcut(tool)));
             menu.Items.Add(group);
         }
-        Group("Move and View", Tool.Move, Tool.Pan, Tool.RotateView, Tool.Zoom);
+        Group("Move and View", Tool.Move, Tool.Artboard, Tool.Pan, Tool.RotateView, Tool.Zoom);
         Group("Selection Tools", Tool.Marquee, Tool.Ellipse, Tool.SelectionBrush, Tool.Lasso, Tool.Polygon,
             Tool.MagneticLasso, Tool.Object, Tool.QuickSelection, Tool.Wand);
         Group("Crop, Slice and Frame", Tool.Crop, Tool.PerspectiveCrop, Tool.Slice, Tool.SliceSelect, Tool.Frame);
