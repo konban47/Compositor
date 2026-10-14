@@ -3,7 +3,7 @@ using Avalonia.Controls.Primitives;
 
 namespace Compositor.Desktop;
 
-internal sealed record WorkspacePanelState(string Name, bool Visible, bool Floating, int X = 0, int Y = 0, double Width = 340, double Height = 510, string? Group = null, int Order = 0, int Column = 0, int Row = 0, bool Collapsed = false, bool Active = false, string? ReturnGroup = null, double Weight = 1, double ColumnWeight = 1, double ExpandedHeight = 510, double ExpandedWidth = 340);
+internal sealed record WorkspacePanelState(string Name, bool Visible, bool Floating, int X = 0, int Y = 0, double Width = 340, double Height = 510, string? Group = null, int Order = 0, int Column = 0, int Row = 0, bool Collapsed = false, bool Active = false, string? ReturnGroup = null, double Weight = 1, double ColumnWeight = 1, double ExpandedHeight = 510, double ExpandedWidth = 340, bool ColumnCollapsed = false, bool ToolDockRight = false);
 internal sealed class WorkspaceLayout
 {
     public List<WorkspacePanelState> Panels { get; set; } = [];

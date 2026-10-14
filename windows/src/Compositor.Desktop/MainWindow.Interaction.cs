@@ -67,6 +67,7 @@ public sealed partial class MainWindow
     {
         if (_importingDrop) return;
         _importingDrop = true;
+        _cameraRawAfterImport = null;
         FinishPlacement(true);
         CommitText();
         var target = _open;
@@ -92,6 +93,7 @@ public sealed partial class MainWindow
                 if (added.Count > 0 && _tabs.Contains(target) && !EditorPreferences.Current.SkipPlacement) BeginPlacement(target, before, selected, added);
                 else target.History.End(target.Document, selected);
             }
+            OpenImportedCameraRaw();
         }
     }
 

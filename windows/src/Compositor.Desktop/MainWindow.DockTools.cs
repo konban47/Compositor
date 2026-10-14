@@ -20,10 +20,8 @@ public sealed partial class MainWindow
         var dock = new DockPanel { Background = Skin.ChromeBrush };
         var header = new DockPanel { Height = 22, Background = Skin.SurfaceDarkBrush };
         var close = DockButton("×", "Close Panel", () => HidePanel(entry), "close-panel-" + entry.Name); DockPanel.SetDock(close, Dock.Right); header.Children.Add(close);
-        if (entry.ToolWindow is not null)
-        { var back = DockButton("↙", "Dock Panel", () => DockToolBack(entry), "dock-panel-" + entry.Name); DockPanel.SetDock(back, Dock.Right); header.Children.Add(back); }
         var menu = new ContextMenu();
-        menu.Items.Add(Command("Float Panel", () => FloatPanel(entry))); menu.Items.Add(Command("Dock Panel", () => DockToolBack(entry))); menu.Items.Add(Command("Close Panel", () => HidePanel(entry)));
+        menu.Items.Add(Command("Float Panel", () => FloatPanel(entry))); menu.Items.Add(Command("Close Panel", () => HidePanel(entry)));
         if (entry.Name == "Contextual Task Bar")
         {
             menu.Items.Add(new Separator()); menu.Items.Add(Command("More Properties", () => OpenInspector(0)));
@@ -35,8 +33,8 @@ public sealed partial class MainWindow
         if (entry.Name != "Tools" || entry.ToolWindow is not null)
         { var collapse = DockButton(entry.ToolCollapsed ? "»" : "«", "Collapse or Expand Panels", () => ToggleToolCollapse(entry), "collapse-tool-" + entry.Name); DockPanel.SetDock(collapse, Dock.Right); header.Children.Add(collapse); }
         header.ContextMenu = menu;
-        var options = DockButton("•••", "Panel Options", () => menu.Open(header)); DockPanel.SetDock(options, Dock.Right); header.Children.Add(options);
-        var title = new TextBlock { Text = Localize.Text(entry.Name), FontSize = 11, Foreground = Skin.LabelBrush, Background = Brushes.Transparent,
+        if (entry.Name != "Tools") { var options = DockButton("•••", "Panel Options", () => menu.Open(header)); DockPanel.SetDock(options, Dock.Right); header.Children.Add(options); }
+        var title = new TextBlock { Text = entry.Name == "Tools" ? "" : Localize.Text(entry.Name), MinWidth = 16, FontSize = 11, Foreground = Skin.LabelBrush, Background = Brushes.Transparent,
             Margin = new Thickness(4, 1), TextTrimming = TextTrimming.CharacterEllipsis, Tag = "panel-handle-" + entry.Name };
         header.Children.Add(title); title.AddHandler(PointerPressedEvent, (_, e) => StartDockDrag(entry, null, title, e), RoutingStrategies.Tunnel);
         DockPanel.SetDock(header, Dock.Top); dock.Children.Add(header); dock.Children.Add(entry.ToolCollapsed ? PanelIcon(entry, () => ToggleToolCollapse(entry), "panel-icon-" + entry.Name) : entry.Body);
@@ -64,6 +62,7 @@ public sealed partial class MainWindow
         if (EditorPreferences.Current.LockWorkspace || entry.Name == "Contextual Task Bar" && _contextPinned) return;
         Detach(entry.Body); var window = entry.ToolWindow; entry.ToolWindow = null; if (window is not null) { window.Content = null; window.Close(); }
         entry.Visible = true; entry.Slot!.Child = ToolChrome(entry); entry.Slot.IsVisible = true;
+        if (entry.Name == "Tools") Grid.SetColumn(entry.Slot, entry.ToolDockRight ? 2 : 0);
     }
     private void ToggleToolCollapse(DockPanelEntry entry)
     {

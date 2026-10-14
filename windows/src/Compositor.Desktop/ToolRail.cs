@@ -25,7 +25,7 @@ internal sealed class ToolRail : Grid
     private ToolbarLayout _layout = ToolCatalog.Defaults();
     public event Action? CustomizeRequested, QuickMaskRequested, ScreenModeRequested, GenerativeRequested;
     internal ToolbarLayout Layout => _layout;
-    internal static Control Icon(Tool tool) => new EditorIcon(tool.ToString()) { Width = 18, Height = 18 };
+    internal static Control Icon(Tool tool) => new EditorIcon(tool.ToString()) { Width = 18, Height = 18, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     public void ApplyLayout(ToolbarLayout layout)
     {
         _layout = layout.Copy(); _buttons.Clear(); _groups.Clear(); Children.Clear();
@@ -61,7 +61,7 @@ internal sealed class ToolRail : Grid
     }
     private static Button FooterButton(Control icon, string name) => new()
     {
-        Content = icon, Tag = name, Width = UpstreamArtwork.ButtonSide, Height = UpstreamArtwork.ButtonSide,
+        Content = icon, Tag = name, Width = UpstreamArtwork.ButtonSide, Height = UpstreamArtwork.ButtonSide, MinWidth = 0, MinHeight = 0,
         Padding = new Thickness(6), Background = Brushes.Transparent, BorderThickness = new Thickness(0),
         HorizontalAlignment = HorizontalAlignment.Center, HorizontalContentAlignment = HorizontalAlignment.Center,
         VerticalContentAlignment = VerticalAlignment.Center,
@@ -182,7 +182,7 @@ internal sealed class ToolRail : Grid
                 Content = GroupIcon(group[0], group.Count > 1),
                 Tag = group[0],
                 Width = UpstreamArtwork.ButtonSide,
-                Height = UpstreamArtwork.ButtonSide,
+                Height = UpstreamArtwork.ButtonSide, MinWidth = 0, MinHeight = 0,
                 CornerRadius = new CornerRadius(UpstreamArtwork.ButtonRadius),
                 Padding = new Thickness(0),
                 HorizontalContentAlignment = HorizontalAlignment.Center,

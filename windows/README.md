@@ -2,18 +2,18 @@
 
 窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](WINDOW-MENU.md)。
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.5.1.3 Preview**。
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.5.2.0 Preview**。
 
 本版另增加 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](design/panel-icons/README.md)。
 
 [下载 Windows 发行包](https://github.com/konban47/Compositor/releases) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
 
-2026-10-13 核对上游最新提交与已合并的 1.5.1 基线一致（`e8c9e29701528413cc0e608d61187c1c61790add`）。PSD 可编辑文字／矢量蒙版、范围格式、字体浏览器、文字菜单和蒙版侧栏见 [TYPE-AND-MASKS.md](TYPE-AND-MASKS.md)。画板参考线归属使用 Windows v21，文字／蒙版相关字段继续使用 v20。
+2026-10-14 合并上游 1.5.2（`43d691b67995e924965bcd520f8b300f96b7d5b8`），移植自适应阴影和 RAW 导入后打开 Camera Raw 的入口。PSD 可编辑文字／矢量蒙版、范围格式、字体浏览器、文字菜单和蒙版侧栏见 [TYPE-AND-MASKS.md](TYPE-AND-MASKS.md)。画板参考线归属使用 Windows v21，文字／蒙版相关字段继续使用 v20。
 
 ## 使用
 
 - 目标平台：Windows 10 1809 及以上、Windows 11，**x64**。不提供 32 位或原生 ARM64 包。
-- 安装版：运行 `Compositor-Windows-1.5.1.3-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
+- 安装版：运行 `Compositor-Windows-1.5.2.0-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
 - 免安装版：解压整个 `*-portable.zip`，运行文件夹中的 `Compositor.exe`。自带 .NET 运行时，无需安装 .NET SDK。若系统缺少 Visual C++ 2015–2022 x64 运行库，先运行随包提供的 `redist/vc_redist.x64.exe`。
 - 程序与安装包目前未做商业代码签名。只从本仓库下载；`SHA256SUMS.txt` 可用于校验文件完整性。
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
@@ -23,7 +23,13 @@
 - 可将项目文件夹或图像路径作为参数：`Compositor.exe "D:\图片\项目.comp"`。
 - 设置保存在 `%APPDATA%\CompositorWindows`。卸载不会删除项目文件和个人设置。
 
-## 1.5.1.3 浮窗停靠与标签交互
+## 1.5.2.0 浮窗停靠与 Camera Raw
+
+- 工具栏可拖至编辑区左／右侧，边缘显示全高蓝色柔和光晕；浮窗标题只保留展开／缩略和关闭按钮。所有浮窗移除返回固定停靠位置按钮。
+- 右侧两列各自缩略／展开，恢复自己的原宽度，不改变另一列状态；工作区记录各列状态和工具栏停靠侧。修复按钮高亮区域内图标居中。
+- Camera Raw 阴影采用上游区域亮度与纹理自适应处理，置于高光与白色色阶之间。RAW 显影窗口新增“Camera Raw…”：导入完成后选中新图层打开滤镜，多文件置入完成后再打开。
+
+## 既有浮窗停靠与标签交互
 
 - 图层／通道和属性标签按下即选中，小幅移动不再误触拖动；拖出后可跨组合并、重排标签或按边缘创建上下分组／左右分栏。
 - 支持整组浮动、蓝色停靠提示、拖动半透明预览、Esc 还原、窄图标栏、浮窗折叠和上下文任务栏固定／重置。
@@ -40,8 +46,8 @@
 - 钢笔族使用笔形光标和控制柄辅助线；光标移动只刷新覆盖层。支持的图层以 Skia 场景缓存并使用实际 GPU 上下文重放，复杂效果仍回退参考合成器。
 - 图层菜单按参考图整理，增加填充、蒙版、排列、形状布尔、修边及八类可编辑调整层；后者使用 Windows v19 格式。
 - OpenCL 迁移暂缓，继续使用 Skia。OpenCL、30 位显示和暂存盘换出不作为已实现功能；设置窗口明确说明。
-- **1153 项核心测试、CI 包含 19 组英文与 13 组中文界面检查**；包内包含设置接入、性能验证与功能边界说明。
-- [首选项与接入审查](PREFERENCES.md) · [图层菜单与钢笔](LAYER-MENU.md) · [本版更新](UPDATES-1.5.1.3.md)。以下版本段落为历史记录。
+- **1164 项核心测试、CI 包含 19 组英文与 13 组中文界面检查**；包内包含设置接入、性能验证与功能边界说明。
+- [首选项与接入审查](PREFERENCES.md) · [图层菜单与钢笔](LAYER-MENU.md) · [本版更新](UPDATES-1.5.2.0.md)。以下版本段落为历史记录。
 
 ## 1.4.10.1 界面、编辑菜单与 HDR 更新
 
@@ -183,7 +189,7 @@ CLI 位于包内 `cli/Compositor.Cli.exe`，运行 `--help` 查看命令。
 
 ## English
 
-An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, updated through upstream macOS 1.5.1 and commit e8c9e29, with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
+An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, updated through upstream macOS 1.5.2 and commit 43d691b, with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 

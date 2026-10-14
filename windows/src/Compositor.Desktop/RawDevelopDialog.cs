@@ -11,6 +11,8 @@ namespace Compositor.Desktop;
 internal sealed class RawDevelopDialog : DialogWindow
 {
     private bool _accepted;
+    private bool _openCameraRaw;
+    internal sealed record Result(ImportedImage Image, bool OpenCameraRaw);
     private readonly Slider _exposure = new() { Minimum = -5, Maximum = 5, Value = 0, Width = 240 };
     private readonly Slider _temperature = new() { Minimum = -100, Maximum = 100, Value = 0, Width = 240 };
     private readonly Slider _tint = new() { Minimum = -100, Maximum = 100, Value = 0, Width = 240 };
@@ -20,7 +22,7 @@ internal sealed class RawDevelopDialog : DialogWindow
     private readonly CanvasView _preview = new() { Width = 520, Height = 340 };
     private readonly CanvasDocument _document;
 
-    private RawDevelopDialog(ImportedImage image)
+    internal RawDevelopDialog(ImportedImage image)
     {
         Title = Localize.Text("Develop Camera RAW");
         Width = 560; SizeToContent = SizeToContent.Height; CanResize = false;
@@ -65,9 +67,14 @@ internal sealed class RawDevelopDialog : DialogWindow
             Foreground = Skin.LabelBrush,
             HorizontalContentAlignment = HorizontalAlignment.Center,
         };
+        var cameraRaw = new Button { Content = Localize.Text("Camera Raw…"), Tag = "raw-open-camera", MinWidth = 100, Height = 26, FontSize = 12,
+            Padding = new Thickness(8, 0), HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
+        ToolTip.SetTip(cameraRaw, Localize.Text("Import, then open the Camera Raw Filter"));
+        cameraRaw.Click += (_, _) => { _accepted = true; _openCameraRaw = true; Close(); };
+        ok.Tag = "raw-develop"; cancel.Tag = "raw-cancel";
         ok.Click += (_, _) => { _accepted = true; Close(); }; cancel.Click += (_, _) => Close();
         content.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10,
-            HorizontalAlignment = HorizontalAlignment.Right, Children = { cancel, ok } });
+            HorizontalAlignment = HorizontalAlignment.Right, Children = { cancel, cameraRaw, ok } });
         Content = content;
         Opened += (_, _) => { Preview(); _preview.Fit(); };
     }
@@ -81,13 +88,15 @@ internal sealed class RawDevelopDialog : DialogWindow
         _preview.InvalidateVisual();
     }
 
-    internal static async Task<ImportedImage?> Develop(Window owner, ImportedImage image)
+    internal static async Task<Result?> Develop(Window owner, ImportedImage image)
     {
         var dialog = new RawDevelopDialog(image);
         await dialog.ShowDialog(owner);
         dialog._document.Dispose();
         if (!dialog._accepted) return null;
         var settings = dialog.Settings;
-        return await Task.Run(() => RawDevelop.Apply(image, settings));
+        var result = await Task.Run(() => RawDevelop.Apply(image, settings));
+        image.Dispose();
+        return new(result, dialog._openCameraRaw);
     }
 }

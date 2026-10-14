@@ -56,10 +56,21 @@ public sealed partial class MainWindow
         Check(ReferenceEquals(_dockPanels["Character"].Group, channel.Group) && channel.Host!.SelectedItem == channel.Tab, "Workspace lost tab grouping or active selection.");
         Check(Math.Abs(channel.Group!.Frame.Bounds.Width - columnWidth) < 3 && Math.Abs(channel.Group.Frame.Bounds.Height - rowHeight) < 3, "Workspace lost column widths or group heights.");
         Check(paragraph.Group!.Column < channel.Group!.Column && properties.Group!.Order > channel.Group.Order, "Workspace lost split layout.");
-        SetDockCollapsed(true); Pump(); Check(_layersSide.Width == 36, "Dock did not collapse to an icon strip.");
+        var rightWidth = channel.Group!.Frame.Bounds.Width;
+        SetColumnCollapsed(paragraph.Group!.Column, true); Pump();
+        Check(paragraph.Group.ColumnCollapsed && !channel.Group.ColumnCollapsed && Math.Abs(channel.Group.Frame.Bounds.Width - rightWidth) < 1, "Collapsing left column changed right column.");
+        var oneCollapsed = CaptureDockWorkspace(); RestoreDockWorkspace(oneCollapsed); Pump();
+        Check(paragraph.Group.ColumnCollapsed && !channel.Group.ColumnCollapsed, "Workspace lost independent column states."); Save("left-column-collapsed");
+        SetColumnCollapsed(paragraph.Group.Column, false); Pump(); var leftWidth = paragraph.Group.Frame.Bounds.Width;
+        SetColumnCollapsed(channel.Group.Column, true); Pump();
+        Check(!paragraph.Group.ColumnCollapsed && channel.Group.ColumnCollapsed && Math.Abs(paragraph.Group.Frame.Bounds.Width - leftWidth) < 1, "Collapsing right column changed left column."); Save("right-column-collapsed");
+        SetDockCollapsed(true); Pump(); Check(_layersSide.Width == 81, "Dock did not collapse to an icon strip.");
         var icon = _dockRoot.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "panel-icon-Channels"));
         icon.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Pump(); Check(_dockPeek is not null, "Collapsed icon did not open its panel.");
-        _dockPeek!.Hide(); Pump(); SetDockCollapsed(false); Pump(); Tap("Channels");
+        _dockPeek!.Hide(); Pump();
+        EditorPreferences.Current.LockWorkspace = true;
+        var iconAt = icon.TranslatePoint(new Point(15,14), this)!.Value; this.MouseDown(iconAt, MouseButton.Left); this.MouseUp(iconAt, MouseButton.Left); Pump();
+        Check(_dockPeek is not null, "Locked workspace blocked opening an icon panel."); _dockPeek!.Hide(); EditorPreferences.Current.LockWorkspace = false; Pump(); Save("two-icon-columns"); SetDockCollapsed(false); Pump(); Tap("Channels");
         FloatGroup(channel.Group!); Pump(); Check(character.Floating is not null && ReferenceEquals(character.Floating, channel.Floating), "Floating a group split its tabs.");
         ToggleGroupCollapse(channel.Group!); Pump(); Check(channel.Group!.Collapsed && channel.Floating!.Height < 180, "Floating group did not collapse.");
         ToggleGroupCollapse(channel.Group); Pump(); Tap("Character"); Tap("Channels"); Save("floating-group", channel.Floating!);
@@ -75,6 +86,33 @@ public sealed partial class MainWindow
         Drag(Handle("Properties"), _layersSide.PointToScreen(new Point(16, 100)), true);
         Check(properties.Floating is null && !_dockCollapsed, "Collapsed sidebar did not accept docking.");
         ResetDockPanels(); Pump();
+        var tools = _dockPanels["Tools"];
+        TextBlock ToolHandle() => (tools.Floating?.GetVisualDescendants() ?? tools.Slot!.GetVisualDescendants()).OfType<TextBlock>().Single(t => Equals(t.Tag, "panel-handle-Tools"));
+        void DragTools(bool right)
+        {
+            FloatPanel(tools, new PixelPoint(Position.X + 200, Position.Y + 150)); Pump();
+            var buttons = tools.Floating!.GetVisualDescendants().OfType<DockPanel>().First(p => p.Height == 22).Children.OfType<Button>().ToArray();
+            Check(buttons.Length == 2 && buttons.All(b => Equals(b.Tag, "collapse-tool-Tools") || Equals(b.Tag, "close-panel-Tools")), "Tools floating header must have just collapse and close.");
+            var source = tools.Floating!; var handle = ToolHandle(); var down = handle.TranslatePoint(new Point(7,7), source)!.Value;
+            var point = _dockEditorBody!.PointToScreen(new Point(right ? _dockEditorBody!.Bounds.Width - 3 : 3, 140));
+            source.MouseDown(down, MouseButton.Left); source.MouseMove(source.PointToClient(point), RawInputModifiers.LeftMouseButton); Pump();
+            Check(_dockSidePreview.IsVisible && _dockSidePreview.Height > _dockEditorBody!.Bounds.Height - 2 && _dockSidePreview.BoxShadow.Count > 0 && _dockSidePreview.BoxShadow[0].Blur >= 6, "Tool edge preview/glow missing.");
+            using (var hintBitmap = new RenderTargetBitmap(new PixelSize((int)Bounds.Width, (int)Bounds.Height)))
+            {
+                hintBitmap.Render(this); using var encoded = new MemoryStream(); hintBitmap.Save(encoded, new PngBitmapEncoderOptions()); encoded.Position = 0;
+                using var pixels = SkiaSharp.SKBitmap.Decode(encoded);
+                var x = Math.Clamp((int)(_dockSidePreview.Bounds.X + 1), 0, pixels.Width - 1); var y = (int)_dockSidePreview.Bounds.Center.Y;
+                var line = pixels.GetPixel(x, y); var halo = pixels.GetPixel(Math.Clamp(x + (right ? -5 : 5), 0, pixels.Width - 1), y);
+                Check(line.Blue > line.Red + 60 && halo.Blue > halo.Red + 8 && halo.Blue < line.Blue, "Dock line or soft blue halo was not rendered.");
+            }
+            Save(right ? "tools-right-hint" : "tools-left-hint");
+            source.MouseUp(source.PointToClient(point), MouseButton.Left); Pump();
+            Check(tools.Floating is null && tools.ToolDockRight == right && Grid.GetColumn(tools.Slot!) == (right ? 2 : 0), "Toolbar docked on wrong side.");
+            var saved = CaptureDockWorkspace(); RestoreDockWorkspace(saved); Pump();
+            Check(tools.ToolDockRight == right && Grid.GetColumn(tools.Slot!) == (right ? 2 : 0), "Workspace lost toolbar side.");
+        }
+        DragTools(true); DragTools(false);
+        Check(FindToolDrop(tools, _dockEditorBody!.PointToScreen(new Point(3, -100))) is null, "Tool dock target leaked above the editing area.");
         var before = _dockGroups.Count; var handle = Handle("History"); var at = handle.TranslatePoint(new Point(7,7), this)!.Value;
         this.MouseDown(at, MouseButton.Left); this.MouseMove(at + new Vector(-250,100), RawInputModifiers.LeftMouseButton); Pump();
         this.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null); this.KeyRelease(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null); Pump();
@@ -84,6 +122,6 @@ public sealed partial class MainWindow
         var barHandle = context.Floating.GetVisualDescendants().OfType<TextBlock>().Single(t => Equals(t.Tag, "panel-handle-Contextual Task Bar"));
         Drag(barHandle, new(fixedPosition.X + 200, fixedPosition.Y - 100), false); Check(context.Floating.Position == fixedPosition, "Pinned contextual bar moved.");
         _contextPinned = false; DockToolBack(context); EditorPreferences.Current.Workspaces.Remove("Video Dock Test"); ResetDockPanels(); Pump();
-        void Save(string suffix, Window? window = null) { Pump(); using var frame = (window ?? this).CaptureRenderedFrame(); frame!.Save(Path.ChangeExtension(output, suffix + ".png"), new PngBitmapEncoderOptions()); }
+        void Save(string suffix, Window? window = null) { Pump(); var view = window ?? this; using var frame = new RenderTargetBitmap(new PixelSize((int)view.Bounds.Width, (int)view.Bounds.Height)); frame.Render(view); frame.Save(Path.ChangeExtension(output, suffix + ".png"), new PngBitmapEncoderOptions()); }
     }
 }

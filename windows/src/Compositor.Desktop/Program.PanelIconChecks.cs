@@ -28,6 +28,8 @@ public sealed partial class MainWindow
             Check(entry.ToolCollapsed && entry.Floating is not null, "Workspace lost collapsed tool: " + name);
             var button = entry.Floating!.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "panel-icon-" + name));
             Check(button.Content is DockPanelGlyph, "Collapsed tool has no dedicated icon: " + name);
+            var glyph = (Control)button.Content!; var center = glyph.TranslatePoint(new Point(glyph.Bounds.Width / 2, glyph.Bounds.Height / 2), button)!.Value;
+            Check(Math.Abs(center.X - button.Bounds.Width / 2) < .6 && Math.Abs(center.Y - button.Bounds.Height / 2) < .6, "Highlighted icon is off center: " + name);
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
             Check(!entry.ToolCollapsed && entry.Body.IsEffectivelyVisible && entry.Floating!.Width == width && entry.Floating.Height == height, "Icon did not restore tool dimensions: " + name);
             DockToolBack(entry);

@@ -114,9 +114,10 @@ public static class CameraRawTables
         var (column, across) = Find(value, [-100, -50, -25, 0, 25, 50, 100]); var at = start + row * 7 + column;
         return new Stage([at, at + 1, at + 7, at + 8], [(1 - down) * (1 - across), (1 - down) * across, down * (1 - across), down * across]);
     }
-    public static float[]? Compose(CameraRawSettings s, Brightness brightness, bool foldColor = false)
+    public enum Part { BeforeShadows, AfterShadows }
+    public static float[]? Compose(CameraRawSettings s, Brightness brightness, bool foldColor = false, Part? part = null)
     {
-        var key = System.Text.Json.JsonSerializer.Serialize(s) + $"|{brightness}|{foldColor}";
+        var key = System.Text.Json.JsonSerializer.Serialize(s) + $"|{brightness}|{foldColor}|{part}";
         lock (Gate)
         {
             if (_key == key) return _cached;
@@ -127,7 +128,7 @@ public static class CameraRawTables
             if (s.Temperature != 0 || s.Tint != 0) stages.Add(WhiteBalance(s.Temperature, s.Tint));
             if (s.Contrast != 0) stages.Add(Adaptive(138, s.Contrast, brightness.Brightest));
             if (s.Highlights != 0) stages.Add(Adaptive(187, s.Highlights, brightness.LogBrightest));
-            if (s.Shadows != 0) stages.Add(Adaptive(236, s.Shadows, brightness.Luminance));
+            var before = stages.Count;
             if (s.Whites != 0) stages.Add(Slider(102, s.Whites));
             if (s.Blacks != 0) stages.Add(Slider(111, s.Blacks));
             if (s.Saturation != 0) stages.Add(Slider(120, s.Saturation));
@@ -137,8 +138,10 @@ public static class CameraRawTables
                 var amounts = new[] { s.CurveShadows, s.CurveDarks, s.CurveLights, s.CurveHighlights };
                 for (var i = 0; i < amounts.Length; i++) if (amounts[i] != 0) stages.Add(Slider(435 + i * 5, amounts[i], -100, 50, 5));
             }
+            if (part == Part.BeforeShadows) stages = stages.Take(before).ToList();
+            else if (part == Part.AfterShadows) stages = stages.Skip(before).ToList();
             _cached = Compose(stages);
-            if (foldColor && (s.AdjustsCurve || s.AdjustsGrading)) _cached = FoldColor(_cached, s);
+            if (part != Part.BeforeShadows && foldColor && (s.AdjustsCurve || s.AdjustsGrading)) _cached = FoldColor(_cached, s);
             _key = key; return _cached;
         }
     }
@@ -260,9 +263,19 @@ public static class CameraRawTables
 
 public static partial class AdjustPixels
 {
-    public static void CameraRawMeasured(Span<byte> rgba, int width, int height, int stride, CameraRawSettings settings, bool foldColor = false)
+    public static void CameraRawMeasured(Span<byte> rgba, int width, int height, int stride, CameraRawSettings settings, bool foldColor = false, double pixelScale = 1)
     {
-        var table = CameraRawTables.Compose(settings, CameraRawTables.Statistics(rgba, width, height, stride), foldColor);
+        var brightness = CameraRawTables.Statistics(rgba, width, height, stride);
+        if (settings.Shadows != 0)
+        {
+            CameraRawTable(rgba, width, height, stride, CameraRawTables.Compose(settings, brightness, part: CameraRawTables.Part.BeforeShadows));
+            CameraRawShadows.Apply(rgba, width, height, stride, settings.Shadows, pixelScale);
+        }
+        CameraRawTable(rgba, width, height, stride, CameraRawTables.Compose(settings, brightness, foldColor, settings.Shadows != 0 ? CameraRawTables.Part.AfterShadows : null));
+    }
+    private static void CameraRawTable(Span<byte> rgba, int width, int height, int stride, float[]? table)
+    {
+        if (table is null) return;
         for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
         {
             var p = y * stride + x * 4; double alpha = rgba[p + 3]; if (alpha == 0) continue;

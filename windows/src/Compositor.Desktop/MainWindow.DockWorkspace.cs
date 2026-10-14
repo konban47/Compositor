@@ -14,7 +14,7 @@ public sealed partial class MainWindow
                 w?.Width ?? 340, w?.Height ?? 510, g?.ID, g?.Tabs.Items.IndexOf(p.Tab) ?? 0, g?.Column ?? 0, (int)(g?.Order ?? 0),
                 g?.Collapsed ?? p.ToolCollapsed, p.Tab is not null && ReferenceEquals(g?.Tabs.SelectedItem, p.Tab), p.LastDockGroup,
                 g is { Collapsed: false } && g.Window is null && g.Frame.Bounds.Height > 65 ? g.Frame.Bounds.Height : g?.Weight ?? 1,
-                !_dockCollapsed && g is { Window: null } && g.Frame.Bounds.Width > 90 ? g.Frame.Bounds.Width : g?.ColumnWeight ?? 1, g?.ExpandedHeight ?? p.ToolHeight, g?.ExpandedWidth ?? p.ToolWidth);
+                g is { Window: null, ColumnCollapsed: false } && g.Frame.Bounds.Width > 90 ? g.Frame.Bounds.Width : g?.ColumnWeight ?? 1, g?.ExpandedHeight ?? p.ToolHeight, g?.ExpandedWidth ?? p.ToolWidth, g?.ColumnCollapsed ?? false, p.ToolDockRight);
         }).ToList()
     };
     private void RestoreDockWorkspace(WorkspaceLayout layout)
@@ -35,10 +35,10 @@ public sealed partial class MainWindow
                     group.Column = saved.Floating ? -1 : Math.Clamp(saved.Column, 0, 7); group.Order = Math.Clamp(saved.Row, 0, 80);
                     group.Weight = double.IsFinite(saved.Weight) ? Math.Clamp(saved.Weight, 1, 3000) : 1;
                     group.ColumnWeight = WorkspaceSize(saved.ColumnWeight, 1, 3000, 1); group.ExpandedHeight = WorkspaceSize(saved.ExpandedHeight, 100, 1600, 510);
-                    group.ExpandedWidth = WorkspaceSize(saved.ExpandedWidth, 90, 2000, 340); group.Collapsed = saved.Collapsed; MovePanel(panel, group); panel.LastDockGroup = saved.ReturnGroup ?? HomeGroup(panel).ID;
+                    group.ExpandedWidth = WorkspaceSize(saved.ExpandedWidth, 90, 2000, 340); group.Collapsed = saved.Collapsed; group.ColumnCollapsed = saved.ColumnCollapsed || layout.SidebarCollapsed; MovePanel(panel, group); panel.LastDockGroup = saved.ReturnGroup ?? HomeGroup(panel).ID;
                 }
                 if (panel.Slot is not null)
-                { panel.ToolCollapsed = saved.Collapsed; panel.ToolWidth = WorkspaceSize(saved.ExpandedWidth, 90, 2000, 470); panel.ToolHeight = WorkspaceSize(saved.ExpandedHeight, 52, 1600, 120); panel.Slot.Child = ToolChrome(panel); }
+                { panel.ToolDockRight = saved.ToolDockRight; if (panel.Name == "Tools") Avalonia.Controls.Grid.SetColumn(panel.Slot, panel.ToolDockRight ? 2 : 0); panel.ToolCollapsed = saved.Collapsed; panel.ToolWidth = WorkspaceSize(saved.ExpandedWidth, 90, 2000, 470); panel.ToolHeight = WorkspaceSize(saved.ExpandedHeight, 52, 1600, 120); panel.Slot.Child = ToolChrome(panel); }
                 panel.Visible = saved.Visible;
                 if (panel.Tab is not null) panel.Tab.IsVisible = saved.Visible; else panel.Slot!.IsVisible = saved.Visible;
             }

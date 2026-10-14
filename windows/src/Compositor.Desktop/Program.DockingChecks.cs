@@ -60,6 +60,7 @@ public sealed partial class MainWindow
             Click(panel.Tab.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "close-panel-" + name)));
             Check(!panel.Visible && !panel.Tab.IsVisible, "Panel close failed: " + name); OpenWindowPanel(name); HidePanel(panel);
         }
+        RawImportSelfCheck();
         DockLayoutSelfCheck(output);
         PanelIconSelfCheck(output);
         ResetDockPanels(); OpenTypePanel("Character"); Pump(); var character = _dockPanels["Character"];
@@ -67,7 +68,8 @@ public sealed partial class MainWindow
         var handleAt = handle.TranslatePoint(new Point(8, 7), this)!.Value;
         this.MouseDown(handleAt, MouseButton.Left); this.MouseMove(handleAt + new Vector(-300, 90), RawInputModifiers.LeftMouseButton); this.MouseUp(handleAt + new Vector(-300, 90), MouseButton.Left); Pump();
         Check(character.Floating is not null && ReferenceEquals(TopLevel.GetTopLevel(character.Body), character.Floating), "Dragging panel did not create a separate window."); Save(character.Floating!, "floating-character");
-        Click(character.Floating!.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "dock-panel-Character")));
+        Check(!character.Floating!.GetVisualDescendants().OfType<Button>().Any(b => b.Tag?.ToString()?.StartsWith("dock-panel-", StringComparison.Ordinal) == true), "Floating panel still has a fixed-home button.");
+        DockPanelBack(character); Pump();
         Check(character.Floating is null && ReferenceEquals(character.Tab!.Content, character.Body), "Docking lost panel content.");
         FloatPanel(character); character.Floating!.Close(); Pump(); Check(!character.Visible, "Native close left floating panel active."); OpenTypePanel("Character");
         Check(character.Visible && character.Tab!.Content == character.Body && character.Floating is not null, "Closed floating panel could not reopen."); DockPanelBack(character);

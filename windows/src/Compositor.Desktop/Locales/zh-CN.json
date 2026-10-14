@@ -1,4 +1,6 @@
 {
+  "Camera Raw…": "Camera Raw…",
+  "Import, then open the Camera Raw Filter": "导入后打开 Camera Raw 滤镜",
   "File": "文件",
   "Edit": "编辑",
   "Image": "图像",
@@ -2492,7 +2494,6 @@
   "Contextual Task Bar": "上下文任务栏",
   "Close Panel": "关闭面板",
   "Float Panel": "浮动面板",
-  "Dock Panel": "停靠面板",
   "Edit Selected Guides…": "编辑所选参考线…",
   "Edit Selected Guides": "编辑所选参考线",
   "Clear Canvas Guides": "清除画布参考线",

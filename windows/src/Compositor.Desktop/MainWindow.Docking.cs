@@ -22,6 +22,7 @@ public sealed partial class MainWindow
         public double Order { get; set; } = order;
         public double Weight { get; set; } = 5;
         public bool Collapsed { get; set; }
+        public bool ColumnCollapsed { get; set; }
         public double ColumnWeight { get; set; } = 1;
         public double ExpandedWidth { get; set; } = 340;
         public double ExpandedHeight { get; set; } = 510;
@@ -38,6 +39,7 @@ public sealed partial class MainWindow
         public Border? Slot { get; } = slot;
         public Window? ToolWindow { get; set; }
         public bool ToolCollapsed { get; set; }
+        public bool ToolDockRight { get; set; }
         public double ToolWidth { get; set; } = 470;
         public double ToolHeight { get; set; } = 120;
         public Window? Floating => Group?.Window ?? ToolWindow;
@@ -46,7 +48,11 @@ public sealed partial class MainWindow
     private readonly Dictionary<string, DockPanelEntry> _dockPanels = [];
     private readonly List<DockGroup> _dockGroups = [];
     private readonly Grid _dockRoot = new();
-    private readonly Border _dockSidePreview = new() { IsVisible = false, IsHitTestVisible = false, BorderBrush = Skin.AccentBrush, BorderThickness = new Thickness(2) };
+    private readonly Border _dockSidePreview = new() { IsVisible = false, IsHitTestVisible = false, BorderBrush = new SolidColorBrush(Color.Parse("#4A9FFF")), BorderThickness = new Thickness(2),
+        BoxShadow = new BoxShadows(new BoxShadow { Blur = 9, Spread = 2, Color = Color.Parse("#B0358FFF") }), Tag = "dock-glow-preview" };
+    private readonly Canvas _dockHintOverlay = new() { IsHitTestVisible = false };
+    private readonly Dictionary<int, Control> _dockColumnFrames = [];
+    private Grid? _dockEditorBody;
     private bool _closingPanels, _draggingDock, _dockCollapsed, _restoringDock, _contextPinned;
     private DockGroup? _dragOriginGroup;
     private Flyout? _dockPeek;
@@ -93,13 +99,13 @@ public sealed partial class MainWindow
     }
     private Button DockButton(string text, string hint, Action action, string? tag = null)
     {
-        var button = new Button { Content = text, FontSize = 13, Width = 22, Height = 21, MinHeight = 0, Padding = new Thickness(0), BorderThickness = new Thickness(0), Background = Brushes.Transparent, Tag = tag };
+        var button = new Button { Content = text, FontSize = 13, Width = 22, Height = 21, MinWidth = 0, MinHeight = 0, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(0), BorderThickness = new Thickness(0), Background = Brushes.Transparent, Tag = tag };
         ToolTip.SetTip(button, Localize.Text(hint)); button.Click += (_, e) => { action(); e.Handled = true; }; return button;
     }
     private Button PanelIcon(DockPanelEntry entry, Action action, string? tag = null)
     {
         var button = DockButton("", entry.Name, action, tag); button.Width = 30; button.Height = 28;
-        button.Content = new DockPanelGlyph(entry.Name) { Width = 22, Height = 22, IsHitTestVisible = false }; return button;
+        button.Content = new DockPanelGlyph(entry.Name) { Width = 22, Height = 22, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false }; return button;
     }
     private Control PanelHeader(DockPanelEntry entry)
     {
@@ -109,7 +115,7 @@ public sealed partial class MainWindow
             Margin = new Thickness(4, 0, 5, 0), Background = Brushes.Transparent, Tag = "panel-handle-" + entry.Name };
         header.Children.Add(title);
         title.AddHandler(PointerPressedEvent, (_, e) => StartDockDrag(entry, null, title, e), RoutingStrategies.Tunnel);
-        var menu = new ContextMenu(); menu.Items.Add(Command("Float Panel", () => FloatPanel(entry))); menu.Items.Add(Command("Dock Panel", () => DockPanelBack(entry)));
+        var menu = new ContextMenu(); menu.Items.Add(Command("Float Panel", () => FloatPanel(entry)));
         menu.Items.Add(Command("Close Panel", () => HidePanel(entry))); header.ContextMenu = menu; return header;
     }
     private void BuildGroupChrome(DockGroup group)
@@ -119,11 +125,6 @@ public sealed partial class MainWindow
         var grip = new DockPanel { Height = 21, Background = Skin.SurfaceDarkBrush, Tag = "group-handle-" + group.ID };
         var close = DockButton("×", "Close Tab Group", () => { foreach (var entry in Members(group).ToArray()) HidePanel(entry); }); DockPanel.SetDock(close, Dock.Right); grip.Children.Add(close);
         var collapse = DockButton(group.Collapsed ? "»" : "«", "Collapse or Expand Panels", () => ToggleGroupCollapse(group), "collapse-group-" + group.ID); DockPanel.SetDock(collapse, Dock.Right); grip.Children.Add(collapse);
-        if (group.Window is not null)
-        {
-            var dock = DockButton("↙", "Dock Panel", () => { foreach (var entry in Members(group).ToArray()) DockPanelBack(entry); }, "dock-panel-" + Members(group).FirstOrDefault()?.Name);
-            DockPanel.SetDock(dock, Dock.Right); grip.Children.Add(dock);
-        }
         var title = new TextBlock { Text = group.Window is null ? "⋮⋮" : string.Join(" · ", Members(group).Where(p => p.Visible).Select(p => Localize.Text(p.Name))),
             Tag = "group-title-" + group.ID, FontSize = 11, Foreground = Skin.SecondaryBrush, Margin = new Thickness(6, 1), Background = Brushes.Transparent, TextTrimming = TextTrimming.CharacterEllipsis };
         grip.Children.Add(title); title.AddHandler(PointerPressedEvent, (_, e) => StartDockDrag(null, group, title, e), RoutingStrategies.Tunnel);
@@ -162,6 +163,7 @@ public sealed partial class MainWindow
     }
     private void ToggleGroupCollapse(DockGroup group)
     {
+        if (group.Window is null && group.Column >= 0) { SetColumnCollapsed(group.Column, !group.ColumnCollapsed); return; }
         group.Collapsed = !group.Collapsed;
         if (group.Window is { } window)
         {
@@ -176,70 +178,6 @@ public sealed partial class MainWindow
         if (entry.Tab is not null) entry.Host!.SelectedItem = entry.Tab;
         if (entry.Name == "Channels") RefreshChannels();
     }
-    private void RenderDockArea()
-    {
-        if (_dockGroups.Count == 0) return;
-        _dockPeek?.Hide();
-        foreach (var group in _dockGroups.Where(g => g.Window is null))
-        {
-            if (!_restoringDock && !_dockCollapsed && group.Frame.Bounds.Width > 90) group.ColumnWeight = group.Frame.Bounds.Width;
-            if (!_restoringDock && !_dockCollapsed && !group.Collapsed && group.Frame.Bounds.Height > 65) group.Weight = group.Frame.Bounds.Height;
-            Detach(group.Frame);
-        }
-        _dockRoot.Children.Clear(); _dockRoot.ColumnDefinitions.Clear(); _dockRoot.RowDefinitions.Clear();
-        var docked = _dockGroups.Where(g => g.Window is null && g.Column >= 0 && (Members(g).Any(p => p.Visible) || _draggingDock && ReferenceEquals(g, _dragOriginGroup))).OrderBy(g => g.Column).ThenBy(g => g.Order).ToArray();
-        if (_dockCollapsed)
-        {
-            _layersSide.Width = 36;
-            var icons = new StackPanel { Spacing = 2 }; icons.Children.Add(DockButton("«", "Expand Panels", () => SetDockCollapsed(false), "expand-dock"));
-            foreach (var entry in docked.SelectMany(Members).Where(p => p.Visible))
-            {
-                Button? button = null; button = PanelIcon(entry, () => PeekDockPanel(entry, button!), "panel-icon-" + entry.Name);
-                icons.Children.Add(button);
-            }
-            _dockRoot.Children.Add(new ScrollViewer { Content = icons, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }); _dockRoot.Children.Add(_dockSidePreview); return;
-        }
-        _layersSide.Width = docked.Length == 0 && !_draggingDock ? 30 : _dockExpandedWidth;
-        _dockRoot.ColumnDefinitions.Add(new ColumnDefinition(5, GridUnitType.Pixel));
-        var resize = new Border { Background = Brushes.Transparent, Cursor = new Cursor(StandardCursorType.SizeWestEast), Tag = "dock-width-grip" };
-        resize.PointerPressed += (_, e) =>
-        {
-            if (!e.GetCurrentPoint(resize).Properties.IsLeftButtonPressed || EditorPreferences.Current.LockWorkspace) return;
-            var start = e.GetPosition(this).X; var width = _dockExpandedWidth;
-            void Move(object? s, PointerEventArgs a) { _dockExpandedWidth = Math.Clamp(width + start - a.GetPosition(this).X, 220, Math.Max(240, Bounds.Width * .7)); _layersSide.Width = _dockExpandedWidth; }
-            void Release(object? s, PointerReleasedEventArgs a) { resize.PointerMoved -= Move; resize.PointerReleased -= Release; a.Pointer.Capture(null); }
-            resize.PointerMoved += Move; resize.PointerReleased += Release; e.Pointer.Capture(resize); e.Handled = true;
-        };
-        _dockRoot.Children.Add(resize);
-        var columns = docked.GroupBy(g => g.Column).ToArray();
-        for (var c = 0; c < columns.Length; c++)
-        {
-            if (c > 0)
-            {
-                _dockRoot.ColumnDefinitions.Add(new ColumnDefinition(4, GridUnitType.Pixel));
-                var separator = new GridSplitter { ResizeDirection = GridResizeDirection.Columns, HorizontalAlignment = HorizontalAlignment.Stretch, Background = Skin.BorderSubtleBrush };
-                Grid.SetColumn(separator, _dockRoot.ColumnDefinitions.Count - 1); _dockRoot.Children.Add(separator);
-            }
-            _dockRoot.ColumnDefinitions.Add(new ColumnDefinition(Math.Max(1, columns[c].First().ColumnWeight), GridUnitType.Star) { MinWidth = 100 });
-            var column = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
-            var toggle = DockButton("»", "Collapse Panels to Icons", () => SetDockCollapsed(true), "collapse-dock"); toggle.HorizontalAlignment = HorizontalAlignment.Right; column.Children.Add(toggle);
-            var rows = new Grid(); Grid.SetRow(rows, 1); column.Children.Add(rows);
-            foreach (var group in columns[c])
-            {
-                if (rows.RowDefinitions.Count > 0)
-                {
-                    rows.RowDefinitions.Add(new RowDefinition(4, GridUnitType.Pixel));
-                    var split = new GridSplitter { ResizeDirection = GridResizeDirection.Rows, HorizontalAlignment = HorizontalAlignment.Stretch, Background = Skin.BorderSubtleBrush };
-                    Grid.SetRow(split, rows.RowDefinitions.Count - 1); rows.Children.Add(split);
-                }
-                rows.RowDefinitions.Add(group.Collapsed ? new RowDefinition(GridLength.Auto) : new RowDefinition(Math.Max(1, group.Weight), GridUnitType.Star) { MinHeight = 65 });
-                Grid.SetRow(group.Frame, rows.RowDefinitions.Count - 1); rows.Children.Add(group.Frame);
-            }
-            Grid.SetColumn(column, _dockRoot.ColumnDefinitions.Count - 1); _dockRoot.Children.Add(column);
-        }
-        Grid.SetColumnSpan(_dockSidePreview, Math.Max(1, _dockRoot.ColumnDefinitions.Count)); _dockRoot.Children.Add(_dockSidePreview);
-    }
-    private void SetDockCollapsed(bool collapsed) { _dockCollapsed = collapsed; RenderDockArea(); }
     private void PeekDockPanel(DockPanelEntry entry, Control anchor)
     {
         _dockPeek?.Hide(); var group = entry.Group!; SelectPanel(entry); Detach(group.Tabs);
@@ -341,18 +279,18 @@ public sealed partial class MainWindow
             if (group.Column < 0 && group.Window is null) FloatGroup(group);
             if (group.Window is { } window) { BuildGroupChrome(group); window.Activate(); }
         }
-        _layersSide.IsVisible = true; if (_dockCollapsed) SetDockCollapsed(false); else RenderDockArea();
+        _layersSide.IsVisible = true; if (entry.Group is { Column: >= 0 } docked) SetColumnCollapsed(docked.Column, false); else RenderDockArea();
     }
     private void ResetDockPanels()
     {
         _dockPeek?.Hide(); var restoring = _restoringDock; _restoringDock = true; var locked = EditorPreferences.Current.LockWorkspace; EditorPreferences.Current.LockWorkspace = false; _contextPinned = false; _dockCollapsed = false; _dockExpandedWidth = 340;
-        foreach (var group in _dockGroups) { var window = group.Window; group.Window = null; if (window is not null) { window.Content = null; window.Close(); } group.Collapsed = false; }
+        foreach (var group in _dockGroups) { var window = group.Window; group.Window = null; if (window is not null) { window.Content = null; window.Close(); } group.Collapsed = false; group.ColumnCollapsed = false; }
         foreach (var group in _dockGroups.Where(g => g.ID is "inspector" or "layers"))
         { group.Column = 0; group.Order = group.ID == "inspector" ? 0 : 1; group.Weight = 5; group.ColumnWeight = 1; }
         foreach (var entry in _dockPanels.Values)
         {
             if (entry.Tab is not null) { var home = HomeGroup(entry); MovePanel(entry, home); entry.LastDockGroup = home.ID; }
-            else { entry.ToolCollapsed = false; DockToolBack(entry); }
+            else { entry.ToolCollapsed = false; entry.ToolDockRight = false; DockToolBack(entry); }
             entry.Visible = entry.Name is "Properties" or "History" or "Layers" or "Channels" or "Tools" or "Options" or "Contextual Task Bar";
             if (entry.Tab is not null) entry.Tab.IsVisible = entry.Visible; else entry.Slot!.IsVisible = entry.Visible;
         }

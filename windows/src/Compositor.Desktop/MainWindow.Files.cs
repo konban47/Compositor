@@ -11,6 +11,18 @@ namespace Compositor.Desktop;
 
 public sealed partial class MainWindow
 {
+    private (Tab Tab, Guid Layer)? _cameraRawAfterImport;
+    private void QueueImportedCameraRaw(Tab tab, Guid layer)
+    {
+        _cameraRawAfterImport = (tab, layer);
+        if (!_importingDrop) OpenImportedCameraRaw();
+    }
+    private void OpenImportedCameraRaw()
+    {
+        var pending = _cameraRawAfterImport; _cameraRawAfterImport = null;
+        if (pending is not { } request || !_tabs.Contains(request.Tab) || request.Tab.Document?.Layers.Any(l => l.ID == request.Layer) != true) return;
+        FinishPlacement(true); Bring(request.Tab); Reselect(request.Layer); CameraRawFilter();
+    }
     private async Task ImportImageFolder()
     {
         var picked = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = Localize.Text("Import Folder as Layers…") });
@@ -93,15 +105,17 @@ public sealed partial class MainWindow
                 ? target.Document?.Layers.FirstOrDefault(l => l.ID == selectedFrame && l.Container == LayerContainer.Frame && LayerProtection.CanMove(target.Document, l.ID)) : null;
             var fitting = target.Document is { } fit ? new SKSizeI(fit.Width, fit.Height) : (SKSizeI?)null;
             var image = await Task.Run(() => ImageImporter.Decode(path, fitting));
+            var openCameraRaw = false;
             if (ImageImporter.IsRaw(path))
             {
                 var developed = await RawDevelopDialog.Develop(this, image);
                 if (developed is null) { image.Dispose(); return; }
-                image = developed;
+                image = developed.Image; openCameraRaw = developed.OpenCameraRaw;
             }
             if (newTab || target.Document is null)
             {
                 AdoptImported(ImageImporter.NewDocument(image), "Import Image");
+                if (openCameraRaw && Selected is { } id) QueueImportedCameraRaw(_open, id);
                 return;
             }
             if (!_tabs.Contains(target)) { image.Dispose(); return; }
@@ -129,6 +143,7 @@ public sealed partial class MainWindow
             target.History.End(document, document.Layers[^1].ID);
             if (ReferenceEquals(target, _open)) { Reselect(document.Layers[^1].ID); Refresh(); }
             RefreshTabs();
+            if (openCameraRaw) QueueImportedCameraRaw(target, placed.ID);
         }
         catch (Exception error) { Say($"Could not open {Path.GetFileName(path)}: {error.Message}"); }
     }

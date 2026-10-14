@@ -18,8 +18,8 @@
 
   <PropertyGroup>
     <!-- Windows releases use an independent fourth version component. -->
-    <Version>1.5.1.3</Version>
-    <AssemblyVersion>1.5.1.3</AssemblyVersion>
+    <Version>1.5.2.0</Version>
+    <AssemblyVersion>1.5.2.0</AssemblyVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>Compositor</AssemblyName>
     <ApplicationIcon>Assets/compositor.ico</ApplicationIcon>

@@ -35,37 +35,82 @@ public sealed partial class MainWindow
                 }
             return new(target, placement, index);
         }
-        // An empty/collapsed sidebar remains a drop target.
+        // Collapsed columns retain their own targets; the left/right boundary creates a neighbouring column.
+        foreach (var (column, frame) in _dockColumnFrames)
+        {
+            var bounds = ScreenBounds(frame); var scale = RenderScaling;
+            if (point.Y < bounds.Top || point.Y > bounds.Bottom || point.X < bounds.Left - 12 * scale || point.X > bounds.Right + 12 * scale) continue;
+            var target = _dockGroups.FirstOrDefault(g => g.Column == column && !ReferenceEquals(g, moving) && g.Window is null);
+            if (target is null) continue;
+            var placement = point.X < bounds.Left + 5 * scale ? DockPlacement.Left : point.X > bounds.Right - 5 * scale ? DockPlacement.Right : DockPlacement.Sidebar;
+            return new(target, placement, target.Tabs.Items.Count);
+        }
         var side = ScreenBounds(_layersSide);
-        if (_layersSide.IsVisible && side.Inflate(12).Contains(point) && (_dockCollapsed || !_dockGroups.Any(g => g.Column >= 0 && Members(g).Any(p => p.Visible))))
+        if (_layersSide.IsVisible && side.Inflate(12 * RenderScaling).Contains(point) && !_dockGroups.Any(g => g.Column >= 0 && Members(g).Any(p => p.Visible)))
         {
             var target = _dockGroups.First(g => g.ID == "inspector");
             return new(target, DockPlacement.Sidebar, target.Tabs.Items.Count);
         }
         return null;
     }
+    private void ShowDockHint(Control target, DockPlacement placement)
+    {
+        if (target.TranslatePoint(default, _dockHintOverlay) is not { } at) return;
+        var rect = new Rect(at, target.Bounds.Size);
+        rect = placement switch
+        {
+            DockPlacement.Left => new Rect(rect.Left - 1, rect.Top, 2, rect.Height),
+            DockPlacement.Right => new Rect(rect.Right - 1, rect.Top, 2, rect.Height),
+            DockPlacement.Above => new Rect(rect.Left, rect.Top - 1, rect.Width, 2),
+            DockPlacement.Below => new Rect(rect.Left, rect.Bottom - 1, rect.Width, 2),
+            _ => rect.Deflate(2)
+        };
+        Canvas.SetLeft(_dockSidePreview, rect.X); Canvas.SetTop(_dockSidePreview, rect.Y);
+        var outlined = placement is DockPlacement.Tabs or DockPlacement.Sidebar;
+        _dockSidePreview.BorderThickness = new Thickness(outlined ? 2 : 0);
+        _dockSidePreview.Background = outlined ? Brushes.Transparent : _dockSidePreview.BorderBrush;
+        _dockSidePreview.Width = rect.Width; _dockSidePreview.Height = rect.Height; _dockSidePreview.IsVisible = true;
+    }
     private void ShowDockDrop(DockDrop? drop)
     {
         _dockDrop = drop; _dockSidePreview.IsVisible = false; foreach (var group in _dockGroups) group.Preview.IsVisible = false;
         if (drop is null) return;
-        if (drop.Placement == DockPlacement.Sidebar) { _dockSidePreview.IsVisible = true; return; }
-        var preview = drop.Group.Preview; preview.HorizontalAlignment = HorizontalAlignment.Stretch; preview.VerticalAlignment = VerticalAlignment.Stretch;
-        preview.Width = double.NaN; preview.Height = double.NaN; preview.Margin = new Thickness(0);
-        switch (drop.Placement)
+        var target = drop.Group.Frame;
+        if (drop.Group.Window is not null)
         {
-            case DockPlacement.Above: preview.VerticalAlignment = VerticalAlignment.Top; preview.Height = 5; break;
-            case DockPlacement.Below: preview.VerticalAlignment = VerticalAlignment.Bottom; preview.Height = 5; break;
-            case DockPlacement.Left: preview.HorizontalAlignment = HorizontalAlignment.Left; preview.Width = 5; break;
-            case DockPlacement.Right: preview.HorizontalAlignment = HorizontalAlignment.Right; preview.Width = 5; break;
+            // A native floating window has its own visual root.
+            var preview = drop.Group.Preview; preview.BoxShadow = _dockSidePreview.BoxShadow; preview.IsVisible = true; return;
         }
-        preview.IsVisible = true;
+        if ((drop.Placement is DockPlacement.Left or DockPlacement.Right or DockPlacement.Sidebar) && _dockColumnFrames.TryGetValue(drop.Group.Column, out var column))
+            ShowDockHint(column, drop.Placement);
+        else ShowDockHint(target.IsEffectivelyVisible && target.Parent is not null ? target : _layersSide, drop.Placement);
+    }
+    private DockPlacement? FindToolDrop(DockPanelEntry entry, PixelPoint at)
+    {
+        if (_dockEditorBody is null) return null;
+        var p = _dockEditorBody.PointToClient(at); var size = _dockEditorBody.Bounds.Size;
+        if (p.X < -24 || p.X > size.Width + 24 || p.Y < -24 || p.Y > size.Height + 24) return null;
+        if (entry.Name == "Tools")
+        {
+            if (p.Y < 0 || p.Y > size.Height) return null;
+            if (p.X < 28) return DockPlacement.Left;
+            if (p.X > size.Width - 28) return DockPlacement.Right;
+        }
+        else if (entry.Name == "Options" && p.Y < 24) return DockPlacement.Above;
+        else if (entry.Name == "Contextual Task Bar" && p.Y > size.Height - 28) return DockPlacement.Below;
+        return null;
+    }
+    private void ShowToolDrop(DockPlacement? placement)
+    {
+        ShowDockDrop(null);
+        if (placement is { } side && _dockEditorBody is { } body) ShowDockHint(body, side);
     }
     private void ApplyDockDrop(DockDrop drop, IReadOnlyList<DockPanelEntry> entries)
     {
         var target = drop.Group; var active = entries.FirstOrDefault(p => ReferenceEquals(p.Host?.SelectedItem, p.Tab));
         if (drop.Placement == DockPlacement.Sidebar)
         {
-            target = _dockGroups.FirstOrDefault(g => g.Column >= 0 && g.Window is null) ?? MakeDockGroup(Guid.NewGuid().ToString("N"), column: 0);
+            target = drop.Group.Column >= 0 && drop.Group.Window is null ? drop.Group : _dockGroups.FirstOrDefault(g => g.Column >= 0 && g.Window is null) ?? MakeDockGroup(Guid.NewGuid().ToString("N"), column: 0);
         }
         else if (drop.Placement != DockPlacement.Tabs)
         {
@@ -83,6 +128,7 @@ public sealed partial class MainWindow
             }
         }
         target.Collapsed = false;
+        foreach (var group in _dockGroups.Where(g => g.Column == target.Column && g.Window is null)) group.ColumnCollapsed = false;
         var index = drop.Placement == DockPlacement.Tabs ? drop.Index : -1;
         foreach (var entry in entries) { MovePanel(entry, target, index); if (index >= 0) index++; }
         if (active is { Visible: true }) SelectPanel(active); else SelectVisiblePanel(target.Tabs);
@@ -96,7 +142,11 @@ public sealed partial class MainWindow
         var surface = top as Window ?? this;
         // Selection happens on press even if the user never crosses the drag threshold.
         if (entry is not null) SelectPanel(entry);
-        if (EditorPreferences.Current.LockWorkspace || entry?.Name == "Contextual Task Bar" && _contextPinned) { e.Handled = true; return; }
+        if (EditorPreferences.Current.LockWorkspace || entry?.Name == "Contextual Task Bar" && _contextPinned)
+        {
+            if (entry?.Tab is not null && handle.Tag is string iconTag && iconTag.StartsWith("panel-icon-", StringComparison.Ordinal)) PeekDockPanel(entry, handle);
+            e.Handled = true; return;
+        }
         if (e.ClickCount == 2 && entry?.Slot is not null) { ToggleToolCollapse(entry); e.Handled = true; return; }
         if (e.ClickCount == 2 && wholeGroup is { } collapse) { ToggleGroupCollapse(collapse); e.Handled = true; return; }
         var before = CaptureDockWorkspace(); var origin = handle.PointToScreen(e.GetPosition(handle));
@@ -130,21 +180,20 @@ public sealed partial class MainWindow
             }
             if (movingWindow is not null) movingWindow.Position = at - offset;
             UpdateLayout(); foreach (var floating in _dockGroups.Select(g => g.Window).OfType<Window>()) floating.UpdateLayout();
-            if (entry?.Slot is null) ShowDockDrop(FindDockDrop(at, movingGroup));
+            if (entry?.Slot is not null) ShowToolDrop(FindToolDrop(entry, at)); else ShowDockDrop(FindDockDrop(at, movingGroup));
             args.Handled = true;
         }
         void Release(object? sender, PointerReleasedEventArgs args)
         {
             var at = surface.PointToScreen(args.GetPosition(surface)); Cleanup(); args.Pointer.Capture(null);
-            if (!started) { args.Handled = true; return; }
+            if (!started) { if (entry?.Tab is not null && handle.Tag is string tag && tag.StartsWith("panel-icon-", StringComparison.Ordinal)) PeekDockPanel(entry, handle); args.Handled = true; return; }
             if (started)
             {
                 if (movingWindow is not null) movingWindow.Opacity = 1;
-                if (entry?.Slot is { } slot)
+                if (entry?.Slot is not null)
                 {
-                    var bounds = ScreenBounds(slot); var local = this.PointToClient(at);
-                    var back = entry.Name == "Tools" ? local.X < 70 : entry.Name == "Options" ? local.Y is > 50 and < 120 : local.Y > Bounds.Height - 75;
-                    if (bounds.Contains(at.ToPoint(1)) || back) DockToolBack(entry);
+                    if (FindToolDrop(entry, at) is { } placement)
+                    { if (entry.Name == "Tools") entry.ToolDockRight = placement == DockPlacement.Right; DockToolBack(entry); }
                 }
                 else if (FindDockDrop(at, movingGroup) is { } drop) ApplyDockDrop(drop, entries);
             }

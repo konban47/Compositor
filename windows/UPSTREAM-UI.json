@@ -1,6 +1,6 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "e8c9e29701528413cc0e608d61187c1c61790add",
+  "commit": "43d691b67995e924965bcd520f8b300f96b7d5b8",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
@@ -26,7 +26,7 @@
     },
     {
       "path": "Compositor/Document/EditorSession.swift",
-      "sha256": "fe4fe9b24a9393424abf6a1464877433b6dc68a3eb5bbfaca24663c790aeb479"
+      "sha256": "d99d1cc305e40bd435acca7d2060cd43d2db67c1c1025a162826c9bbddb757aa"
     },
     {
       "path": "Compositor/UI/ColorPaletteControls.swift",

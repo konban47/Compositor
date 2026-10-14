@@ -35,7 +35,7 @@ $upstream = (Read-Repo 'windows/UPSTREAM-UI.json' | ConvertFrom-Json).commit
 if (!(Read-Repo $updates).Contains($upstream)) { throw 'Upstream baseline is missing.' }
 $table = Join-Path $repo 'Compositor/Resources/CameraRawTables.bin'
 $converted = Join-Path $repo 'windows/src/Compositor.Core/Resources/CameraRawTables.deflate'
-foreach ($asset in @($table,$converted)) {
+foreach ($asset in @($table,$converted,(Join-Path $repo "Compositor/Resources/CameraRawShadows.bin"),(Join-Path $repo "windows/src/Compositor.Core/Resources/CameraRawShadows.bin"))) {
     $hash = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLower()
     if (!(Read-Repo $updates).Contains($hash)) { throw "Camera Raw data changed without updated provenance: $asset" }
 }
@@ -110,6 +110,7 @@ foreach ($feature in @('工作区','参考线','Ctrl+Esc','Skia','ATN','5 fps'))
 if (!$formatDoc.Contains('`artboardID`')) { throw 'Artboard guide ownership is undocumented.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--docking-checks')) { throw 'Docking checks missing from CI.' }
 if (!(Read-Repo 'windows/scripts/package.ps1').Contains('WINDOW-MENU.md')) { throw 'Window guide missing from package.' }
+foreach ($feature in @('各列独立','左／右边缘','柔和光晕','固定位置')) { if (!$windowGuide.Contains($feature)) { throw "Docking guide missing $feature." } }
 $panelIcons = (Read-Repo 'windows/design/panel-icons/prompts.json') | ConvertFrom-Json
 $glyphs = Read-Repo 'windows/src/Compositor.Desktop/DockPanelGlyph.cs'
 if ($panelIcons.icons.Count -ne 35 -or !$windowGuide.Contains('35 个专属')) { throw 'Collapsed icon coverage or guide is stale.' }

@@ -55,3 +55,7 @@ Windows 1.5.1.3 merges upstream through `e8c9e29701528413cc0e608d61187c1c61790ad
 The Camera Raw section resets and shortcut editor changes follow the MIT upstream sources recorded in `UPSTREAM-UI.json`. Docking, guide cursors and compact slider geometry are native Avalonia/Skia implementations; no Adobe cursor binary or proprietary panel code is included.
 
 Windows 1.5.1.3 adds 35 individually generated panel-icon references using built-in imagegen. `DockPanelGlyph.cs` contains manually adapted small-size vectors with theme-aware color. Photoshop informed panel semantics; no Adobe icon files, fonts or branding are bundled. Full prompts, original generated references and exported SVGs are in [panel icon provenance](design/panel-icons/README.md). The tool did not expose its model identity.
+
+## Windows 1.5.2.0 / Camera Raw Shadows
+
+Upstream MIT sources are merged through `43d691b67995e924965bcd520f8b300f96b7d5b8`. `CameraRawShadows.cs` ports `CameraRawShadows.swift` and `adjust_camera_raw_shadows` from commit 735c2cc. `Resources/CameraRawShadows.bin` is the unmodified upstream coefficient data (SHA-256 `76578539bc45a32817aff669c4e41523d7040f3c691ad35adf0723a70a89a705`). The shadow landscape tests preserve upstream synthetic fields and reference measurements. No user video, PSD or Photoshop artwork is distributed.

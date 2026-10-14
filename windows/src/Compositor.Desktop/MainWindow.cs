@@ -645,7 +645,8 @@ public sealed partial class MainWindow : Window
         root.Children.Add(statusBar);
         var contextBar = BuildContextualBar(); DockPanel.SetDock(contextBar, Dock.Bottom); root.Children.Add(contextBar);
         // The rail runs down the left of the canvas, as the Mac's does, and the canvas takes the rest.
-        var body = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+        var body = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
+        _dockEditorBody = body;
         var views = Views();
         _toolDockSlot = DockTool("Tools", _rail);
         Grid.SetColumn(_toolDockSlot, 0);
@@ -654,7 +655,8 @@ public sealed partial class MainWindow : Window
         body.Children.Add(views);
         root.Children.Add(body);
         _chrome = [contextBar, menu, tabs, _optionDockSlot, _placementBar, _cameraRawHost, _layersSide, statusBar, _toolDockSlot, _rulerAcross, _rulerDown, _rulerCorner];
-        return root;
+        _dockHintOverlay.Children.Add(_dockSidePreview);
+        return new Grid { Children = { root, _dockHintOverlay } };
     }
 
     /// <summary>
