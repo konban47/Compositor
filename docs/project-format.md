@@ -1,8 +1,8 @@
-# Compositor project format, macOS versions 1–13 and Windows extensions 12–19
+# Compositor project format, macOS versions 1–14 and Windows extensions 12–22
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
-The manifest identifies `com.compositor.project`, version `13` for new macOS saves (versions `1`–`12` remain readable), and the sRGB working space. It stores document UUID, pixel dimensions, active layer UUID, and layers in bottom-to-top order. Each layer stores its UUID, name, visibility, transform (origin, size, clockwise rotation, flips, sampling), and optional image filename. Blank layers have no image asset.
+The manifest identifies `com.compositor.project`, version `14` for new macOS saves (versions `1`–`13` remain readable), and the sRGB working space. It stores document UUID, pixel dimensions, active layer UUID, and layers in bottom-to-top order. Each layer stores its UUID, name, visibility, transform (origin, size, clockwise rotation, flips, sampling), and optional image filename. Blank layers have no image asset.
 
 Embedded PNGs preserve source pixels and transparency; transforms remain separate. Projects survive moving or deleting imported source photos. Saving uses a coordinated atomic package replacement. Unsupported versions, invalid metadata, missing assets, unsafe paths, and oversized data are rejected before replacing the live document.
 
@@ -239,3 +239,7 @@ Guide selection, hover color and floating window/view state are not document fie
 ## Windows extension version 22
 
 An artboard layer can store optional `artboardBackground`, an unsigned 32-bit ARGB integer. Missing or null means opaque white (`4294967295`); zero means transparent. Non-white backgrounds require v22. Default white omits this field and retains the minimum format version required by the other document features. Rendering, history, independent copies and project round trips preserve the value. Only layers with `container` set to the artboard enum use it. Windows reads versions 1–22; this extension is not implemented by upstream macOS. Tool presets and workspace placement remain user settings outside the project manifest.
+
+## Upstream macOS version 14
+
+Version 14 adds optional `smoothing` to a layer’s `shape` style. True draws rectangle corners with Figma-style 60% smoothing (the iOS squircle match); false or missing keeps circular corners. Radius stays in document pixels, and smoothing reduces when the corners have insufficient room. Drawing previews and scaled redraws use the same geometry. Files declaring versions 1–13 cannot enable smoothing, and older app builds reject v14.
