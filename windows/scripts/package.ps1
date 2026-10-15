@@ -2,9 +2,13 @@ param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\dist'),
     [string]$Version = '1.5.3.0',
     [string]$Dotnet = 'dotnet',
+    [string]$InnoCompiler = (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
     [switch]$Installer
 )
 $ErrorActionPreference = 'Stop'
+if ($Installer -and !(Test-Path -LiteralPath $InnoCompiler -PathType Leaf)) {
+    throw 'Inno Setup 6 is required for -Installer. Use -InnoCompiler to specify ISCC.exe.'
+}
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $out = [IO.Path]::GetFullPath($OutputDirectory)
 $name = "Compositor-Windows-$Version-x64"
@@ -33,9 +37,7 @@ Get-FileHash -LiteralPath $runtime -Algorithm SHA256 | ForEach-Object { "$($_.Ha
 $zip = Join-Path $out "$name-portable.zip"
 Compress-Archive -LiteralPath $bundle -DestinationPath $zip -CompressionLevel Optimal
 if ($Installer) {
-    $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-    if (!(Test-Path -LiteralPath $compiler)) { throw 'Inno Setup 6 is required for -Installer. GitHub Actions provides it.' }
-    & $compiler "/DSourceDir=$bundle" "/DOutputDir=$out" "/DAppVersion=$Version" "$repo\windows\installer\Compositor.iss"
+    & $InnoCompiler "/DSourceDir=$bundle" "/DOutputDir=$out" "/DAppVersion=$Version" "$repo\windows\installer\Compositor.iss"
     if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
 }
 Get-ChildItem -LiteralPath $out -File | Where-Object { $_.Extension -in '.zip', '.exe' } |

@@ -28,7 +28,7 @@
 - 15 种工具按截图补齐选项栏和弹窗：单行／单列、交叉和羽化、软选区画笔、对象区域查找、裁剪预设／网格／填充、切片自动补齐／划分／排列／属性。
 - 浮窗标题按钮图标放大并居中，三点圆点统一；上下文任务栏默认关闭，停靠时无标题。四套主题使用实心滑块，底部横向滚动条保留在信息栏中间；深灰标题填充与关闭按钮红色悬停同步。
 - 上游平滑圆角接入形状工具、属性、SVG 与保存；图层列表支持中键拖动，缩放光标随方向更新。Camera Raw 保持原尺寸调整，示波器采用上游 4／8 像素采样步长。
-- **1184 项核心测试、21 组英文／15 组中文界面检查**。新增 `--selection-options-checks` 并纳入发行包检查。Windows 10 实机和数位板仍需独立验收。
+- **本机通过 1184 项核心测试、21 组英文／15 组中文界面检查**。本次 GitHub Actions 返回已禁用（HTTP 422），未取得 Windows Server 2022／2025 运行结果。新增 `--selection-options-checks` 并纳入发行包检查。Windows 10 实机和数位板仍需独立验收。
 - 云端选主体／人物及生成式扩展调用用户配置的图像服务；默认设备模式使用 U²-NetP 前景分割，不提供人物类别／身体部位识别。Windows 保持 Skia，不迁移 macOS Metal 管线，OpenCL 仍暂缓。
 
 以下版本段落为历史记录。
@@ -196,6 +196,8 @@ dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --windo
 # 生成自带运行时的 ZIP；-Installer 还需要预装 Inno Setup 6
 ./windows/scripts/package.ps1 -OutputDirectory "$PWD\dist" -Installer
 ```
+
+Inno Setup 不在默认位置时，增加 `-InnoCompiler "C:\path\to\ISCC.exe"`。
 
 构建脚本会从微软官网下载签名有效的 C++ 运行库，**不会在构建机安装它**。GitHub Actions 使用已有 Inno Setup 编译器构建安装包，并在临时 runner 上验证安装/卸载。
 

@@ -11,7 +11,9 @@
 - 上游 `f4b7009`／`cf0ffa1`：Windows Camera Raw 保持已有原尺寸参数预览，示波器改为直接从原图以 4 像素步长采样，超过 400 万像素时使用 8 像素步长，避免预缩小稀释小范围剪切。`9329ab8` 的 Metal 管线属于 macOS；Windows 继续使用已验证的 CPU／Skia 与测量表，不宣称移植 Metal 性能，也不启用暂缓的 OpenCL。
 - 同步首页、Windows 手册、现有工具说明、项目格式、来源哈希、安装包文档与 CI 一致性检查。扩展切片属性和平滑圆角保存为 Windows v23，其余仍使用最低必要格式。
 
-验证：1184 项核心测试；Release 构建以警告为错误；21 组英文、15 组中文界面回归，新增 `--selection-options-checks` 并用于发行包。实际 Windows 11 窗口检查确认原生边框、项目 logo、红色关闭悬停和滚动条模板；自动化不等同于 Windows 10、真实数位板或多显示器实机验收。云端生成未发送测试请求。用户提供的截图不进入仓库与安装包。
+本机验证：1184 项核心测试；Release 构建以警告为错误；21 组英文、15 组中文界面回归，新增 `--selection-options-checks` 并用于发行包。实际 Windows 11 窗口检查确认原生边框、项目 logo、红色关闭悬停和滚动条模板；自动化不等同于 Windows 10、真实数位板或多显示器实机验收。云端生成未发送测试请求。用户提供的截图不进入仓库与安装包。
+
+GitHub Actions 在 2026-10-15 返回“Actions has been disabled for this repository”（HTTP 422）；本次没有 Windows Server 2022／2025 云端验证结果。发行包改由本机生成，完整包验收结果记录在 GitHub Release 中。
 
 Camera Raw 数据来源（SHA-256，移植表保持原版本）：
 
