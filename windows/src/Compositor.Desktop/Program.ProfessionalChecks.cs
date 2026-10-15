@@ -20,7 +20,7 @@ internal static partial class Program
     private static int ProfessionalChecks(string output)
     {
         BuildHeadless().SetupWithoutStarting();
-        try { var window = new MainWindow(); window.Show(); window.ProfessionalSelfCheck(output); Console.WriteLine("PASS: brush/source/type cursors, workspace grid, shortcut layout, all 69 tools, selection painting/magnetic/quick selection, perspective crop, frame import, slice/measure/count/note/sampler persistence, repair brushes and upstream artwork."); return 0; }
+        try { var window = new MainWindow(); window.Show(); window.ProfessionalSelfCheck(output); Console.WriteLine("PASS: brush/source/type cursors, workspace grid, shortcut layout, all 71 tools, selection painting/magnetic/quick selection, perspective crop, frame import, slice/measure/count/note/sampler persistence, repair brushes and upstream artwork."); return 0; }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
     }
 }

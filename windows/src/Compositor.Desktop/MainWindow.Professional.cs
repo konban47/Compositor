@@ -26,11 +26,11 @@ public sealed partial class MainWindow
     private SelectionPaintMode _proMode;
     private ProfessionalOptions Pro => _optionsBar.Professional;
     private MarkKind? MarkToolKind => _tool switch { Tool.Slice or Tool.SliceSelect => MarkKind.Slice, Tool.Note => MarkKind.Note, Tool.Count => MarkKind.Count, Tool.Ruler => MarkKind.Measure, Tool.ColorSampler => MarkKind.Sampler, _ => null };
-    private SelectionPaintMode ProMode(KeyModifiers keys) => keys.HasFlag(KeyModifiers.Alt) ? keys.HasFlag(KeyModifiers.Shift) ? SelectionPaintMode.Intersect : SelectionPaintMode.Subtract : keys.HasFlag(KeyModifiers.Shift) ? SelectionPaintMode.Add : Pro.SelectionMode;
+    private SelectionPaintMode ProMode(KeyModifiers keys) => keys.HasFlag(KeyModifiers.Alt) ? keys.HasFlag(KeyModifiers.Shift) ? SelectionPaintMode.Intersect : SelectionPaintMode.Subtract : keys.HasFlag(KeyModifiers.Shift) ? SelectionPaintMode.Add : _tool == Tool.SelectionBrush ? Pro.SelectionMode : (SelectionPaintMode)(int)_options.Selection.Mode;
     private bool ProfessionalPressed(SKPoint at, KeyModifiers keys, int clicks)
     {
         if (_document is not { } doc) return false;
-        if (_tool is Tool.SelectionBrush or Tool.QuickSelection or Tool.MagneticLasso or Tool.PerspectiveCrop or Tool.Slice or Tool.SliceSelect or Tool.Frame or Tool.ColorSampler or Tool.Ruler or Tool.Note or Tool.Count or Tool.Patch or Tool.ContentMove or Tool.RedEye)
+        if (_tool is Tool.Object or Tool.SelectionBrush or Tool.QuickSelection or Tool.MagneticLasso or Tool.PerspectiveCrop or Tool.Slice or Tool.SliceSelect or Tool.Frame or Tool.ColorSampler or Tool.Ruler or Tool.Note or Tool.Count or Tool.Patch or Tool.ContentMove or Tool.RedEye)
         {
             if (_open.ActiveAlpha is not null) { Say("Select RGB to use this command."); return true; }
             _proStart = _proEnd = at; _proGesture = true; _proGrab = -1;
@@ -40,7 +40,7 @@ public sealed partial class MainWindow
                 if (_proPoints.Count == 0) { _proMode = ProMode(keys); _magneticSample = SelectionEdits.Sample(doc, Pro.SampleAll ? null : Selected); }
                 _proPoints.Add(at); _canvas.InvalidateVisual(); return true;
             }
-            if (_tool is Tool.SelectionBrush or Tool.QuickSelection) { _proPoints.Clear(); _proPoints.Add(at); _proMode = ProMode(keys); return true; }
+            if (_tool is Tool.Object or Tool.SelectionBrush or Tool.QuickSelection) { _proPoints.Clear(); _proPoints.Add(at); _proMode = ProMode(keys); return true; }
             if (_tool == Tool.PerspectiveCrop)
             {
                 if (_perspectiveQuad is { } quad)
@@ -51,12 +51,20 @@ public sealed partial class MainWindow
             { _proMovingSelection = doc.Selection.Path is { IsEmpty: false } path && path.Contains(at.X, at.Y); _proPoints.Clear(); _proPoints.Add(at); return true; }
             if (MarkToolKind is { } kind)
             {
-                _markBefore = doc.Marks.LastOrDefault(m => m.Kind == kind && m.Visible && (kind == MarkKind.Slice ? new SKRect((float)m.X, (float)m.Y, (float)(m.X + m.Width), (float)(m.Y + m.Height)).Contains(at)
+                _sliceMoveOriginals = null;
+                _markBefore = (_tool == Tool.SliceSelect ? DisplayMarks() : doc.Marks).LastOrDefault(m => m.Kind == kind && m.Visible && (kind == MarkKind.Slice ? new SKRect((float)m.X, (float)m.Y, (float)(m.X + m.Width), (float)(m.Y + m.Height)).Contains(at)
                     : SKPoint.Distance(at, new SKPoint((float)m.X, (float)m.Y)) < 12 / _canvas.Zoom));
                 if (_tool == Tool.Slice) _markBefore = null;
                 if (_markBefore is { } found)
                 {
                     _selectedMark = found.ID;
+                    if (kind == MarkKind.Slice)
+                    {
+                        if (keys.HasFlag(KeyModifiers.Shift)) { if (!_selectedSlices.Add(found.ID)) _selectedSlices.Remove(found.ID); }
+                        else if (!_selectedSlices.Contains(found.ID)) { _selectedSlices.Clear(); _selectedSlices.Add(found.ID); }
+                        if (!doc.Marks.Any(m => m.ID == found.ID)) { _markBefore = null; _proGesture = false; _canvas.InvalidateVisual(); return true; }
+                        _sliceMoveOriginals = doc.Marks.Where(m => _selectedSlices.Contains(m.ID)).ToArray();
+                    }
                     if (keys.HasFlag(KeyModifiers.Alt)) { DeleteToolAnnotation(); _proGesture = false; return true; }
                     if (_tool == Tool.Count && !keys.HasFlag(KeyModifiers.Shift)) _markBefore = null;
                     else if (clicks > 1 && _tool is Tool.Note or Tool.SliceSelect) { _ = EditAnnotation(); _proGesture = false; return true; }
@@ -82,13 +90,13 @@ public sealed partial class MainWindow
     {
         if (_tool == Tool.MagneticLasso && _proPoints.Count > 0)
         {
-            var snapped = keys.HasFlag(KeyModifiers.Alt) || _magneticSample is null ? at : SelectionBrushEdits.SnapEdge(_magneticSample, at, Pro.MagneticWidth, Pro.MagneticContrast);
-            if (SKPoint.Distance(snapped, _proPoints[^1]) >= Pro.MagneticFrequency && _proPoints.Count < 10000) _proPoints.Add(snapped);
+            var snapped = keys.HasFlag(KeyModifiers.Alt) || _magneticSample is null ? at : SelectionBrushEdits.SnapEdge(_magneticSample, at, Pro.MagneticWidth * (_options.Selection.MagneticPressure ? _canvas.PointerPressure : 1), Pro.MagneticContrast);
+            if (SKPoint.Distance(snapped, _proPoints[^1]) >= Math.Max(1, 20 * (1 - Pro.MagneticFrequency / 100)) && _proPoints.Count < 10000) _proPoints.Add(snapped);
             _proEnd = snapped; _canvas.InvalidateVisual(); return true;
         }
         if (!_proGesture) return false;
         _proEnd = at;
-        if (_tool is Tool.SelectionBrush or Tool.QuickSelection or Tool.Patch or Tool.ContentMove && _proPoints.Count < 10000) _proPoints.Add(at);
+        if (_tool is Tool.Object or Tool.SelectionBrush or Tool.QuickSelection or Tool.Patch or Tool.ContentMove && _proPoints.Count < 10000) _proPoints.Add(at);
         if (_tool == Tool.PerspectiveCrop && _perspectiveQuad is { } quad)
         {
             if (_proGrab >= 0) quad[_proGrab] = at;
@@ -99,6 +107,8 @@ public sealed partial class MainWindow
             var delta = at - _proStart;
             var next = _proGrab == 2 ? mark with { Width = Math.Max(1, mark.Width + delta.X), Height = Math.Max(1, mark.Height + delta.Y) } : mark with { X = mark.X + delta.X, Y = mark.Y + delta.Y };
             var index = doc.Marks.FindIndex(m => m.ID == mark.ID); if (index >= 0 && next.IsValid) doc.Marks[index] = next;
+            if (mark.Kind == MarkKind.Slice && _proGrab != 2 && _sliceMoveOriginals is { } originals)
+                foreach (var original in originals) { var moved = original with { X = original.X + delta.X, Y = original.Y + delta.Y }; var i = doc.Marks.FindIndex(m => m.ID == original.ID); if (i >= 0 && moved.IsValid) doc.Marks[i] = moved; }
             ShowAnnotationReadout();
         }
         _canvas.InvalidateVisual(); return true;
@@ -108,12 +118,18 @@ public sealed partial class MainWindow
         if (!_proGesture) return false;
         _proGesture = false;
         if (_document is not { } doc) return true;
-        if (_markHistory) { _markHistory = false; _history.End(doc, Selected); _markBefore = null; Refresh(); return true; }
-        if (_tool is Tool.SelectionBrush or Tool.QuickSelection)
+        if (_markHistory) { _markHistory = false; _history.End(doc, Selected); _markBefore = null; _sliceMoveOriginals = null; Refresh(); return true; }
+        if (_tool == Tool.Object)
+        {
+            var point = SKPoint.Distance(_proStart, _proEnd) < 3 / _canvas.Zoom ? _proEnd : (SKPoint?)null;
+            var region = _options.Selection.ObjectShape == 1 ? SelectionEdits.Lasso(_proPoints) : SelectionEdits.Shape(SKRectI.Round(ProBox()), false);
+            _ = SelectObjectRegion(region, point, _proMode); _proPoints.Clear();
+        }
+        else if (_tool is Tool.SelectionBrush or Tool.QuickSelection)
         {
             Edit(ToolCatalog.Title(_tool), () => _tool == Tool.SelectionBrush
-                ? SelectionBrushEdits.Paint(doc, _proPoints, _options.Brush.Diameter, _options.Brush.Opacity, _proMode)
-                : SelectionBrushEdits.Quick(doc, Pro.SampleAll ? null : Selected, _proPoints, _options.Brush.Diameter, _options.Wand.Tolerance, _proMode));
+                ? SelectionBrushEdits.Paint(doc, _proPoints, _options.Brush.Diameter, _options.Brush.Opacity, _proMode, _options.Brush.Hardness)
+                : SelectionBrushEdits.Quick(doc, Pro.SampleAll ? null : Selected, _proPoints, _options.Brush.Diameter, _options.Wand.Tolerance, _proMode, _options.Selection.BrushAngle, _options.Selection.EnhanceEdge, _options.Brush.Hardness));
             _proPoints.Clear();
         }
         else if (_tool == Tool.PerspectiveCrop) Say("Drag the four corners, then press Enter to crop. Zero dimensions use automatic size.");
@@ -121,7 +137,7 @@ public sealed partial class MainWindow
         {
             Guid? made = null; Edit("Frame Tool", () => (made = LayerWorkflow.MakeContainer(doc, SelectedLayers, LayerContainer.Frame, Localize.Text("Frame"), frame, Pro.EllipseFrame)) is not null); Reselect(made);
         }
-        else if (_tool == Tool.Slice && ProBox() is { Width: > 1, Height: > 1 } slice)
+        else if (_tool == Tool.Slice && ProBox() is { Width: > 0, Height: > 0 } slice)
             AddMark(new DocumentMark { Kind = MarkKind.Slice, X = slice.Left, Y = slice.Top, Width = slice.Width, Height = slice.Height, Name = "slice-" + (doc.Marks.Count(m => m.Kind == MarkKind.Slice) + 1) });
         else if (_tool == Tool.Ruler)
         {
@@ -153,25 +169,20 @@ public sealed partial class MainWindow
         if (RepairEdits.Patch(doc, id, PlacementMesh.Scale(delta, -1), true, Pro.SampleAll)) return true;
         doc.Selection = previous; return false;
     }
-    private SKRect ProBox() => new(Math.Min(_proStart.X, _proEnd.X), Math.Min(_proStart.Y, _proEnd.Y), Math.Max(_proStart.X, _proEnd.X), Math.Max(_proStart.Y, _proEnd.Y));
+    private SKRect ProBox() => _tool == Tool.Slice ? SliceRectangle() : new(Math.Min(_proStart.X, _proEnd.X), Math.Min(_proStart.Y, _proEnd.Y), Math.Max(_proStart.X, _proEnd.X), Math.Max(_proStart.Y, _proEnd.Y));
     private bool FinishProfessionalDraft()
     {
         if (_document is not { } doc) return false;
         if (_tool == Tool.MagneticLasso && _proPoints.Count > 0)
         {
             using var shape = new SKPathBuilder(); shape.MoveTo(_proPoints[0]); foreach (var p in _proPoints.Skip(1)) shape.LineTo(p); shape.Close(); using var path = shape.Detach();
-            Edit("Magnetic Lasso Tool", () =>
-            {
-                if (_proMode == SelectionPaintMode.Intersect && doc.Selection.Path is { } previous)
-                { var intersection = previous.Op(path, SKPathOp.Intersect); if (intersection is null) return false; doc.Selection = DocumentSelection.FromPath(intersection); return true; }
-                return SelectionEdits.Apply(doc, path, _proMode switch { SelectionPaintMode.Add => SelectionMode.Add, SelectionPaintMode.Subtract => SelectionMode.Subtract, _ => SelectionMode.Replace });
-            }); CancelProfessionalDraft(); return true;
+            Edit("Magnetic Lasso Tool", () => ApplyToolSelection(doc, path, (SelectionMode)(int)_proMode)); CancelProfessionalDraft(); return true;
         }
         if (_tool == Tool.PerspectiveCrop && _perspectiveQuad is { } quad)
         {
             var width = Pro.CropWidth > 0 ? Pro.CropWidth : (int)Math.Round((SKPoint.Distance(quad[0], quad[1]) + SKPoint.Distance(quad[3], quad[2])) / 2);
             var height = Pro.CropHeight > 0 ? Pro.CropHeight : (int)Math.Round((SKPoint.Distance(quad[0], quad[3]) + SKPoint.Distance(quad[1], quad[2])) / 2);
-            if (Edit("Perspective Crop Tool", () => PerspectiveCropEdits.Apply(doc, quad, width, height))) { CancelProfessionalDraft(); _canvas.Fit(); }
+            if (Edit("Perspective Crop Tool", () => { if (!PerspectiveCropEdits.Apply(doc, quad, width, height)) return false; if (_options.Crop.Resolution > 0) doc.Resolution = _options.Crop.Resolution * (_options.Crop.ResolutionUnit == 1 ? 2.54 : 1); return true; })) { CancelProfessionalDraft(); _canvas.Fit(); }
             else Say("The crop must have four convex corners and fit within document limits."); return true;
         }
         return false;
@@ -181,10 +192,11 @@ public sealed partial class MainWindow
         var had = _proPoints.Count > 0 || _perspectiveQuad is not null || _proGesture;
         if (_markHistory && _document is { } doc)
         {
+            if (_sliceMoveOriginals is { } originals) foreach (var original in originals) { var i = doc.Marks.FindIndex(m => m.ID == original.ID); if (i >= 0) doc.Marks[i] = original; }
             if (_markBefore is { } before) { var index = doc.Marks.FindIndex(m => m.ID == before.ID); if (index >= 0) doc.Marks[index] = before; }
             _history.End(doc, Selected); _markHistory = false;
         }
-        _proPoints.Clear(); _perspectiveQuad = null; _magneticSample?.Dispose(); _magneticSample = null; _proGesture = false; _markBefore = null; _canvas.InvalidateVisual(); return had;
+        _proPoints.Clear(); _perspectiveQuad = null; _magneticSample?.Dispose(); _magneticSample = null; _proGesture = false; _markBefore = null; _sliceMoveOriginals = null; _canvas.InvalidateVisual(); return had;
     }
     private bool ProfessionalKey(KeyEventArgs e)
     {
@@ -201,9 +213,14 @@ public sealed partial class MainWindow
         Edit("Add Annotation", () => { doc.Marks.Add(mark); return true; }); _selectedMark = mark.ID; ShowAnnotationReadout();
     }
     private void DeleteToolAnnotation()
-    { if (_document is { } doc && _selectedMark is { } id) Edit("Delete Annotation", () => doc.Marks.RemoveAll(m => m.ID == id) > 0); _selectedMark = null; ShowAnnotationReadout(); }
+    {
+        if (_document is { } doc && _selectedMark is { } id)
+            Edit("Delete Annotation", () => doc.Marks.RemoveAll(m => m.ID == id || _tool == Tool.SliceSelect && _selectedSlices.Contains(m.ID)) > 0);
+        _selectedMark = null; _selectedSlices.Clear(); ShowAnnotationReadout();
+    }
     private async Task EditAnnotation()
     {
+        if (_tool == Tool.SliceSelect) { await EditSliceOptions(); return; }
         var doc = _document; if (doc?.Marks.FirstOrDefault(m => m.ID == _selectedMark) is not { } mark) return;
         var changed = await MarkDialog.Edit(this, mark); if (changed is null || !ReferenceEquals(doc, _document)) return;
         Edit("Edit Annotation", () => { var i = doc.Marks.FindIndex(m => m.ID == mark.ID); if (i < 0 || doc.Marks[i] == changed) return false; doc.Marks[i] = changed; return true; }); ShowAnnotationReadout();
@@ -267,15 +284,20 @@ public sealed partial class MainWindow
         try
         {
             var exported = new List<object>();
-            foreach (var slice in doc.Marks.Where(m => m.Kind == MarkKind.Slice))
+            foreach (var slice in doc.Marks.Where(m => m.Kind == MarkKind.Slice).Concat(AutoSlices()))
             {
                 var box = SKRectI.Intersect(new SKRectI((int)Math.Floor(slice.X), (int)Math.Floor(slice.Y), (int)Math.Ceiling(slice.X + slice.Width), (int)Math.Ceiling(slice.Y + slice.Height)), SKRectI.Create(doc.Width, doc.Height));
                 if (box.Width <= 0 || box.Height <= 0) continue;
                 var name = string.Concat(slice.Name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)); if (string.IsNullOrWhiteSpace(name)) name = "slice";
                 name = name.Trim().TrimEnd('.') + "-" + slice.ID.ToString("N")[..8] + ".png"; var path = Path.Combine(folder, name);
                 if (File.Exists(path)) { name = Guid.NewGuid().ToString("N") + ".png"; path = Path.Combine(folder, name); }
-                using var image = DocumentRenderer.RenderRegion(doc, box); using var encoded = image.Encode(SKEncodedImageFormat.Png, 100); File.WriteAllBytes(path, encoded.ToArray());
-                exported.Add(new { file = name, x = box.Left, y = box.Top, width = box.Width, height = box.Height, slice.Url });
+                if (!slice.NoImage)
+                {
+                    using var image = DocumentRenderer.RenderRegion(doc, box);
+                    if (slice.Background is { } bg) { using var original = image.Copy(); using var canvas = new SKCanvas(image); canvas.Clear(new SKColor(bg)); canvas.DrawBitmap(original, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest)); }
+                    using var encoded = image.Encode(SKEncodedImageFormat.Png, 100); File.WriteAllBytes(path, encoded.ToArray());
+                }
+                exported.Add(new { file = slice.NoImage ? null : name, x = box.Left, y = box.Top, width = box.Width, height = box.Height, slice.Name, slice.Url, slice.Target, slice.Text, slice.AltText, slice.NoImage, slice.Background });
             }
             File.WriteAllText(Path.Combine(folder, "slices-" + Guid.NewGuid().ToString("N")[..8] + ".json"), System.Text.Json.JsonSerializer.Serialize(exported, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })); Say("Slices exported.");
         }
@@ -283,17 +305,18 @@ public sealed partial class MainWindow
     }
     private void DrawProfessionalOverlay(DrawingContext context, Func<SKPoint, Point> screen)
     {
+        DrawObjectFinder(context, screen);
         var pen = new Pen(Skin.AccentBrush, 1.5);
         if (_document is { } doc)
         {
             var counts = new Dictionary<string, int>();
-            foreach (var mark in doc.Marks)
+            foreach (var mark in DisplayMarks())
             {
                 var key = mark.Kind + ":" + (mark.Kind == MarkKind.Count ? mark.Group : "");
                 var number = counts[key] = counts.GetValueOrDefault(key) + 1;
                 if (!mark.Visible) continue;
                 var at = screen(new SKPoint((float)mark.X, (float)mark.Y)); var end = screen(new SKPoint((float)(mark.X + mark.Width), (float)(mark.Y + mark.Height)));
-                var brush = new SolidColorBrush(Color.FromUInt32(mark.Color)); var stroke = new Pen(brush, mark.ID == _selectedMark ? 2 : 1);
+                var brush = new SolidColorBrush(Color.FromUInt32(mark.Color)); var stroke = new Pen(brush, mark.ID == _selectedMark || _selectedSlices.Contains(mark.ID) ? 2 : 1);
                 if (mark.Kind == MarkKind.Slice)
                 {
                     var points = new[] { at, screen(new SKPoint((float)(mark.X + mark.Width), (float)mark.Y)), end, screen(new SKPoint((float)mark.X, (float)(mark.Y + mark.Height))) };
@@ -310,22 +333,22 @@ public sealed partial class MainWindow
             {
                 // The same document-to-screen matrix the scene uses; no transform is needed for vertices drawn below.
                 using var path = new SKPath(selected); var matrix = new SKMatrix((float)_canvas.Zoom, 0, (float)screen(default).X, 0, (float)_canvas.Zoom, (float)screen(default).Y, 0, 0, 1); path.Transform(matrix);
-                context.DrawGeometry(new SolidColorBrush(Color.FromArgb(48, 200, 80, 180)), null, StreamGeometry.Parse(path.ToSvgPathData()));
+                context.DrawGeometry(new SolidColorBrush(Color.FromUInt32((_options.Selection.OverlayColor & 0xffffff) | 0x50000000)), null, StreamGeometry.Parse(path.ToSvgPathData()));
             }
         }
         if (_perspectiveQuad is { } quad)
         {
             for (var i = 0; i < 4; i++) { context.DrawLine(pen, screen(quad[i]), screen(quad[(i + 1) % 4])); context.DrawEllipse(Skin.ChromeBrush, pen, screen(quad[i]), 5, 5); }
-            if (PerspectiveCropEdits.UnitToQuad(quad) is { } map) for (var i = 1; i < 3; i++)
+            if (_options.Crop.PerspectiveGrid && PerspectiveCropEdits.UnitToQuad(quad) is { } map) for (var i = 1; i < 3; i++)
             { var t = i / 3f; context.DrawLine(pen, screen(map.MapPoint(t, 0)), screen(map.MapPoint(t, 1))); context.DrawLine(pen, screen(map.MapPoint(0, t)), screen(map.MapPoint(1, t))); }
         }
-        if (_proPoints.Count > 0)
+        if (_proPoints.Count > 0 && !(_tool == Tool.Object && _options.Selection.ObjectShape == 0))
         {
-            var stroke = _tool is Tool.SelectionBrush or Tool.QuickSelection ? new Pen(new SolidColorBrush(Color.FromArgb(100, 200, 80, 180)), _options.Brush.Diameter * _canvas.Zoom) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round } : pen;
+            var stroke = _tool is Tool.SelectionBrush or Tool.QuickSelection ? new Pen(new SolidColorBrush(Color.FromUInt32((_options.Selection.OverlayColor & 0xffffff) | 0x64000000)), _options.Brush.Diameter * _canvas.Zoom) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round } : pen;
             for (var i = 1; i < _proPoints.Count; i++) context.DrawLine(stroke, screen(_proPoints[i - 1]), screen(_proPoints[i]));
             if (_tool == Tool.MagneticLasso) foreach (var p in _proPoints.Where((_, i) => i % 4 == 0)) context.DrawEllipse(Skin.LabelBrush, pen, screen(p), 2, 2);
         }
-        if (_proGesture && _tool is Tool.Slice or Tool.Frame or Tool.RedEye or Tool.Ruler)
+        if (_proGesture && (_tool is Tool.Slice or Tool.Frame or Tool.RedEye or Tool.Ruler || _tool == Tool.Object && _options.Selection.ObjectShape == 0))
         {
             if (_tool == Tool.Ruler) context.DrawLine(pen, screen(_proStart), screen(_proEnd));
             else { var box = ProBox(); var corners = new[] { new SKPoint(box.Left, box.Top), new SKPoint(box.Right, box.Top), new SKPoint(box.Right, box.Bottom), new SKPoint(box.Left, box.Bottom) }; for (var i = 0; i < 4; i++) context.DrawLine(pen, screen(corners[i]), screen(corners[(i + 1) % 4])); }

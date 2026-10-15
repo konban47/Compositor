@@ -111,8 +111,8 @@ public static class ShapeEdits
             {
                 var radius = Math.Min(Math.Max(0, style.CornerRadius), Math.Min(bounds.Width, bounds.Height) / 2);
                 using var fill = new SKPaint { Color = colour, IsAntialias = true, Style = SKPaintStyle.Fill };
-                if (radius > 0) canvas.DrawRoundRect(bounds, (float)radius, (float)radius, fill);
-                else canvas.DrawRect(bounds, fill);
+                using var rectangle = SmoothCorners.Rectangle(bounds, radius, style.Smoothing == true);
+                canvas.DrawPath(rectangle, fill);
                 break;
             }
         }

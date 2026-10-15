@@ -51,7 +51,7 @@ public static class ProjectStore
                 || new[] { m.Area, m.Perimeter, m.Width, m.Height, m.Length, m.Angle, m.Mean }.Any(v => !double.IsFinite(v))))
             || manifest.MeasurementFields is { } fields && (version < 18 || fields.Length > 8 || fields.Any(f => f is not ("Area" or "Perimeter" or "Width" or "Height" or "Length" or "Angle" or "Count" or "Mean"))))
             throw new ProjectException(ProjectError.Invalid);
-        if (manifest.Marks is { } marks && (version < 17 || marks.Count > 10_000 || marks.Any(m => m is null || !m.IsValid)
+        if (manifest.Marks is { } marks && (version < 17 || marks.Count > 10_000 || marks.Any(m => m is null || !m.IsValid || version < 23 && m.HasSliceOptions)
             || marks.Select(m => m.ID).Distinct().Count() != marks.Count)) throw new ProjectException(ProjectError.Invalid);
         var channelIDs = new HashSet<Guid>();
         if (manifest.Channels?.Count > 64) throw new ProjectException(ProjectError.TooLarge);
@@ -92,7 +92,7 @@ public static class ProjectStore
             }
             if (layer.Shape is { } shape)
             {
-                if (!shape.IsValid || shape.Kind == Format.ShapeKind.Path && shape.LineWidth is not null && version < 16 || (shape.Kind == Format.ShapeKind.Path && version < 14)
+                if (!shape.IsValid || shape.Smoothing is not null && version < 14 || shape.Kind == Format.ShapeKind.Path && shape.LineWidth is not null && version < 16 || (shape.Kind == Format.ShapeKind.Path && version < 14)
                     || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null)
                 {
                     throw new ProjectException(ProjectError.Invalid);

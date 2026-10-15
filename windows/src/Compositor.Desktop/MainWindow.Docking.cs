@@ -109,7 +109,7 @@ public sealed partial class MainWindow
     }
     private Button DockTitleButton(string text, string hint, Action action, string? tag = null)
     {
-        var button = DockButton(text, hint, action, tag); button.Height = 11; button.FontSize = 9; return button;
+        var button = DockButton(text, hint, action, tag); button.Height = 11; button.Content = new ChromeGlyph(text) { Width = 22, Height = 10, VerticalAlignment = VerticalAlignment.Center }; return button;
     }
     private Control PanelHeader(DockPanelEntry entry)
     {
@@ -295,7 +295,7 @@ public sealed partial class MainWindow
         {
             if (entry.Tab is not null) { var home = HomeGroup(entry); MovePanel(entry, home); entry.LastDockGroup = home.ID; }
             else { entry.ToolCollapsed = false; entry.ToolDockRight = false; DockToolBack(entry); }
-            entry.Visible = entry.Name is "Properties" or "History" or "Layers" or "Channels" or "Tools" or "Options" or "Contextual Task Bar";
+            entry.Visible = entry.Name is "Properties" or "History" or "Layers" or "Channels" or "Tools" or "Options";
             if (entry.Tab is not null) entry.Tab.IsVisible = entry.Visible; else entry.Slot!.IsVisible = entry.Visible;
         }
         CloseEmptyGroups(); foreach (var group in _dockGroups) BuildGroupChrome(group);

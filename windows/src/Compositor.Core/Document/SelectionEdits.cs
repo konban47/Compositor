@@ -17,6 +17,7 @@ public enum SelectionMode
 
     /// <summary>The shape is taken out of it.</summary>
     Subtract,
+    Intersect,
 }
 
 /// <summary>What the Magic Wand matches, as its tool header sets it.</summary>
@@ -598,6 +599,11 @@ public static class SelectionEdits
         // shape, not how its edge is drawn. That is the Mac build's own rule — it carries the selection's own
         // antialiased flag through an add and a subtract, and takes the tool's only when the shape replaces one.
         var kept = document.Selection.Antialiased;
+        if (mode != SelectionMode.Replace && (document.Selection.HasRasterCoverage || document.Selection.Feather > 0))
+        {
+            var incoming = DocumentSelection.FromPath(clipped ?? new SKPath(), antialiased).Coverage(SKRectI.Create(document.Width, document.Height));
+            return incoming is not null && SelectionBrushEdits.Combine(document, incoming, 1, (SelectionPaintMode)(int)mode);
+        }
         switch (mode)
         {
             case SelectionMode.Replace:
@@ -606,6 +612,8 @@ public static class SelectionEdits
                 if (clipped is null) return false;
                 if (document.Selection.Path is not { } current) return Adopt(document, clipped, antialiased);
                 return Adopt(document, Combine(current, clipped, SKPathOp.Union) ?? new SKPath(), kept);
+            case SelectionMode.Intersect:
+                return Adopt(document, document.Selection.Path is { } intersection && clipped is not null ? Combine(intersection, clipped, SKPathOp.Intersect) ?? new SKPath() : new SKPath(), kept);
             default:
                 if (document.Selection.Path is not { } held || clipped is null) return false;
                 return Adopt(document, Combine(held, clipped, SKPathOp.Difference) ?? new SKPath(), kept);

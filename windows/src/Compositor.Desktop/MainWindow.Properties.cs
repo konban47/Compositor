@@ -372,6 +372,7 @@ public sealed partial class MainWindow
         color.LostFocus += (_, _) => { if (previous != color.Text && SKColor.TryParse(color.Text, out var parsed)) { previous = color.Text; Change(style => { style.Red = parsed.Red / 255.0; style.Green = parsed.Green / 255.0; style.Blue = parsed.Blue / 255.0; }); } };
         var fields = new List<Control> { PropertyField("Fill Color (#RRGGBB)", color) };
         if (source.Kind == ShapeKind.Rectangle) fields.Add(PropertyField("Corner Radius (px)", PropertyNumber("shape-radius", source.CornerRadius, 0, 1000, value => Change(style => style.CornerRadius = value))));
+        if (source.Kind == ShapeKind.Rectangle) { var smooth = new CheckBox { Content = Localize.Text("Smooth Corners"), IsChecked = source.Smoothing == true, IsEnabled = source.CornerRadius > 0 }; smooth.IsCheckedChanged += (_, _) => Change(style => style.Smoothing = smooth.IsChecked == true ? true : null); fields.Add(smooth); }
         if (source.Kind == ShapeKind.Line) fields.Add(PropertyField("Line Width (px)", PropertyNumber("shape-line", source.LineWidth ?? 1, 1, 1000, value => Change(style => style.LineWidth = value))));
         Section("Shape", fields.ToArray());
     }

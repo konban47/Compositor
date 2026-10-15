@@ -1,6 +1,6 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "43d691b67995e924965bcd520f8b300f96b7d5b8",
+  "commit": "365b5745eda537f984f3d5bed1e53c361dbc9c91",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
@@ -26,7 +26,7 @@
     },
     {
       "path": "Compositor/Document/EditorSession.swift",
-      "sha256": "d99d1cc305e40bd435acca7d2060cd43d2db67c1c1025a162826c9bbddb757aa"
+      "sha256": "8bf8a3ed657d4df0f745b31c55710bf7f1e701df507ebc432f389dedb56af5a7"
     },
     {
       "path": "Compositor/UI/ColorPaletteControls.swift",
@@ -55,6 +55,22 @@
     {
       "path": "Compositor/UI/KeyboardShortcuts.swift",
       "sha256": "b6fa4749980d96c8dbdbbd2783009169de8b9d4aa42b4150a8231334845c7955"
+    },
+    {
+      "path": "Compositor/Document/ShapeTool.swift",
+      "sha256": "d1a698bc9d29a8445712248b0f290c097c2acb309b8d4574461ac4027624a0aa"
+    },
+    {
+      "path": "Compositor/UI/ShapeControls.swift",
+      "sha256": "0c303bd8196585b7055f764af83cf7246b565edd72e3bc9f69b36e826cd59bba"
+    },
+    {
+      "path": "Compositor/UI/NativeLayerList.swift",
+      "sha256": "3a50f6ffcfbae6e9a84a07f7dae72df1e8eb71ba922181efb491d921388198b6"
+    },
+    {
+      "path": "Compositor/Document/CameraRaw.swift",
+      "sha256": "fbf2eddbe4451b98086c2f3c439ec7d1b13ccff5e573dd0251ac2ae802a71830"
     }
   ],
   "directPorts": [

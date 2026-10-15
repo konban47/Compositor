@@ -21,6 +21,7 @@ internal static partial class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args is ["--selection-options-checks", var selectionOptionsOutput]) return SelectionOptionsChecks(selectionOptionsOutput);
         if (args is ["--chrome-checks", var chromeOutput]) return ChromeChecks(chromeOutput);
         if (args is ["--type-mask-checks", var typeMaskOutput]) return TypeMaskChecks(typeMaskOutput);
         if (args is ["--preferences-checks", var preferencesOutput]) return PreferencesChecks(preferencesOutput);

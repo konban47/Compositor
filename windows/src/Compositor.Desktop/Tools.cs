@@ -77,6 +77,8 @@ internal enum Tool
 
     TypeMask,
     Artboard,
+    SingleRow,
+    SingleColumn,
 
 }
 

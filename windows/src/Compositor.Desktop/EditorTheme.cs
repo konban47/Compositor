@@ -65,5 +65,6 @@ internal static class EditorTheme
         tabs.Setters.Add(new Setter(Control.MinHeightProperty, 28d)); styles.Add(tabs);
         var disabled = new Style(s => s.OfType<Button>().Class(":disabled"));
         disabled.Setters.Add(new Setter(Visual.OpacityProperty, .45d)); styles.Add(disabled);
+        EditorScrollbars.Apply(styles);
     }
 }

@@ -44,10 +44,12 @@ public sealed class CameraRawScope
     }
 
     /// <summary>
-    /// Counts a premultiplied buffer — the form the grade leaves the pixels in — reducing it first when it is
-    /// longer than <paramref name="sample"/> on its longer side. Fully transparent pixels are skipped, so a
+    /// Counts native premultiplied pixels at a four/eight-pixel stride, matching upstream 1.5.3.
+    /// The legacy sample argument remains for source compatibility; grading and clipping are unchanged. Fully transparent pixels are skipped, so a
     /// picture with nothing in it counts as nothing.
     /// </summary>
+    public static int SamplingStep(int width, int height) => (long)width * height <= 4_000_000 ? 4 : 8;
+
     public static CameraRawScope OfPremultiplied(SKBitmap pixels, int sample = SampleLimit)
     {
         var bins = new double[Bins * 4];
@@ -56,16 +58,12 @@ public sealed class CameraRawScope
         {
             return new CameraRawScope(bins[256..512], bins[512..768], bins[768..1024], vectorscope);
         }
-        using var fitted = Bitmaps.Fitted(pixels, sample);
-        var bytes = fitted.GetPixelSpan();
-        var stride = fitted.RowBytes;
-        var width = fitted.Width;
-        var height = fitted.Height;
-        LevelsPixels.LevelsHistogram(bytes, [], width * height, bins);
-        for (var y = 0; y < height; y++)
+        var step = SamplingStep(pixels.Width, pixels.Height);
+        var bytes = pixels.GetPixelSpan(); var stride = pixels.RowBytes; var width = pixels.Width; var height = pixels.Height;
+        for (var y = 0; y < height; y += step)
         {
             var row = y * stride;
-            for (var x = 0; x < width; x++)
+            for (var x = 0; x < width; x += step)
             {
                 var at = row + x * 4;
                 double alpha = bytes[at + 3];
@@ -73,6 +71,7 @@ public sealed class CameraRawScope
                 var red = Math.Min(1, bytes[at] / alpha);
                 var green = Math.Min(1, bytes[at + 1] / alpha);
                 var blue = Math.Min(1, bytes[at + 2] / alpha);
+                bins[256 + (int)Math.Round(red * 255)] += alpha / 255; bins[512 + (int)Math.Round(green * 255)] += alpha / 255; bins[768 + (int)Math.Round(blue * 255)] += alpha / 255;
                 var most = Math.Max(red, Math.Max(green, blue));
                 var least = Math.Min(red, Math.Min(green, blue));
                 var chroma = most - least;

@@ -22,9 +22,10 @@ public sealed partial class CanvasView
     }
     private bool SetIllustratedCursor()
     {
-        if (_document is null || IsPanning || PanEnabled || TypeOnClick && CursorTool is not (Tool.VerticalType or Tool.VerticalTypeMask) || BrushOutlineEnabled || PenCursorEnabled) return false;
+        if (_document is null || (IsPanning || PanEnabled) && !_zoomDragging || TypeOnClick && CursorTool is not (Tool.VerticalType or Tool.VerticalTypeMask) || BrushOutlineEnabled || PenCursorEnabled) return false;
         var kind = CursorTool.ToString(); double angle = 0;
-        if (_toolPointer is { } pointer && TransformHandles && TransformBox is { } box && TransformHandleAt(box, ToDocument(pointer)) is { } handle)
+        if (_zoomDragging) kind = _dragZoomOut ? "ZoomOut" : "ZoomIn";
+        else if (_toolPointer is { } pointer && TransformHandles && TransformBox is { } box && TransformHandleAt(box, ToDocument(pointer)) is { } handle)
         {
             kind = handle == TransformHandle.Rotate ? "Rotate" : "Resize";
             angle = box.Radians * 180 / Math.PI + ViewAngle + (handle switch
@@ -38,7 +39,7 @@ public sealed partial class CanvasView
         else if (CursorTool is Tool.VerticalType or Tool.VerticalTypeMask) kind = "VerticalText";
         else if (ZoomToolEnabled) kind = _sourceModifier ? "ZoomOut" : "ZoomIn";
         else if (RotateViewEnabled) kind = "Rotate";
-        else if (CursorTool is Tool.Marquee or Tool.Ellipse or Tool.Shape or Tool.ShapeEllipse or Tool.Triangle or Tool.PolygonShape or Tool.Star or Tool.Line or Tool.CustomShape or Tool.Crop or Tool.PerspectiveCrop or Tool.Artboard or Tool.Frame or Tool.Gradient) kind = "Cross";
+        else if (CursorTool is Tool.Marquee or Tool.SingleRow or Tool.SingleColumn or Tool.Ellipse or Tool.Shape or Tool.ShapeEllipse or Tool.Triangle or Tool.PolygonShape or Tool.Star or Tool.Line or Tool.CustomShape or Tool.Crop or Tool.PerspectiveCrop or Tool.Artboard or Tool.Frame or Tool.Gradient) kind = "Cross";
         var key = kind + ":" + Math.Round(angle / 15) * 15;
         CursorDescription = kind; ActiveCursorKind = StandardCursorType.Arrow;
         if (!IllustratedCursors.TryGetValue(key, out var cursor))

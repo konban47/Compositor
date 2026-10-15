@@ -12,6 +12,14 @@ internal sealed class EditorIcon(string kind) : Control
     public override void Render(DrawingContext context) => Draw(context, kind, Bounds.Size);
     internal static bool Draw(DrawingContext context, string kind, Size size)
     {
+        var align = kind switch { "align-left" => "Align Left", "align-center" => "Align H Center", "align-right" => "Align Right", "align-top" => "Align Top", "align-middle" => "Align V Center", "align-bottom" => "Align Bottom", _ => kind };
+        if (AlignmentGlyph.Draw(context, align, size)) return true;
+        if (kind is "more" or "ellipsis")
+        {
+            var center = new Point(size.Width / 2, size.Height / 2);
+            foreach (var dx in new[] { -7, 0, 7 }) context.DrawEllipse(Skin.LabelBrush, null, center + new Vector(dx, 0), 2.1, 2.1);
+            return true;
+        }
         if (UpstreamArtwork.Draw(context, kind, size)) return true;
         if (GeneratedSymbols.Draw(context, kind, size)) return true;
         if (!Paths.TryGetValue(kind, out var data)) return false;
@@ -29,6 +37,13 @@ internal sealed class EditorIcon(string kind) : Control
     private const string Eye = "M2,12 Q12,0 22,12 Q12,24 2,12 Z M15,12 A3,3 0 1 1 9,12 A3,3 0 1 1 15,12";
     private static readonly Dictionary<string, string> Paths = new(StringComparer.Ordinal)
     {
+        ["swap"] = "M3,7 L21,7 L17,3 M21,7 L17,11 M21,17 L3,17 L7,13 M3,17 L7,21",
+        ["chevron"] = "M6,9 L12,15 L18,9", ["reset"] = "M4,10 A8,8 0 1 1 6,19 M4,3 L4,10 L11,10",
+        ["grid"] = "M4,4 L20,4 L20,20 L4,20 Z M9,2 L9,22 M15,2 L15,22 M2,9 L22,9 M2,15 L22,15",
+        ["info"] = "M22,12 A10,10 0 1 1 2,12 A10,10 0 1 1 22,12 M12,10 L12,18 M12,6 L12,7",
+        ["properties"] = "M5,2 L19,2 L19,22 L5,22 Z M8,7 L16,7 M8,12 L16,12 M8,17 L16,17",
+        ["up"] = "M5,12 L12,5 L19,12 M12,5 L12,22 M3,2 L21,2", ["down"] = "M5,12 L12,19 L19,12 M12,19 L12,2 M3,22 L21,22",
+        ["SingleRow"] = "M2,11 L22,11 L22,13 L2,13 Z", ["SingleColumn"] = "M11,2 L13,2 L13,22 L11,22 Z",
         ["Artboard"] = "M4,1 L4,22 M1,4 L22,4 M7,7 L20,7 L20,20 L7,20 Z",
         ["portrait"] = "M6,2 L18,2 L18,22 L6,22 Z", ["landscape"] = "M2,6 L22,6 L22,18 L2,18 Z",
         ["new-artboard"] = "M4,1 L4,22 M1,4 L22,4 M7,7 L20,7 L20,20 L7,20 Z M10,13 L17,13 M13.5,10 L13.5,17",

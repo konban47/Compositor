@@ -19,9 +19,11 @@ public sealed partial class MainWindow
         else if (ToolCatalog.HasRoundCursor(_tool)) { preset.Options.Brush = defaults.Brush; preset.Options.Erase = false; preset.Options.PaintOnMask = false; preset.Pattern = preset.Tip = null; }
         else if (_tool is Tool.Wand or Tool.Object or Tool.Bucket or Tool.MagicEraser) { preset.Options.Wand = defaults.Wand; preset.Options.WandAllLayers = false; }
         else if (_tool == Tool.Gradient) { preset.Options.Gradient = defaults.Gradient; preset.Options.GradientReversed = false; preset.Options.GradientToBackground = false; }
-        else if (ToolCatalog.IsShape(_tool)) { preset.Options.ShapeCornerRadius = 0; preset.Options.ShapeLineWidth = 4; }
+        else if (ToolCatalog.IsShape(_tool)) { preset.Options.ShapeSmoothing = false; preset.Options.ShapeCornerRadius = 0; preset.Options.ShapeLineWidth = 4; }
         else if (_tool == Tool.Eyedropper) preset.Options.ShowsSampleRing = true;
         else preset.Options.SelectionAntialiased = true;
+        if (_tool is Tool.Marquee or Tool.Ellipse or Tool.SingleRow or Tool.SingleColumn or Tool.Lasso or Tool.Polygon or Tool.MagneticLasso or Tool.SelectionBrush or Tool.QuickSelection or Tool.Object or Tool.Wand) preset.Options.Selection = new();
+        if (_tool is Tool.Crop or Tool.PerspectiveCrop or Tool.Slice or Tool.SliceSelect) preset.Options.Crop = new();
         if (_tool == Tool.MagneticLasso) { p.MagneticWidth = 12; p.MagneticContrast = 20; p.MagneticFrequency = 4; }
         if (_tool == Tool.PerspectiveCrop) p.CropWidth = p.CropHeight = 0;
         if (_tool == Tool.Frame) p.EllipseFrame = false;

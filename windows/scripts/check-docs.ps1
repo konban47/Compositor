@@ -123,5 +123,15 @@ foreach ($icon in $panelIcons.icons) {
 }
 if (!$formatDoc.Contains('`artboardBackground`') -or !$windowGuide.Contains('最底部信息栏中间')) { throw 'Artboard background or embedded status scrollbar is undocumented.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--chrome-checks')) { throw 'Chrome checks missing from CI.' }
+$selectionGuide = Read-Repo 'windows/SELECTION-CROP-SLICE.md'
+if (!$selectionGuide.Contains("**$version Preview**")) { throw 'Selection/crop/slice guide is stale.' }
+foreach ($feature in @('单行','单列','硬度','交叉','人物','云端','透视','自动切片','Alt','v23','Skia')) {
+    if (!(($selectionGuide + (Read-Repo $updates)).Contains($feature))) { throw "Selection guide is missing $feature." }
+}
+foreach ($field in @('noImage','target','altText','background','shape.smoothing')) {
+    if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v23 field: $field" }
+}
+if (!(Read-Repo 'windows/scripts/package.ps1').Contains('SELECTION-CROP-SLICE.md') -or !(Read-Repo 'README.md').Contains('SELECTION-CROP-SLICE.md')) { throw 'Selection guide is missing from package/homepage.' }
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--selection-options-checks')) { throw 'Selection options checks missing from CI.' }
 & (Join-Path $PSScriptRoot 'check-upstream-ui.ps1')
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

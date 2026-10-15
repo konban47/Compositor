@@ -113,7 +113,7 @@ public static class LayerMenuEdits
             var s = layer.LiveShape!; using var builder = new SKPathBuilder();
             if (s.Kind == ShapeKind.Path) { using var parsed = SKPath.ParseSvgPathData(s.Path); if (parsed is null) return null; builder.AddPath(parsed); }
             else if (s.Kind == ShapeKind.Ellipse) builder.AddOval(SKRect.Create(1, 1));
-            else if (s.Kind == ShapeKind.Rectangle) builder.AddRoundRect(SKRect.Create(1, 1), (float)(s.CornerRadius / layer.Transform.Width), (float)(s.CornerRadius / layer.Transform.Height));
+            else if (s.Kind == ShapeKind.Rectangle) { using var rectangle = SmoothCorners.Rectangle(SKRect.Create((float)layer.Transform.Width, (float)layer.Transform.Height), s.CornerRadius, s.Smoothing == true); rectangle.Transform(SKMatrix.CreateScale((float)(1 / layer.Transform.Width), (float)(1 / layer.Transform.Height))); builder.AddPath(rectangle); }
             else return null;
             using var path = builder.Detach();
             path.Transform(BrushEdits.PixelToDocument(layer.Transform, 1, 1));

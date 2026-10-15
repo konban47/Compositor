@@ -27,6 +27,10 @@ internal static class Skin
     public static Color SurfaceDark => Tone(0x22, 0x44, 0xD0, 0xFF);
 
     /// <summary>Standard Photoshop button and toggle surface (#3D3D3D).</summary>
+    public static Color ScrollTrack => Tone(0x30, 0x49, 0xAA, 0xD5);
+    public static Color ScrollThumb => Tone(0x55, 0x68, 0x88, 0xAC);
+    public static readonly IBrush ScrollTrackBrush = new SolidColorBrush(ScrollTrack);
+    public static readonly IBrush ScrollThumbBrush = new SolidColorBrush(ScrollThumb);
     public static Color SurfaceControl => Tone(0x3D, 0x60, 0xC8, 0xE0);
 
     /// <summary>Photoshop control hover state (#4C4C4C).</summary>
@@ -103,7 +107,7 @@ internal static class Skin
 
     public static void RefreshPalette()
     {
-        foreach (var (brush, color) in new[] { (ChromeBrush, Chrome), (SurfaceDarkBrush, SurfaceDark),
+        foreach (var (brush, color) in new[] { (ChromeBrush, Chrome), (ScrollTrackBrush, ScrollTrack), (ScrollThumbBrush, ScrollThumb), (SurfaceDarkBrush, SurfaceDark),
             (SurfaceControlBrush, SurfaceControl), (SurfaceControlHoverBrush, SurfaceControlHover),
             (SurfaceControlPressedBrush, SurfaceControlPressed), (BorderSubtleBrush, BorderSubtle),
             (BorderControlBrush, BorderControl), (LabelBrush, Label), (SecondaryBrush, Secondary), (MenuRule, BorderControl), (RulerFaceBrush, RulerFace) })

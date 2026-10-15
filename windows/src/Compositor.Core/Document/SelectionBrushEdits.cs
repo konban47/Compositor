@@ -6,19 +6,29 @@ namespace Compositor.Core.Document;
 public enum SelectionPaintMode { New, Add, Subtract, Intersect }
 public static class SelectionBrushEdits
 {
-    public static bool Paint(CanvasDocument doc, IReadOnlyList<SKPoint> points, double diameter, double opacity, SelectionPaintMode mode)
+    public static bool Paint(CanvasDocument doc, IReadOnlyList<SKPoint> points, double diameter, double opacity, SelectionPaintMode mode, double hardness = 1)
     {
         if (points.Count == 0 || diameter <= 0 || (long)doc.Width * doc.Height > DocumentLimits.MaxSurfacePixels) return false;
         var mask = Bitmaps.Allocate(Bitmaps.MaskInfo(doc.Width, doc.Height)); mask.Erase(SKColors.Black);
         using (var canvas = new SKCanvas(mask))
-        using (var paint = new SKPaint { Color = SKColors.White, IsAntialias = true, StrokeWidth = (float)diameter, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round, Style = SKPaintStyle.Stroke })
+        using (var paint = new SKPaint { IsAntialias = true, BlendMode = SKBlendMode.Lighten })
         {
-            if (points.Count == 1) { paint.Style = SKPaintStyle.Fill; canvas.DrawCircle(points[0], (float)diameter / 2, paint); }
-            else { using var builder = new SKPathBuilder(); builder.MoveTo(points[0]); foreach (var p in points.Skip(1)) builder.LineTo(p); using var path = builder.Detach(); canvas.DrawPath(path, paint); }
+            var radius = (float)diameter / 2; var hard = (float)Math.Clamp(hardness, 0, .9999);
+            void Stamp(SKPoint point)
+            {
+                using var shader = SKShader.CreateRadialGradient(point, radius, [SKColors.White, SKColors.White, SKColors.Black], [0, hard, 1], SKShaderTileMode.Clamp);
+                paint.Shader = hardness < 1 ? shader : null; paint.Color = SKColors.White; canvas.DrawCircle(point, radius, paint);
+            }
+            Stamp(points[0]);
+            for (var i = 1; i < points.Count; i++)
+            {
+                var count = Math.Max(1, (int)Math.Ceiling(SKPoint.Distance(points[i - 1], points[i]) / Math.Max(1, diameter * .08)));
+                for (var j = 1; j <= count; j++) Stamp(points[i - 1] + PlacementMesh.Scale(points[i] - points[i - 1], (float)j / count));
+            }
         }
         return Combine(doc, mask, opacity, mode);
     }
-    public static bool Quick(CanvasDocument doc, Guid? sampleLayer, IReadOnlyList<SKPoint> points, double diameter, int tolerance, SelectionPaintMode mode)
+    public static bool Quick(CanvasDocument doc, Guid? sampleLayer, IReadOnlyList<SKPoint> points, double diameter, int tolerance, SelectionPaintMode mode, double angle = 0, bool enhanceEdge = false, double hardness = 1)
     {
         if (points.Count == 0) return false;
         using var image = SelectionEdits.Sample(doc, sampleLayer); if (image is null) return false;
@@ -27,14 +37,26 @@ public static class SelectionBrushEdits
         var seeds = new List<SKPoint> { points[0] };
         for (var i = 1; i < points.Count; i++)
         { var n = Math.Clamp((int)Math.Ceiling(SKPoint.Distance(points[i - 1], points[i]) / Math.Max(1, diameter / 3)), 1, 64); for (var j = 1; j <= n; j++) seeds.Add(points[i - 1] + PlacementMesh.Scale(points[i] - points[i - 1], (float)j / n)); }
+        var radians = angle * Math.PI / 180; var dx = new SKPoint((float)(Math.Cos(radians) * diameter / 3), (float)(Math.Sin(radians) * diameter / 3)); var dy = new SKPoint(-dx.Y, dx.X);
         var stride = Math.Max(1, (int)Math.Ceiling(seeds.Count / 128.0));
         foreach (var p in seeds.Where((_, i) => i % stride == 0))
-            foreach (var seed in new[] { p, p + new SKPoint((float)diameter / 3, 0), p - new SKPoint((float)diameter / 3, 0), p + new SKPoint(0, (float)diameter / 3), p - new SKPoint(0, (float)diameter / 3) })
+            foreach (var seed in new[] { p, p + dx, p - dx, p + dy, p - dy })
                 if (result.Selection.Path?.Contains(seed.X, seed.Y) != true)
                     SelectionEdits.SelectWand(result, image, (int)seed.X, (int)seed.Y, new WandOptions(0, tolerance, true), SelectionMode.Add);
         if (result.Selection.Path is null) return false;
-        var mask = result.Selection.Coverage(SKRectI.Create(doc.Width, doc.Height));
-        return mask is not null && Combine(doc, mask, 1, mode);
+        var mask = result.Selection.WithFeather((1 - Math.Clamp(hardness, 0, 1)) * diameter * .1).Coverage(SKRectI.Create(doc.Width, doc.Height));
+        if (mask is null) return false;
+        if (enhanceEdge)
+        {
+            using var source = mask.Copy();
+            for (var y = 1; y < mask.Height - 1; y++) for (var x = 1; x < mask.Width - 1; x++)
+            { var center = image.GetPixel(x, y); double sum = 0, weight = 0;
+                for (var j = -1; j <= 1; j++) for (var i = -1; i <= 1; i++)
+                { var other = image.GetPixel(x + i, y + j); var difference = Math.Abs(center.Red - other.Red) + Math.Abs(center.Green - other.Green) + Math.Abs(center.Blue - other.Blue); var w = 1 / (1 + difference * difference / 900.0); sum += source.GetPixel(x + i, y + j).Red * w; weight += w; }
+                var v = (byte)Math.Round(sum / weight); mask.SetPixel(x, y, new SKColor(v, v, v));
+            }
+        }
+        return Combine(doc, mask, 1, mode);
     }
     public static bool Combine(CanvasDocument doc, SKBitmap mask, double opacity, SelectionPaintMode mode)
     {

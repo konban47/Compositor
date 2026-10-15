@@ -1,4 +1,4 @@
-# Compositor project format, macOS versions 1–14 and Windows extensions 12–22
+# Compositor project format, macOS versions 1–14 and Windows extensions 12–23
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
@@ -243,3 +243,12 @@ An artboard layer can store optional `artboardBackground`, an unsigned 32-bit AR
 ## Upstream macOS version 14
 
 Version 14 adds optional `smoothing` to a layer’s `shape` style. True draws rectangle corners with Figma-style 60% smoothing (the iOS squircle match); false or missing keeps circular corners. Radius stays in document pixels, and smoothing reduces when the corners have insufficient room. Drawing previews and scaled redraws use the same geometry. Files declaring versions 1–13 cannot enable smoothing, and older app builds reject v14.
+
+
+## Windows extension version 23
+
+Windows **1.5.3.0 Preview** reads versions 1–23. Optional rectangle `shape.smoothing` is a Boolean: true uses the upstream 60% continuous-corner construction; null or false uses circular rounded corners. A zero corner radius disables smoothing. Windows writes v23 when a live shape stores a non-null value. The same field is also read from upstream macOS v14 projects. Other Windows v14 extensions are independent and are not macOS-compatible.
+
+Slice `marks` add `noImage` (default false), `target`, `altText` (default empty strings), and nullable `background` (unsigned ARGB, null means transparent). Existing `name`, `url`, and `text` carry the slice name, URL and message text. Non-default extended slice options require v23. URLs and targets are metadata only; loading/exporting never visits them. Automatic slices are derived from canvas geometry and user slices, not stored until promoted, edited or divided. PNG/JSON export includes automatic slices and metadata; no-image slices omit PNG output.
+
+Tool options, crop presets, object-finder overlays and workspace visibility are user settings outside the manifest. Selection coverage and crop drafts remain session state. Saving other documents continues to choose the lowest required format. Older Windows builds and macOS reject v23; use flattened exports when sharing with those versions.

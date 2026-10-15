@@ -323,7 +323,7 @@ public sealed partial class MainWindow : Window
         // The picker is a window of its own and the app is left running until the last window closes, so it
         // goes with the editor rather than being left behind to hold the session open.
         Closing += ConfirmWindowClose;
-        Closed += (_, _) => { CloseMaskWorkspace(); _canvas.MaskOverlay?.Dispose(); _recoveryTimer?.Stop(); _picker?.Close(); _channelThumbnail?.Dispose(); foreach (var image in _channelImages) image.Dispose(); };
+        Closed += (_, _) => { _objectMatte?.Dispose(); _objectHover?.Dispose(); CloseMaskWorkspace(); _canvas.MaskOverlay?.Dispose(); _recoveryTimer?.Stop(); _picker?.Close(); _channelThumbnail?.Dispose(); foreach (var image in _channelImages) image.Dispose(); };
         Background = Skin.ChromeBrush;
         // The window's plain labels (a heading, a readout) take their colour from here, as the Mac's do from
         // the appearance; controls that name their own text keep it.
@@ -389,6 +389,7 @@ public sealed partial class MainWindow : Window
         WireWorkspaceTools();
         WireOptionMenus();
         _optionsBar.Changed += OptionsChanged;
+        _optionsBar.SelectionAsked += (action, anchor) => _ = SelectionAction(action, anchor);
         _optionsBar.BrushSettingAsked += which => _ = SetBrush(which);
         _optionsBar.WandSettingAsked += which => _ = SetWand(which);
         _optionsBar.ShapeSettingAsked += which => _ = SetShape(which);
@@ -1059,7 +1060,7 @@ public sealed partial class MainWindow : Window
         // when it is pressed again, which is what the Mac build's own letters do.
         Does("Hand tool", () => SetTool(Tool.Pan), Shortcuts.Canvas);
         Does("Move / Transform tool", () => ChooseTool(Tool.Move, Tool.Artboard), Shortcuts.Canvas);
-        Does("Marquee tool", () => ChooseTool(Tool.Marquee, Tool.Ellipse), Shortcuts.Canvas);
+        Does("Marquee tool", () => ChooseTool(Tool.Marquee, Tool.Ellipse, Tool.SingleRow, Tool.SingleColumn), Shortcuts.Canvas);
         Does("Lasso tool", () => ChooseTool(Tool.Lasso, Tool.Polygon, Tool.MagneticLasso, Tool.SelectionBrush), Shortcuts.Canvas);
         Does("Magic wand", () => ChooseTool(Tool.Wand, Tool.Object, Tool.QuickSelection), Shortcuts.Canvas);
         Does("Brush tool", () => ChooseTool(Tool.Brush, Tool.Pencil, Tool.ColorReplacement, Tool.MixerBrush), Shortcuts.Canvas);
@@ -2002,6 +2003,8 @@ public sealed partial class MainWindow : Window
         Drag(Aim(new SKPoint(seeded.Left + 1, seeded.Top + 1)), Aim(new SKPoint(90, 70)));
         report.Add($"its corner handle dragged in: {_cropFrame?.Width ?? 0} x {_cropFrame?.Height ?? 0}");
         Press(new ShortcutChord("Enter"));
+        var cropDeadline = DateTime.UtcNow.AddSeconds(10);
+        while (_applyingCrop && DateTime.UtcNow < cropDeadline) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(5); }
         report.Add($"the crop applied by Enter: {canvasWas.Width}x{canvasWas.Height} → "
             + $"{document.Width}x{document.Height}, one \"{_history.UndoName}\" step");
         if (document.Width >= canvasWas.Width || document.Height >= canvasWas.Height)
@@ -2019,7 +2022,7 @@ public sealed partial class MainWindow : Window
         }
         Click(popup);
         var opened = _blend.IsDropDownOpen;
-        Click(Aim(new SKPoint(200, 140)));      // anywhere else, which light-dismisses it
+        Click(Aim(new SKPoint(document.Width / 2f, document.Height / 2f))); // Stay inside the resized/fitted canvas.
         report.Add($"the blend pop-up: opened {opened}, and closed {!_blend.IsDropDownOpen}");
         if (!opened) throw new InvalidOperationException("the blend pop-up did not open");
         if (_blend.IsDropDownOpen) throw new InvalidOperationException("the blend pop-up did not close");
@@ -2261,15 +2264,15 @@ public sealed partial class MainWindow : Window
         {
             throw new InvalidOperationException("the Dither panel has no list of looks");
         }
-        var halftone = look.Items.Cast<object>().ToList().FindIndex(item => LabelOf(item) == "Halftone Dots");
+        var halftone = look.Items.Cast<object>().ToList().FindIndex(item => (LabelOf(item) == "Halftone Dots" || LabelOf(item) == Localize.Text("Halftone Dots")));
         if (halftone < 0) throw new InvalidOperationException("the Dither panel has no Halftone Dots look");
         look.SelectedIndex = halftone;
         // Two Colors is the choice whose ink and paper are the panel's own, so it is the one that shows the
         // two swatches; the ink is then chosen through the picker, as the Mac's panel does it.
         var inkAndPaper = ditherPanel.GetVisualDescendants().OfType<ComboBox>()
-            .FirstOrDefault(box => box.Items.Cast<object>().Any(item => LabelOf(item) == "Two Colors"))
+            .FirstOrDefault(box => box.Items.Cast<object>().Any(item => (LabelOf(item) == "Two Colors" || LabelOf(item) == Localize.Text("Two Colors"))))
             ?? throw new InvalidOperationException("the Dither panel has no Ink and paper list");
-        inkAndPaper.SelectedIndex = inkAndPaper.Items.Cast<object>().ToList().FindIndex(item => LabelOf(item) == "Two Colors");
+        inkAndPaper.SelectedIndex = inkAndPaper.Items.Cast<object>().ToList().FindIndex(item => (LabelOf(item) == "Two Colors" || LabelOf(item) == Localize.Text("Two Colors")));
         Dispatcher.UIThread.RunJobs();
         if (ditherPanel.GetVisualDescendants().OfType<ColorSwatch>().FirstOrDefault() is not { } ink)
         {
@@ -2578,7 +2581,7 @@ public sealed partial class MainWindow : Window
     private static Slider AmountIn(Window dialog, string label)
     {
         var row = dialog.GetVisualDescendants().OfType<StackPanel>().FirstOrDefault(candidate =>
-            candidate.Children.OfType<TextBlock>().Any(text => text.Text == label)
+            candidate.Children.OfType<TextBlock>().Any(text => text.Text == label || text.Text == Localize.Text(label))
             && candidate.Children.OfType<Slider>().Any());
         return row?.Children.OfType<Slider>().FirstOrDefault()
             ?? throw new InvalidOperationException($"the dialog has no amount called {label}");
@@ -2588,7 +2591,7 @@ public sealed partial class MainWindow : Window
     private static void PressIn(Window dialog, string label)
     {
         var button = dialog.GetVisualDescendants().OfType<Button>()
-            .FirstOrDefault(candidate => (candidate.Content as string) == label)
+            .FirstOrDefault(candidate => (candidate.Content as string) == label || (candidate.Content as string) == Localize.Text(label))
             ?? throw new InvalidOperationException($"the dialog has no button called {label}");
         Press(dialog, At(dialog, button, 0.5));
     }
@@ -2634,11 +2637,11 @@ public sealed partial class MainWindow : Window
             }
             if (_message.Length == 0) throw new InvalidOperationException($"{tool} left the status line empty");
             // The options bar shows the rows this tool can be told about, and nothing else.
-            if (_optionsBar.Shows("brush") != ToolCatalog.HasRoundCursor(tool))
+            if ((_optionsBar.Shows("brush") || _optionsBar.Shows("selectionBrushTip")) != ToolCatalog.HasRoundCursor(tool))
             {
                 throw new InvalidOperationException($"{tool} got the brush rows wrong");
             }
-            if (_optionsBar.Shows("crop") != (tool == Tool.Crop))
+            if (_optionsBar.Shows("cropAdvanced") != (tool == Tool.Crop))
             {
                 throw new InvalidOperationException($"{tool} got the crop rows wrong");
             }
@@ -3338,7 +3341,7 @@ public sealed partial class MainWindow : Window
     {
         if (_tool != tool && !(_tool is Tool.Slice or Tool.SliceSelect && tool is Tool.Slice or Tool.SliceSelect))
         { _selectedMark = null; _optionsBar.ProfessionalReadout(""); }
-        if (_tool != tool) { CancelProfessionalDraft(); _artboardStart = null; _artboardDraft = null; }
+        if (_tool != tool) { CancelProfessionalDraft(); _canvas.CancelCropStraighten(); _artboardStart = null; _artboardDraft = null; }
         if (_pen is not null && !ToolCatalog.IsPen(tool)) FinishPen();
         if (_placementTab is not null && tool != Tool.Move && tool != Tool.Pan) FinishPlacement(true);
         if (_open.ActiveAlpha is not null && (tool is Tool.Move or Tool.Artboard or Tool.AdjustmentBrush || ToolCatalog.IsType(tool) || ToolCatalog.IsPen(tool) || ToolCatalog.IsPathEditor(tool) || ToolCatalog.IsShape(tool)))
@@ -3383,7 +3386,7 @@ public sealed partial class MainWindow : Window
         SyncPathNodes();
         _canvas.Selection = tool switch
         {
-            Tool.Marquee => SelectionTool.Rectangle,
+            Tool.Marquee or Tool.SingleRow or Tool.SingleColumn => SelectionTool.Rectangle,
             Tool.Ellipse => SelectionTool.Ellipse,
             Tool.Lasso => SelectionTool.Lasso,
             Tool.Polygon => SelectionTool.Polygon,
@@ -3508,6 +3511,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void RefreshOptionsBar()
     {
+        SyncSelectionOptions();
         var layer = Selected is { } id && _document is { } document
             ? document.Layers.FirstOrDefault(one => one.ID == id)
             : null;
@@ -3772,6 +3776,7 @@ public sealed partial class MainWindow : Window
             Green = _options.Brush.Green,
             Blue = _options.Brush.Blue,
             CornerRadius = _options.ShapeCornerRadius,
+            Smoothing = _options.ShapeSmoothing ? true : null,
             Path = _options.Shape == ShapeKind.Path ? ShapeToolPath() : null,
         };
         var target = box;
@@ -4826,6 +4831,7 @@ public sealed partial class MainWindow : Window
             Green = _options.Brush.Green,
             Blue = _options.Brush.Blue,
             CornerRadius = _options.ShapeCornerRadius,
+            Smoothing = _options.ShapeSmoothing ? true : null,
             Path = _options.Shape == ShapeKind.Path ? ShapeToolPath() : null,
         };
         if (_options.Shape != ShapeKind.Line) return (style, box);
@@ -5088,10 +5094,13 @@ public sealed partial class MainWindow : Window
     /// <summary>Holds the crop frame to a ratio from now on, and shapes the frame it has to it.</summary>
     private void SetCropRatio(double? ratio)
     {
+        var selectedRatio = ratio == -1 && _document is { } source ? CropEdits.OriginalRatio(source) : ratio;
+        _options.Crop.Mode = 0; _options.Crop.Width = selectedRatio ?? 0; _options.Crop.Height = selectedRatio is null ? 0 : 1;
         _canvas.CropRatio = ratio;
         if (_document is not { } document) return;
         if (ratio is null)
         {
+            Refresh();
             Say("Crop: any shape");
             return;
         }
@@ -5134,24 +5143,12 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>Takes the crop, as one undo step, and lets the frame go.</summary>
-    private void ApplyCrop()
-    {
-        if (_document is not { } document) return;
-        if (_cropFrame is not { } frame)
-        {
-            Say("Drag a frame first");
-            return;
-        }
-        if (!CropEdits.Valid(frame)) { Say("That frame is not one the canvas can be cropped to"); return; }
-        _canvas.SnapLines = (null, null);
-        Edit("Crop", () => CanvasEdits.Crop(document, frame));
-        _cropFrame = null;
-        ShowCropBox();
-    }
+    private void ApplyCrop() => _ = ApplyAdvancedCrop();
 
     /// <summary>Lets the crop frame go, leaving the canvas as it is.</summary>
     private void CancelCrop()
     {
+        _canvas.CancelCropStraighten();
         _cropFrame = null;
         _canvas.SnapLines = (null, null);
         ShowCropBox();
@@ -5610,18 +5607,10 @@ public sealed partial class MainWindow : Window
     /// modifiers asked.
     /// </summary>
     private void MarqueeFinished(SKRectI box, SelectionMode mode, bool ellipse) =>
-        Change(ellipse ? "Elliptical Marquee" : "Rectangular Marquee", document => mode == SelectionMode.Replace
-            ? ellipse
-                ? SelectionEdits.SelectEllipse(document, box, _options.SelectionAntialiased)
-                : SelectionEdits.Select(document, box, _options.SelectionAntialiased)
-            : SelectionEdits.Apply(document, SelectionEdits.Shape(box, ellipse), mode,
-                _options.SelectionAntialiased));
+        Change(ellipse ? "Elliptical Marquee" : "Rectangular Marquee", doc => ApplyToolSelection(doc, SelectionEdits.Shape(box, ellipse), mode));
 
-    /// <summary>A lasso or polygonal lasso drag: the outline through the points it gathered.</summary>
     private void LassoFinished(IReadOnlyList<SKPoint> points, SelectionMode mode, bool polygonal) =>
-        Change(polygonal ? "Polygonal Lasso" : "Lasso", document => mode == SelectionMode.Replace
-            ? SelectionEdits.SelectLasso(document, points, _options.SelectionAntialiased)
-            : SelectionEdits.Apply(document, SelectionEdits.Lasso(points), mode, _options.SelectionAntialiased));
+        Change(polygonal ? "Polygonal Lasso" : "Lasso", doc => ApplyToolSelection(doc, SelectionEdits.Lasso(points), mode));
 
     /// <summary>A click of the wand: everything like the pixel under it, read from the canvas as shown. The
     /// amounts are the options bar's: how far off the colour counts, how wide a sample is read, whether the
@@ -5806,7 +5795,7 @@ public sealed partial class MainWindow : Window
         if (_shapePath && layer?.LiveShape is { } shape)
         {
             using var outline = new SKPathBuilder();
-            if (shape.Kind == ShapeKind.Rectangle) outline.AddRoundRect(SKRect.Create(1, 1), (float)(shape.CornerRadius / layer.Transform.Width), (float)(shape.CornerRadius / layer.Transform.Height));
+            if (shape.Kind == ShapeKind.Rectangle) { using var rectangle = SmoothCorners.Rectangle(SKRect.Create((float)layer.Transform.Width, (float)layer.Transform.Height), shape.CornerRadius, shape.Smoothing == true); rectangle.Transform(SKMatrix.CreateScale((float)(1 / layer.Transform.Width), (float)(1 / layer.Transform.Height))); outline.AddPath(rectangle); }
             else if (shape.Kind == ShapeKind.Ellipse) outline.AddOval(SKRect.Create(1, 1));
             using var outlinePath = outline.Detach();
             nodes = PathNodes.Parse(shape.Path ?? outlinePath.ToSvgPathData());

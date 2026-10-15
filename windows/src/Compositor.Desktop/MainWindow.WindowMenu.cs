@@ -81,7 +81,7 @@ public sealed partial class MainWindow
         actions.Children.Add(PropertyAction("Select Subject", () => _ = DetectSubject(false)));
         actions.Children.Add(PropertyAction("Deselect", Deselect));
         actions.Children.Add(PropertyAction("Add Layer Mask", () => AddMask(true)));
-        return DockTool("Contextual Task Bar", actions);
+        var slot = DockTool("Contextual Task Bar", actions); _dockPanels["Contextual Task Bar"].Visible = false; slot.IsVisible = false; return slot;
     }
     private async Task SaveWorkspace()
     {

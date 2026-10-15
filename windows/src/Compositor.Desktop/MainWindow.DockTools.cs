@@ -36,7 +36,7 @@ public sealed partial class MainWindow
         { var collapse = DockTitleButton(entry.ToolCollapsed ? "«" : "»", "Collapse or Expand Panels", () => ToggleToolCollapse(entry), "collapse-tool-" + entry.Name); DockPanel.SetDock(collapse, Dock.Right); header.Children.Add(collapse); }
         header.ContextMenu = menu;
         if (entry.Name != "Tools") { var options = DockTitleButton("•••", "Panel Options", () => menu.Open(header)); DockPanel.SetDock(options, Dock.Right); header.Children.Add(options); }
-        var title = new TextBlock { Text = entry.Name == "Tools" ? "" : Localize.Text(entry.Name), MinWidth = 0, FontSize = 9, Foreground = Skin.LabelBrush, Background = Brushes.Transparent,
+        var title = new TextBlock { Text = entry.Name == "Tools" || entry.Name == "Contextual Task Bar" && entry.ToolWindow is null ? "" : Localize.Text(entry.Name), MinWidth = 0, FontSize = 9, Foreground = Skin.LabelBrush, Background = Brushes.Transparent,
             Margin = new Thickness(2, 0), TextTrimming = TextTrimming.CharacterEllipsis, Tag = "panel-handle-" + entry.Name };
         header.Children.Add(title); title.AddHandler(PointerPressedEvent, (_, e) => StartDockDrag(entry, null, title, e), RoutingStrategies.Tunnel);
         DockPanel.SetDock(header, Dock.Top); dock.Children.Add(header);

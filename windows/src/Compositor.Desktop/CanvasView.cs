@@ -84,6 +84,8 @@ public sealed partial class CanvasView : Control
     public SelectionTool Selection { get; set; }
 
     /// <summary>Handed the box a marquee drag ended on, in document pixels, and how it meets the selection.</summary>
+    public SelectionMode DefaultSelectionMode { get; set; }
+    public Func<SKPoint, SKPoint, SKRectI>? ConstrainMarquee { get; set; }
     public Action<SKRectI, SelectionMode>? MarqueeFinished { get; set; }
 
     /// <summary>Handed the outline a lasso or a polygonal lasso closed, in document pixels.</summary>
@@ -214,6 +216,8 @@ public sealed partial class CanvasView : Control
     private TransformHandle? _cropHandle;
     private SKRectI _cropOriginal;
     private SKPoint _cropStart;
+    private SKPoint _cropOriginStart;
+    private Point _cropScreenStart;
 
     /// <summary>When set, dragging draws a shape out and reports the box it made.</summary>
     public bool ShapeEnabled { get; set; }
@@ -1115,10 +1119,9 @@ public sealed partial class CanvasView : Control
     /// How a new shape meets the selection already there: Option takes away, Shift adds, otherwise it
     /// replaces, as the Mac build reads the modifiers.
     /// </summary>
-    private static SelectionMode ModeOf(KeyModifiers modifiers) =>
-        modifiers.HasFlag(KeyModifiers.Alt) ? SelectionMode.Subtract
-        : modifiers.HasFlag(KeyModifiers.Shift) ? SelectionMode.Add
-        : SelectionMode.Replace;
+    private SelectionMode ModeOf(KeyModifiers modifiers) =>
+        modifiers.HasFlag(KeyModifiers.Alt) ? modifiers.HasFlag(KeyModifiers.Shift) ? SelectionMode.Intersect : SelectionMode.Subtract
+        : modifiers.HasFlag(KeyModifiers.Shift) ? SelectionMode.Add : DefaultSelectionMode;
 
     /// <summary>The outline of what is selected, and of the shape being dragged or clicked out.</summary>
     private void DrawSelection(DrawingContext context)
@@ -1173,18 +1176,17 @@ public sealed partial class CanvasView : Control
                      new Rect(right, corner.Y, Math.Max(0, canvas.Right - right), Math.Max(0, bottom - corner.Y)),
                  })
         {
-            context.FillRectangle(DimBrush, band);
+            if (!CropSettings.ShowArea) context.FillRectangle(Skin.ChromeBrush, band);
+            else if (CropSettings.Shield)
+            {
+                var color = CropSettings.ShieldMatchCanvas ? ((SolidColorBrush)Skin.ChromeBrush).Color : Color.FromUInt32(CropSettings.ShieldColor);
+                var opacity = CropSettings.ShieldOpacity / 100 * (CropSettings.AutoOpacity && CropDragging ? .5 : 1);
+                context.FillRectangle(new SolidColorBrush(color, opacity), band);
+            }
         }
         var box = new Rect(corner.X, corner.Y, frame.Width * _zoom, frame.Height * _zoom);
         context.DrawRectangle(null, pen, box);
-        var thirds = new Pen(new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF)), 1);
-        for (var index = 1; index <= 2; index++)
-        {
-            var across = box.X + box.Width * index / 3;
-            var down = box.Y + box.Height * index / 3;
-            context.DrawLine(thirds, new Point(across, box.Y), new Point(across, box.Bottom));
-            context.DrawLine(thirds, new Point(box.X, down), new Point(box.Right, down));
-        }
+        DrawCropGuides(context, box);
         foreach (var handle in new[]
                  {
                      TransformHandle.TopLeft, TransformHandle.Top, TransformHandle.TopRight, TransformHandle.Right,
@@ -1555,6 +1557,8 @@ public sealed partial class CanvasView : Control
                 return;
             }
             _cropStart = point;
+            _cropOriginStart = _origin;
+            _cropScreenStart = Unrotate(e.GetPosition(this));
             _cropOriginal = frame;
             _cropHandle = null;
             if (TransformEdits.HandleAt(CropEdits.Box(frame), point, TransformEdits.Grab / _zoom) is { } handle)
@@ -1695,7 +1699,7 @@ public sealed partial class CanvasView : Control
             _selecting = true;
             _draftMode = ModeOf(e.KeyModifiers);
             _selectionAnchor = point;
-            _selectionBox = null;
+            _selectionBox = ConstrainMarquee?.Invoke(point, point);
             _lasso.Clear();
             _lasso.Add(point);
             _lassoPointer = point;
@@ -1833,6 +1837,14 @@ public sealed partial class CanvasView : Control
         if (_cropDragging is not CropDrag.None)
         {
             var point = ToDocument(now);
+            if (_cropDragging == CropDrag.Move && !CropSettings.Classic)
+            {
+                // Move the image beneath the fixed crop frame; classic mode moves the frame itself.
+                var delta = Unrotate(now) - _cropScreenStart;
+                var dx = (float)(delta.X / _zoom); var dy = (float)(delta.Y / _zoom);
+                _origin = new SKPoint(_cropOriginStart.X - dx, _cropOriginStart.Y - dy);
+                point = new SKPoint(_cropStart.X - dx, _cropStart.Y - dy);
+            }
             var ratio = CropRatio;
             var symmetric = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
             var frame = _cropDragging switch
@@ -1844,6 +1856,7 @@ public sealed partial class CanvasView : Control
                     : _cropOriginal,
             };
             CropChanged?.Invoke(frame, point);
+            if (_cropDragging == CropDrag.Move && !CropSettings.Classic) Moved();
             base.OnPointerMoved(e);
             return;
         }
@@ -1869,7 +1882,7 @@ public sealed partial class CanvasView : Control
             if (Selection == SelectionTool.Lasso && Moved(point)) _lasso.Add(point);
             if (Selection is SelectionTool.Rectangle or SelectionTool.Ellipse)
             {
-                _selectionBox = Between(_selectionAnchor, point);
+                _selectionBox = ConstrainMarquee?.Invoke(_selectionAnchor, point) ?? Between(_selectionAnchor, point);
             }
             _lassoPointer = point;
             InvalidateVisual();
@@ -1886,7 +1899,7 @@ public sealed partial class CanvasView : Control
         if (_navigatorDragging) { NavigateTo(now); e.Handled = true; return; }
         if (_dragging is { } last)
         {
-            if (_zoomDragging) ZoomAt(Math.Pow(2, (last.Y - now.Y) / 100), _zoomAnchor);
+            if (_zoomDragging) { var delta = last.Y - now.Y; if (Math.Abs(delta) > .01) _dragZoomOut = delta < 0; ZoomAt(Math.Pow(2, delta / 100), _zoomAnchor); SetIllustratedCursor(); }
             else
             {
                 var delta = Unrotate(now) - Unrotate(last);

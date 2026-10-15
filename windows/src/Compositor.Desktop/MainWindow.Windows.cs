@@ -118,7 +118,7 @@ public sealed partial class MainWindow
         if (removeBackground && layer is not { IsGroup: false, Asset: not null })
         { Say("Select an image layer to remove its background."); return; }
         using var source = removeBackground ? layer!.Asset!.Image.Copy()
-            : SelectionEdits.Sample(document, _options.WandAllLayers ? null : id);
+            : SelectionEdits.Sample(document, (_tool == Tool.QuickSelection ? Pro.SampleAll : _options.WandAllLayers) ? null : id);
         if (source is null) { Say("Select an image layer first."); return; }
         var revision = _history.CurrentRevision;
         using var cancel = new CancellationTokenSource();

@@ -13,6 +13,7 @@ public sealed partial class CanvasView
     private WriteableBitmap? _navigatorImage;
     private bool _navigatorDirty = true, _navigatorDragging;
     private bool _zoomDragging;
+    private bool _dragZoomOut;
     private Point _zoomAnchor;
     internal Rect NavigatorBounds => !NavigatorEnabled || _document is null || Bounds.Width < 220 || Bounds.Height < 170
         ? default : new Rect(Bounds.Width - 200, 16, 184, 132);

@@ -7,6 +7,7 @@ internal sealed class EditorPreferences
 {
     internal static string PathName => Path.Combine(AppPaths.SettingsDirectory, "preferences.json");
     internal static EditorPreferences Current { get; private set; } = Load();
+    public List<CropPreset> CropPresets { get; set; } = [];
     public int HistorySteps { get; set; } = 100;
     public bool MoveAutoSelect { get; set; } = true;
     public bool PresetCurrentOnly { get; set; } = true;
@@ -93,6 +94,8 @@ internal sealed class EditorPreferences
     internal static void Commit(EditorPreferences draft) { draft.Normalize(); draft.Save(); Current = draft.Copy(); }
     internal void Normalize()
     {
+        CropPresets = (CropPresets ?? []).Where(p => p is not null && !string.IsNullOrWhiteSpace(p.Name) && p.Name.Length <= 200 && p.Mode is >= 0 and <= 1 && double.IsFinite(p.Width) && p.Width is >= 0 and <= 30000 && double.IsFinite(p.Height) && p.Height is >= 0 and <= 30000 && double.IsFinite(p.Resolution) && p.Resolution is >= 0 and <= 9600).Take(200).ToList();
+        CropPresets = (CropPresets ?? []).Where(p => p is not null && !string.IsNullOrWhiteSpace(p.Name) && p.Name.Length <= 200 && p.Mode is >= 0 and <= 1 && double.IsFinite(p.Width) && p.Width is >= 0 and <= 30000 && double.IsFinite(p.Height) && p.Height is >= 0 and <= 30000 && double.IsFinite(p.Resolution) && p.Resolution is >= 0 and <= 9600).Take(200).ToList();
         HistorySteps = Math.Clamp(HistorySteps, 1, 1000); HistoryMB = Math.Clamp(HistoryMB, 16, 1536);
         BrushSmoothing = Finite(BrushSmoothing, 0, 1, 0);
         ExportQuality = Math.Clamp(ExportQuality, 1, 100); RulerUnit = Math.Clamp(RulerUnit, 0, 3);

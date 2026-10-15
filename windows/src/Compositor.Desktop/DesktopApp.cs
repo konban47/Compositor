@@ -24,6 +24,7 @@ public sealed class DesktopApp : Application
     {
         Skin.RefreshPalette();
         RequestedThemeVariant = EditorPreferences.Current.Theme >= 2 ? ThemeVariant.Light : ThemeVariant.Dark;
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) foreach (var window in desktop.Windows.OfType<MainWindow>()) window.RestoreNativeWindowCorners();
         if (_theme is { } theme) Skin.Apply(theme);
     }
 

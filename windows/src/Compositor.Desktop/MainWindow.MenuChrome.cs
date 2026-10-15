@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Styling;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -10,12 +11,15 @@ namespace Compositor.Desktop;
 
 public sealed partial class MainWindow
 {
-    private void RestoreNativeWindowCorners()
+    internal void RestoreNativeWindowCorners()
     {
         // Keep the same native resizable frame and rounded DWM corners as the original window.
         if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) || TryGetPlatformHandle() is not { } handle) return;
         var round = 2;
         _ = DwmSetWindowAttribute(handle.Handle, 33, ref round, sizeof(int));
+        var color = Skin.Chrome.R | Skin.Chrome.G << 8 | Skin.Chrome.B << 16;
+        _ = DwmSetWindowAttribute(handle.Handle, 34, ref color, sizeof(int));
+        _ = DwmSetWindowAttribute(handle.Handle, 35, ref color, sizeof(int));
     }
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
@@ -43,6 +47,7 @@ public sealed partial class MainWindow
             var button = new Button { Content = glyph, Tag = "caption-" + title, Width = 44, Height = 28, MinWidth = 0, MinHeight = 0, Padding = new Thickness(0),
                 HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
             if (symbol == "□") PropertyChanged += (_, e) => { if (e.Property == WindowStateProperty) { glyph.Restored = WindowState == WindowState.Maximized; glyph.InvalidateVisual(); } };
+            if (symbol == "×") { button.Classes.Add("window-close"); button.Styles.Add(new Avalonia.Styling.Style(s => s.OfType<Button>().Class(":pointerover").Template().OfType<Avalonia.Controls.Presenters.ContentPresenter>().Name("PART_ContentPresenter")) { Setters = { new Avalonia.Styling.Setter(Avalonia.Controls.Presenters.ContentPresenter.BackgroundProperty, new SolidColorBrush(Color.Parse("#E81123"))) } }); }
             ToolTip.SetTip(button, Localize.Text(title)); button.Click += (_, _) => action(); controls.Children.Add(button);
         }
         DockPanel.SetDock(controls, Dock.Right); bar.Children.Add(controls);

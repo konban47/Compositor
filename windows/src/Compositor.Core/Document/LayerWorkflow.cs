@@ -195,6 +195,7 @@ public static class LayerWorkflow
                     writer.WriteStartElement("path", ns); writer.WriteAttributeString("d", style.Path);
                     writer.WriteAttributeString("transform", FormattableString.Invariant($"scale({width} {height})"));
                 }
+                else if (style.Kind == ShapeKind.Rectangle && style.Smoothing == true) { using var path = SmoothCorners.Rectangle(SKRect.Create((float)width, (float)height), style.CornerRadius, true); writer.WriteStartElement("path", ns); writer.WriteAttributeString("d", path.ToSvgPathData()); }
                 else if (style.Kind == ShapeKind.Ellipse)
                 {
                     writer.WriteStartElement("ellipse", ns); Attribute("cx", width / 2.0); Attribute("cy", height / 2.0); Attribute("rx", width / 2.0); Attribute("ry", height / 2.0);

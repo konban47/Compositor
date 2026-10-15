@@ -40,9 +40,9 @@ public class CameraRawScopeTests
         var scope = CameraRawScope.OfPremultiplied(work);
         // Each ribbon holds every pixel at that channel's own level, so the three read differently even though
         // every pixel is the same colour.
-        Assert.Equal(1600, Total(scope.Red), 3);
-        Assert.Equal(1600, Total(scope.Green), 3);
-        Assert.Equal(1600, Total(scope.Blue), 3);
+        Assert.Equal(100, Total(scope.Red), 3);
+        Assert.Equal(100, Total(scope.Green), 3);
+        Assert.Equal(100, Total(scope.Blue), 3);
         Assert.Equal(10, Busiest(scope.Red));
         Assert.Equal(120, Busiest(scope.Green));
         Assert.Equal(250, Busiest(scope.Blue));
@@ -96,11 +96,11 @@ public class CameraRawScopeTests
         var scope = CameraRawScope.OfPremultiplied(work);
         Assert.Equal(0, scope.ScopePeak);
         // The ribbons still hold it: a grey is a level on every channel, whatever the vectorscope makes of it.
-        Assert.Equal(1600, Total(scope.Red), 3);
+        Assert.Equal(100, Total(scope.Red), 3);
     }
 
     [Fact]
-    public void ALargePictureIsCountedFromAReducedCopy()
+    public void ALargePictureIsSampledAtNativeResolution()
     {
         // The count is a shape rather than a measurement, so a picture longer than the limit is reduced first.
         var bitmap = new SKBitmap(Bitmaps.ColorInfo(3000, 1500));
@@ -108,7 +108,7 @@ public class CameraRawScopeTests
         using var wide = ImportedImage.Create(bitmap, "Wide");
         using var work = Bitmaps.Premultiplied(wide.Image);
         var scope = CameraRawScope.OfPremultiplied(work);
-        var reduced = (long)CameraRawScope.SampleLimit * Math.Round(1500.0 * CameraRawScope.SampleLimit / 3000);
+        var reduced = 375L * 188;
         Assert.Equal(reduced, Total(scope.Red), reduced * 0.02);
         Assert.Equal(200, Busiest(scope.Red));
     }
@@ -134,7 +134,7 @@ public class CameraRawScopeTests
         using var work = Bitmaps.Premultiplied(layer.Asset!.Image);
         var scope = CameraRawScope.OfPremultiplied(work);
         var spike = scope.Red.Max();
-        Assert.True(spike > 8000, $"the flat background is not the spike it was meant to be: {spike}");
+        Assert.True(spike > 500, $"the flat background is not the spike it was meant to be: {spike}");
         Assert.True(scope.Peak > 0, "the peak came out at nothing");
         Assert.True(scope.Peak < spike / 20,
             $"the peak {scope.Peak} was not brought well below the spike {spike}");
@@ -204,7 +204,7 @@ public class CameraRawScopeTests
             shadows: true, highlights: false, sharpenMask: false, out scope)));
         Assert.NotNull(scope);
         var left = Total(scope!.Red);
-        Assert.True(left < 3600, $"the turn did not change the picture the scope counted: {left} of 3600");
-        Assert.True(left > 2000, $"too much of the picture was lost: {left} of 3600");
+        Assert.True(left < 225, $"the turn did not change the picture the scope counted: {left} of 225");
+        Assert.True(left > 125, $"too much of the picture was lost: {left} of 225");
     }
 }

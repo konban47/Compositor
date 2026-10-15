@@ -13,6 +13,7 @@ public sealed class LayerShapeStyle
 
     /// <summary>Document pixels, whatever size the shape is scaled to.</summary>
     public double CornerRadius { get; set; }
+    public bool? Smoothing { get; set; }
 
     /// <summary>A line's thickness, and its two ends as fractions of the layer's box. Nil on other shapes.</summary>
     public double? LineWidth { get; set; }

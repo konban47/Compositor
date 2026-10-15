@@ -30,7 +30,7 @@ internal sealed partial class ToolOptionsBar
         {
             var b = IconButton("", operation, () => AlignmentAsked?.Invoke(operation)); b.Content = new InspectorGlyph(operation) { Width = 20, Height = 20 }; Cell("moveOptions", b);
         }
-        var more = IconButton("", "Align and Distribute", null); more.Content = "•••"; more.Click += (_, _) => MenuAsked?.Invoke("Alignment", more); Cell("moveOptions", more);
+        var more = IconButton("", "Align and Distribute", null); more.Content = new ChromeGlyph("more") { Width = 24, Height = 24 }; more.Click += (_, _) => MenuAsked?.Invoke("Alignment", more); Cell("moveOptions", more);
         var settings = IconButton("settings", "Move Tool Settings", null); settings.Click += (_, _) => MenuAsked?.Invoke("Move Settings", settings); Cell("moveOptions", settings);
     }
     private void RefreshMoveOptions()

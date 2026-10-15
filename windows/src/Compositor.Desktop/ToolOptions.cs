@@ -20,7 +20,9 @@ internal sealed class ToolOptions
 
 
     /// <summary>The magic wand's own amounts, and whether it reads every visible layer.</summary>
-    public WandOptions Wand = new();
+    public SelectionToolSettings Selection = new();
+    public CropToolSettings Crop = new();
+    public WandOptions Wand = new(0);
     public bool WandAllLayers;
 
     /// <summary>
@@ -43,5 +45,6 @@ internal sealed class ToolOptions
     /// <summary>Which shape the Shape tool draws, and its two sizes.</summary>
     public ShapeKind Shape = ShapeKind.Rectangle;
     public double ShapeCornerRadius;
+    public bool ShapeSmoothing;
     public double ShapeLineWidth = 4;
 }

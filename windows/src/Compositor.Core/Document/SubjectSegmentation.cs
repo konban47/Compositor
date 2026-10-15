@@ -142,6 +142,28 @@ public static class SubjectEdits
         return builder.Detach();
     }
 
+    /// <summary>Return complete connected foreground objects touched by a rectangle or lasso.</summary>
+    public static SKPath InRegion(SKBitmap matte, SKPath region)
+    {
+        var width = matte.Width; var height = matte.Height; var seen = new bool[checked(width * height)];
+        using var selected = Bitmaps.Allocate(Bitmaps.MaskInfo(width, height)); selected.Erase(SKColors.Black);
+        var component = new List<int>(); var queue = new Queue<int>();
+        for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
+        {
+            var start = y * width + x; if (seen[start] || matte.GetPixel(x, y).Red < 128) continue;
+            component.Clear(); queue.Enqueue(start); seen[start] = true; var touched = false;
+            while (queue.TryDequeue(out var i))
+            {
+                component.Add(i); var px = i % width; var py = i / width;
+                touched |= region.Contains(px + .5f, py + .5f);
+                if (px > 0) Visit(i - 1); if (px + 1 < width) Visit(i + 1); if (py > 0) Visit(i - width); if (py + 1 < height) Visit(i + width);
+            }
+            if (touched) foreach (var i in component) selected.SetPixel(i % width, i / width, SKColors.White);
+        }
+        void Visit(int i) { if (!seen[i] && matte.GetPixel(i % width, i / width).Red >= 128) { seen[i] = true; queue.Enqueue(i); } }
+        return Outline(selected);
+    }
+
     /// <summary>Multiplies a subject matte into the existing mask in layer coordinates, retaining existing coverage and enabling the result.</summary>
     public static bool RemoveBackground(CanvasDocument document, Guid layerID, SKBitmap matte)
     {

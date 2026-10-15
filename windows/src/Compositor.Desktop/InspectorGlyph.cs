@@ -12,7 +12,7 @@ internal sealed class InspectorGlyph(string kind) : Control
     {
         if (AlignmentGlyph.Draw(context, kind, Bounds.Size)) return;
         if (EditorIcon.Draw(context, kind, Bounds.Size)) return;
-        if (kind == "more") { foreach (var x in new[] { 4d, 11d, 18d }) context.DrawEllipse(Skin.LabelBrush, null, new Point(x, 11), 1.7, 1.7); return; }
+        if (kind == "more") { foreach (var x in new[] { 4d, 11d, 18d }) context.DrawEllipse(Skin.LabelBrush, null, new Point(x, 11), 2.1, 2.1); return; }
         var glyph = kind switch {
             "bold" => "B", "italic" => "I", "all-caps" => "TT", "small-caps" => "Tᴛ", "superscript" => "T¹", "subscript" => "T₁", "underline" => "T̲", "strike" => "T̶",
             "type-size" => "Tᴛ", "leading" => "A↕", "kerning" => "V/A", "tracking" => "VA", "h-scale" => "↔T", "v-scale" => "↕T", "baseline" => "A↟",

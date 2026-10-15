@@ -25,6 +25,11 @@ public sealed partial class MainWindow
     private void InitializeInteraction()
     {
         InitializeEditing();
+        Point? middle = null;
+        _layers.AddHandler(PointerPressedEvent, (_, e) => { if (!e.GetCurrentPoint(_layers).Properties.IsMiddleButtonPressed) return; middle = e.GetPosition(_layers); e.Pointer.Capture(_layers); _layers.Cursor = new Cursor(StandardCursorType.SizeAll); e.Handled = true; }, RoutingStrategies.Tunnel);
+        _layers.AddHandler(PointerMovedEvent, (_, e) => { if (middle is not { } last) return; var at = e.GetPosition(_layers); if (_layers.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is { } scroll) scroll.Offset = new Vector(scroll.Offset.X, Math.Clamp(scroll.Offset.Y + last.Y - at.Y, 0, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height))); middle = at; e.Handled = true; }, RoutingStrategies.Tunnel);
+        _layers.AddHandler(PointerReleasedEvent, (_, e) => { if (middle is null) return; middle = null; e.Pointer.Capture(null); _layers.Cursor = null; e.Handled = true; }, RoutingStrategies.Tunnel);
+        _layers.PointerCaptureLost += (_, _) => { middle = null; _layers.Cursor = null; };
         _canvas.MoveTargetPressed = SelectMoveTarget;
         DragDrop.SetAllowDrop(_canvas, true);
         _canvas.AddHandler(DragDrop.DragOverEvent, CanvasDragOver);
