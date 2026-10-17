@@ -30,6 +30,8 @@
 - 左工具栏取消滚动并按可用高度收紧；高窗口保持紧凑，同一实际快捷键合并为同一缩略按钮。自定义工具栏两栏为滚动条保留空间，工具名称自动换行。
 - 切片选项未选中时自动选取现有切片或画布自动切片，打开完整属性弹窗；四个排列按钮使用内置 imagegen 图像并随主题着色。
 - 2026-10-17 核对上游 HEAD 未变化。验证与平台边界见[更新记录](UPDATES-1.5.3.1.md)。新增 --panel-workflow-checks，进入中英文与发行包回归。
+- 2026-10-17 恢复 Fork 的 GitHub Actions；[发布提交的云端验证](https://github.com/konban47/Compositor/actions/runs/39028925211)已在 Windows Server 2022／2025 通过文档检查、零警告构建、1184 项核心测试及 22 组英文／16 组中文界面检查。
+- 同次 CI 完成免安装版与正式安装器构建，发行程序通过 16 组界面检查，并在临时 Windows Server 2025 环境通过全新安装／卸载验收。
 
 以下版本段落为历史记录。
 
@@ -209,7 +211,7 @@ dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --windo
 
 Inno Setup 不在默认位置时，增加 `-InnoCompiler "C:\path\to\ISCC.exe"`。
 
-构建脚本会从微软官网下载签名有效的 C++ 运行库，**不会在构建机安装它**。GitHub Actions 配置为使用 Inno Setup 构建安装包，并在临时 runner 上验证安装／卸载；本版因仓库 Actions 被禁用而使用本机验证，见更新记录。
+构建脚本会从微软官网下载签名有效的 C++ 运行库，**不会在构建机安装它**。GitHub Actions 使用 Inno Setup 构建安装包，并在临时 runner 上验证安装／卸载。首次发布时因 Fork 工作流被停用而使用本机验证；2026-10-17 已恢复 Actions，补充验证结果见[更新记录](UPDATES-1.5.3.1.md)。
 
 核心测试当前为 **1184 项**；还提供 `--clicks`、`--tabs`、`--tools`、`--shortcuts`、`--camera-raw`、`--dialogs`、`--windows-checks`、`--interaction-checks`、`--panel-checks`、`--inspector-checks`、`--workspace-checks` 窗口测试，每项参数后跟截图路径。旧窗口断言用 `COMPOSITOR_LANGUAGE=en`；新增测试覆盖 en 和 zh-CN。测试设置目录应与个人配置分开。`windows/scripts/check-docs.ps1` 检查应用／安装包／文档版本、格式字段及当前功能说明，CI 在构建前执行以减少文档漂移。
 
@@ -221,6 +223,8 @@ An independent Windows x64 port retaining Compositor's `.comp` folder format. Ba
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 
-Windows 1.5.3.1 is a **Preview**, validated locally on Windows 11. GitHub Actions returned HTTP 422 (disabled for this repository), so this release has no new Windows Server CI results and is not manually certified on Windows 10. Skia GPU display, CPU reference compositing and U²-NetP replace Apple's native implementations; segmentation, glow, fonts, some drag/drop interactions and RAW development are not identical. PSD conversion has reported limitations and no PSD export. Dependent clipping-layer deletion supports baking or releasing links, with undo. See the [current release notes](UPDATES-1.5.3.1.md) for validation details.
+Windows 1.5.3.1 is a **Preview**, validated locally on Windows 11. After the fork's workflows were re-enabled on 2026-10-17, [CI for release commit e3c28db](https://github.com/konban47/Compositor/actions/runs/39028925211) passed documentation checks, the warnings-as-errors build, 1184 core tests and 22 English / 16 Chinese UI checks on both Windows Server 2022 and 2025. This does not certify manual Windows 10 testing or administrator upgrade behavior. Skia GPU display, CPU reference compositing and U²-NetP replace Apple's native implementations; segmentation, glow, fonts, some drag/drop interactions and RAW development are not identical. PSD conversion has reported limitations and no PSD export. Dependent clipping-layer deletion supports baking or releasing links, with undo. See the [current release notes](UPDATES-1.5.3.1.md) for validation details.
+
+The same CI run built the portable app and installer, passed 16 published-app UI checks, and verified a fresh installation and uninstall on a temporary Windows Server 2025 runner. Bundled documentation remains a snapshot of the initial release; the online release notes record this additional validation.
 
 The repository includes reproducible build/package scripts, core tests and headless UI checks. Windows updates use `windows-v*` releases in this fork, never the upstream macOS DMG feed.

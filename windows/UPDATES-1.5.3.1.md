@@ -13,7 +13,11 @@
 
 发行包与独立安装验收结果见 [GitHub Release](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.1)。本次未测试 Windows 10、真实数位板、多显示器或正式管理员升级。
 
-Windows 继续使用既有 CPU／Skia 渲染；本版没有新增云端图像请求或模型功能。GitHub Actions 于 2026-10-17 再次返回 HTTP 422（Actions has been disabled for this repository）；未取得 Windows Server 2022／2025 云端验证结果，改用本机构建与发行包验收。
+Windows 继续使用既有 CPU／Skia 渲染；本版没有新增云端图像请求或模型功能。首次发布时 GitHub Actions 返回 HTTP 422（Actions has been disabled for this repository），因此当时采用本机构建与发行包验收。随后确认 GitHub 自动停用了此 Fork 的工作流；仓库所有者于 2026-10-17 重新启用。
+
+恢复后的 [Windows CI 运行](https://github.com/konban47/Compositor/actions/runs/39028925211) 验证发布提交 `e3c28db7d65a5439aca3debedef7b78b35695f3e`：Windows Server 2022 和 2025 均通过文档检查、Release 零警告构建、1184 项核心测试以及 22 组英文／16 组中文界面检查。Windows Server CI 不等同于 Windows 10 实机或正式管理员升级验收。
+
+同次 CI 的 Windows Server 2025 打包任务通过：构建自带运行时的免安装版和正式安装器，发行程序通过 16 组界面检查，正式安装器完成临时目录中的全新安装与卸载，产物上传成功。已发布下载包中的文档为首次发布时的验证快照；恢复后的追加验证记录见本页和 GitHub Release。
 
 Camera Raw 数据来源（SHA-256，移植表保持原版本）：
 
