@@ -45,8 +45,8 @@ public sealed partial class MainWindow
         {
             EditorPreferences.Current.Theme = theme; ApplyPreferences(); _layers.SelectedItems!.Clear(); Pump();
             var row = _layers.GetVisualDescendants().OfType<ListBoxItem>().First();
-            var presenter = row.GetVisualDescendants().OfType<ContentPresenter>().First(p => p.Name == "PART_ContentPresenter");
-            Check(presenter.Background is ISolidColorBrush fill && fill.Color == ((ISolidColorBrush)Skin.SurfaceDarkBrush).Color, "Layer presenter did not follow theme.");
+            var background = row.GetVisualChildren().OfType<Border>().Single();
+            Check(!row.IsSelected && background.Background is ISolidColorBrush fill && fill.Color == Skin.Chrome, "Layer row did not follow theme.");
             ShowDockPanel("Channels"); Pump();
             foreach (var item in _dockPanels["Channels"].Body.GetVisualDescendants().OfType<ListBoxItem>().Where(r => !r.IsSelected))
                 Check(item.Background is ISolidColorBrush color && color.Color == ((ISolidColorBrush)Skin.SurfaceDarkBrush).Color, "Channel row did not follow theme.");

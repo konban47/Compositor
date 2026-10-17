@@ -133,5 +133,16 @@ foreach ($field in @('noImage','target','altText','background','shape.smoothing'
 }
 if (!(Read-Repo 'windows/scripts/package.ps1').Contains('SELECTION-CROP-SLICE.md') -or !(Read-Repo 'README.md').Contains('SELECTION-CROP-SLICE.md')) { throw 'Selection guide is missing from package/homepage.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--selection-options-checks')) { throw 'Selection options checks missing from CI.' }
+$panelWorkflow = Read-Repo $updates
+foreach ($feature in @('32 DIP','同一实际快捷键','取消滚动','imagegen')) {
+    if (!$panelWorkflow.Contains($feature)) { throw "Panel workflow documentation missing $feature." }
+}
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--panel-workflow-checks')) { throw 'Panel workflow checks missing from CI.' }
+$sliceIconGuide = Read-Repo 'windows/design/slice-order-icons/README.md'
+foreach ($name in @('front','forward','backward','back')) {
+    $iconPath = Join-Path $repo "windows/src/Compositor.Desktop/Assets/slice-order/$name.png"
+    $hash = (Get-FileHash -LiteralPath $iconPath -Algorithm SHA256).Hash.ToLower()
+    if (!$sliceIconGuide.Contains($hash) -or !$sliceIconGuide.Contains("### $name")) { throw "Generated icon provenance missing: $name" }
+}
 & (Join-Path $PSScriptRoot 'check-upstream-ui.ps1')
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."

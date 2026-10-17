@@ -6,20 +6,22 @@
 
 本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
 
-[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.0) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.3.0.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
+[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.1) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.3.1.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
 
 本版另增加 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](windows/design/panel-icons/README.md)。
 
-## 1.5.3.0 选区、裁剪与切片
+## 1.5.3.1 面板与窗口修复
 
-按参考图补齐 15 种选区／裁剪／切片工具的选项、弹出设置和编辑逻辑；调整浮窗标题图标、四套主题滚动条和窗口外框。合并上游 1.5.3 的平滑圆角、图层中键滚动、缩放光标和 Camera Raw 原尺寸预览相关更新。见[选区、裁剪与切片手册](windows/SELECTION-CROP-SLICE.md)。
+主窗口和弹窗共享 32 DIP 主题标题栏，菜单与 logo 尺寸保持原样。图层面板按筛选、混合模式／不透明度、锁定／填充和图层列表分区；左侧工具栏取消滚动，同快捷键工具自动归组。自定义工具栏为滚动条预留空间。切片选项可直接打开，四个排列图标使用内置 imagegen 生成并随主题着色。见[本版更新](windows/UPDATES-1.5.3.1.md)与[图标来源及提示词](windows/design/slice-order-icons/README.md)。
+
+现有工具选项与能力边界见[选区、裁剪与切片手册](windows/SELECTION-CROP-SLICE.md)。
 
 ## 安装
 
 目标系统：Windows 10 1809 及以上、Windows 11，64 位 x64。
 
-- **安装版**：运行 `Compositor-Windows-1.5.3.0-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.5.3.0-x64-portable.zip`，运行 `Compositor.exe`。
+- **安装版**：运行 `Compositor-Windows-1.5.3.1-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.5.3.1-x64-portable.zip`，运行 `Compositor.exe`。
 - 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
 - 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
 
@@ -84,7 +86,7 @@
 
 ## 验证与当前状态
 
-**1.5.3.0 Preview** 合并上游 **1.5.3 / `365b574`**。新增单行／单列选框、工具选项与弹窗、切片属性／划分／排列、裁剪填充和可编辑平滑圆角。核心测试 **1184 项**；本机通过 **21 组英文、15 组中文**界面检查。CI 已配置这些检查及发行包安装／卸载检查，但本次 GitHub 返回 Actions 已禁用（HTTP 422），未取得 Windows Server 2022／2025 运行结果。详见[本版更新](windows/UPDATES-1.5.3.0.md)。
+**1.5.3.1 Preview** 保持上游 **1.5.3 / 365b574** 基线；2026-10-17 核对上游 HEAD 未变化。当前回归验证结果见[本版更新](windows/UPDATES-1.5.3.1.md)。现有选区、裁剪、切片与平滑圆角功能继续保留。
 
 [图层样式与右键菜单使用说明](windows/LAYER-STYLES.md)记录每个菜单项、快捷键、格式和 Photoshop 差异。样式使用 CPU 近似渲染；遮住所有对象采用离线显著性连通区域，不是 Adobe 实例识别；智能对象保存本应用图层源，不提供 PSD 智能对象往返。
 

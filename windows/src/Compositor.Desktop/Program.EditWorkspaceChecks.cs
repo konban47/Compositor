@@ -38,10 +38,14 @@ public sealed partial class MainWindow
         Check(_tabStrip.Children.OfType<Border>().All(b => b.CornerRadius.TopLeft == 14), "Tabs do not use upstream capsules.");
         foreach (var button in _rail.GetVisualDescendants().OfType<Button>().Where(b => b.Tag is string s && s is "Extra Tools" or "Quick Mask (Q)" or "Screen Mode (F)" or "Generative Workspace"))
         { var at = button.TranslatePoint(default, _rail)!.Value; Check(Math.Abs(at.X + button.Bounds.Width / 2 - _rail.Bounds.Width / 2) < 1, "Footer button is off-center: " + button.Tag); }
+        this.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "layer-opacity-slider")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+        TopLevel.GetTopLevel(_opacity)!.UpdateLayout();
         var thumb = _opacity.GetVisualDescendants().OfType<Thumb>().Single(); var pos = thumb.TranslatePoint(default, _opacity)!.Value;
         Check(pos.Y >= 0 && pos.Y + thumb.Bounds.Height <= _opacity.Bounds.Height && Math.Abs(pos.Y + thumb.Bounds.Height / 2 - _opacity.Bounds.Height / 2) < 1, "Opacity thumb is clipped or off-center.");
+        _opacityPopup!.IsOpen = false;
         var extra = _rail.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "Extra Tools")); extra.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
-        Check(extra.ContextMenu?.Items.Count == 1, "Extra menu contains duplicate tools."); extra.ContextMenu!.Close();
+        var extraNames = extra.ContextMenu!.Items.OfType<MenuItem>().Select(i => i.Header?.ToString()).ToArray();
+        Check(extraNames.Length == _rail.Layout.Extras.Count + 1 && extraNames.Distinct().Count() == extraNames.Length, "Extra menu is missing or duplicates tools."); extra.ContextMenu.Close();
         // Every Edit command must be discoverable in both languages.
         var edit = _mainMenu!.Items.OfType<MenuItem>().Single(m => m.Header?.ToString() == Localize.Text("_Edit"));
         Check(edit.Items.OfType<MenuItem>().Any(m => m.Header?.ToString() == Localize.Text("Paste Special")), "Paste Special menu missing.");

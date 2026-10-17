@@ -62,4 +62,29 @@ internal sealed class FormDialog : DialogWindow
         check.IsCheckedChanged += (_, _) => { change?.Invoke(check.IsChecked == true); Changed?.Invoke(); }; Fields.Children.Add(check); return check;
     }
     internal void Preview() => Check("Preview", true, value => PreviewEnabled = value);
+
+    internal void ArrangeSliceFields()
+    {
+        if (Content is not Grid layout || Fields.Children.Count != 12) return;
+        layout.Tag = "slice-properties-layout";
+        var rows = Fields.Children.ToArray(); Fields.Children.Clear(); Fields.Spacing = 12;
+        var details = new StackPanel { Spacing = 5, Margin = new Thickness(10) };
+        foreach (var row in rows.Take(6)) { if (row is Grid grid) grid.ColumnDefinitions = new("115,*"); details.Children.Add(row); }
+        Fields.Children.Add(new Border { BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(1), Child = details });
+        var dimensions = new Grid { ColumnDefinitions = new("*,*"), RowDefinitions = new("Auto,Auto"), Margin = new Thickness(10) };
+        for (var i = 0; i < 4; i++)
+        {
+            var row = (Grid)rows[6 + i]; row.ColumnDefinitions = new("42,*"); row.Margin = new Thickness(4, 3, 16, 3);
+            Grid.SetRow(row, i % 2); Grid.SetColumn(row, i / 2); dimensions.Children.Add(row);
+        }
+        var sizes = new StackPanel { Spacing = 2 }; sizes.Children.Add(new TextBlock { Text = Localize.Text("Dimensions"), Margin = new Thickness(12, 0) }); sizes.Children.Add(dimensions);
+        Fields.Children.Add(new Border { BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(1), Child = sizes });
+        foreach (var row in rows.Skip(10)) Fields.Children.Add(row);
+        var actions = layout.Children.OfType<WrapPanel>().Single(); actions.Orientation = Orientation.Vertical; actions.HorizontalAlignment = HorizontalAlignment.Stretch; actions.Margin = new Thickness(12, 0, 0, 0);
+        var cancel = actions.Children[0]; actions.Children.Remove(cancel); actions.Children.Add(cancel);
+        foreach (var button in actions.Children.OfType<Button>()) button.Margin = new Thickness(0, 4);
+        layout.ColumnDefinitions = new("*,100"); layout.RowDefinitions = new("*,Auto");
+        Grid.SetColumn(actions, 1); Grid.SetRow(actions, 0); Grid.SetRow(_error, 1); Grid.SetColumnSpan(_error, 2);
+        MinWidth = 620; MinHeight = 500;
+    }
 }

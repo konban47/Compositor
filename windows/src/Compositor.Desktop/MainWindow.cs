@@ -1956,13 +1956,16 @@ public sealed partial class MainWindow : Window
 
         // The Layers panel's own opacity slider, dragged: the layer under it dims.
         if (Selected is not { } dimming) throw new InvalidOperationException("no layer is selected to dim");
-        if (_opacity.TranslatePoint(new Point(0, 0), this) is not { } track)
-        {
-            throw new InvalidOperationException("the opacity slider is not in the window");
-        }
+        var opener = this.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "layer-opacity-slider"));
+        opener.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var opacityHost = TopLevel.GetTopLevel(_opacity)!; opacityHost.UpdateLayout();
+        if (_opacity.TranslatePoint(default, opacityHost) is not { } track) throw new InvalidOperationException("The opacity popup did not open.");
         var wasOpacity = document.Layers.First(one => one.ID == dimming).Opacity;
         var down = track.Y + _opacity.Bounds.Height / 2;
-        Drag(new Point(track.X + _opacity.Bounds.Width - 12, down), new Point(track.X + 14, down));
+        opacityHost.MouseDown(new Point(track.X + _opacity.Bounds.Width - 12, down), MouseButton.Left);
+        opacityHost.MouseMove(new Point(track.X + 14, down), RawInputModifiers.LeftMouseButton);
+        opacityHost.MouseUp(new Point(track.X + 14, down), MouseButton.Left);
+        _opacityPopup!.IsOpen = false;
         var nowOpacity = document.Layers.First(one => one.ID == dimming).Opacity;
         report.Add($"the opacity slider dragged left: {wasOpacity:0.00} → {nowOpacity:0.00}, "
             + $"one \"{_history.UndoName}\" step");
@@ -3057,11 +3060,7 @@ public sealed partial class MainWindow : Window
             Refresh();
         };
 
-        return new StackPanel
-        {
-            Orientation = Orientation.Horizontal, Spacing = 5,
-            Children = { _blend, new TextBlock { Text = Localize.Text("Opacity"), FontSize = 11, Foreground = Skin.SecondaryBrush, VerticalAlignment = VerticalAlignment.Center }, _opacity, _opacityReadout },
-        };
+        return BuildLayerOpacityRow();
     }
 
     /// <summary>Puts the slider's value on the selected layer, as one edit's worth of change.</summary>
@@ -3080,7 +3079,8 @@ public sealed partial class MainWindow : Window
             _blend.SelectedIndex = layer is null ? -1 : _blendRows.IndexOf(layer.BlendMode);
             _opacity.Value = (layer?.Opacity ?? 1) * 100;
             _opacityReadout.Text = Localize.Format($"{_opacity.Value:0}%");
-            _blend.IsEnabled = _opacity.IsEnabled = layer is not null && _document is { } doc && !LayerProtection.Effective(doc, layer.ID).HasFlag(LayerLocks.All);
+            _opacityValue.Value = (decimal)_opacity.Value;
+            _blend.IsEnabled = _opacity.IsEnabled = _opacityValue.IsEnabled = layer is not null && _document is { } doc && !LayerProtection.Effective(doc, layer.ID).HasFlag(LayerLocks.All);
         }
         finally
         {
@@ -5972,7 +5972,7 @@ public sealed partial class MainWindow : Window
         var rows = new List<ListBoxItem>();
         _rows.Clear();
         // Top of the stack first, as the Mac build's panel lists it.
-        foreach (var entry in document.HierarchyEntries(collapsed: _layerKind.SelectedIndex <= 0 && string.IsNullOrWhiteSpace(_layerSearch.Text) ? _open.Collapsed : [], topFirst: true))
+        foreach (var entry in document.HierarchyEntries(collapsed: !LayerFiltering ? _open.Collapsed : [], topFirst: true))
         {
             var record = entry.Layer;
             if (!MatchesLayerFilter(models[record.ID])) continue;
@@ -5987,10 +5987,21 @@ public sealed partial class MainWindow : Window
                 // The row carries the layer it stands for, so a multi-selection can be read back.
                 Tag = record.ID,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                Padding = new Thickness(2),
+                Padding = new Thickness(0),
+                Template = new Avalonia.Controls.Templates.FuncControlTemplate<ListBoxItem>((owner, _) => new Border
+                {
+                    [!Border.BackgroundProperty] = new Avalonia.Data.Binding(nameof(owner.Background)) { Source = owner },
+                    Child = new Avalonia.Controls.Presenters.ContentPresenter { Content = owner.Content, Padding = owner.Padding, HorizontalContentAlignment = HorizontalAlignment.Stretch },
+                }),
                 Content = LayerRow(models[record.ID], entry.Depth,
                     notes.Count > 0 ? "  ·  " + string.Join("，", notes.Select(Localize.Text)) : ""),
             };
+            void RowAppearance()
+            {
+                item.Background = item.IsSelected ? new SolidColorBrush(Color.Parse("#4D6595")) : Skin.ChromeBrush;
+                item.Foreground = item.IsSelected ? Brushes.White : Skin.LabelBrush;
+            }
+            item.PropertyChanged += (_, e) => { if (e.Property == ListBoxItem.IsSelectedProperty) RowAppearance(); }; RowAppearance();
             WireLayerDrag(item);
             WireLayerContext(item, models[record.ID]);
             rows.Add(item);

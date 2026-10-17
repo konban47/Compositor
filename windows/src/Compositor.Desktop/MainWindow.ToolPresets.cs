@@ -135,9 +135,10 @@ public sealed partial class MainWindow
         Reload();
         if (manager)
         {
-            only.IsVisible = false; managerWindow = new Window { Title = Localize.Text("Tool Preset Manager"), Width = 380, Height = 285, Content = body, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Skin.ChromeBrush };
+            only.IsVisible = false; managerWindow = new ToolPresetManagerWindow { Title = Localize.Text("Tool Preset Manager"), Width = 380, Height = 285, Content = body, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             managerWindow.Show(this);
         }
         else { popup.Content = body; popup.ShowAt(anchor); }
     }
+    private sealed class ToolPresetManagerWindow : DialogWindow { }
 }

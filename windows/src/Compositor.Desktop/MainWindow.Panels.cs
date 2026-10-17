@@ -64,16 +64,12 @@ public sealed partial class MainWindow
     private Control BuildPanels()
     {
         _layersSide.Width = 340;
-        var layers = new DockPanel { LastChildFill = true };
-        var top = new StackPanel { Spacing = 6, Margin = new Thickness(8) };
-        foreach (var name in new[] { "All kinds", "Pixels", "Adjustment", "Text", "Shape", "Groups", "Locked" })
-            _layerKind.Items.Add(Localize.Text(name));
-        _layerKind.SelectedIndex = 0;
-        _layerSearch.TextChanged += (_, _) => { if (_document is { } doc) ShowLayers(doc); };
-        _layerKind.SelectionChanged += (_, _) => { if (_document is { } doc) ShowLayers(doc); };
-        top.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { _layerKind, _layerSearch } });
+        var layers = new DockPanel { LastChildFill = true, Background = Skin.ChromeBrush };
+        ConfigureLayerList();
+        var top = new StackPanel { Spacing = 0 };
+        top.Children.Add(BuildLayerFilters());
         top.Children.Add(Appearance());
-        var locks = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
+        var locks = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, Margin = new Thickness(6, 4, 6, 4) };
         locks.Children.Add(new TextBlock { Text = Localize.Text("Lock:"), FontSize = 11, Foreground = Skin.SecondaryBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) });
         foreach (var (flag, icon, label) in new[]
         {
@@ -88,9 +84,8 @@ public sealed partial class MainWindow
                 Width = 26,
                 Height = 24,
                 Padding = new Thickness(2),
-                CornerRadius = new CornerRadius(7),
-                Background = Brushes.Transparent,
-                BorderBrush = Skin.BorderControlBrush,
+                CornerRadius = new CornerRadius(2),
+                Background = Brushes.Transparent, BorderThickness = new Thickness(0),
             };
             ToolTip.SetTip(button, Localize.Text(label));
             Avalonia.Automation.AutomationProperties.SetName(button, Localize.Text(label));
@@ -107,17 +102,18 @@ public sealed partial class MainWindow
                 return true;
             });
         };
-        locks.Children.Add(_fill); top.Children.Add(locks);
+        locks.Children.Add(_fill); top.Children.Add(new Border { BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(0, 1, 0, 1), Child = locks });
         DockPanel.SetDock(top, Dock.Top); layers.Children.Add(top);
-        var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, Margin = new Thickness(8, 4, 8, 6) };
+        var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 1, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(4, 3, 4, 3) };
         footer.Children.Add(PanelButton("link", "Link / Unlink Layers", LinkLayers));
-        footer.Children.Add(PanelButton("adjust", "New Adjustment Layer", () => ShowAdjustmentMenu(footer)));
         footer.Children.Add(PanelButton("fx", "Layer Effects", () => ShowEffectsMenu(footer)));
         footer.Children.Add(PanelButton("mask", "Add Layer Mask", () => AddMask(true)));
+        footer.Children.Add(PanelButton("adjust", "New Adjustment Layer", () => ShowAdjustmentMenu(footer)));
         footer.Children.Add(PanelButton("folder", "New Group (Ctrl+G)", () => { if (SelectedLayers.Count > 0) GroupSelected(); else NewFolder(); }));
         footer.Children.Add(PanelButton("add", "New Layer (Ctrl+Shift+N)", NewBlankLayer));
         footer.Children.Add(PanelButton("delete", "Delete Layer or Selected Mask", DeletePanelTarget));
-        DockPanel.SetDock(footer, Dock.Bottom); layers.Children.Add(footer); layers.Children.Add(_layers);
+        var footerEdge = new Border { BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(0, 1, 0, 0), Child = footer };
+        DockPanel.SetDock(footerEdge, Dock.Bottom); layers.Children.Add(footerEdge); layers.Children.Add(_layers);
         _panelTabs.Items.Add(new TabItem { Header = Localize.Text("Layers"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Content = layers });
         _panelTabs.Items.Add(new TabItem { Header = Localize.Text("Channels"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Content = BuildChannelsPanel() });
         _panelTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _panelTabs) && _dockPanels.GetValueOrDefault("Channels")?.Tab == _panelTabs.SelectedItem) RefreshChannels(); };
@@ -168,13 +164,15 @@ public sealed partial class MainWindow
 
     private bool MatchesLayerFilter(ImageLayer layer)
     {
+        if (!_layerFiltering) return true;
         if (!string.IsNullOrWhiteSpace(_layerSearch.Text) && !layer.Name.Contains(_layerSearch.Text.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
-        return _layerKind.SelectedIndex switch
+        bool Kind(int kind) => kind switch
         {
-            1 => !layer.IsGroup && layer.LiveText is null && layer.LiveShape is null && layer.Adjustment is null,
+            1 => !layer.IsGroup && layer.LiveText is null && layer.LiveShape is null && layer.Adjustment is null && layer.SmartObject is null,
             2 => layer.Adjustment is not null, 3 => layer.LiveText is not null, 4 => layer.LiveShape is not null,
-            5 => layer.IsGroup, 6 => layer.Locks != LayerLocks.None, _ => true,
+            5 => layer.IsGroup, 6 => layer.Locks != LayerLocks.None, 8 => layer.SmartObject is not null, _ => true,
         };
+        return _layerFilterKinds.Count > 0 ? _layerFilterKinds.Any(Kind) : Kind(_layerKind.SelectedIndex);
     }
 
     private void ToggleLayerLock() => ToggleLockFlag(LayerLocks.All);
@@ -272,7 +270,7 @@ internal sealed class LayerThumbnail(Func<SKBitmap?> source, string kind = "") :
     public Func<(Compositor.Core.Model.LayerTransform? Transform, int Width, int Height)>? LayerBounds { get; init; }
     public override void Render(DrawingContext context)
     {
-        if (Active?.Invoke() == true) context.DrawRectangle(null, new Pen(Skin.AccentBrush, 2), new Rect(1, 1, Math.Max(0, Bounds.Width - 2), Math.Max(0, Bounds.Height - 2)));
+        if (Active?.Invoke() == true) context.DrawRectangle(null, new Pen(Skin.LabelBrush, 1), new Rect(.5, .5, Math.Max(0, Bounds.Width - 1), Math.Max(0, Bounds.Height - 1)));
         if (kind == "folder")
         {
             using (context.PushTransform(Matrix.CreateTranslation(4, 6) * Matrix.CreateScale(Bounds.Width / 32, Bounds.Height / 32)))
@@ -280,7 +278,7 @@ internal sealed class LayerThumbnail(Func<SKBitmap?> source, string kind = "") :
             return;
         }
         var box = new Rect(0, 0, Bounds.Width, Bounds.Height);
-        context.DrawRectangle(Skin.Checker, new Pen(Skin.SecondaryBrush, 1), box);
+        if (kind is not ("T" or "◐")) context.DrawRectangle(Skin.Checker, new Pen(Skin.SecondaryBrush, 1), box);
         if (!HideImage && source() is { } pixels)
         {
             using var image = CanvasView.ToImage(pixels);
@@ -303,7 +301,7 @@ internal sealed class LayerThumbnail(Func<SKBitmap?> source, string kind = "") :
                 new Typeface("Segoe UI"), 20, Skin.LabelBrush);
             context.DrawText(text, new Point((Bounds.Width - text.Width) / 2, (Bounds.Height - text.Height) / 2));
         }
-        if (Active?.Invoke() == true) context.DrawRectangle(null, new Pen(Skin.AccentBrush, 2), new Rect(1, 1, Math.Max(0, Bounds.Width - 2), Math.Max(0, Bounds.Height - 2)));
+        if (Active?.Invoke() == true) context.DrawRectangle(null, new Pen(Skin.LabelBrush, 1), new Rect(.5, .5, Math.Max(0, Bounds.Width - 1), Math.Max(0, Bounds.Height - 1)));
     }
 }
 

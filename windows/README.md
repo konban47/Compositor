@@ -2,7 +2,7 @@
 
 窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](WINDOW-MENU.md)。
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.5.3.0 Preview**。
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.5.3.1 Preview**。
 
 本版另增加 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](design/panel-icons/README.md)。
 
@@ -13,7 +13,7 @@
 ## 使用
 
 - 目标平台：Windows 10 1809 及以上、Windows 11，**x64**。不提供 32 位或原生 ARM64 包。
-- 安装版：运行 `Compositor-Windows-1.5.3.0-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
+- 安装版：运行 `Compositor-Windows-1.5.3.1-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
 - 免安装版：解压整个 `*-portable.zip`，运行文件夹中的 `Compositor.exe`。自带 .NET 运行时，无需安装 .NET SDK。若系统缺少 Visual C++ 2015–2022 x64 运行库，先运行随包提供的 `redist/vc_redist.x64.exe`。
 - 程序与安装包目前未做商业代码签名。只从本仓库下载；`SHA256SUMS.txt` 可用于校验文件完整性。
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
@@ -22,6 +22,16 @@
 - 普通图像、PSD/PSB、相机 RAW 通过“文件 → 导入图像”打开；PSD 转换限制会在导入报告中显示。PNG/JPEG/PDF/TIFF/EXR 通过“导出为”菜单输出；PDF 为单页合成图像。
 - 可将项目文件夹或图像路径作为参数：`Compositor.exe "D:\图片\项目.comp"`。
 - 设置保存在 `%APPDATA%\CompositorWindows`。卸载不会删除项目文件和个人设置。
+
+## 1.5.3.1 面板与窗口修复
+
+- 主窗口与应用弹窗共享 32 DIP 主题标题栏和红色关闭悬停；主菜单按钮、文字和项目 logo 尺寸保持不变。
+- 图层筛选支持类型图标组合和总开关；不透明度支持百分比输入及下拉滑块。锁定、填充、可见性、缩略图、分组缩进、列表选中和底部按钮按参考图重新排列，继续使用本项目图标。
+- 左工具栏取消滚动并按可用高度收紧；高窗口保持紧凑，同一实际快捷键合并为同一缩略按钮。自定义工具栏两栏为滚动条保留空间，工具名称自动换行。
+- 切片选项未选中时自动选取现有切片或画布自动切片，打开完整属性弹窗；四个排列按钮使用内置 imagegen 图像并随主题着色。
+- 2026-10-17 核对上游 HEAD 未变化。验证与平台边界见[更新记录](UPDATES-1.5.3.1.md)。新增 --panel-workflow-checks，进入中英文与发行包回归。
+
+以下版本段落为历史记录。
 
 ## 1.5.3.0 选区、裁剪与切片
 
@@ -199,9 +209,9 @@ dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --windo
 
 Inno Setup 不在默认位置时，增加 `-InnoCompiler "C:\path\to\ISCC.exe"`。
 
-构建脚本会从微软官网下载签名有效的 C++ 运行库，**不会在构建机安装它**。GitHub Actions 使用已有 Inno Setup 编译器构建安装包，并在临时 runner 上验证安装/卸载。
+构建脚本会从微软官网下载签名有效的 C++ 运行库，**不会在构建机安装它**。GitHub Actions 配置为使用 Inno Setup 构建安装包，并在临时 runner 上验证安装／卸载；本版因仓库 Actions 被禁用而使用本机验证，见更新记录。
 
-核心测试当前为 **975 项**；还提供 `--clicks`、`--tabs`、`--tools`、`--shortcuts`、`--camera-raw`、`--dialogs`、`--windows-checks`、`--interaction-checks`、`--panel-checks`、`--inspector-checks`、`--workspace-checks` 窗口测试，每项参数后跟截图路径。旧窗口断言用 `COMPOSITOR_LANGUAGE=en`；新增测试覆盖 en 和 zh-CN。测试设置目录应与个人配置分开。`windows/scripts/check-docs.ps1` 检查应用／安装包／文档版本、格式字段及当前功能说明，CI 在构建前执行以减少文档漂移。
+核心测试当前为 **1184 项**；还提供 `--clicks`、`--tabs`、`--tools`、`--shortcuts`、`--camera-raw`、`--dialogs`、`--windows-checks`、`--interaction-checks`、`--panel-checks`、`--inspector-checks`、`--workspace-checks` 窗口测试，每项参数后跟截图路径。旧窗口断言用 `COMPOSITOR_LANGUAGE=en`；新增测试覆盖 en 和 zh-CN。测试设置目录应与个人配置分开。`windows/scripts/check-docs.ps1` 检查应用／安装包／文档版本、格式字段及当前功能说明，CI 在构建前执行以减少文档漂移。
 
 CLI 位于包内 `cli/Compositor.Cli.exe`，运行 `--help` 查看命令。
 
@@ -211,6 +221,6 @@ An independent Windows x64 port retaining Compositor's `.comp` folder format. Ba
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 
-This first release is a **Preview**: tested locally on Windows 11 and in Windows Server CI, not manually certified on Windows 10. Skia GPU display, CPU reference compositing and U²-NetP replace Apple's native implementations; segmentation, glow, fonts, some drag/drop interactions and RAW development are not identical. PSD conversion has reported limitations and no PSD export. Dependent clipping-layer deletion supports baking or releasing links, with undo. These differences are stated explicitly rather than hidden behind a claim of complete native parity.
+Windows 1.5.3.1 is a **Preview**, validated locally on Windows 11. GitHub Actions returned HTTP 422 (disabled for this repository), so this release has no new Windows Server CI results and is not manually certified on Windows 10. Skia GPU display, CPU reference compositing and U²-NetP replace Apple's native implementations; segmentation, glow, fonts, some drag/drop interactions and RAW development are not identical. PSD conversion has reported limitations and no PSD export. Dependent clipping-layer deletion supports baking or releasing links, with undo. See the [current release notes](UPDATES-1.5.3.1.md) for validation details.
 
 The repository includes reproducible build/package scripts, core tests and headless UI checks. Windows updates use `windows-v*` releases in this fork, never the upstream macOS DMG feed.

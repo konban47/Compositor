@@ -16,15 +16,31 @@ namespace Compositor.Desktop;
 /// </summary>
 internal abstract class DialogWindow : Window
 {
+    private bool _captionAdded;
     protected DialogWindow()
     {
         Localize.Prepare(this);
         Background = Skin.ChromeBrush;
+        WindowDecorations = WindowDecorations.BorderOnly;
         // A plain TextBlock has no foreground of its own, so on a dark dialog it would draw black on near
         // black. Setting the inherited one leaves every control that says what its own text is — a button, a
         // field, a menu row — exactly as the theme drew it.
         TextElement.SetForeground(this, Skin.LabelBrush);
         Opened += (_, _) => Dispatcher.UIThread.Post(FitTextButtons, DispatcherPriority.Loaded);
+    }
+
+    protected override void OnOpened(EventArgs e)
+    {
+        if (!_captionAdded && Content is Control content)
+        {
+            _captionAdded = true;
+            // Window.Height previously described the client area below the system caption.
+            if (SizeToContent is SizeToContent.Manual or SizeToContent.Width && double.IsFinite(Height)) Height += WindowChrome.Height;
+            if (MinHeight > 0) MinHeight += WindowChrome.Height;
+            Content = null; Content = WindowChrome.Dialog(this, content);
+        }
+        WindowChrome.ApplyNative(this);
+        base.OnOpened(e);
     }
 
     // Explicit 24px heights and fixed English widths must not clip localized labels or high-DPI fonts.

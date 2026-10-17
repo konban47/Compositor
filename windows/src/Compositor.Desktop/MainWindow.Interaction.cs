@@ -152,7 +152,7 @@ public sealed partial class MainWindow
     private Control LayerRow(ImageLayer layer, int depth, string notes)
     {
         ImageLayer? Current() => _document?.Layers.FirstOrDefault(item => item.ID == layer.ID);
-        var eye = new Button { Content = new LayerEye(layer.IsVisible) { Width = 18, Height = 18 }, Width = 28, Height = 32,
+        var eye = new Button { Content = new LayerEye(layer.IsVisible) { Width = 18, Height = 18 }, Width = 30, Height = double.NaN, VerticalAlignment = VerticalAlignment.Stretch,
             Padding = new Thickness(3), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Focusable = false, Tag = "visibility" };
         ToolTip.SetTip(eye, Localize.Text(layer.IsVisible ? "Hide Layer" : "Show Layer"));
         Avalonia.Automation.AutomationProperties.SetName(eye, Localize.Text(layer.IsVisible ? "Hide Layer" : "Show Layer"));
@@ -162,10 +162,10 @@ public sealed partial class MainWindow
             Edit("Layer Visibility", () => LayerEdits.SetVisible(document, current.ID, !current.IsVisible));
             ShowLayers(document);
         };
-        var panel = new Grid { ColumnDefinitions = new ColumnDefinitions("28,Auto,Auto,Auto,Auto,*,26,24"), MinHeight = 36 };
+        var panel = new Grid { ColumnDefinitions = new ColumnDefinitions("30,Auto,Auto,Auto,Auto,*,Auto,Auto"), MinHeight = layer.IsGroup ? 28 : Math.Max(42, EditorPreferences.Current.LayerThumbnailSize + 10) };
         panel.PointerEntered += (_, _) => { if (EditorPreferences.Current.MoveLayerHoverBounds) { _moveHoverBox = layer.IsGroup && _document is { } doc ? TransformEdits.GroupBox(doc, [layer.ID]) : layer.Transform; _canvas.InvalidateOverlay(); } };
         panel.PointerExited += (_, _) => { _moveHoverBox = null; _canvas.InvalidateOverlay(); };
-        panel.Children.Add(eye);
+        panel.Children.Add(new Border { Child = eye, Background = Skin.ChromeBrush, BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(0, 0, 1, 0) });
         if (layer.Label != Compositor.Core.Format.LayerLabel.None)
         {
             var color = layer.Label switch { Compositor.Core.Format.LayerLabel.Red => "#994c4c", Compositor.Core.Format.LayerLabel.Orange => "#996432", Compositor.Core.Format.LayerLabel.Yellow => "#8d853c", Compositor.Core.Format.LayerLabel.Green => "#4e7c4e", Compositor.Core.Format.LayerLabel.Blue => "#47668a", Compositor.Core.Format.LayerLabel.Violet => "#785489", Compositor.Core.Format.LayerLabel.Teal => "#19969a", Compositor.Core.Format.LayerLabel.Indigo => "#655bf0", Compositor.Core.Format.LayerLabel.Magenta => "#d62d93", Compositor.Core.Format.LayerLabel.Purple => "#ba38c8", _ => "#686868" };
@@ -189,7 +189,7 @@ public sealed partial class MainWindow
         Grid.SetColumn(arrow, 1); panel.Children.Add(arrow);
         var thumbnail = new LayerThumbnail(() => Current()?.LiveText is not null ? null : Current()?.Asset?.Thumbnail,
             layer.IsGroup ? "folder" : layer.LiveText is not null ? "T" : layer.Adjustment is not null ? "◐" : "")
-            { Width = EditorPreferences.Current.LayerThumbnailSize == 0 ? 20 : EditorPreferences.Current.LayerThumbnailSize, Height = EditorPreferences.Current.LayerThumbnailSize == 0 ? 20 : EditorPreferences.Current.LayerThumbnailSize, HideImage = EditorPreferences.Current.LayerThumbnailSize == 0, LayerBounds = () => (Current()?.Transform, _document?.Width ?? 1, _document?.Height ?? 1), Margin = new Thickness(layer.IsGroup ? 0 : depth * 12, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Active = () => Selected == layer.ID && !MaskTarget };
+            { Width = layer.IsGroup || EditorPreferences.Current.LayerThumbnailSize == 0 ? 20 : EditorPreferences.Current.LayerThumbnailSize, Height = layer.IsGroup || EditorPreferences.Current.LayerThumbnailSize == 0 ? 20 : EditorPreferences.Current.LayerThumbnailSize, HideImage = EditorPreferences.Current.LayerThumbnailSize == 0, LayerBounds = () => (Current()?.Transform, _document?.Width ?? 1, _document?.Height ?? 1), Margin = new Thickness(layer.IsGroup ? 0 : depth * 12, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Active = () => Selected == layer.ID && !MaskTarget };
         if (layer.Asset?.BitDepth > 8) notes = (layer.Asset.BitDepth == 32 ? "HDR" : "16-Bit") + (string.IsNullOrEmpty(notes) ? "" : " · " + notes);
         _layerThumbnails.Add(thumbnail);
         thumbnail.PointerPressed += (_, e) =>
@@ -213,7 +213,7 @@ public sealed partial class MainWindow
             mask.PointerPressed += (_, e) => { if (e.GetCurrentPoint(mask).Properties.IsRightButtonPressed) { OpenMaskContext(mask, layer); e.Handled = true; return; } SelectLayerRow(layer.ID); SetPaintingMask(true); e.Handled = true; };
             Grid.SetColumn(mask, 4); panel.Children.Add(mask);
         }
-        var name = new TextBlock { Text = layer.Name + (layer.LinkID is not null ? "  ↔" : ""), Foreground = Ink, FontSize = 12,
+        var name = new TextBlock { Text = layer.Name + (layer.LinkID is not null ? "  ↔" : ""), FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 2, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         name.DoubleTapped += (_, e) => { SelectLayerRow(layer.ID); _ = RenameLayer(); e.Handled = true; };
         ToolTip.SetTip(name, layer.Name + notes); Grid.SetColumn(name, 5); panel.Children.Add(name);
@@ -228,7 +228,7 @@ public sealed partial class MainWindow
             unlock.Width = 24; unlock.IsEnabled = layer.Locks != LayerLocks.None;
             Grid.SetColumn(unlock, 7); panel.Children.Add(unlock);
         }
-        return panel;
+        return new Border { BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(0, 0, 0, 1), Child = panel };
     }
 
     private void WireLayerDrag(ListBoxItem row)

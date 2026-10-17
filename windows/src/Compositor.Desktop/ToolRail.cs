@@ -27,19 +27,19 @@ internal sealed class ToolRail : Grid
 
     private readonly Dictionary<Tool, Button> _buttons = [];
     private readonly Dictionary<Button, List<Tool>> _groups = [];
-    private IReadOnlyDictionary<string, ShortcutChord> _shortcuts = new Dictionary<string, ShortcutChord>();
+    private IReadOnlyDictionary<string, ShortcutChord> _shortcuts = Shortcuts.Effective(ShortcutDefaults.Load(ShortcutDefaults.DefaultPath).Overrides);
     private ToolbarLayout _layout = ToolCatalog.Defaults();
     public event Action? CustomizeRequested, QuickMaskRequested, ScreenModeRequested, GenerativeRequested;
     internal ToolbarLayout Layout => _layout;
     internal static Control Icon(Tool tool) => new EditorIcon(tool.ToString()) { Width = 18, Height = 18, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     public void ApplyLayout(ToolbarLayout layout)
     {
-        _layout = layout.Copy(); _buttons.Clear(); _groups.Clear(); Children.Clear();
+        _layout = ToolCatalog.GroupByShortcut(layout, _shortcuts); _buttons.Clear(); _groups.Clear(); Children.Clear();
         _foreground = new Glyph { Kind = Tool.Brush }; _background = new Glyph { Kind = Tool.Brush };
         _front = _back = null; ShowColours(_foregroundColour, _backgroundColour);
         RowDefinitions = new RowDefinitions("*,Auto");
-        var tools = new ScrollViewer { Content = Tools(), HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        Children.Add(tools);
+        Children.Add(Tools());
+        VerticalAlignment = VerticalAlignment.Top;
         var footer = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Spacing = 4 };
         if (layout.ShowExtras)
         {
@@ -48,6 +48,13 @@ internal sealed class ToolRail : Grid
             extra.Click += (_, _) =>
             {
                 var menu = new ContextMenu();
+                foreach (var id in _layout.Extras)
+                {
+                    var tool = Enum.Parse<Tool>(id);
+                    var item = new MenuItem { Header = Localize.Text(ToolCatalog.Title(tool)), Icon = Icon(tool) };
+                    item.Click += (_, _) => Chosen?.Invoke(tool); menu.Items.Add(item);
+                }
+                if (_layout.Extras.Count > 0) menu.Items.Add(new Separator());
                 var customize = new MenuItem { Header = Localize.Text("Customize Toolbar…") };
                 customize.Click += (_, _) => CustomizeRequested?.Invoke(); menu.Items.Add(customize); extra.ContextMenu = menu; menu.Open(extra);
             };
@@ -62,12 +69,14 @@ internal sealed class ToolRail : Grid
         if (layout.ShowQuickMask) Footer("mask", "Quick Mask (Q)", () => QuickMaskRequested?.Invoke());
         if (layout.ShowScreenMode) Footer("screen", "Screen Mode (F)", () => ScreenModeRequested?.Invoke());
         if (layout.ShowGenerative) Footer("generate", "Generative Workspace", () => GenerativeRequested?.Invoke());
+        footer.Measure(new Size(Width, double.PositiveInfinity));
+        MaxHeight = Math.Ceiling(_layout.Groups.Count / (TwoColumns ? 2d : 1)) * UpstreamArtwork.ButtonSide + 6 + footer.DesiredSize.Height;
         SetRow(footer, 1); Children.Add(footer);
         Mark(_marked); ShowShortcuts(_shortcuts);
     }
     private static Button FooterButton(Control icon, string name) => new()
     {
-        Content = icon, Tag = name, Width = UpstreamArtwork.ButtonSide, Height = UpstreamArtwork.ButtonSide, MinWidth = 0, MinHeight = 0,
+        Content = icon, Tag = name, Width = UpstreamArtwork.ButtonSide, Height = 28, MinWidth = 0, MinHeight = 0,
         Padding = new Thickness(6), Background = Brushes.Transparent, BorderThickness = new Thickness(0),
         HorizontalAlignment = HorizontalAlignment.Center, HorizontalContentAlignment = HorizontalAlignment.Center,
         VerticalContentAlignment = VerticalAlignment.Center,
@@ -129,14 +138,15 @@ internal sealed class ToolRail : Grid
     internal Tool Marked => _marked;
 
     /// <summary>
-    /// The button a tool is picked by, which the checks press with a pointer: the rail is inside a scroll view,
-    /// so a click on it is the one thing that proves the marks are not merely drawn but reachable.
+    /// The shared group button a tool is picked by, used by pointer interaction checks.
     /// </summary>
     internal Button? ButtonFor(Tool tool) => _buttons.TryGetValue(tool, out var button) ? button : null;
 
     public void ShowShortcuts(IReadOnlyDictionary<string, Compositor.Core.IO.ShortcutChord> shortcuts)
     {
         _shortcuts = shortcuts;
+        var grouped = ToolCatalog.GroupByShortcut(_layout, shortcuts);
+        if (!_layout.Groups.Select(g => string.Join(",", g)).SequenceEqual(grouped.Groups.Select(g => string.Join(",", g)))) { ApplyLayout(grouped); return; }
         foreach (var (button, _) in _groups)
         {
             var tool = button.Tag is Tool picked ? picked : Tool.Pan;
@@ -172,7 +182,7 @@ internal sealed class ToolRail : Grid
 
     private static Control GroupIcon(Tool tool, bool grouped)
     {
-        var icon = new Grid { Width = 24, Height = 24 }; icon.Children.Add(Icon(tool));
+        var icon = new Grid { Width = 22, Height = 22 }; icon.Children.Add(Icon(tool));
         if (grouped) icon.Children.Add(new TextBlock { Text = "◢", FontSize = 7, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom });
         return icon;
     }
@@ -188,7 +198,7 @@ internal sealed class ToolRail : Grid
                 Content = GroupIcon(group[0], group.Count > 1),
                 Tag = group[0],
                 Width = UpstreamArtwork.ButtonSide,
-                Height = UpstreamArtwork.ButtonSide, MinWidth = 0, MinHeight = 0,
+                Height = double.NaN, MaxHeight = UpstreamArtwork.ButtonSide, MinWidth = 0, MinHeight = 0,
                 CornerRadius = new CornerRadius(UpstreamArtwork.ButtonRadius),
                 Padding = new Thickness(0),
                 HorizontalContentAlignment = HorizontalAlignment.Center,

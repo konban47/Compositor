@@ -108,7 +108,7 @@ public sealed partial class MainWindow
         Click(this,alignLeft); Check(Math.Abs(PropertyLayer!.Transform.X)<.01,"Alignment icon did not move the selected layer to the canvas edge."); Save(this,"alignment");
         OpenInspector(1); Pump(); var revision=_history.CurrentRevision;
         var source=_historyRows.GetVisualDescendants().OfType<Button>().Last(b=>b.IsEffectivelyVisible && ToolTip.GetTip(b)?.ToString()==Localize.Text("Set History Brush Source"));
-        Click(this,source); Check(_historyBrushSource is not null && _history.CurrentRevision==revision,"Source column changed the active history state."); Save(this,"history");
+        source.BringIntoView(); Pump(); Click(this,source); Check(_historyBrushSource is not null && _history.CurrentRevision==revision,"Source column changed the active history state."); Save(this,"history");
         using var bitmap=new SKBitmap(16,12); bitmap.Erase(SKColors.LimeGreen); using var encoded=bitmap.Encode(SKEncodedImageFormat.Png,100);
         var generator=new GenerativeDialog(true,new GenerationCheckHandler(encoded.ToArray())); var generated=generator.ShowDialog<GenerativeDialog.Result?>(this); Pump();
         foreach(var (tag,text) in new[]{("generation-endpoint","https://example.invalid/v1"),("generation-model","mock-model"),("generation-prompt","测试图像 / Test image"),("generation-key","test-only")})

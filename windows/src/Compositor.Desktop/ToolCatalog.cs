@@ -137,6 +137,20 @@ internal static class ToolCatalog
             ["Pan", "RotateView"], ["Zoom"]
         ]
     };
+    internal static ToolbarLayout GroupByShortcut(ToolbarLayout layout, IReadOnlyDictionary<string, ShortcutChord> shortcuts)
+    {
+        var result = layout.Copy(); result.Groups.Clear();
+        var groups = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in layout.Groups.SelectMany(g => g))
+        {
+            var command = Shortcut(Enum.Parse<Tool>(id));
+            var key = shortcuts.GetValueOrDefault(Shortcuts.Canvas + ":" + command, ShortcutChord.Unbound);
+            var groupKey = key == ShortcutChord.Unbound ? "command:" + command : key.Label;
+            if (!groups.TryGetValue(groupKey, out var members)) { members = []; groups.Add(groupKey, members); result.Groups.Add(members); }
+            if (!members.Contains(id)) members.Add(id);
+        }
+        return result;
+    }
     internal static ToolbarLayout Load()
     {
         try { return File.Exists(ToolbarLayout.DefaultPath) ? ToolbarLayout.Load(ToolbarLayout.DefaultPath, IDs) : Defaults(); }

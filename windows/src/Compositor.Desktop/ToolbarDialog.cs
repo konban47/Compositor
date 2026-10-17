@@ -21,13 +21,17 @@ internal sealed class ToolbarDialog : DialogWindow
     private bool _dragging;
     internal ToolbarDialog(ToolbarLayout current)
     {
-        Draft = current.Copy();
+        Draft = ToolCatalog.GroupByShortcut(current, _keys);
         Title = Localize.Text("Customize Toolbar"); Width = 1000; Height = 740; MinWidth = 760; MinHeight = 500;
-        var layout = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,200"), RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), Margin = new Thickness(18) };
-        var explanation = new TextBlock { Text = Localize.Text("Drag tools or group headings to reorder. Drop onto a group to join it; drop below the list to create a group. Extra tools remain available in the … menu."), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(0, 0, 12, 14) };
+        var layout = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,170"), RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), Margin = new Thickness(16) };
+        var explanation = new TextBlock { Text = Localize.Text("Drag tools to reorder or move between lists. Tools with the same shortcut share one toolbar button. Extra tools remain available in the tool menu."), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(0, 0, 12, 14) };
         Grid.SetColumnSpan(explanation, 2); layout.Children.Add(explanation);
         Control List(string title, ListBox list)
         {
+            list.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
+            list.SetValue(ScrollViewer.VerticalScrollBarVisibilityProperty, Avalonia.Controls.Primitives.ScrollBarVisibility.Visible);
+            list.SetValue(ScrollViewer.AllowAutoHideProperty, false);
+            list.Padding = new Thickness(0, 0, 6, 0);
             var panel = new DockPanel { Margin = new Thickness(0, 0, 12, 0) };
             var label = new TextBlock { Text = Localize.Text(title), Margin = new Thickness(0, 0, 0, 8) };
             DockPanel.SetDock(label, Dock.Top); panel.Children.Add(label);
@@ -51,7 +55,7 @@ internal sealed class ToolbarDialog : DialogWindow
         Button("Move Up", () => Step(-1)); Button("Move Down", () => Step(1));
         Button("Move to Extra Tools", () => Transfer(true));
         Button("Move to Toolbar", () => Transfer(false));
-        Button("Separate into New Group", Separate);
+        Button("Group by Shortcut", () => Refresh());
         Grid.SetColumn(actions, 2); Grid.SetRowSpan(actions, 2); layout.Children.Add(actions);
         Grid.SetRow(_show, 2); Grid.SetColumnSpan(_show, 3); _show.Margin = new Thickness(0, 14, 0, 6); layout.Children.Add(_show);
         Grid.SetRow(_error, 3); Grid.SetColumnSpan(_error, 3); layout.Children.Add(_error); Content = layout;
@@ -63,6 +67,7 @@ internal sealed class ToolbarDialog : DialogWindow
     private Entry? Selected => (_main.SelectedItem as ListBoxItem)?.Tag as Entry ?? (_extra.SelectedItem as ListBoxItem)?.Tag as Entry;
     private void Refresh()
     {
+        Draft = ToolCatalog.GroupByShortcut(Draft, _keys);
         _main.Items.Clear(); _extra.Items.Clear();
         ListBoxItem Row(Entry entry)
         {
@@ -70,16 +75,16 @@ internal sealed class ToolbarDialog : DialogWindow
             if (entry.ID is { } id)
             {
                 var tool = Enum.Parse<Tool>(id);
-                var row = new Grid { ColumnDefinitions = new ColumnDefinitions("30,*,42"), HorizontalAlignment = HorizontalAlignment.Stretch };
+                var row = new Grid { ColumnDefinitions = new ColumnDefinitions("26,*,Auto"), HorizontalAlignment = HorizontalAlignment.Stretch };
                 row.Children.Add(ToolRail.Icon(tool));
-                var title = new TextBlock { Text = Localize.Text(ToolCatalog.Title(tool)), VerticalAlignment = VerticalAlignment.Center };
+                var title = new TextBlock { Text = Localize.Text(ToolCatalog.Title(tool)), TextWrapping = Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 3, 6, 3) };
                 Grid.SetColumn(title, 1); row.Children.Add(title);
                 var key = _keys.GetValueOrDefault(Shortcuts.Canvas + ":" + ToolCatalog.Shortcut(tool), ShortcutChord.Unbound);
-                var hint = new TextBlock { Text = key.Label, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+                var hint = new TextBlock { Text = key.Label, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, MinWidth = 20 };
                 Grid.SetColumn(hint, 2); row.Children.Add(hint); content = row;
             }
             else content = new TextBlock { Text = Localize.Text("Tool Group") + " " + (entry.Group + 1), FontWeight = Avalonia.Media.FontWeight.SemiBold };
-            return new ListBoxItem { Tag = entry, Content = content, HorizontalContentAlignment = HorizontalAlignment.Stretch, MinHeight = 34, Margin = new Thickness(entry.ID is null ? 0 : 12, entry.ID is null ? 8 : 0, 0, 0) };
+            return new ListBoxItem { Tag = entry, Content = content, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(4, 2), MinHeight = 34, Margin = new Thickness(entry.ID is null ? 0 : 6, entry.ID is null ? 8 : 0, 4, 0) };
         }
         for (var i = 0; i < Draft.Groups.Count; i++)
         {
@@ -105,10 +110,6 @@ internal sealed class ToolbarDialog : DialogWindow
     {
         if (Selected is not { } entry) return;
         Move(entry, extra, -1, null, false); Refresh();
-    }
-    private void Separate()
-    {
-        if (Selected is { ID: not null } entry) { Move(entry, false, -1, null, false); Refresh(); }
     }
     private void Step(int direction)
     {

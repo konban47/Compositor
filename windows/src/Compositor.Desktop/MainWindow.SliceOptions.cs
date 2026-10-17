@@ -62,8 +62,11 @@ public sealed partial class MainWindow
     private async Task EditSliceOptions()
     {
         if (_document is not { } doc) return;
-        if ((doc.Marks.FirstOrDefault(m => m.ID == _selectedMark && m.Kind == MarkKind.Slice) ?? AutoSlices().FirstOrDefault(m => m.ID == _selectedMark)) is not { } slice) { Say("Select a slice first."); return; }
-        var revision = _history.CurrentRevision; var form = new FormDialog("Slice Options", 650, 690);
+        var slice = doc.Marks.FirstOrDefault(m => m.ID == _selectedMark && m.Kind == MarkKind.Slice) ?? AutoSlices().FirstOrDefault(m => m.ID == _selectedMark)
+            ?? doc.Marks.LastOrDefault(m => m.Kind == MarkKind.Slice) ?? AutoSlices().FirstOrDefault();
+        if (slice is null) { Say("Select a slice first."); return; }
+        _selectedMark = slice.ID; _selectedSlices.Clear(); _selectedSlices.Add(slice.ID); _canvas.InvalidateVisual();
+        var revision = _history.CurrentRevision; var form = new FormDialog("Slice Options", 700, 540);
         var type = form.Choice("Slice Type:", ["Image", "No Image"], slice.NoImage ? 1 : 0);
         var name = form.Text("Name:", slice.Name); var url = form.Text("URL:", slice.Url); var target = form.Text("Target:", slice.Target); var message = form.Text("Message Text:", slice.Text); var alt = form.Text("Alt Tag:", slice.AltText);
         var x = form.Number("X:", slice.X, -1000000, 1000000); var y = form.Number("Y:", slice.Y, -1000000, 1000000);
@@ -74,6 +77,7 @@ public sealed partial class MainWindow
         uint? backgroundColor = slice.Background;
         DocumentMark Updated() => slice with { NoImage = type.SelectedIndex == 1, Name = name.Text ?? "", Url = url.Text ?? "", Target = target.Text ?? "", Text = message.Text ?? "", AltText = alt.Text ?? "", X = (double)(x.Value ?? 0), Y = (double)(y.Value ?? 0), Width = (double)(w.Value ?? 1), Height = (double)(h.Value ?? 1), Background = backgroundColor };
         form.Validate = () => { backgroundColor = null; if (background.SelectedIndex == 1) { if (!uint.TryParse(color.Text?.Trim().TrimStart('#'), System.Globalization.NumberStyles.HexNumber, null, out var parsed) || parsed > 0xffffff) return "Enter a six-digit hexadecimal color."; backgroundColor = 0xff000000 | parsed; } return Updated().IsValid ? null : "Invalid slice properties."; };
+        form.ArrangeSliceFields();
         if (!await form.ShowDialog<bool>(this) || !ReferenceEquals(doc, _document) || _history.CurrentRevision != revision) return;
         var next = Updated(); Edit("Slice Options", () => { var i = doc.Marks.FindIndex(m => m.ID == slice.ID); if (i < 0) { doc.Marks.Add(next with { Color = 0xffffb74d }); return true; } if (doc.Marks[i] == next) return false; doc.Marks[i] = next; return true; });
     }

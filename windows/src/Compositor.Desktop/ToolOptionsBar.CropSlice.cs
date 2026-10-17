@@ -23,7 +23,10 @@ internal sealed partial class ToolOptionsBar
         OptionChoice("sliceCreate", "Style:", ["Normal", "Fixed Ratio", "Fixed Size"], () => c.SliceStyle, v => c.SliceStyle = v);
         var w = OptionNumber("sliceCreate", "Width:", () => c.SliceWidth, v => c.SliceWidth = v, 1); var h = OptionNumber("sliceCreate", "Height:", () => c.SliceHeight, v => c.SliceHeight = v, 1);
         _optionRefreshers.Add(() => w.IsEnabled = h.IsEnabled = c.SliceStyle > 0); OptionAction("sliceCreate", "Slices from Guides");
-        foreach (var title in new[] { "Bring Slice to Front", "Bring Slice Forward", "Send Slice Backward", "Send Slice to Back" }) OptionAction("sliceArrange", title, title.Contains("Front") || title.Contains("Forward") ? "up" : "down");
+        foreach (var (title, icon) in new[] { ("Bring Slice to Front", "front"), ("Bring Slice Forward", "forward"), ("Send Slice Backward", "backward"), ("Send Slice to Back", "back") })
+        {
+            var button = OptionAction("sliceArrange", title, "up"); button.Content = new SliceOrderIcon(icon) { Width = 22, Height = 22 };
+        }
         OptionAction("sliceArrange", "Promote Slice"); OptionAction("sliceArrange", "Divide Slice…");
         foreach (var (title, icon) in new[] { ("Align Slice Left", "align-left"), ("Align Slice Center", "align-center"), ("Align Slice Right", "align-right"), ("Align Slice Top", "align-top"), ("Align Slice Middle", "align-middle"), ("Align Slice Bottom", "align-bottom") }) OptionAction("sliceArrange", title, icon);
         OptionAction("sliceArrange", "Slice Alignment Options", "more");

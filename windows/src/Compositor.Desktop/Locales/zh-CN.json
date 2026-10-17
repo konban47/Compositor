@@ -2763,5 +2763,10 @@
   "Select People on Canvas": "在画布上选择人物",
   "Select People with Cloud": "使用云端选择人物",
   "Click the person to select their foreground region. The device model does not classify people or body parts.": "单击人物以选择其前景区域。本机模型不识别人物类别或身体部位。",
-  "Sample All Layers": "对所有图层取样"
+  "Sample All Layers": "对所有图层取样",
+  "Group by Shortcut": "按快捷键归组",
+  "Drag tools to reorder or move between lists. Tools with the same shortcut share one toolbar button. Extra tools remain available in the tool menu.": "拖动工具调整顺序或在两个列表间移动。快捷键相同的工具共用一个工具栏按钮。附加工具仍可从工具菜单使用。",
+  "Layer Filtering": "启用图层筛选",
+  "Kind": "类型",
+  "Dimensions": "尺寸"
 }
