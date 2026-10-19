@@ -50,6 +50,16 @@ public sealed partial class MainWindow
             _options.Pen.Output = PenOutput.Path; _options.Pen.Operation = PathOperation.New; SetTool(Tool.Pen); _canvas.ActualSize(); Pump();
         }
         Fresh(); Check(!Option("Selection…").IsEnabled, "Selection should require a path.");
+        var preset = new ToolOptions { Pen = new PenToolSettings { AutoAddDelete = false, MagneticWidth = 21 } };
+        ToolPresetState.CopyOptions(preset, _options); OptionsChanged();
+        var auto = _optionsBar.GetVisualDescendants().OfType<CheckBox>().Single(c => Equals(c.Content, Localize.Text("Auto Add/Delete")));
+        Check(auto.IsChecked == false, "Applying a pen preset left the toolbar bound to old settings.");
+        auto.IsChecked = true; Check(_options.Pen.AutoAddDelete && !preset.Pen.AutoAddDelete, "Toolbar edits changed the saved preset.");
+        var presetPath = Path.ChangeExtension(output, "pen-preset.json");
+        ToolPresetState.Write(presetPath, [new ToolPresetState { Name = "Pen", Tool = Tool.Pen, Options = preset }]);
+        Check(ToolPresetState.Read(presetPath).Single().Options.Pen.MagneticWidth == 21, "Pen preset did not round-trip.");
+        preset.Pen.CurveFit = -1; ToolPresetState.Write(presetPath, [new ToolPresetState { Name = "Invalid", Tool = Tool.Pen, Options = preset }]);
+        var invalid = false; try { ToolPresetState.Read(presetPath); } catch (InvalidDataException) { invalid = true; } Check(invalid, "Invalid pen preset was accepted.");
         var first = new SKPoint(90, 80); Click(first); Click(new(240, 80)); Click(new(230, 230));
         this.MouseMove(At(new(94, 84))); Pump(); Check(_canvas.ClosePathHint, "Closing circle did not appear near the first node."); Save(this, "closure");
         this.MouseMove(At(new(120, 110))); Pump(); Check(!_canvas.ClosePathHint, "Closing circle remained outside the threshold.");

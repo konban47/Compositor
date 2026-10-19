@@ -24,7 +24,9 @@ internal sealed class ToolPresetState
     internal static void CopyOptions(ToolOptions source, ToolOptions target)
     {
         foreach (var field in typeof(ToolOptions).GetFields())
-            if (field.FieldType == typeof(SelectionToolSettings) || field.FieldType == typeof(CropToolSettings))
+            if (field.FieldType == typeof(PenToolSettings))
+            { foreach (var option in field.FieldType.GetFields()) option.SetValue(field.GetValue(target), option.GetValue(field.GetValue(source))); }
+            else if (field.FieldType == typeof(SelectionToolSettings) || field.FieldType == typeof(CropToolSettings))
             { foreach (var property in field.FieldType.GetProperties()) property.SetValue(field.GetValue(target), property.GetValue(field.GetValue(source))); }
             else field.SetValue(target, field.GetValue(source));
     }
@@ -33,9 +35,14 @@ internal sealed class ToolPresetState
         if (!File.Exists(path)) return [];
         if (new FileInfo(path).Length > 16 * 1024 * 1024) throw new InvalidDataException("Tool presets exceed 16 MB.");
         var values = JsonSerializer.Deserialize<List<ToolPresetState>>(File.ReadAllText(path), Json) ?? [];
-        if (values.Count > 512 || values.Any(p => p is null || !Enum.IsDefined(p.Tool) || string.IsNullOrWhiteSpace(p.Name) || p.Name.Length > 200 || p.Options?.Brush is null || p.Options.Wand is null || p.Options.Selection is null || p.Options.Crop is null || p.Artboard is null || p.Professional is null)) throw new InvalidDataException("Invalid tool presets.");
+        if (values.Count > 512 || values.Any(p => p is null || !Enum.IsDefined(p.Tool) || string.IsNullOrWhiteSpace(p.Name) || p.Name.Length > 200 || p.Options?.Brush is null || p.Options.Wand is null || p.Options.Selection is null || p.Options.Crop is null || p.Options.Pen is null || p.Artboard is null || p.Professional is null)) throw new InvalidDataException("Invalid tool presets.");
         foreach (var p in values)
         {
+            var pen = p.Options.Pen;
+            if (typeof(PenToolSettings).GetFields().Where(f => f.FieldType == typeof(double)).Any(f => !double.IsFinite((double)f.GetValue(pen)!))
+                || !Enum.IsDefined(pen.Output) || !Enum.IsDefined(pen.Operation) || pen.Stroke is < 0 or > 1000
+                || pen.CurveFit is < .5 or > 10 || pen.MagneticWidth is < 1 or > 64 || pen.MagneticContrast is < 0 or > 100
+                || pen.MagneticFrequency is < 1 or > 100 || pen.AlignmentTarget is < 0 or > 1) throw new InvalidDataException("Invalid pen preset values.");
             var b = p.Options.Brush;
             if (typeof(BrushSettings).GetProperties().Where(f => f.PropertyType == typeof(double)).Any(f => !double.IsFinite((double)f.GetValue(b)!))
                 || b.Diameter is <= 0 or > 5000 || b.Opacity is < 0 or > 1 || b.Hardness is < 0 or > 1

@@ -271,7 +271,7 @@ public sealed partial class MainWindow
         if (action == "Path Arrangement")
         {
             var menu = new ContextMenu(); var labels = new[] { "Bring Shape to Front", "Bring Shape Forward", "Send Shape Backward", "Send Shape to Back" };
-            for (var i = 0; i < labels.Length; i++) { var command = i; var item = new MenuItem { Header = Localize.Text(labels[i]), IsEnabled = CurrentPenSvg() is { } svg && PathNodes.Parse(svg)?.Subpaths.Count > 1 };
+            for (var i = 0; i < labels.Length; i++) { var command = i; var item = new MenuItem { Header = Localize.Text(labels[i]), Icon = new SliceOrderIcon(new[] { "front", "forward", "backward", "back" }[i]) { Width = 20, Height = 20 }, IsEnabled = CurrentPenSvg() is { } svg && PathNodes.Parse(svg)?.Subpaths.Count > 1 };
                 item.Click += (_, _) => EditPenComponents(nodes => { var index = Math.Clamp(_canvas.SelectedNode?.Subpath ?? nodes.Subpaths.Count - 1, 0, nodes.Subpaths.Count - 1); var destination = command switch { 0 => nodes.Subpaths.Count - 1, 1 => Math.Min(index + 1, nodes.Subpaths.Count - 1), 2 => Math.Max(index - 1, 0), _ => 0 }; var sub = nodes.Subpaths[index]; nodes.Subpaths.RemoveAt(index); nodes.Subpaths.Insert(destination, sub); _canvas.SelectedNode = (destination, 0); return nodes; }); menu.Items.Add(item); }
             _penMenu = menu; menu.Open(anchor); return;
         }
