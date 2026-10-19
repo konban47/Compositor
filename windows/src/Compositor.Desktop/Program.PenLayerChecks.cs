@@ -108,6 +108,10 @@ public sealed partial class MainWindow
         var fitted = PathNodes.Parse(_document!.WorkPath!)!; Check(fitted.NodeCount is > 2 and < 45 && fitted.Subpaths[0].Nodes.Any(n => n.Out is not null), "Freeform did not fit a curve.");
         Fresh(); SetTool(Tool.CurvaturePen); Click(new(70, 80)); Click(new(250, 90)); Click(new(260, 220)); Click(new(80, 240));
         Check(_pen!.Subpaths[0].Nodes[1].Out is not null, "Curvature pen did not create handles."); Click(new(70, 80)); Check(PathNodes.Parse(_document!.WorkPath!)!.Subpaths[0].Closed, "Curvature closure failed.");
+        var oldHandle = PathNodes.Parse(_document.WorkPath!)!.Subpaths[0].Nodes[0].Out;
+        this.MouseDown(At(new(250, 90)), MouseButton.Left); this.MouseMove(At(new(300, 120)), RawInputModifiers.LeftMouseButton); this.MouseUp(At(new(300, 120)), MouseButton.Left); Pump();
+        var curved = PathNodes.Parse(_document.WorkPath!)!.Subpaths[0];
+        Check(SKPoint.Distance(curved.Nodes[1].Point, new(300, 120)) < .01 && curved.Nodes[0].Out != oldHandle, "Curvature node drag did not recompute neighboring handles.");
         SetTool(Tool.Pen); _document.WorkPath = "M50 50L90 50L90 90L50 90Z M170 120L210 120L210 160L170 160Z M300 180L340 180L340 220L300 220Z"; SyncPathNodes();
         AlignPenComponents("Align Top"); var aligned = PathNodes.Parse(_document.WorkPath!)!;
         Check(aligned.Subpaths.All(s => Math.Abs(s.Nodes[0].Point.Y - 50) < .01), "Component alignment did not move components.");

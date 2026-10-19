@@ -5857,6 +5857,13 @@ public sealed partial class MainWindow : Window
             if (node < 0 || node >= nodes.Subpaths[subpath].Nodes.Count) return;
             var current = nodes.Subpaths[subpath].Nodes[node].Point;
             nodes.MoveNode(subpath, node, new SKPoint(point.X - current.X, point.Y - current.Y));
+            if (_tool == Tool.CurvaturePen)
+            {
+                var contour = nodes.Subpaths[subpath];
+                var corners = contour.Nodes.Where(n => n.In is null && n.Out is null).ToArray();
+                PenPaths.Smooth(contour);
+                foreach (var corner in corners) corner.In = corner.Out = null;
+            }
         }
         _canvas.InvalidateOverlay();
     }

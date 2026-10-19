@@ -47,6 +47,7 @@ public sealed partial class MainWindow
     private void ApplyToolPreset(ToolPresetState preset)
     {
         var pattern = ToolPresetState.Decode(preset.Pattern); var tip = ToolPresetState.Decode(preset.Tip);
+        FinishPen();
         ToolPresetState.CopyOptions(preset.Options, _options); _options.Brush = _options.Brush with { Pattern = pattern, TipImage = tip };
         preset.ApplyProfessional(_optionsBar.Professional);
         _optionsBar.Artboard.Width = preset.Artboard.Width; _optionsBar.Artboard.Height = preset.Artboard.Height; _optionsBar.Artboard.Background = preset.Artboard.Background;
