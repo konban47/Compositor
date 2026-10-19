@@ -52,7 +52,7 @@ public static class PerspectiveCropEdits
             if (mask is not null) { var prior = layer.Mask!; layer.Mask = LayerMask.AssetFrom(mask); layer.Mask.IsEnabled = prior.IsEnabled; layer.Mask.IsLinked = prior.IsLinked; layer.Mask.Density = prior.Density; layer.Mask.Feather = prior.Feather; layer.Mask.Placement = whole; }
             layer.Transform = whole;
         }
-        DocumentMarks.Transform(doc, SKMatrix.Concat(SKMatrix.CreateScale(width, height), forward));
+        DocumentMarks.Transform(doc, SKMatrix.Concat(SKMatrix.CreateScale(width, height), forward)); PenPaths.Transform(doc, SKMatrix.Concat(SKMatrix.CreateScale(width, height), forward));
         doc.Channels.Clear(); foreach (var (channel, image) in channels) doc.Channels.Add(channel with { Asset = ImportedImage.Create(image, channel.Name) });
         doc.Guides.Clear(); doc.Selection = DocumentSelection.All; doc.Width = width; doc.Height = height; return true;
     }

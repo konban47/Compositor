@@ -373,7 +373,7 @@ public sealed partial class CanvasView : Control
     public Action? NodeDragFinished { get; set; }
 
     /// <summary>Which node is selected, so its handles are on show.</summary>
-    public (int Subpath, int Node)? SelectedNode { get; private set; }
+    public (int Subpath, int Node)? SelectedNode { get; internal set; }
 
     private (int Subpath, int Node, bool Handle, bool Outgoing)? _nodeGrab;
     private bool _nodeDragging;
@@ -1269,7 +1269,7 @@ public sealed partial class CanvasView : Control
                     }
                 }
                 var box = new Rect(anchor.X - 3.5, anchor.Y - 3.5, 7, 7);
-                context.FillRectangle(isSelected ? Brushes.White : Brushes.White, box);
+                context.FillRectangle(isSelected ? new SolidColorBrush(Color.Parse("#1473E6")) : Brushes.White, box);
                 context.DrawRectangle(null, accent, box);
             }
         }

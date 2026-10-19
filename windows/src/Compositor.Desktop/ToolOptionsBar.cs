@@ -105,7 +105,7 @@ internal sealed partial class ToolOptionsBar : Border
             Content = row, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
         }); Child = bar;
-        Build(); BuildExtended(); BuildProfessional(); BuildMoveOptions(); BuildArtboardOptions(); BuildSelectionOptions(); BuildCropSliceOptions();
+        Build(); BuildExtended(); BuildProfessional(); BuildMoveOptions(); BuildArtboardOptions(); BuildSelectionOptions(); BuildCropSliceOptions(); BuildPenOptions();
     }
 
     /// <summary>
@@ -154,7 +154,7 @@ internal sealed partial class ToolOptionsBar : Border
             _marqueeShape.SelectedIndex = tool == Tool.Ellipse ? 1 : 0;
             _lassoKind.SelectedIndex = tool == Tool.Polygon ? 1 : 0;
             Refresh();
-            ShowSelectionOptions(tool); ShowCropSliceOptions(tool);
+            ShowSelectionOptions(tool); ShowCropSliceOptions(tool); ShowPenOptions(tool, hasDocument);
             _shapeKind.SelectedIndex = Array.IndexOf(ShapeTools, tool);
         }
         finally

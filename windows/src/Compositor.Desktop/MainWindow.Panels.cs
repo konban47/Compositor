@@ -113,7 +113,7 @@ public sealed partial class MainWindow
         footer.Children.Add(PanelButton("add", "New Layer (Ctrl+Shift+N)", NewBlankLayer));
         footer.Children.Add(PanelButton("delete", "Delete Layer or Selected Mask", DeletePanelTarget));
         var footerEdge = new Border { BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(0, 1, 0, 0), Child = footer };
-        DockPanel.SetDock(footerEdge, Dock.Bottom); layers.Children.Add(footerEdge); layers.Children.Add(_layers);
+        DockPanel.SetDock(footerEdge, Dock.Bottom); layers.Children.Add(footerEdge); layers.Children.Add(new Grid { ClipToBounds = true, Children = { _layers, _layerDragOverlay } });
         _panelTabs.Items.Add(new TabItem { Header = Localize.Text("Layers"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Content = layers });
         _panelTabs.Items.Add(new TabItem { Header = Localize.Text("Channels"), FontSize = 11.5, FontWeight = FontWeight.SemiBold, Content = BuildChannelsPanel() });
         _panelTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _panelTabs) && _dockPanels.GetValueOrDefault("Channels")?.Tab == _panelTabs.SelectedItem) RefreshChannels(); };

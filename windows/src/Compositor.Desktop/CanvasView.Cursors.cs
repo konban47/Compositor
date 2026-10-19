@@ -14,6 +14,7 @@ public sealed partial class CanvasView
     private static readonly Dictionary<StandardCursorType, Cursor> ToolCursors = new();
     internal StandardCursorType ActiveCursorKind { get; private set; }
     internal bool PenCursorEnabled { get; set; }
+    internal bool ClosePathHint { get; set; }
     internal bool PreciseBrushCursor { get; set; }
     internal bool BrushOutlineEnabled { get; set; }
     internal SKPoint? CloneSource { get; set; }
@@ -64,6 +65,11 @@ public sealed partial class CanvasView
                 context.FillRectangle(Brushes.White, new Rect(20, 16, 12, 14));
                 context.DrawText(new FormattedText(badge, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Arial"), 13, Brushes.Black), new Point(21,15));
             }
+        }
+        if (PenCursorEnabled && ClosePathHint)
+        {
+            var center = pointer + new Vector(21, -7);
+            context.DrawEllipse(Brushes.White, new Pen(Brushes.Black, 1.5), center, 4, 4);
         }
         if (SourceTargetShowing) Target(pointer, true);
         else if (BrushOutlineShowing)

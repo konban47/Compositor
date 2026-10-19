@@ -80,7 +80,7 @@ public static class CanvasEdits
             document.Layers.Insert(0, Extension(width, height, dx, dy, oldWidth, oldHeight, extension));
         }
 
-        DocumentMarks.Transform(document, SKMatrix.CreateTranslation(dx, dy));
+        DocumentMarks.Transform(document, SKMatrix.CreateTranslation(dx, dy)); PenPaths.Transform(document, SKMatrix.CreateTranslation(dx, dy));
         ChannelEdits.Transform(document, width, height, SKMatrix.CreateTranslation(dx, dy));
         document.Width = width;
         document.Height = height;

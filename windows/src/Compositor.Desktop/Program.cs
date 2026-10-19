@@ -21,6 +21,7 @@ internal static partial class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args is ["--pen-layer-checks", var penLayerOutput]) return PenLayerChecks(penLayerOutput);
         if (args is ["--panel-workflow-checks", var panelWorkflowOutput]) return PanelWorkflowChecks(panelWorkflowOutput);
         if (args is ["--selection-options-checks", var selectionOptionsOutput]) return SelectionOptionsChecks(selectionOptionsOutput);
         if (args is ["--chrome-checks", var chromeOutput]) return ChromeChecks(chromeOutput);

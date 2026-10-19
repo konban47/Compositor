@@ -6,9 +6,13 @@
 
 本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
 
-[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.1) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.3.1.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
+[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.2) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.3.2.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
 
 本版另增加 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](windows/design/panel-icons/README.md)。
+
+## 1.5.3.2 钢笔与图层拖动
+
+钢笔、自由钢笔与弯度钢笔补齐路径／形状模式、建立选区／蒙版／形状、布尔操作、对齐分布和排列。靠近起点显示闭环提示，选中节点为实心蓝色，Ctrl+Enter 将路径交给现有选区工具。图层支持左键按住拖动、多选保序、插入提示、边缘自动滚动和落位动画。工作路径随项目保存为 Windows v24。见[钢笔与图层拖动手册](windows/PEN-AND-LAYERS.md)。
 
 ## 1.5.3.1 面板与窗口修复
 
@@ -20,8 +24,8 @@
 
 目标系统：Windows 10 1809 及以上、Windows 11，64 位 x64。
 
-- **安装版**：运行 `Compositor-Windows-1.5.3.1-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.5.3.1-x64-portable.zip`，运行 `Compositor.exe`。
+- **安装版**：运行 `Compositor-Windows-1.5.3.2-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.5.3.2-x64-portable.zip`，运行 `Compositor.exe`。
 - 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
 - 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
 
@@ -52,7 +56,7 @@
 | 历史记录 | 右上“历史记录”或“视图 → 历史记录”；点击状态回退，创建快照或从状态新建文档 |
 | 参考线 | 从标尺拉出，贯穿整个编辑工作区；“视图 → 标尺”切换标尺 |
 | 显示／隐藏图层 | 单击图层名称左侧的眼睛；睁眼显示，闭眼隐藏 |
-| 调整图层上下顺序 | 按住图层名称上下拖动，按插入线放置 |
+| 调整图层上下顺序 | 按住图层名称或图像缩略图拖动，按蓝色插入线放置；多选保序，Esc 取消 |
 | 建立选区 | 使用矩形／椭圆选框、套索、魔棒；Shift 添加，Alt 减去 |
 | 清除局部内容 | 建立选区后按 Delete 或 Backspace，清除当前图层选区内像素 |
 | 局部修饰 | 先建立选区，再使用液化、涂抹、污点修复、仿制图章或画笔 |
@@ -82,13 +86,13 @@
 - 多标签页、撤销／重做、历史快照、从状态新建独立文档、异步保存、未保存关闭保护和独立 Windows 更新频道。
 - 中文界面使用 Photoshop 常见术语，提供中文输入法接口、随包中文字体和中文换行。
 
-本版读取 v1–v23 项目。平滑圆角及扩展切片属性使用 **Windows 扩展格式 v23**；非白色画板背景使用 **Windows 扩展格式 v22**；画板参考线归属使用 **Windows 扩展格式 v21**；文字范围样式、几何、PSD 矢量蒙版孔洞和 ICC 配置使用 **Windows 扩展格式 v20**；新增八类可编辑调整层使用 **Windows 扩展格式 v19**；图像模式／位深、变量／数据组、测量记录及新版文字布局使用 **Windows 扩展格式 v18**；切片、注释、计数、颜色取样点和测量使用 **Windows 扩展格式 v17**；直排文字和开放路径描边使用 **Windows 扩展格式 v16**；新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 **Windows 扩展格式 v15**；使用高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，或使用任意轮廓形状时保存为 **Windows 扩展格式 v14**；使用非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式时保存为 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时保存为 v12，其余为 v11。旧版不接受超出其支持范围的版本；最新 macOS 1.5.3 支持至 v14，其 16 位 PNG 与 v13 EXR 可读，但不理解 Windows v13–v23 扩展。[文件格式与兼容性](docs/project-format.md#windows-extension-version-23)
+本版读取 v1–v24 项目。工作路径 `workPath` 使用 **Windows 扩展格式 v24**；平滑圆角及扩展切片属性使用 **Windows 扩展格式 v23**；非白色画板背景使用 **Windows 扩展格式 v22**；画板参考线归属使用 **Windows 扩展格式 v21**；文字范围样式、几何、PSD 矢量蒙版孔洞和 ICC 配置使用 **Windows 扩展格式 v20**；新增八类可编辑调整层使用 **Windows 扩展格式 v19**；图像模式／位深、变量／数据组、测量记录及新版文字布局使用 **Windows 扩展格式 v18**；切片、注释、计数、颜色取样点和测量使用 **Windows 扩展格式 v17**；直排文字和开放路径描边使用 **Windows 扩展格式 v16**；新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 **Windows 扩展格式 v15**；使用高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，或使用任意轮廓形状时保存为 **Windows 扩展格式 v14**；使用非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式时保存为 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时保存为 v12，其余为 v11。旧版不接受超出其支持范围的版本；最新 macOS 1.5.3 支持至 v14，其 16 位 PNG 与 v13 EXR 可读，但不理解 Windows v13–v24 扩展。[文件格式与兼容性](docs/project-format.md#windows-extension-version-24)
 
 ## 验证与当前状态
 
-**1.5.3.1 Preview** 保持上游 **1.5.3 / 365b574** 基线；2026-10-17 核对上游 HEAD 未变化。当前回归验证结果见[本版更新](windows/UPDATES-1.5.3.1.md)。现有选区、裁剪、切片与平滑圆角功能继续保留。
+**1.5.3.2 Preview** 保持上游 **1.5.3 / 365b574** 基线；2026-10-19 核对上游 HEAD 未变化。当前回归验证结果见[本版更新](windows/UPDATES-1.5.3.2.md)。现有选区、裁剪、切片与平滑圆角功能继续保留。
 
-2026-10-17 恢复 Fork 的 GitHub Actions；[发布提交 e3c28db 的云端验证](https://github.com/konban47/Compositor/actions/runs/39028925211)在 Windows Server 2022／2025 均通过文档检查、零警告构建、1184 项核心测试以及 22 组英文／16 组中文界面检查。发行包构建、16 组发行程序界面检查及临时 Windows Server 2025 上的全新安装／卸载也已通过。
+历史验证：2026-10-17 恢复 Fork 的 GitHub Actions；[发布提交 e3c28db 的云端验证](https://github.com/konban47/Compositor/actions/runs/39028925211)在 Windows Server 2022／2025 均通过文档检查、零警告构建、1184 项核心测试以及 22 组英文／16 组中文界面检查。发行包构建、16 组发行程序界面检查及临时 Windows Server 2025 上的全新安装／卸载也已通过。
 
 [图层样式与右键菜单使用说明](windows/LAYER-STYLES.md)记录每个菜单项、快捷键、格式和 Photoshop 差异。样式使用 CPU 近似渲染；遮住所有对象采用离线显著性连通区域，不是 Adobe 实例识别；智能对象保存本应用图层源，不提供 PSD 智能对象往返。
 

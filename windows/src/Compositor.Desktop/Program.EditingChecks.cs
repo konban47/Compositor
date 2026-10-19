@@ -62,7 +62,7 @@ public sealed partial class MainWindow
         Bring(other); Reselect(pastedID); _canvas.ActualSize(); Pump();
         foreach (var (key, expected) in new[] { (Avalonia.Input.Key.E, Tool.Eraser), (Avalonia.Input.Key.E, Tool.BackgroundEraser), (Avalonia.Input.Key.E, Tool.MagicEraser), (Avalonia.Input.Key.O, Tool.Dodge), (Avalonia.Input.Key.O, Tool.Burn), (Avalonia.Input.Key.O, Tool.Sponge), (Avalonia.Input.Key.P, Tool.Pen) })
         { Key(key); Check(_tool == expected, "Tool family shortcut failed: " + expected); }
-        SetTool(Tool.Pen); Click(new SKPoint(35, 35)); Drag(new SKPoint(100, 40), new SKPoint(120, 70)); Click(new SKPoint(80, 120)); Key(Avalonia.Input.Key.Enter);
+        _options.Pen.Output = PenOutput.Shape; SetTool(Tool.Pen); Click(new SKPoint(35, 35)); Drag(new SKPoint(100, 40), new SKPoint(120, 70)); Click(new SKPoint(80, 120)); Key(Avalonia.Input.Key.Enter);
         Check(PropertyLayer?.LiveShape is { Kind: Compositor.Core.Format.ShapeKind.Path }, "Pen did not create editable path");
         SetTool(Tool.AddAnchor); Pump(); var nodes = _pathNodes!.NodeCount; Click(new SKPoint(64, 40)); Check(_pathNodes!.NodeCount == nodes + 1, "Add Anchor tool failed");
         SetTool(Tool.DeleteAnchor); Pump(); Click(new SKPoint(64, 40)); Check(_pathNodes!.NodeCount == nodes, "Delete Anchor tool failed");

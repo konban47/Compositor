@@ -22,6 +22,7 @@ internal sealed class ToolOptions
     /// <summary>The magic wand's own amounts, and whether it reads every visible layer.</summary>
     public SelectionToolSettings Selection = new();
     public CropToolSettings Crop = new();
+    public PenToolSettings Pen = new();
     public WandOptions Wand = new(0);
     public bool WandAllLayers;
 

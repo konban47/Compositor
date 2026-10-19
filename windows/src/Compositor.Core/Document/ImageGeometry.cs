@@ -25,7 +25,7 @@ public static class ImageGeometry
             l.Transform = Transform(l.Transform);
             if (l.Mask is { Placement: { } p } mask) { l.Mask = mask.Replacing(mask.Asset); l.Mask.Placement = Transform(p); }
         }
-        ChannelEdits.Transform(document, width, height, matrix); DocumentMarks.Transform(document, matrix);
+        ChannelEdits.Transform(document, width, height, matrix); DocumentMarks.Transform(document, matrix); PenPaths.Transform(document, matrix);
         document.Selection = document.Selection.Transformed(matrix, width, height);
         if (Math.Abs(degrees % 90) > 1e-8) document.Guides.Clear();
         else foreach (var guide in document.Guides)

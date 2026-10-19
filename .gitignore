@@ -28,3 +28,6 @@ BUILD_PLAN.md
 
 # .NET test reports
 TestResults/
+
+# Local and CI verification output
+/artifacts/

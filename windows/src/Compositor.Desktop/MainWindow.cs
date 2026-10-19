@@ -403,6 +403,10 @@ public sealed partial class MainWindow : Window
         _optionsBar.PathAsked += () => NewVectorMaskForPath();
         _optionsBar.PatternAsked += () => _ = ChoosePattern();
         _optionsBar.FinishPathAsked += () => FinishPen(); _optionsBar.CancelPathAsked += () => CancelPen();
+        _optionsBar.PenAsked += async (action, anchor) => await PenAction(action, anchor);
+        _optionsBar.PenModeChanging += () => FinishPen();
+        _optionsBar.HasPenPath = () => CurrentPenSvg() is not null;
+        _optionsBar.CanPenMask = () => _document is { } doc && Selected is { } id && LayerProtection.CanPaint(doc, id);
         _optionsBar.NewAdjustmentAsked += () => _adjustmentBrushLayer = null;
         _optionsBar.AdjustmentBrushChanged += (kind, amount) => { _adjustmentBrushKind = kind; _adjustmentAmount = amount; };
         _canvas.NodeDragStarted = BeginPathDrag;
@@ -1109,6 +1113,7 @@ public sealed partial class MainWindow : Window
             When($"Move selected pixels {direction} 1 px", () => MovePixels(dx, dy), Shortcuts.Canvas);
             When($"Move selected pixels {direction} 10 px", () => MovePixels(dx * 10, dy * 10), Shortcuts.Canvas);
         }
+        When("Path to Selection", () => PathToSelection(), Shortcuts.Canvas);
         When("Apply Canvas Operation",
             () => { if (_placementTab is not null) { FinishPlacement(true); return true; } if (FinishProfessionalDraft()) return true; if (FinishPen()) return true; if (_cropFrame is null) return false; ApplyCrop(); return true; }, Shortcuts.Canvas);
         When("Cancel Canvas Operation",
@@ -5788,7 +5793,14 @@ public sealed partial class MainWindow : Window
     /// <summary>Loads the selected layer's vector mask nodes so the Path tool can show and drag them.</summary>
     private void SyncPathNodes()
     {
-        var layer = ToolCatalog.IsPathEditor(_tool) && _document is { } document && Selected is { } id
+        _editingWorkPath = false;
+        if ((ToolCatalog.IsPathEditor(_tool) || ToolCatalog.IsPen(_tool)) && _options.Pen.Output == PenOutput.Path && _document?.WorkPath is { } work && PathNodes.Parse(work) is { } working)
+        {
+            _editingWorkPath = true; _shapePath = false; _pathNodes = working; _pathLayerID = null;
+            _canvas.PathNodes = working; _canvas.PathEnabled = true; _canvas.SelectWholePath = _tool == Tool.PathSelection;
+            _canvas.PathToDocument = p => p; _canvas.DocumentToPath = p => p; return;
+        }
+        var layer = (ToolCatalog.IsPathEditor(_tool) || ToolCatalog.IsPen(_tool)) && _document is { } document && Selected is { } id
             ? document.Layers.FirstOrDefault(item => item.ID == id) : null;
         _shapePath = layer?.LiveShape is not null && !MaskTarget;
         PathNodes? nodes = null;
@@ -5846,13 +5858,12 @@ public sealed partial class MainWindow : Window
             var current = nodes.Subpaths[subpath].Nodes[node].Point;
             nodes.MoveNode(subpath, node, new SKPoint(point.X - current.X, point.Y - current.Y));
         }
-        _canvas.InvalidateVisual();
+        _canvas.InvalidateOverlay();
     }
 
     private void EndPathDrag()
     {
-        if (_document is { } document && _pathLayerID is { } id && _pathNodes is { } nodes)
-            ApplyEditedPath(document, id, nodes.ToSvg());
+        if (_pathNodes is { } nodes) SaveEditablePath(nodes.ToSvg());
         _history.End(_document, Selected);
         Refresh();
     }
@@ -5866,7 +5877,7 @@ public sealed partial class MainWindow : Window
         Edit("Edit Path", () =>
         {
             if (!(add ? nodes.InsertAfter(subpath, node) : nodes.RemoveAt(subpath, node))) return false;
-            return _pathLayerID is { } id && ApplyEditedPath(document, id, nodes.ToSvg());
+            return SaveEditablePath(nodes.ToSvg());
         });
         SyncPathNodes();
         _canvas.InvalidateVisual();

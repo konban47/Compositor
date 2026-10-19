@@ -79,6 +79,7 @@ public sealed class ProjectSnapshot : IDisposable
         document.Layers.AddRange(RuntimeLayers());
         document.Guides.AddRange(Manifest.Guides ?? []);
         document.Marks.AddRange(Manifest.Marks ?? []);
+        document.WorkPath = Manifest.WorkPath;
         foreach (var channel in Manifest.Channels ?? [])
             document.Channels.Add(new AlphaChannel(channel.ID, channel.Name, Channels[channel.ID]));
         return document;
@@ -94,7 +95,7 @@ public sealed class ProjectSnapshot : IDisposable
         var defaultMeasurementFields = document.MeasurementFields.SequenceEqual(new[] { "Area", "Perimeter", "Width", "Height", "Length", "Angle", "Count", "Mean" });
         var manifest = new ProjectManifest
         {
-            Version = document.Layers.Any(l => l.LiveShape?.Smoothing is not null) || document.Marks.Any(m => m.HasSliceOptions) ? 23 : document.Layers.Any(l => l.Container == LayerContainer.Artboard && l.ArtboardBackground != 0xffffffff) ? 22 : document.Guides.Any(g => g.ArtboardID is not null) ? 21 : document.Image.CmykProfile is not null || document.Layers.Any(l => l.Label > LayerLabel.Gray || l.Mask is { VectorPath: not null, VectorEvenOdd: true } || l.LiveText?.StyleRuns is not null || l.LiveText?.Geometry is not null || l.LiveText?.Layout is { BottomLeading: true } or { TateChuYoko: true } or { Smoothing: > TextSmoothing.Smooth }) ? 20 : document.Layers.Any(l => l.Adjustment?.Extended is not null) ? 19 : !document.Image.IsDefault || document.Variables.Count > 0 || document.DataSets.Count > 0
+            Version = document.WorkPath is not null ? 24 : document.Layers.Any(l => l.LiveShape?.Smoothing is not null) || document.Marks.Any(m => m.HasSliceOptions) ? 23 : document.Layers.Any(l => l.Container == LayerContainer.Artboard && l.ArtboardBackground != 0xffffffff) ? 22 : document.Guides.Any(g => g.ArtboardID is not null) ? 21 : document.Image.CmykProfile is not null || document.Layers.Any(l => l.Label > LayerLabel.Gray || l.Mask is { VectorPath: not null, VectorEvenOdd: true } || l.LiveText?.StyleRuns is not null || l.LiveText?.Geometry is not null || l.LiveText?.Layout is { BottomLeading: true } or { TateChuYoko: true } or { Smoothing: > TextSmoothing.Smooth }) ? 20 : document.Layers.Any(l => l.Adjustment?.Extended is not null) ? 19 : !document.Image.IsDefault || document.Variables.Count > 0 || document.DataSets.Count > 0
                 || document.MeasurementScale != new MeasurementScale() || document.Measurements.Count > 0
                 || document.Layers.Any(l => l.Asset?.Deep is not null || l.LiveText?.Layout is not null) || !defaultMeasurementFields ? 18
                 : document.Marks.Count > 0 ? 17 : document.Layers.Any(layer => layer.LiveText?.Vertical is not null || layer.LiveShape is { Kind: ShapeKind.Path, LineWidth: not null }) ? 16
@@ -120,6 +121,7 @@ public sealed class ProjectSnapshot : IDisposable
             Layers = [.. document.Layers.Select(CanvasDocument.Record)],
             Guides = document.Guides.Count > 0 ? [.. document.Guides] : null,
             Marks = document.Marks.Count > 0 ? [.. document.Marks] : null,
+            WorkPath = document.WorkPath,
             Channels = channels.Length == 0 ? null : channels.Select(channel => new ProjectChannelRecord
                 { ID = channel.ID, Name = channel.Name, ImageFile = ProjectChannelRecord.FileName(channel.ID) }).ToList(),
         };

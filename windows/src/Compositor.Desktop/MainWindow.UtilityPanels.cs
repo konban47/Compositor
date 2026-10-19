@@ -121,6 +121,8 @@ public sealed partial class MainWindow
                 Button("Blending Options…", () => _ = EditLayerStyle()); foreach (var kind in Enum.GetValues<StyleEffectKind>()) Button(LayerStyleDialog.NameFor(kind), () => _ = EditLayerStyle(kind)); Button("Clear Effects", ClearEffects); break;
             case "Paths":
                 Button("Pen tool", () => SetTool(Tool.Pen)); Button("Finish Path", () => FinishPen()); Button("Cancel Path", () => CancelPen());
+                Button("Path to Selection", () => PathToSelection());
+                Button("Delete Work Path", () => { CancelPen(); Edit("Delete Work Path", () => { if (_document?.WorkPath is null) return false; _document.WorkPath = null; return true; }); });
                 Button("Create Work Path", CreateTypePath); Button("Define Shape Preset…", () => _ = DefinePreset("Shape")); break;
             case "Notes":
             {

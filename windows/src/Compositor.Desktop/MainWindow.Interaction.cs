@@ -163,7 +163,7 @@ public sealed partial class MainWindow
             ShowLayers(document);
         };
         var panel = new Grid { ColumnDefinitions = new ColumnDefinitions("30,Auto,Auto,Auto,Auto,*,Auto,Auto"), MinHeight = layer.IsGroup ? 28 : Math.Max(42, EditorPreferences.Current.LayerThumbnailSize + 10) };
-        panel.PointerEntered += (_, _) => { if (EditorPreferences.Current.MoveLayerHoverBounds) { _moveHoverBox = layer.IsGroup && _document is { } doc ? TransformEdits.GroupBox(doc, [layer.ID]) : layer.Transform; _canvas.InvalidateOverlay(); } };
+        panel.PointerEntered += (_, _) => { if (!_layerDragging && EditorPreferences.Current.MoveLayerHoverBounds) { _moveHoverBox = layer.IsGroup && _document is { } doc ? TransformEdits.GroupBox(doc, [layer.ID]) : layer.Transform; _canvas.InvalidateOverlay(); } };
         panel.PointerExited += (_, _) => { _moveHoverBox = null; _canvas.InvalidateOverlay(); };
         panel.Children.Add(new Border { Child = eye, Background = Skin.ChromeBrush, BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(0, 0, 1, 0) });
         if (layer.Label != Compositor.Core.Format.LayerLabel.None)
@@ -207,7 +207,7 @@ public sealed partial class MainWindow
             link.Width = 21; link.Padding = new Thickness(1); link.Tag = "mask-link";
             if (!layer.Mask.IsLinked) link.Content = null;
             Grid.SetColumn(link, 3); panel.Children.Add(link);
-            var mask = new LayerThumbnail(() => Current()?.Mask?.Asset.Thumbnail) { Width = 30, Height = 30, Margin = new Thickness(3), Active = () => Selected == layer.ID && MaskTarget };
+            var mask = new LayerThumbnail(() => Current()?.Mask?.Asset.Thumbnail) { Tag = "mask-thumbnail", Width = 30, Height = 30, Margin = new Thickness(3), Active = () => Selected == layer.ID && MaskTarget };
             _layerThumbnails.Add(mask); ToolTip.SetTip(mask, Localize.Text("Edit Layer Mask"));
             mask.DoubleTapped += (_, e) => { SelectLayerRow(layer.ID); SetPaintingMask(true); OpenInspector(0); e.Handled = true; };
             mask.PointerPressed += (_, e) => { if (e.GetCurrentPoint(mask).Properties.IsRightButtonPressed) { OpenMaskContext(mask, layer); e.Handled = true; return; } SelectLayerRow(layer.ID); SetPaintingMask(true); e.Handled = true; };
@@ -231,70 +231,7 @@ public sealed partial class MainWindow
         return new Border { BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(0, 0, 0, 1), Child = panel };
     }
 
-    private void WireLayerDrag(ListBoxItem row)
-    {
-        row.AddHandler(PointerPressedEvent, (_, e) =>
-        {
-            if (!e.GetCurrentPoint(row).Properties.IsLeftButtonPressed || e.GetPosition(row).X < 32) return;
-            if (e.Source is Visual source && (source is Button or LayerThumbnail || source.GetVisualAncestors().TakeWhile(item => item != row).Any(item => item is Button || item is LayerThumbnail))) return;
-            if (row.Tag is not Guid id) return;
-            if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && _layers.SelectedItems?.Contains(row) == true)
-                _layers.SelectedItems.Remove(row);
-            else if (e.KeyModifiers.HasFlag(KeyModifiers.Shift) && _layers.SelectedIndex >= 0)
-            {
-                var from = _layers.SelectedIndex; var to = _layers.Items.IndexOf(row);
-                for (var index = Math.Min(from, to); index <= Math.Max(from, to); index++)
-                    if (_layers.SelectedItems?.Contains(_layers.Items[index]) != true) _layers.SelectedItems?.Add(_layers.Items[index]);
-            }
-            else if (!SelectedLayers.Contains(id))
-                SelectLayerRow(id, e.KeyModifiers.HasFlag(KeyModifiers.Control));
-            if (_document is { } doc && !LayerProtection.CanMove(doc, id)) { e.Handled = true; return; }
-            _dragLayer = id; _layerPress = e.GetPosition(_layers); _layerDragging = false;
-            e.Pointer.Capture(row); e.Handled = true;
-        }, RoutingStrategies.Tunnel);
-        row.PointerMoved += (_, e) =>
-        {
-            if (_dragLayer is null || !e.GetCurrentPoint(row).Properties.IsLeftButtonPressed) return;
-            var at = e.GetPosition(_layers);
-            if (!_layerDragging && Math.Abs(at.Y - _layerPress.Y) < 5) return;
-            _layerDragging = true;
-            ClearDropIndicator();
-            foreach (var candidate in _layers.Items.OfType<ListBoxItem>())
-            {
-                var top = candidate.TranslatePoint(default, _layers);
-                if (top is null || at.Y < top.Value.Y || at.Y > top.Value.Y + candidate.Bounds.Height) continue;
-                _dropRow = candidate; _dropAbove = at.Y < top.Value.Y + candidate.Bounds.Height / 2;
-                candidate.BorderBrush = Skin.LabelBrush;
-                candidate.BorderThickness = _dropAbove ? new Thickness(0, 2, 0, 0) : new Thickness(0, 0, 0, 2);
-                break;
-            }
-            if (_dropRow is { } target && (at.Y < 30 || at.Y > _layers.Bounds.Height - 30))
-            {
-                var index = _layers.Items.IndexOf(target) + (at.Y < 30 ? -1 : 1);
-                if (index >= 0 && index < _layers.ItemCount) _layers.ScrollIntoView(_layers.Items[index]!);
-            }
-            e.Handled = true;
-        };
-        row.PointerReleased += (_, e) =>
-        {
-            var from = _dragLayer; var to = _dropRow?.Tag as Guid?; var above = _dropAbove;
-            var moved = _layerDragging;
-            _dragLayer = null; _layerDragging = false; ClearDropIndicator(); e.Pointer.Capture(null);
-            if (moved && DropLayersOnTabs(e.GetPosition(this))) { e.Handled = true; return; }
-            if (moved && from is { } source && to is { } target && _document is { } document)
-            {
-                Edit("Reorder Layers", () => ReorderWithArtboardPosition(document, source, target, above));
-                Reselect(source);
-            }
-        };
-        row.PointerCaptureLost += (_, _) => { _dragLayer = null; _layerDragging = false; ClearDropIndicator(); };
-    }
 
-    private void ClearDropIndicator()
-    {
-        if (_dropRow is { } row) row.BorderThickness = new Thickness(0);
-        _dropRow = null;
-    }
 }
 
 internal sealed class LayerEye(bool visible) : Control

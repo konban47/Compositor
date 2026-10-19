@@ -41,6 +41,7 @@ public sealed class CanvasDocument : IDisposable
 
     /// <summary>What an edit may touch. Part of the document so undo covers it; not saved to disk.</summary>
     public DocumentSelection Selection { get; set; } = DocumentSelection.All;
+    public string? WorkPath { get; set; }
 
     /// <summary>False on a history snapshot: the pixels belong to the document it was copied from.</summary>
     private bool _ownsPixels = true;
@@ -57,6 +58,7 @@ public sealed class CanvasDocument : IDisposable
         var copy = new CanvasDocument(ID, Width, Height, Resolution) { _ownsPixels = false };
         copy.Layers.AddRange(Layers.Select(layer => layer.Clone()));
         copy.Selection = Selection;
+        copy.WorkPath = WorkPath;
         copy.Marks.AddRange(Marks);
         copy.Channels.AddRange(Channels);
         copy.EditChannels = EditChannels;
@@ -95,6 +97,7 @@ public sealed class CanvasDocument : IDisposable
         Guides.Clear();
         Guides.AddRange(other.Guides);
         Selection = other.Selection;
+        WorkPath = other.WorkPath;
         Marks.Clear(); Marks.AddRange(other.Marks);
         Channels.Clear(); Channels.AddRange(other.Channels);
         other.CopyImageMetadataTo(this);
@@ -105,7 +108,7 @@ public sealed class CanvasDocument : IDisposable
     {
         if (ID != other.ID || Width != other.Width || Height != other.Height || Resolution != other.Resolution
             || Layers.Count != other.Layers.Count || Guides.Count != other.Guides.Count || !Channels.SequenceEqual(other.Channels)
-            || !Marks.SequenceEqual(other.Marks) || !Selection.Matches(other.Selection)
+            || !Marks.SequenceEqual(other.Marks) || !Selection.Matches(other.Selection) || WorkPath != other.WorkPath
             || Image != other.Image || MeasurementScale != other.MeasurementScale || !Variables.SequenceEqual(other.Variables)
             || !DataSets.SequenceEqual(other.DataSets) || !Measurements.SequenceEqual(other.Measurements)
             || !MeasurementFields.SequenceEqual(other.MeasurementFields)) return false;

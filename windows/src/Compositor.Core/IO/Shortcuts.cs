@@ -325,6 +325,7 @@ public static class Shortcuts
             Canvas($"Move selected pixels {direction} 10 px", key, Ctrl | Shift);
         }
         Canvas("Apply Canvas Operation", "Enter");
+        Canvas("Path to Selection", "Enter", ShortcutModifiers.Control);
         Canvas("Cancel Canvas Operation", "Escape");
         return rows;
     }

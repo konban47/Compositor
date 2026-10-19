@@ -37,6 +37,7 @@ public static class ProjectStore
         }
 
         var version = manifest.Version;
+        if (manifest.WorkPath is { } workPath && (version < 24 || !Document.PenPaths.Valid(workPath))) throw new ProjectException(ProjectError.Invalid);
         if (version < 20 && manifest.Layers.Any(l => l.Label > LayerLabel.Gray)) throw new ProjectException(ProjectError.Invalid);
         if (manifest.ImageSettings is { } imageSettings && (version < 18 || !imageSettings.IsValid || version < 20 && imageSettings.CmykProfile is not null)
             || manifest.MeasurementScale is { } scale && (version < 18 || !scale.IsValid)

@@ -27,5 +27,8 @@ internal sealed class ToolSettingsPopup : StackPanel
         var combo = new ComboBox { ItemsSource = values.Select(Localize.Text).ToArray(), SelectedIndex = value, HorizontalAlignment = HorizontalAlignment.Stretch };
         combo.SelectionChanged += (_, _) => { if (combo.SelectedIndex >= 0) { set(combo.SelectedIndex); Changed?.Invoke(); } }; Heading(text); Children.Add(combo);
     }
-    internal void Show(Control anchor) => new Flyout { Content = this, Placement = PlacementMode.BottomEdgeAlignedLeft }.ShowAt(anchor);
+    internal Flyout Show(Control anchor)
+    {
+        var flyout = new Flyout { Content = this, Placement = PlacementMode.BottomEdgeAlignedLeft }; flyout.ShowAt(anchor); return flyout;
+    }
 }

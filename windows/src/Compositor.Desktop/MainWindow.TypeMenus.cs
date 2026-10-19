@@ -116,7 +116,9 @@ public sealed partial class MainWindow
         CommitText(); if (_document is not { } doc || PropertyLayer is not { LiveText: { } style, Asset: { } asset } layer) return;
         using var path = TextEdits.Outline(style); if (path is null) return;
         path.Transform(BrushEdits.PixelToDocument(layer.Transform, asset.Width, asset.Height));
-        _pen = PathNodes.Parse(path.ToSvgPathData()); SetTool(Tool.Pen); _canvas.InvalidateOverlay();
+        var svg = path.ToSvgPathData();
+        Edit("Create Work Path", () => { doc.WorkPath = svg; return true; });
+        _options.Pen.Output = PenOutput.Path; SetTool(Tool.Pen); SyncPathNodes(); _canvas.InvalidateOverlay();
     }
     private void UpdateAllType()
     {

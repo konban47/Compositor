@@ -2,7 +2,7 @@
 
 窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](WINDOW-MENU.md)。
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.5.3.1 Preview**。
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.5.3.2 Preview**。
 
 本版另增加 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](design/panel-icons/README.md)。
 
@@ -13,7 +13,7 @@
 ## 使用
 
 - 目标平台：Windows 10 1809 及以上、Windows 11，**x64**。不提供 32 位或原生 ARM64 包。
-- 安装版：运行 `Compositor-Windows-1.5.3.1-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
+- 安装版：运行 `Compositor-Windows-1.5.3.2-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
 - 免安装版：解压整个 `*-portable.zip`，运行文件夹中的 `Compositor.exe`。自带 .NET 运行时，无需安装 .NET SDK。若系统缺少 Visual C++ 2015–2022 x64 运行库，先运行随包提供的 `redist/vc_redist.x64.exe`。
 - 程序与安装包目前未做商业代码签名。只从本仓库下载；`SHA256SUMS.txt` 可用于校验文件完整性。
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
@@ -22,6 +22,15 @@
 - 普通图像、PSD/PSB、相机 RAW 通过“文件 → 导入图像”打开；PSD 转换限制会在导入报告中显示。PNG/JPEG/PDF/TIFF/EXR 通过“导出为”菜单输出；PDF 为单页合成图像。
 - 可将项目文件夹或图像路径作为参数：`Compositor.exe "D:\图片\项目.comp"`。
 - 设置保存在 `%APPDATA%\CompositorWindows`。卸载不会删除项目文件和个人设置。
+
+## 1.5.3.2 钢笔与图层拖动
+
+- 三种钢笔补齐形状／路径模式、建立选区／蒙版／形状、路径布尔、排列、对齐分布和路径选项；自由钢笔增加拟合与磁性边缘参数。
+- 10 屏幕像素内显示闭环圆圈，起点与选中节点以蓝色实心显示；Ctrl+Enter 使用现有选区管线。工作路径随项目保存为 v24，并参与撤销、裁剪、缩放、旋转及翻转。
+- 图层左键按住或拖动出现浮动预览、蓝色插入线、边缘自动滚动与落位动画；支持多层、锁定和 Esc 取消。
+- 操作说明见 [钢笔与图层拖动](PEN-AND-LAYERS.md)，验证及上游核对见 [本版更新](UPDATES-1.5.3.2.md)。
+
+以下版本段落为历史记录。
 
 ## 1.5.3.1 面板与窗口修复
 
@@ -159,11 +168,11 @@
 
 ### 项目兼容性
 
-当前读取版本 1–23。平滑圆角和扩展切片属性使用 Windows 扩展 v23；非白色或透明画板背景使用 Windows 扩展 v22；画板参考线归属使用 Windows 扩展 v21；字符范围样式、文字几何、矢量孔洞规则、额外标签色和 ICC 配置使用 Windows 扩展 v20；新增八类可编辑调整层使用 Windows 扩展 v19；图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，最新上游 macOS 1.5.3 支持 v1–v14，其中 v12 的 16 位 PNG 和 v13 EXR 可以读取，但不支持 Windows v13–v23 字段。清除新增字段后可恢复相应较低版本；交付合成结果可导出 PNG。详细字段见 [项目格式 v15](../docs/project-format.md#windows-extension-version-15)。
+当前读取版本 1–24。工作路径使用 Windows 扩展 v24；平滑圆角和扩展切片属性使用 Windows 扩展 v23；非白色或透明画板背景使用 Windows 扩展 v22；画板参考线归属使用 Windows 扩展 v21；字符范围样式、文字几何、矢量孔洞规则、额外标签色和 ICC 配置使用 Windows 扩展 v20；新增八类可编辑调整层使用 Windows 扩展 v19；图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，最新上游 macOS 1.5.3 支持 v1–v14，其中 v12 的 16 位 PNG 和 v13 EXR 可以读取，但不支持 Windows v13–v24 字段。清除新增字段后可恢复相应较低版本；交付合成结果可导出 PNG。详细字段见 [项目格式 v24](../docs/project-format.md#windows-extension-version-24)。
 
 ## 功能与迁移范围
 
-保留 `.comp` 格式版本 1–11 的读写并增加 Windows 扩展 v12–v23、图层与组、24 种混合模式、蒙版和剪贴蒙版、调整图层、图层样式、选区、绘画/仿制/修复/涂抹/液化、可编辑文字和形状、裁剪/变换、参考线、色阶/曲线/色相饱和度、Camera Raw 调整、仿色、内容识别填充、导出以及撤销/重做。
+保留 `.comp` 格式版本 1–11 的读写并增加 Windows 扩展 v12–v24、图层与组、24 种混合模式、蒙版和剪贴蒙版、调整图层、图层样式、选区、绘画/仿制/修复/涂抹/液化、可编辑文字和形状、裁剪/变换、参考线、色阶/曲线/色相饱和度、Camera Raw 调整、仿色、内容识别填充、导出以及撤销/重做。
 
 在已有 MIT Windows 移植基础上增加：
 
@@ -223,7 +232,7 @@ An independent Windows x64 port retaining Compositor's `.comp` folder format. Ba
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 
-Windows 1.5.3.1 is a **Preview**, validated locally on Windows 11. After the fork's workflows were re-enabled on 2026-10-17, [CI for release commit e3c28db](https://github.com/konban47/Compositor/actions/runs/39028925211) passed documentation checks, the warnings-as-errors build, 1184 core tests and 22 English / 16 Chinese UI checks on both Windows Server 2022 and 2025. This does not certify manual Windows 10 testing or administrator upgrade behavior. Skia GPU display, CPU reference compositing and U²-NetP replace Apple's native implementations; segmentation, glow, fonts, some drag/drop interactions and RAW development are not identical. PSD conversion has reported limitations and no PSD export. Dependent clipping-layer deletion supports baking or releasing links, with undo. See the [current release notes](UPDATES-1.5.3.1.md) for validation details.
+Windows 1.5.3.2 is a **Preview**. Validation results for this release are tracked in [the release notes](UPDATES-1.5.3.2.md). Windows Server CI does not certify manual Windows 10 testing, physical pen pressure, or administrator upgrade behavior. Skia GPU display, CPU reference compositing and U²-NetP replace Apple-specific implementations; PSD import retains reported limitations and PSD export is unavailable.
 
 The same CI run built the portable app and installer, passed 16 published-app UI checks, and verified a fresh installation and uninstall on a temporary Windows Server 2025 runner. Bundled documentation remains a snapshot of the initial release; the online release notes record this additional validation.
 

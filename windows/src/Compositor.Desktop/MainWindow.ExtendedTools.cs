@@ -28,18 +28,7 @@ public sealed partial class MainWindow
         if (ArtboardPressed(at, modifiers)) return true;
         if (ProfessionalPressed(at, modifiers, clicks)) return true;
         if (_tool is Tool.Bucket or Tool.MagicEraser) { PaintBucket(at, _tool == Tool.MagicEraser); return true; }
-        if (ToolCatalog.IsPen(_tool))
-        {
-            if (_document is null || _open.ActiveAlpha is not null) return true;
-            _pen ??= new PathNodes(); if (_pen.Subpaths.Count == 0) _pen.Subpaths.Add(new PathNodes.Subpath());
-            var nodes = _pen.Subpaths[0].Nodes;
-            if (nodes.Count > 2 && SKPoint.Distance(nodes[0].Point, at) < 10 / _canvas.Zoom)
-            { _pen.Subpaths[0].Closed = true; FinishPen(); return true; }
-            if (clicks > 1 && nodes.Count > 1) { FinishPen(); return true; }
-            nodes.Add(new PathNodes.Node { Point = at }); _penLast = at; _penDrawing = true;
-            if (_tool == Tool.CurvaturePen) SmoothPen();
-            _canvas.InvalidateOverlay(); return true;
-        }
+        if (ToolCatalog.IsPen(_tool)) return PenPressed(at, modifiers, clicks);
         if (_tool is Tool.AddAnchor or Tool.DeleteAnchor or Tool.ConvertAnchor && _pathNodes is { } path && _canvas.DocumentToPath is { } map)
         {
             var point = map(at); var grab = path.Grabs().Where(g => !g.Handle).MinBy(g => SKPoint.Distance(g.Point, point));
@@ -57,12 +46,12 @@ public sealed partial class MainWindow
                         var after = nodes[(grab.Node + 1) % nodes.Count].Point; var delta = PlacementMesh.Scale(after - before, 1f / 6);
                         node.In = node.Point - delta; node.Out = node.Point + delta;
                     }
-                    return _document is { } doc && _pathLayerID is { } id && ApplyEditedPath(doc, id, path.ToSvg());
+                    return SaveEditablePath(path.ToSvg());
                 }); SyncPathNodes();
             }
             else if (_tool == Tool.AddAnchor)
             {
-                Edit("Add Anchor Point", () => path.InsertNearest(point) && _document is { } doc && _pathLayerID is { } id && ApplyEditedPath(doc, id, path.ToSvg())); SyncPathNodes();
+                Edit("Add Anchor Point", () => path.InsertNearest(point) && SaveEditablePath(path.ToSvg())); SyncPathNodes();
             }
             else EditPathNode(grab.Subpath, grab.Node, false);
             return true;
@@ -80,19 +69,7 @@ public sealed partial class MainWindow
             node.Out = point; node.In = modifiers.HasFlag(KeyModifiers.Alt) ? node.In : node.Point - (point - node.Point);
             _canvas.InvalidateOverlay(); return;
         }
-        if (!_penDrawing || _pen?.Subpaths.FirstOrDefault() is not { } contour) return;
-        if (_tool == Tool.FreeformPen)
-        {
-            if (SKPoint.Distance(at, _penLast) < 3 / _canvas.Zoom || contour.Nodes.Count >= 4000) return;
-            contour.Nodes.Add(new PathNodes.Node { Point = at }); _penLast = at; SmoothPen();
-        }
-        else if (_tool == Tool.Pen)
-        {
-            var node = contour.Nodes[^1]; var delta = at - node.Point;
-            if (SKPoint.Distance(at, node.Point) > 2 / _canvas.Zoom)
-            { node.Out = at; node.In = modifiers.HasFlag(KeyModifiers.Alt) ? null : node.Point - delta; }
-        }
-        _canvas.InvalidateOverlay();
+        PenMoved(at, modifiers);
     }
     private void CanvasActionReleased()
     {
@@ -101,35 +78,27 @@ public sealed partial class MainWindow
         if (_convertDrag is not null)
         {
             _convertDrag = null;
-            if (_document is { } doc && _pathLayerID is { } id && _pathNodes is { } path) ApplyEditedPath(doc, id, path.ToSvg());
+            if (_pathNodes is { } path) SaveEditablePath(path.ToSvg());
             _history.End(_document, Selected); Refresh();
         }
-        _penDrawing = false; if (_tool == Tool.FreeformPen) FinishPen();
+        PenReleased();
     }
     private void SmoothPen()
     {
         if (_pen?.Subpaths.FirstOrDefault() is not { } contour) return;
-        for (var i = 1; i < contour.Nodes.Count - 1; i++)
-        { var delta = PlacementMesh.Scale(contour.Nodes[i + 1].Point - contour.Nodes[i - 1].Point, 1f / 6); contour.Nodes[i].In = contour.Nodes[i].Point - delta; contour.Nodes[i].Out = contour.Nodes[i].Point + delta; }
+        PenPaths.Smooth(contour);
+        foreach (var index in _penCorners.Where(i => i < contour.Nodes.Count)) { contour.Nodes[index].In = null; contour.Nodes[index].Out = null; }
     }
     private bool FinishPen()
     {
-        if (_pen is not { } pen || _document is not { } doc) return false;
+        if (_pen is not { } pen || _document is null) return false;
         if (pen.NodeCount < 2) return CancelPen();
-        using var path = SKPath.ParseSvgPathData(pen.ToSvg());
-        if (path is null) return CancelPen();
-        var bounds = path.TightBounds; var box = new SKRectI((int)Math.Floor(bounds.Left), (int)Math.Floor(bounds.Top), (int)Math.Ceiling(bounds.Right), (int)Math.Ceiling(bounds.Bottom));
-        if (!pen.Subpaths[0].Closed) { var margin = (int)Math.Ceiling(_options.ShapeLineWidth / 2); box.Inflate(margin, margin); }
-        box.Right = Math.Max(box.Right, box.Left + 1); box.Bottom = Math.Max(box.Bottom, box.Top + 1);
-        var transform = new SKMatrix(1f / box.Width, 0, -box.Left / (float)box.Width, 0, 1f / box.Height, -box.Top / (float)box.Height, 0, 0, 1);
-        path.Transform(transform);
-        Guid? made = null;
-        Edit("Draw Path", () => (made = ShapeEdits.Add(doc, new LayerShapeStyle { Kind = ShapeKind.Path, Path = path.ToSvgPathData(), Red = _options.Brush.Red,
-            Green = _options.Brush.Green, Blue = _options.Brush.Blue, LineWidth = pen.Subpaths[0].Closed ? null : _options.ShapeLineWidth }, box, Selected)) is not null);
-        _pen = null; _penDrawing = false; Reselect(made); _canvas.InvalidateOverlay(); return true;
+        var svg = pen.ToSvg(); _madePenShape = null;
+        Edit("Draw Path", () => CommitPenPath(svg));
+        ClearPenDraft(); if (_madePenShape is { } id) Reselect(id); SyncPathNodes(); _canvas.InvalidateOverlay(); return true;
     }
     private bool CancelPen()
-    { if (_pen is null) return false; _pen = null; _penDrawing = false; _canvas.InvalidateOverlay(); return true; }
+    { if (_pen is null) return false; ClearPenDraft(); return true; }
     private void DrawEditingOverlay(DrawingContext context, Func<SKPoint, Point> screen)
     {
         DrawProfessionalOverlay(context, screen);
@@ -152,6 +121,7 @@ public sealed partial class MainWindow
             }
         }
         DrawPuppetPins(context, screen);
+        DrawWorkPath(context, screen, pen);
         if (_pen is { } draft)
         {
             var geometry = new StreamGeometry();
@@ -169,7 +139,17 @@ public sealed partial class MainWindow
                 if (node.In is { } incoming) context.DrawLine(pen, screen(node.Point), screen(incoming));
                 if (node.Out is { } outgoing) context.DrawLine(pen, screen(node.Point), screen(outgoing));
             }
-            foreach (var grab in draft.Grabs()) context.DrawEllipse(grab.Handle ? Skin.ChromeBrush : Skin.LabelBrush, pen, screen(grab.Point), 3, 3);
+            foreach (var grab in draft.Grabs())
+            {
+                var blue = new SolidColorBrush(Color.Parse("#1473E6"));
+                var selected = !grab.Handle && (grab.Node == _penSelected || grab.Node == 0 && _canvas.ClosePathHint);
+                context.DrawEllipse(selected ? blue : Skin.ChromeBrush, pen, screen(grab.Point), 3.5, 3.5);
+            }
+            if (_options.Pen.RubberBand && !_penDrawing && _penHover is { } hover && draft.Subpaths[0].Nodes.LastOrDefault() is { } last)
+            {
+                var preview = new StreamGeometry(); using (var g = preview.Open()) { g.BeginFigure(screen(last.Point), false); g.CubicBezierTo(screen(last.Out ?? last.Point), screen(hover), screen(hover)); g.EndFigure(false); }
+                context.DrawGeometry(null, pen, preview);
+            }
         }
     }
     private void BuildCanvasMenu(ContextMenu menu)
