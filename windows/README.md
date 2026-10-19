@@ -4,11 +4,11 @@
 
 基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.5.3.2 Preview**。
 
-本版另增加 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](design/panel-icons/README.md)。
+现有界面包含 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](design/panel-icons/README.md)。
 
 [下载 Windows 发行包](https://github.com/konban47/Compositor/releases) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
 
-2026-10-15 合并上游 1.5.3（`365b5745eda537f984f3d5bed1e53c361dbc9c91`）。本版新增选区／裁剪／切片选项、平滑圆角及窗口细节修复；操作与边界见 [SELECTION-CROP-SLICE.md](SELECTION-CROP-SLICE.md)，上游对应见 [UPDATES-1.5.3.0.md](UPDATES-1.5.3.0.md)。PSD、文字与蒙版操作仍见 [TYPE-AND-MASKS.md](TYPE-AND-MASKS.md)。
+2026-10-15 合并上游 1.5.3（`365b5745eda537f984f3d5bed1e53c361dbc9c91`）。1.5.3.0 新增选区／裁剪／切片选项、平滑圆角及窗口细节修复；操作与边界见 [SELECTION-CROP-SLICE.md](SELECTION-CROP-SLICE.md)，上游对应见 [UPDATES-1.5.3.0.md](UPDATES-1.5.3.0.md)。PSD、文字与蒙版操作仍见 [TYPE-AND-MASKS.md](TYPE-AND-MASKS.md)。
 
 ## 使用
 
@@ -29,6 +29,8 @@
 - 10 屏幕像素内显示闭环圆圈，起点与选中节点以蓝色实心显示；Ctrl+Enter 使用现有选区管线。工作路径随项目保存为 v24，并参与撤销、裁剪、缩放、旋转及翻转。
 - 图层左键按住或拖动出现浮动预览、蓝色插入线、边缘自动滚动与落位动画；支持多层、锁定和 Esc 取消。
 - 操作说明见 [钢笔与图层拖动](PEN-AND-LAYERS.md)，验证及上游核对见 [本版更新](UPDATES-1.5.3.2.md)。
+- [本版云端验证](https://github.com/konban47/Compositor/actions/runs/39230205560)在 Windows Server 2022／2025 均通过文档检查、零警告构建、1200 项核心测试及 23 组英文／17 组中文界面检查。
+- 同次 CI 生成安装版与免安装版，发行程序通过 17 组界面检查，并在临时 Windows Server 2025 环境中完成全新安装／卸载验收。[下载 1.5.3.2 Preview](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.2)。
 
 以下版本段落为历史记录。
 

@@ -8,7 +8,7 @@
 
 [下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.2) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.3.2.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
 
-本版另增加 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](windows/design/panel-icons/README.md)。
+现有界面包含 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](windows/design/panel-icons/README.md)。
 
 ## 1.5.3.2 钢笔与图层拖动
 
@@ -91,6 +91,8 @@
 ## 验证与当前状态
 
 **1.5.3.2 Preview** 保持上游 **1.5.3 / 365b574** 基线；2026-10-19 核对上游 HEAD 未变化。当前回归验证结果见[本版更新](windows/UPDATES-1.5.3.2.md)。现有选区、裁剪、切片与平滑圆角功能继续保留。
+
+[本版提交 b0bce9c 的云端验证](https://github.com/konban47/Compositor/actions/runs/39230205560)在 Windows Server 2022／2025 均通过文档检查、零警告构建、1200 项核心测试以及 23 组英文／17 组中文界面检查。安装版与免安装版已成功构建；发行程序的 17 组界面检查及临时 Windows Server 2025 环境中的全新安装／卸载均通过。[下载本版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.2)。
 
 历史验证：2026-10-17 恢复 Fork 的 GitHub Actions；[发布提交 e3c28db 的云端验证](https://github.com/konban47/Compositor/actions/runs/39028925211)在 Windows Server 2022／2025 均通过文档检查、零警告构建、1184 项核心测试以及 22 组英文／16 组中文界面检查。发行包构建、16 组发行程序界面检查及临时 Windows Server 2025 上的全新安装／卸载也已通过。
 

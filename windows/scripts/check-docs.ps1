@@ -145,7 +145,6 @@ foreach ($name in @('front','forward','backward','back')) {
     if (!$sliceIconGuide.Contains($hash) -or !$sliceIconGuide.Contains("### $name")) { throw "Generated icon provenance missing: $name" }
 }
 & (Join-Path $PSScriptRoot 'check-upstream-ui.ps1')
-Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."
 
 $penGuide = Read-Repo 'windows/PEN-AND-LAYERS.md'
 foreach ($feature in @("**$version Preview**", 'Ctrl+Enter', '磁性', '10 屏幕像素', '220 毫秒', 'v24')) {
@@ -154,3 +153,5 @@ foreach ($feature in @("**$version Preview**", 'Ctrl+Enter', '磁性', '10 屏�
 if (!$formatDoc.Contains('`workPath`')) { throw 'Work path field is undocumented.' }
 if (!(Read-Repo 'windows/scripts/package.ps1').Contains('PEN-AND-LAYERS.md')) { throw 'Pen guide missing from package.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--pen-layer-checks')) { throw 'Pen/layer UI checks missing from CI.' }
+
+Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."
