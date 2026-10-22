@@ -34,23 +34,19 @@ public static class PsdImporter
     /// <paramref name="remainingPixels"/> is what the document has left of its pixel budget; the default
     /// reads against the whole budget, as the Mac build does.
     /// </summary>
-    public static PsdImport Read(string path, int remainingPixels = -1)
-    {
-        var budget = remainingPixels < 0 ? DocumentLimits.DocumentPixelBudget : remainingPixels;
-        var bytes = ReadFile(path);
-        var document = PsdReader.Read(bytes, budget, Path.GetFileNameWithoutExtension(path));
-        return PsdDocumentBuilder.Build(document, budget);
-    }
-
-    private static byte[] ReadFile(string path)
+    public static PsdImport Read(string path, int remainingPixels = -1, CancellationToken cancellation = default)
     {
         try
         {
-            var info = new FileInfo(path);
-            // One encoded layer image or mask may not exceed this either, so a whole file larger than the
-            // cap is one no import could hold.
-            if (info.Length > DocumentLimits.MaxAssetBytes) throw new ImportException(ImportError.TooLarge);
-            return File.ReadAllBytes(path);
+            var budget = remainingPixels < 0 ? DocumentLimits.DocumentPixelBudget : remainingPixels;
+            using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.RandomAccess);
+            var document = PsdReader.Read(input, budget, Path.GetFileNameWithoutExtension(path), cancellation);
+            try { return PsdDocumentBuilder.Build(document, budget); }
+            catch
+            {
+                foreach (var layer in document.Layers) { layer.Image?.Dispose(); layer.Mask?.Dispose(); }
+                throw;
+            }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException)
         {

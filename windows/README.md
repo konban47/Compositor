@@ -1,5 +1,7 @@
 # Compositor for Windows — 简体中文 / English
 
+2026-10-22：当前 `windows-port` 源码已按审查优先级实施 16 项性能与数据安全修订，涵盖原子导出、选区/撤销内存、分块后台显示、PSD 流式读取和 CPU 优化。实现、基准、测试与限制见[性能修订记录](PERFORMANCE.md)。下方已发布安装包的验证记录保留其对应版本与提交。
+
 窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](WINDOW-MENU.md)。
 
 基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 版本为 **1.5.3.2 Preview**。
@@ -224,7 +226,7 @@ Inno Setup 不在默认位置时，增加 `-InnoCompiler "C:\path\to\ISCC.exe"`�
 
 构建脚本会从微软官网下载签名有效的 C++ 运行库，**不会在构建机安装它**。GitHub Actions 使用 Inno Setup 构建安装包，并在临时 runner 上验证安装／卸载。首次发布时因 Fork 工作流被停用而使用本机验证；2026-10-17 已恢复 Actions，补充验证结果见[更新记录](UPDATES-1.5.3.1.md)。
 
-核心测试当前为 **1184 项**；还提供 `--clicks`、`--tabs`、`--tools`、`--shortcuts`、`--camera-raw`、`--dialogs`、`--windows-checks`、`--interaction-checks`、`--panel-checks`、`--inspector-checks`、`--workspace-checks` 窗口测试，每项参数后跟截图路径。旧窗口断言用 `COMPOSITOR_LANGUAGE=en`；新增测试覆盖 en 和 zh-CN。测试设置目录应与个人配置分开。`windows/scripts/check-docs.ps1` 检查应用／安装包／文档版本、格式字段及当前功能说明，CI 在构建前执行以减少文档漂移。
+核心测试当前为 **1221 项**（默认 1220 项通过、1 项大画布测试明确跳过；本次另行启用并验证大画布用例）；还提供 `--clicks`、`--tabs`、`--tools`、`--shortcuts`、`--camera-raw`、`--dialogs`、`--windows-checks`、`--interaction-checks`、`--panel-checks`、`--inspector-checks`、`--workspace-checks` 窗口测试，每项参数后跟截图路径。旧窗口断言用 `COMPOSITOR_LANGUAGE=en`；新增测试覆盖 en 和 zh-CN。测试设置目录应与个人配置分开。`windows/scripts/check-docs.ps1` 检查应用／安装包／文档版本、格式字段及当前功能说明，CI 在构建前执行以减少文档漂移。
 
 CLI 位于包内 `cli/Compositor.Cli.exe`，运行 `--help` 查看命令。
 

@@ -15,14 +15,8 @@ public static class DocumentLimits
     /// <summary>One encoded layer image or mask may not exceed this.</summary>
     public const int MaxAssetBytes = 512 * 1024 * 1024;
 
-    /// <summary>
-    /// Total imported raster one document may hold, summed across every layer and mask; images and masks
-    /// are counted separately. The Mac build takes a quarter of the machine's memory at 4 bytes a pixel,
-    /// clamped between one surface and 800 MP; the GC's view of available memory stands in for
-    /// `ProcessInfo.physicalMemory`.
-    /// </summary>
-    public static readonly int DocumentPixelBudget = Math.Min(800_000_000,
-        Math.Max(MaxSurfacePixels, (int)Math.Clamp(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 16, 0, int.MaxValue)));
+    /// <summary>Metadata admission ceiling; byte-aware process admission also checks every working surface.</summary>
+    public static readonly int DocumentPixelBudget = (int)Math.Clamp(MemoryBudget.Shared.Limit / 32, 1_000_000, 800_000_000);
 
     public static int MaxSurfaceMegapixels => MaxSurfacePixels / 1_000_000;
     public static int DocumentBudgetMegapixels => DocumentPixelBudget / 1_000_000;

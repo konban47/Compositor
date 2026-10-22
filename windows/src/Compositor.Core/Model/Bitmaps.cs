@@ -18,8 +18,18 @@ public static class Bitmaps
 
     public static SKBitmap Allocate(SKImageInfo info)
     {
+        var bytes = MemoryBudget.PixelBytes(info.Width, info.Height, info.BytesPerPixel);
+        // GetPixelSpan and all pixel kernels use Int32 lengths; reject before native allocation.
+        if (bytes > int.MaxValue || info.Width > DocumentLimits.MaxSide || info.Height > DocumentLimits.MaxSide
+            || (long)info.Width * info.Height > DocumentLimits.MaxSurfacePixels)
+            throw new OutOfMemoryException("The surface exceeds the supported allocation size.");
+        using var reservation = MemoryBudget.Current.Reserve(bytes);
         var bitmap = new SKBitmap(info);
-        if (!bitmap.ReadyToDraw) throw new InvalidOperationException($"Could not allocate a {info.Width}x{info.Height} bitmap.");
+        if (!bitmap.ReadyToDraw)
+        {
+            bitmap.Dispose();
+            throw new OutOfMemoryException($"Could not allocate a {info.Width}x{info.Height} bitmap.");
+        }
         return bitmap;
     }
 

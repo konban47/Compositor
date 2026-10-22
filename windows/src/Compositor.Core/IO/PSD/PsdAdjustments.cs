@@ -16,6 +16,17 @@ internal static class PsdAdjustments
         return null;
     }
 
+    public static LayerAdjustment? Parse(PsdFileCursor cursor, Dictionary<string, (long Offset, long Length)> extra)
+    {
+        foreach (var key in new[] { "levl", "curv", "hue2", "hue " })
+            if (extra.TryGetValue(key, out var block))
+            {
+                var data = cursor.Block(block.Offset, block.Length);
+                return key switch { "levl" => Levels(data), "curv" => Curves(data), _ => Hue(data) };
+            }
+        return null;
+    }
+
     private static bool TrySlice(ReadOnlySpan<byte> data, Dictionary<string, (int Offset, int Length)> extra, string key,
         out ReadOnlySpan<byte> slice)
     {

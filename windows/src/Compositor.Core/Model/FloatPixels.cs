@@ -11,12 +11,22 @@ public static class FloatPixels
     public static byte[] Encode(SKBitmap image)
     {
         using var output = new MemoryStream();
-        using (var zip = new ZLibStream(output, CompressionLevel.Optimal, true)) zip.Write(image.GetPixelSpan());
+        Encode(image, output);
         return output.ToArray();
+    }
+    public static void Encode(SKBitmap image, Stream output)
+    {
+        using var zip = new ZLibStream(output, CompressionLevel.Optimal, true);
+        zip.Write(image.GetPixelSpan());
+    }
+    public static void ValidateSize(int width, int height)
+    {
+        if (MemoryBudget.PixelBytes(width, height, 16) > DocumentLimits.MaxAssetBytes)
+            throw new Compositor.Core.IO.ProjectException(Compositor.Core.IO.ProjectError.TooLarge);
     }
     public static SKBitmap Decode(byte[] bytes, int width, int height)
     {
-        if ((long)width * height * 16 > DocumentLimits.MaxAssetBytes) throw new InvalidDataException("Float layer exceeds the asset budget.");
+        ValidateSize(width, height);
         var result = Bitmaps.Allocate(DeepPixels.Info(width, height));
         try
         {

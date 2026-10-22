@@ -63,6 +63,13 @@ public static class PngCodec
         return data?.ToArray() ?? throw new ProjectException(ProjectError.Encode);
     }
 
+    public static void Encode(SKBitmap bitmap, Stream output)
+    {
+        using var stream = new SKManagedWStream(output, false);
+        if (!bitmap.Encode(stream, SKEncodedImageFormat.Png, 100))
+            throw new ProjectException(ProjectError.Encode);
+    }
+
     private static SKBitmap Decode(byte[] data, SKImageInfo info)
     {
         using var encoded = SKData.CreateCopy(data);

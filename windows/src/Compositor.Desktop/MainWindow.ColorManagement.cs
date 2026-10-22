@@ -56,7 +56,7 @@ public sealed partial class MainWindow
             using var composite = DocumentRenderer.RenderDeep(doc); using var converted = DeepImageCodec.Magick(composite);
             converted.TransformColorSpace(ColorProfiles.SRGB, profile); converted.Depth = 16;
             converted.Density = new Density(doc.Resolution, doc.Resolution, DensityUnit.PixelsPerInch);
-            await File.WriteAllBytesAsync(path, converted.ToByteArray(MagickFormat.Tiff)); Say("Color-managed TIFF exported.");
+            await WorkScheduler.Run(_ => { AtomicFile.Write(path, output => converted.Write(output, MagickFormat.Tiff)); return true; }); Say("Color-managed TIFF exported.");
         }
         catch (Exception error) { Say(error.Message); }
     }

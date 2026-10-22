@@ -140,6 +140,7 @@ public sealed partial class MainWindow : Window
     private FilterPreview? _preview;
     private DispatcherTimer? _previewTimer;
     private Func<CanvasDocument, bool>? _previewApply;
+    private Action? _previewCompleted;
     /// <summary>The one layer a single-layer preview stands for, so a panel that thinks in layers can be shown.</summary>
     private Guid? _previewLayer;
     /// <summary>The box and the layers a distortion drag began with, so every step is measured from it.</summary>
@@ -323,7 +324,8 @@ public sealed partial class MainWindow : Window
         // The picker is a window of its own and the app is left running until the last window closes, so it
         // goes with the editor rather than being left behind to hold the session open.
         Closing += ConfirmWindowClose;
-        Closed += (_, _) => { _objectMatte?.Dispose(); _objectHover?.Dispose(); CloseMaskWorkspace(); _canvas.MaskOverlay?.Dispose(); _recoveryTimer?.Stop(); _picker?.Close(); _channelThumbnail?.Dispose(); foreach (var image in _channelImages) image.Dispose(); };
+        _canvas.RenderFailed += message => Say($"Could not render: {message}");
+        Closed += (_, _) => { StopPreview(); _objectFindingCancellation?.Cancel(); _objectMatte?.Dispose(); _objectHover?.Dispose(); CloseMaskWorkspace(); _canvas.MaskOverlay?.Dispose(); _recoveryTimer?.Stop(); _picker?.Close(); _channelThumbnail?.Dispose(); foreach (var image in _channelImages) image.Dispose(); };
         Background = Skin.ChromeBrush;
         // The window's plain labels (a heading, a readout) take their colour from here, as the Mac's do from
         // the appearance; controls that name their own text keep it.
@@ -1332,7 +1334,7 @@ public sealed partial class MainWindow : Window
                 AllowMultiple = false,
             });
             if (picked.Count == 0 || picked[0].TryGetLocalPath() is not { } path) return;
-            Open(path);
+            await OpenAsync(path);
         }
         catch (Exception error)
         {
@@ -1340,9 +1342,14 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void Open(string path)
+    private void Open(string path) => OpenSnapshot(path, ProjectStore.Load(path));
+    private async Task OpenAsync(string path)
     {
-        var snapshot = ProjectStore.Load(path);
+        var snapshot = await RunLongTask("Open", token => ProjectStore.Load(path, token));
+        OpenSnapshot(path, snapshot);
+    }
+    private void OpenSnapshot(string path, ProjectSnapshot snapshot)
+    {
         // Into an empty tab when there is one and a tab of its own otherwise: an open project is not thrown
         // away by opening another, as the Mac build keeps one open per tab.
         _open = TabForNew();
@@ -1437,7 +1444,7 @@ public sealed partial class MainWindow : Window
         var was = target.Asset!.Image.GetPixel(0, 0);
         panel.Move("Exposure, stops", 1.5);
         panel.Move("Contrast", 40);
-        ShowPreviewOnce(null, EventArgs.Empty);
+        FlushPreviewForCheck();
         if (_preview is null) throw new InvalidOperationException("moving an amount did not start a preview");
         if (_history.IsModified) throw new InvalidOperationException("the preview wrote into the document's history");
         if (target.Asset.Image.GetPixel(0, 0) != was)
@@ -1507,7 +1514,7 @@ public sealed partial class MainWindow : Window
             throw new InvalidOperationException("the line did not ask for its own angle back");
         }
         // The grade is asked for again, and what comes back is the picture with the line's turn in it.
-        ShowPreviewOnce(null, EventArgs.Empty);
+        FlushPreviewForCheck();
         report.Add($"upright: 1 line drawn, asking for a turn of {GuidedUpright.Corrections(asked.Guides).Rotate:0.##} degrees");
 
         // A second, steeper line adds the keystone; a third is not read at all.
@@ -1518,7 +1525,7 @@ public sealed partial class MainWindow : Window
         {
             throw new InvalidOperationException($"the steep second line asked for {two.Vertical}/{two.Horizontal}");
         }
-        ShowPreviewOnce(null, EventArgs.Empty);
+        FlushPreviewForCheck();
         report.Add($"upright: a steeper second line asks for a keystone of {two.Vertical:0}");
 
         // Stopping, and clearing, put the canvas and the picture back.
@@ -1533,7 +1540,7 @@ public sealed partial class MainWindow : Window
             throw new InvalidOperationException("clearing left lines behind");
         }
         if (panel.Current().Geometry.Adjusts) throw new InvalidOperationException("the cleared lines still adjust");
-        ShowPreviewOnce(null, EventArgs.Empty);
+        FlushPreviewForCheck();
         report.Add("upright: stopping and clearing put the canvas and the picture back");
 
         // Apply writes them into the layer as one undo step, and puts the panel away with the Layers panel back.
@@ -1565,7 +1572,7 @@ public sealed partial class MainWindow : Window
         report.Add($"opened again where it was left: exposure {again.SetTo("Exposure, stops")}, "
             + $"contrast {again.SetTo("Contrast")}");
         again.Move("Exposure, stops", -1);
-        ShowPreviewOnce(null, EventArgs.Empty);
+        FlushPreviewForCheck();
         again.Cancel();
         if (_cameraRaw is not null) throw new InvalidOperationException("Cancel did not put the panel away");
         if (target.Asset.Image.GetPixel(0, 0) != applied)
@@ -1588,7 +1595,7 @@ public sealed partial class MainWindow : Window
         shown.Move("Clarity", 30);
         shown.PressDrawGuides();
         _canvas.UprightDrawn!(box.Point(0.1, 0.75), box.Point(0.9, 0.75 - 0.8 * Math.Tan(8 * Math.PI / 180)));
-        ShowPreviewOnce(null, EventArgs.Empty);
+        FlushPreviewForCheck();
         report.Add("left open with exposure 0.8, clarity 30 and one upright line, for the drawing");
         return string.Join(Environment.NewLine, report);
     }
@@ -1868,7 +1875,7 @@ public sealed partial class MainWindow : Window
         StartPreview(document, target.ID);
         RequestPreview((preview, layer) => FilterEdits.Apply(preview, layer, FilterKind.GaussianBlur,
             new FilterSettings { BlurRadius = 8 }));
-        ShowPreviewOnce(null, EventArgs.Empty);
+        FlushPreviewForCheck();
         var previewing = _canvas.PreviewDocument is not null;
         HidePreview();
         var hidden = _canvas.PreviewDocument is null;
@@ -2964,17 +2971,32 @@ public sealed partial class MainWindow : Window
         if (_document is not { } document) return false;
         _history.Begin(name, document, Selected);
         var revision = _history.CurrentRevision;
-        var alphaBefore = _open.ActiveAlpha is not null && !_editingAlpha ? document.Clone() : null;
+        using var alphaBefore = _open.ActiveAlpha is not null && !_editingAlpha ? document.Clone() : null;
         using var rollback = document.Clone();
-        try { change(); }
-        catch { document.Adopt(rollback); _history.End(document, Selected); Refresh(); throw; }
-        if (alphaBefore is not null && document.Width == alphaBefore.Width && document.Height == alphaBefore.Height
-            && !SameLayers(alphaBefore, document))
+        void Restore()
         {
-            document.Layers.Clear(); document.Layers.AddRange(alphaBefore.Layers.Select(layer => layer.Clone()));
-            Say("Select RGB to use this command.");
+            var originalAssets = rollback.Layers.SelectMany(l => new[] { l.Asset, l.Mask?.Asset })
+                .Concat(rollback.Channels.Select(c => c.Asset)).OfType<ImportedImage>().ToHashSet();
+            foreach (var asset in document.Layers.SelectMany(l => new[] { l.Asset, l.Mask?.Asset })
+                .Concat(document.Channels.Select(c => c.Asset)).OfType<ImportedImage>().Distinct())
+                if (!originalAssets.Contains(asset)) asset.Dispose();
+            document.Adopt(rollback); _history.End(document, Selected); Refresh();
         }
-        _history.End(document, Selected);
+        try
+        {
+            change();
+            if (alphaBefore is not null && document.Width == alphaBefore.Width && document.Height == alphaBefore.Height
+                && !SameLayers(alphaBefore, document))
+            {
+                document.Layers.Clear(); document.Layers.AddRange(alphaBefore.Layers.Select(layer => layer.Clone()));
+                Say("Select RGB to use this command.");
+            }
+            // Precision/protection enforcement can allocate too; it is part of the same transaction.
+            _history.End(document, Selected);
+        }
+        catch (OutOfMemoryException error) { Restore(); Say(error.Message); return false; }
+        catch (ProjectException error) when (error.Error == ProjectError.TooLarge) { Restore(); Say(error.Message); return false; }
+        catch { Restore(); throw; }
         var changed = _history.CurrentRevision != revision;
         Refresh();
         return changed;
@@ -3880,12 +3902,13 @@ public sealed partial class MainWindow : Window
     private void PreviewCameraRaw(CameraRawSettings settings, bool shadows, bool highlights, bool mask)
     {
         if (_document is not { } document || _cameraRawLayer is not { } id) return;
+        CameraRawScope? computedScope = null;
         RequestPreview(document =>
         {
             var shown = CameraRawEdits.Preview(document, id, settings, shadows, highlights, mask, out var scope);
-            _cameraRawScope = scope;
+            computedScope = scope;
             return shown;
-        });
+        }, () => _cameraRawScope = computedScope);
     }
 
     /// <summary>
@@ -3958,7 +3981,7 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>Writes the panel's amounts into the layer it was opened on, as one undo step.</summary>
-    private void ApplyCameraRaw(CameraRawSettings settings)
+    private async void ApplyCameraRaw(CameraRawSettings settings)
     {
         // Read before the panel is let go, since putting it away forgets which layer it was opened on.
         var id = _cameraRawLayer;
@@ -3966,11 +3989,12 @@ public sealed partial class MainWindow : Window
         // Kept for the next time the panel is opened, as the Mac's filter settings keep the last grade.
         _cameraRawAmounts = settings;
         if (_document is not { } current || id is not { } layer || settings.IsIdentity) return;
-        if (Edit("Camera Raw Filter", () => CameraRawEdits.Apply(current, layer, settings)))
+        if (await BackgroundEdit("Camera Raw Filter", target => CameraRawEdits.Apply(target, layer, settings)))
         {
             var remembered = CopyFilterSettings(settings);
             RememberFilter("Camera Raw Filter", (doc, target) => CameraRawEdits.Apply(doc, target, remembered));
         }
+        else return;
         Reselect(layer);
         Say($"Camera Raw: exposure {settings.Exposure:0.##}, contrast {settings.Contrast:0}, " +
             $"saturation {settings.Saturation:0}");
@@ -4027,11 +4051,12 @@ public sealed partial class MainWindow : Window
         _filterAmounts = settings;
         if (EditActiveAlpha("Channel Filter", (target, channel) => FilterEdits.Apply(target, channel, kind, settings))) return;
         if (_document is not { } current) return;
-        if (Edit($"{kind} Filter", () => FilterEdits.Apply(current, id, kind, settings)))
+        if (await BackgroundEdit($"{kind} Filter", target => FilterEdits.Apply(target, id, kind, settings)))
         {
             var remembered = settings.Copy();
             RememberFilter(kind.ToString(), (doc, target) => FilterEdits.Apply(doc, target, kind, remembered));
         }
+        else return;
         Reselect(id);
         Say($"{kind} applied");
     }
@@ -4205,7 +4230,7 @@ public sealed partial class MainWindow : Window
         if (asked is not { } settings) return;
         if (_document is not { } current) return;
         if (EditActiveAlpha("Channel Adjustment", (target, channel) => FilterEdits.ApplyAdjustment(target, channel, settings))) return;
-        Edit(LayerPlacement.Name(kind), () => FilterEdits.ApplyAdjustment(current, id, settings));
+        if (!await BackgroundEdit(LayerPlacement.Name(kind), target => FilterEdits.ApplyAdjustment(target, id, settings))) return;
         Reselect(id);
         Say($"{LayerPlacement.Name(kind)} applied");
     }
@@ -4677,8 +4702,10 @@ public sealed partial class MainWindow : Window
     /// made. A document with changes of its own is never thrown away for it: it is only said that the project
     /// has moved on, and the person's own work waits until they save or reopen.
     /// </summary>
-    private void ProjectWritten(object? sender, EventArgs e)
+    private bool _checkingProject;
+    private async void ProjectWritten(object? sender, EventArgs e)
     {
+        if (_checkingProject) return;
         if (!EditorPreferences.Current.WatchFiles || _open.Saving is not null || _open.Recovering is not null || _detecting) return;
         if (_watch?.Changed() is not true) return;
         if (_document is not { } document || _projectPath is not { } path) return;
@@ -4688,15 +4715,20 @@ public sealed partial class MainWindow : Window
             return;
         }
         ProjectSnapshot snapshot;
+        var revision = _history.CurrentRevision;
+        _checkingProject = true;
         try
         {
-            snapshot = ProjectStore.Load(path);
+            snapshot = await WorkScheduler.Run(_ => ProjectStore.Load(path));
         }
-        catch (ProjectException)
+        catch (Exception)
         {
             Say("The project has been written by something else, and what is there now cannot be read");
             return;
         }
+        finally { _checkingProject = false; }
+        if (!ReferenceEquals(document, _document) || revision != _history.CurrentRevision || _history.IsModified)
+        { snapshot.Dispose(); return; }
         var viewport = _canvas.Viewport;
         var selected = SelectedLayers;
         // As in Open: the document takes the snapshot's pixel references, so the snapshot is left alone rather
@@ -4856,10 +4888,26 @@ public sealed partial class MainWindow : Window
         RequestPreview(document => apply(document, layer));
     }
 
-    private void RequestPreview(Func<CanvasDocument, bool> apply)
+    private void FlushPreviewForCheck()
     {
+        ShowPreviewOnce(null, EventArgs.Empty);
+        var start = System.Diagnostics.Stopwatch.StartNew();
+        while (_previewCancellation is not null)
+        {
+            Dispatcher.UIThread.RunJobs();
+            if (start.Elapsed > TimeSpan.FromSeconds(30)) throw new TimeoutException("The preview did not complete.");
+            System.Threading.Thread.Sleep(1);
+        }
+    }
+
+    private CancellationTokenSource? _previewCancellation;
+    private long _previewVersion;
+    private void RequestPreview(Func<CanvasDocument, bool> apply, Action? completed = null)
+    {
+        _previewVersion++; _previewCancellation?.Cancel();
         if (_preview is null) return;
         _previewApply = apply;
+        _previewCompleted = completed;
         _previewTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(140) };
         _previewTimer.Stop();
         _previewTimer.Tick -= ShowPreviewOnce;
@@ -4868,22 +4916,34 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>Runs the edit on the preview once the amounts have settled, and draws it.</summary>
-    private void ShowPreviewOnce(object? sender, EventArgs e)
+    private async void ShowPreviewOnce(object? sender, EventArgs e)
     {
         _previewTimer?.Stop();
         if (_preview is not { } preview || _previewApply is not { } apply) return;
-        if (!preview.Show(target =>
+        var completed = _previewCompleted;
+        using var cancellation = new CancellationTokenSource(); _previewCancellation = cancellation;
+        var version = _previewVersion;
+        FilterPreview? next = null;
+        var adopted = false;
+        try
         {
-            var changed = apply(target);
-            if (_document is { } original) LayerProtection.Enforce(original, target, "Preview");
-            return changed;
-        })) return;
-        // The canvas is put back on the preview every time it is shown: the panel's Preview tick may have been
-        // off, which takes the canvas back to the document as it stands.
-        _canvas.PreviewDocument = preview.Document;
-        // The panel's scope describes the picture the canvas has just been given, so the two are shown together.
-        if (_cameraRaw is { } panel) panel.ShowScope(_cameraRawScope);
-        _canvas.InvalidateVisual();
+            next = preview.Fork(); if (next is null) return;
+            using var original = _document is { } doc ? new DocumentLease(doc) : null;
+            var changed = await WorkScheduler.Run(_ => next.Show(target =>
+            {
+                var applied = apply(target);
+                if (original is not null) LayerProtection.Enforce(original.Document, target, "Preview");
+                return applied;
+            }), cancellation.Token);
+            if (!changed || cancellation.IsCancellationRequested || version != _previewVersion || !ReferenceEquals(_preview, preview)) return;
+            _canvas.PreviewDocument = next.Document; _preview = next; adopted = true; preview.Dispose();
+            completed?.Invoke();
+            if (_cameraRaw is { } panel) panel.ShowScope(_cameraRawScope);
+            _canvas.InvalidateVisual();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { if (!cancellation.IsCancellationRequested) Say($"Could not preview: {error.Message}"); }
+        finally { if (!adopted) next?.Dispose(); if (ReferenceEquals(_previewCancellation, cancellation)) _previewCancellation = null; }
     }
 
     /// <summary>
@@ -4897,6 +4957,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void HidePreview()
     {
+        _previewVersion++; _previewCancellation?.Cancel();
         _previewTimer?.Stop();
         if (_preview is null) return;
         _canvas.PreviewDocument = null;
@@ -4905,9 +4966,11 @@ public sealed partial class MainWindow : Window
 
     private void StopPreview()
     {
+        _previewVersion++; _previewCancellation?.Cancel();
         _sharedPreviewLease?.Dispose(); _sharedPreviewLease = null;
         _previewTimer?.Stop();
         _previewApply = null;
+        _previewCompleted = null;
         _previewLayer = null;
         _canvas.PreviewDocument = null;
         _preview?.Dispose();
@@ -5056,11 +5119,11 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>Opens a project from the recent list; one that has gone says so rather than failing quietly.</summary>
-    private void OpenRecent(string path)
+    private async void OpenRecent(string path)
     {
         try
         {
-            Open(path);
+            await OpenAsync(path);
         }
         catch (Exception error)
         {
@@ -5966,6 +6029,8 @@ public sealed partial class MainWindow : Window
     /// <summary>Repaints the canvas and says where the history stands.</summary>
     private void Refresh()
     {
+        if (_objectFindingCancellation is not null && (!ReferenceEquals(_objectFindingDocument, _document) || _objectFindingRevision != _history.CurrentRevision))
+            _objectFindingCancellation.Cancel();
         UpdateCanvasScrollbars();
         RefreshDocumentWindows();
         RefreshUtilityPanels();
@@ -5981,11 +6046,15 @@ public sealed partial class MainWindow : Window
         Say(string.Join("    ", new[] { undo, redo, edited }.Where(part => part.Length > 0)));
     }
 
+    private sealed record CachedLayerRow(ImageLayer Model, ImageLayer Snapshot, int Depth, string Notes,
+        bool Collapsed, int ThumbnailSize, IBrush Theme, ListBoxItem Item);
+    private readonly Dictionary<Guid, CachedLayerRow> _layerRowCache = [];
+    private readonly System.Collections.ObjectModel.ObservableCollection<ListBoxItem> _visibleLayerItems = [];
+
     private void ShowLayers(CanvasDocument document)
     {
         _refreshingLayerRows = true;
         var selectedIds = SelectedLayers.ToHashSet();
-        _layerThumbnails.Clear();
         var models = document.Layers.ToDictionary(layer => layer.ID);
         var rows = new List<ListBoxItem>();
         _rows.Clear();
@@ -6000,6 +6069,16 @@ public sealed partial class MainWindow : Window
             if (record.Opacity is { } opacity and < 1) notes.Add($"{opacity:0.##}");
             if (record.MaskFile is not null) notes.Add("mask");
             if (record.MaskSourceID is not null) notes.Add("clipped");
+            var model = models[record.ID];
+            var note = notes.Count > 0 ? "  ·  " + string.Join("，", notes.Select(Localize.Text)) : "";
+            var collapsed = _open.Collapsed.Contains(record.ID);
+            if (_layerRowCache.TryGetValue(record.ID, out var cached) && ReferenceEquals(cached.Model, model)
+                && cached.Snapshot.SameAs(model) && cached.Depth == entry.Depth && cached.Notes == note
+                && cached.Collapsed == collapsed && cached.ThumbnailSize == EditorPreferences.Current.LayerThumbnailSize
+                && ReferenceEquals(cached.Theme, Skin.ChromeBrush))
+            {
+                rows.Add(cached.Item); _rows.Add(record.ID); continue;
+            }
             var item = new ListBoxItem
             {
                 // The row carries the layer it stands for, so a multi-selection can be read back.
@@ -6011,9 +6090,22 @@ public sealed partial class MainWindow : Window
                     [!Border.BackgroundProperty] = new Avalonia.Data.Binding(nameof(owner.Background)) { Source = owner },
                     Child = new Avalonia.Controls.Presenters.ContentPresenter { Content = owner.Content, Padding = owner.Padding, HorizontalContentAlignment = HorizontalAlignment.Stretch },
                 }),
-                Content = LayerRow(models[record.ID], entry.Depth,
-                    notes.Count > 0 ? "  ·  " + string.Join("，", notes.Select(Localize.Text)) : ""),
+                MinHeight = model.IsGroup ? 28 : Math.Max(42, EditorPreferences.Current.LayerThumbnailSize + 10),
             };
+            // Build expensive thumbnails, buttons and text only when the virtualizing panel realizes a row.
+            var thumbnails = new List<LayerThumbnail>();
+            item.AttachedToVisualTree += (_, _) =>
+            {
+                if (item.Content is null)
+                {
+                    var before = _layerThumbnails.Count; item.Content = LayerRow(model, entry.Depth, note);
+                    thumbnails.AddRange(_layerThumbnails.Skip(before));
+                }
+                else foreach (var thumbnail in thumbnails) if (!_layerThumbnails.Contains(thumbnail)) _layerThumbnails.Add(thumbnail);
+            };
+            item.DetachedFromVisualTree += (_, _) => { foreach (var thumbnail in thumbnails) _layerThumbnails.Remove(thumbnail); };
+            _layerRowCache[record.ID] = new(model, model.Clone(), entry.Depth, note, collapsed,
+                EditorPreferences.Current.LayerThumbnailSize, Skin.ChromeBrush, item);
             void RowAppearance()
             {
                 item.Background = item.IsSelected ? new SolidColorBrush(Color.Parse("#4D6595")) : Skin.ChromeBrush;
@@ -6025,8 +6117,17 @@ public sealed partial class MainWindow : Window
             rows.Add(item);
             _rows.Add(record.ID);
         }
+        foreach (var id in _layerRowCache.Keys.Where(id => !_rows.Contains(id)).ToArray()) _layerRowCache.Remove(id);
         var selected = _layers.SelectedIndex;
-        _layers.ItemsSource = rows;
+        if (!ReferenceEquals(_layers.ItemsSource, _visibleLayerItems)) _layers.ItemsSource = _visibleLayerItems;
+        var wanted = rows.ToHashSet();
+        for (var index = _visibleLayerItems.Count - 1; index >= 0; index--) if (!wanted.Contains(_visibleLayerItems[index])) _visibleLayerItems.RemoveAt(index);
+        for (var index = 0; index < rows.Count; index++)
+        {
+            if (index < _visibleLayerItems.Count && ReferenceEquals(_visibleLayerItems[index], rows[index])) continue;
+            var existing = _visibleLayerItems.IndexOf(rows[index]);
+            if (existing >= 0) _visibleLayerItems.Move(existing, index); else _visibleLayerItems.Insert(index, rows[index]);
+        }
         // A row is the layer an edit acts on, so the top of the stack starts selected.
         _layers.SelectedIndex = selected >= 0 && selected < rows.Count ? selected : rows.Count > 0 ? 0 : -1;
         var retained = rows.Where(row => row.Tag is Guid id && selectedIds.Contains(id)).ToArray();
@@ -6097,12 +6198,18 @@ public sealed partial class MainWindow : Window
             });
             if (file?.TryGetLocalPath() is not { } path) return;
             // A band of tiles at a time, so the canvas size does not have to fit in one buffer.
-            if (document.Image.Depth > 8 || document.Image.Mode != ImageMode.RGB || document.Layers.Any(l => l.Asset?.Deep is not null))
+            using var snapshot = new DocumentLease(document);
+            await RunLongTask("Export PNG", token =>
             {
-                using var result = ExportImage.Encode(document, new ExportOptions(ExportFormat.Png, document.Width, document.Height, Resolution: document.Resolution));
-                await File.WriteAllBytesAsync(path, result.Bytes);
-            }
-            else TiledPngWriter.Write(document, path);
+                var captured = snapshot.Document;
+                if (captured.Image.Depth > 8 || captured.Image.Mode != ImageMode.RGB || captured.Layers.Any(l => l.Asset?.Deep is not null))
+                {
+                    using var result = ExportImage.Encode(captured, new ExportOptions(ExportFormat.Png, captured.Width, captured.Height, Resolution: captured.Resolution));
+                    AtomicFile.WriteBytes(path, result.Bytes, token);
+                }
+                else TiledPngWriter.Write(captured, path, cancellation: token);
+                return true;
+            });
             Say($"Exported {path}");
         }
         catch (Exception error)
@@ -6130,7 +6237,7 @@ public sealed partial class MainWindow : Window
                 DefaultExtension = extension, FileTypeChoices = [new FilePickerFileType(extension.ToUpperInvariant()) { Patterns = ["*." + extension] }],
             });
             if (file?.TryGetLocalPath() is not { } path) return;
-            await File.WriteAllBytesAsync(path, result.Bytes); Say($"Exported {path}");
+            await WorkScheduler.Run(_ => { AtomicFile.WriteBytes(path, result.Bytes); return true; }); Say($"Exported {path}");
         }
         catch (Exception error) { Say($"Could not export: {error.Message}"); }
     }

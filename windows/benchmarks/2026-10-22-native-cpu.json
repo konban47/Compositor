@@ -1,0 +1,19 @@
+{
+  "Success": true,
+  "InputBytes": 72000120,
+  "Width": 4000,
+  "Height": 3000,
+  "Layers": 1,
+  "ImportMs": 78.4826,
+  "FirstFrameMs": 686.876,
+  "Gpu": false,
+  "AcceleratedScene": false,
+  "SceneBuildCount": 1,
+  "MetricStage": "cpu-composite-including-queue",
+  "Frames": 60,
+  "MedianFrameMs": 111.7,
+  "P95FrameMs": 122.3232,
+  "MedianRenderWorkMs": 95.0645,
+  "PeakWorkingSetMiB": 297,
+  "ConversionNotes": 0
+}

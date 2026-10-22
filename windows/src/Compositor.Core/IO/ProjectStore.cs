@@ -193,11 +193,11 @@ public static class ProjectStore
     /// moves it into place. A watcher sees either the old package or the new one, never a half-written
     /// one; the only gap is the pair of directory renames Windows needs to swap a package.
     /// </summary>
-    public static void Save(ProjectSnapshot snapshot, string path, byte[]? quickLookPreview = null)
+    public static void Save(ProjectSnapshot snapshot, string path, byte[]? quickLookPreview = null, CancellationToken cancellation = default)
     {
         Validate(snapshot.Manifest);
 
-        var images = new Dictionary<string, byte[]>();
+        var images = new Dictionary<string, Action<Stream>>();
         var pixels = 0;
         var maskPixels = 0;
         foreach (var layer in snapshot.Manifest.Layers)
@@ -218,14 +218,17 @@ public static class ProjectStore
                 {
                     CheckSize(asset.Width, asset.Height, ref pixels);
                 }
-                images[filename] = !isMask && filename.EndsWith(".exr", StringComparison.Ordinal)
-                    ? DeepImageCodec.EncodeExr(asset.WorkingImage)
-                    : !isMask && asset.Deep is { } deep ? DeepImageCodec.EncodePng(deep) : PngCodec.Encode(asset.Image);
+                images[filename] = output =>
+                {
+                    if (!isMask && filename.EndsWith(".exr", StringComparison.Ordinal)) DeepImageCodec.EncodeExr(asset.WorkingImage, output);
+                    else if (!isMask && asset.Deep is { } deep) DeepImageCodec.EncodePng(deep, output);
+                    else PngCodec.Encode(asset.Image, output);
+                };
                 if (!isMask && layer.FloatImageFile is { } floatFile)
                 {
                     if (asset.Deep is null || asset.BitDepth != 32 || (long)asset.Width * asset.Height * 16 > Model.DocumentLimits.MaxAssetBytes)
                         throw new ProjectException(ProjectError.TooLarge);
-                    images[floatFile] = Model.FloatPixels.Encode(asset.Deep);
+                    images[floatFile] = output => Model.FloatPixels.Encode(asset.Deep!, output);
                 }
             }
         }
@@ -236,7 +239,7 @@ public static class ProjectStore
                 || asset.Width != snapshot.Manifest.Width || asset.Height != snapshot.Manifest.Height)
                 throw new ProjectException(ProjectError.MissingImage);
             CheckSize(asset.Width, asset.Height, ref maskPixels);
-            images[channel.ImageFile] = PngCodec.Encode(asset.Image);
+            images[channel.ImageFile] = output => PngCodec.Encode(asset.Image, output);
         }
         long embeddedBytes = 0;
         foreach (var layer in snapshot.Manifest.Layers.Where(l => l.SmartObjectFile is not null))
@@ -245,7 +248,7 @@ public static class ProjectStore
                 throw new ProjectException(ProjectError.MissingImage);
             embeddedBytes += smart.Package.Length;
             if (embeddedBytes > Model.SmartObjectData.MaxBytes) throw new ProjectException(ProjectError.TooLarge);
-            images[layer.SmartObjectFile!] = smart.Package;
+            images[layer.SmartObjectFile!] = output => output.Write(smart.Package);
         }
         var metadata = ManifestJson.Serialize(snapshot.Manifest);
         if (metadata.Length > Model.DocumentLimits.MaxManifestBytes) throw new ProjectException(ProjectError.TooLarge);
@@ -273,9 +276,13 @@ public static class ProjectStore
                 Directory.CreateDirectory(staging);
                 var imagesDirectory = Path.Combine(staging, ImagesName);
                 Directory.CreateDirectory(imagesDirectory);
-                foreach (var (filename, bytes) in images)
+                foreach (var (filename, encode) in images)
                 {
-                    File.WriteAllBytes(Path.Combine(imagesDirectory, filename), bytes);
+                    cancellation.ThrowIfCancellationRequested();
+                    using var output = new FileStream(Path.Combine(imagesDirectory, filename), FileMode.CreateNew, FileAccess.Write);
+                    encode(output);
+                    if (output.Length > Model.DocumentLimits.MaxAssetBytes) throw new ProjectException(ProjectError.TooLarge);
+                    output.Flush(flushToDisk: true);
                 }
                 if (quickLookPreview is not null)
                 {
@@ -285,6 +292,7 @@ public static class ProjectStore
                 }
                 File.WriteAllBytes(Path.Combine(staging, ManifestName), metadata);
 
+                cancellation.ThrowIfCancellationRequested();
                 var replaced = false;
                 if (Directory.Exists(target))
                 {
@@ -310,7 +318,7 @@ public static class ProjectStore
     }
 
     /// <summary>Reads a package. Nothing is decoded until the manifest has been validated.</summary>
-    public static ProjectSnapshot Load(string path)
+    public static ProjectSnapshot Load(string path, CancellationToken cancellation = default)
     {
         var package = Path.GetFullPath(path);
         if (!Directory.Exists(package)) throw new ProjectException(ProjectError.Invalid);
@@ -350,6 +358,7 @@ public static class ProjectStore
             {
                 foreach (var isMask in new[] { false, true })
                 {
+                    cancellation.ThrowIfCancellationRequested();
                     var filename = isMask ? layer.MaskFile : layer.ImageFile;
                     if (filename is null) continue;
                     var file = ResolveAsset(package, $"{ImagesName}/{filename}", Model.DocumentLimits.MaxAssetBytes);

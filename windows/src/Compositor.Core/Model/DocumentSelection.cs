@@ -30,17 +30,27 @@ public sealed class DocumentSelection
     public double Feather { get; }
     private SKBitmap? _coverage;
     internal bool HasRasterCoverage => _coverage is not null;
+    internal SKBitmap? RasterCoverage => _coverage;
     private SKPoint _coverageOrigin;
 
     /// <summary>Keep all 256 coverage levels; the 50% outline is only the marching-ants display.</summary>
-    public static DocumentSelection FromCoverage(SKBitmap coverage)
+    public static DocumentSelection FromCoverage(SKBitmap coverage, SKPoint origin = default)
     {
-        var mask = new byte[coverage.Width * coverage.Height];
+        var mask = new byte[checked(coverage.Width * coverage.Height)];
+        var pixels = coverage.GetPixelSpan();
         for (var y = 0; y < coverage.Height; y++)
         for (var x = 0; x < coverage.Width; x++)
-            mask[y * coverage.Width + x] = coverage.GetPixel(x, y).Red >= 128 ? (byte)1 : (byte)0;
+        {
+            var red = coverage.ColorType switch
+            {
+                SKColorType.Gray8 => pixels[y * coverage.RowBytes + x],
+                _ => coverage.GetPixel(x, y).Red,
+            };
+            mask[y * coverage.Width + x] = red >= 128 ? (byte)1 : (byte)0;
+        }
         var path = Document.SelectionEdits.Outline(mask, coverage.Width, coverage.Height) ?? new SKPath();
-        return new DocumentSelection(path, false, 0) { _coverage = coverage };
+        if (origin != default) path.Transform(SKMatrix.CreateTranslation(origin.X, origin.Y));
+        return new DocumentSelection(path, false, 0) { _coverage = coverage, _coverageOrigin = origin };
     }
 
     /// <summary>Nothing is selected, so an edit may touch the whole document.</summary>
@@ -109,10 +119,9 @@ public sealed class DocumentSelection
     /// </summary>
     public SKRectI CoverageRect(int canvasWidth, int canvasHeight)
     {
-        if (_coverage is not null) return SKRectI.Create(0, 0, canvasWidth, canvasHeight);
         if (Path is not { } path || IsEmpty) return SKRectI.Create(0, 0, 0, 0);
         var reach = (float)Math.Ceiling(Feather * 2) + 1;
-        var bounds = path.Bounds;
+        var bounds = _coverage is { } stored ? SKRect.Create(_coverageOrigin.X, _coverageOrigin.Y, stored.Width, stored.Height) : path.Bounds;
         var needed = SKRect.Create((float)Math.Floor(bounds.Left - reach), (float)Math.Floor(bounds.Top - reach),
             (float)Math.Ceiling(bounds.Right + reach) - (float)Math.Floor(bounds.Left - reach),
             (float)Math.Ceiling(bounds.Bottom + reach) - (float)Math.Floor(bounds.Top - reach));

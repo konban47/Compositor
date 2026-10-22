@@ -1,0 +1,19 @@
+{
+  "Success": true,
+  "InputBytes": 72000120,
+  "Width": 4000,
+  "Height": 3000,
+  "Layers": 1,
+  "ImportMs": 71.4737,
+  "FirstFrameMs": 516.3954,
+  "Gpu": true,
+  "AcceleratedScene": true,
+  "SceneBuildCount": 1,
+  "MetricStage": "scene-draw-submission",
+  "Frames": 60,
+  "MedianFrameMs": 10.7832,
+  "P95FrameMs": 18.6518,
+  "MedianRenderWorkMs": 0.0118,
+  "PeakWorkingSetMiB": 326,
+  "ConversionNotes": 0
+}

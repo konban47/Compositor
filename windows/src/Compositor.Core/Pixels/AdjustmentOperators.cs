@@ -24,14 +24,7 @@ public static class AdjustmentOperators
         }
         // One copy of the buffer, serving both as the mix's source and as Motion Blur's unmodified input.
         byte[] original;
-        try
-        {
-            original = new byte[height * stride];
-        }
-        catch (OutOfMemoryException)
-        {
-            return;
-        }
+        original = Compositor.Core.Model.MemoryBudget.Allocate<byte>(checked(height * stride));
         rgba[..original.Length].CopyTo(original);
         ApplyFull(adjustment, rgba, width, height, stride, original, originX, originY);
         for (int y = 0; y < height; y++)
@@ -144,7 +137,7 @@ public static class AdjustmentOperators
     private static float[] BuildHsvCube(HueSaturationSettings settings)
     {
         double[] response = HueResponses(settings);
-        var cube = new float[CubeDimension * CubeDimension * CubeDimension * 4];
+        var cube = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(CubeDimension * CubeDimension * CubeDimension * 4));
         double step = CubeDimension - 1;
         int index = 0;
         for (int blue = 0; blue < CubeDimension; blue++)
@@ -171,7 +164,7 @@ public static class AdjustmentOperators
     /// </summary>
     private static double[] HueResponses(HueSaturationSettings settings)
     {
-        var response = new double[361 * 3];
+        var response = Compositor.Core.Model.MemoryBudget.Allocate<double>(checked(361 * 3));
         foreach (var entry in settings.Adjustments.Entries)
         {
             if (entry.Value is not { } adjustment || adjustment.IsIdentity) continue;
@@ -302,7 +295,7 @@ public static class AdjustmentOperators
         if (ranges is not { Count: 4 }) return;
         // Identity settings are returned untouched, and each channel's curve runs the composite one last.
         if (ranges.All(IsDefaultRange)) return;
-        var tables = new float[768];
+        var tables = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(768));
         var composite = ranges[0].Normalized();
         for (int channel = 1; channel <= 3; channel++)
         {
@@ -329,7 +322,7 @@ public static class AdjustmentOperators
     {
         var curves = adjustment.Curves;
         if (!curves.IsValid) return;
-        var tables = new float[768];
+        var tables = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(768));
         for (int channel = 1; channel <= 3; channel++)
         {
             for (int i = 0; i < 256; i++)
@@ -386,7 +379,7 @@ public static class AdjustmentOperators
     {
         var settings = adjustment.Exposure;
         if (!settings.IsValid) return;
-        var tables = new float[768];
+        var tables = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(768));
         double scale = Math.Pow(2, settings.Exposure);
         for (int i = 0; i < 256; i++)
         {
@@ -410,7 +403,7 @@ public static class AdjustmentOperators
         if (!settings.IsValid) return;
         var first = settings.Reversed ? settings.Highlights : settings.Shadows;
         var last = settings.Reversed ? settings.Shadows : settings.Highlights;
-        var table = new byte[256 * 3];
+        var table = Compositor.Core.Model.MemoryBudget.Allocate<byte>(checked(256 * 3));
         for (int i = 0; i < 256; i++)
         {
             double t = i / 255.0;
@@ -500,14 +493,7 @@ public static class AdjustmentOperators
                                         int stride, byte[]? source)
     {
         byte[] image;
-        try
-        {
-            image = source ?? new byte[height * stride];
-        }
-        catch (OutOfMemoryException)
-        {
-            return;
-        }
+        image = source ?? Compositor.Core.Model.MemoryBudget.Allocate<byte>(checked(height * stride));
         if (source is null) rgba[..image.Length].CopyTo(image);
         MotionPixels.Streak(image, rgba, width, height, stride, distance / Math.Sqrt(12.0), angle * Math.PI / 180);
     }

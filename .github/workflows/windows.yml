@@ -31,6 +31,8 @@ jobs:
         run: dotnet build windows/Compositor.slnx -c Release -warnaserror --nologo
       - name: Core, Chinese text and ONNX tests
         run: dotnet test windows/tests/Compositor.Core.Tests -c Release --no-build --logger 'trx;LogFileName=core.trx' --results-directory artifacts/tests
+      - name: Synthetic performance and allocation gates
+        run: ./windows/scripts/performance-checks.ps1
       - name: Drive the editor and dialogs in both languages
         run: |
           New-Item -ItemType Directory artifacts/screenshots -Force | Out-Null

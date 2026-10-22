@@ -45,15 +45,45 @@ public sealed class ImportedImage : IDisposable
     public static ImportedImage CreateDeep(SKBitmap deep, string name, int depth = 16)
     {
         if (depth is not (16 or 32) || deep.ColorType != SKColorType.RgbaF32) throw new ArgumentException("Invalid deep image.");
+        if (depth == 32) FloatPixels.ValidateSize(deep.Width, deep.Height);
         DeepPixels.Quantize(deep, depth);
         var preview = DeepPixels.Preview(deep);
         return new ImportedImage(preview, Bitmaps.Thumbnail(preview), name) { Deep = deep, BitDepth = depth };
     }
 
+    private readonly object _lifetime = new();
+    private int _references = 1;
+    private bool _ownerDisposed;
+
+    /// <summary>Keeps immutable pixels alive while a background snapshot is rendering.</summary>
+    public IDisposable Retain()
+    {
+        lock (_lifetime)
+        {
+            if (_references == 0) throw new ObjectDisposedException(nameof(ImportedImage));
+            _references++;
+        }
+        return new PixelLease(this);
+    }
+    private sealed class PixelLease(ImportedImage image) : IDisposable
+    {
+        private ImportedImage? _image = image;
+        public void Dispose() => Interlocked.Exchange(ref _image, null)?.Release();
+    }
+    private void Release()
+    {
+        lock (_lifetime)
+        {
+            if (--_references != 0) return;
+            Image.Dispose(); Thumbnail.Dispose(); Deep?.Dispose();
+        }
+    }
     public void Dispose()
     {
-        Image.Dispose();
-        Thumbnail.Dispose();
-        Deep?.Dispose();
+        lock (_lifetime)
+        {
+            if (_ownerDisposed) return;
+            _ownerDisposed = true; Release();
+        }
     }
 }

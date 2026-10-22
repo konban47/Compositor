@@ -31,6 +31,59 @@ internal static class PsdChannelCoder
         };
     }
 
+    public static byte[] Decode(int compression, int width, int height, PsdFileCursor input, long end,
+        bool largeDocument, PsdCrop? crop)
+    {
+        if (width <= 0 || height <= 0) return [];
+        var cut = crop ?? new PsdCrop(0, 0, width, height);
+        if (cut.X < 0 || cut.Y < 0 || cut.Width < 0 || cut.Height < 0
+            || (long)cut.X + cut.Width > width || (long)cut.Y + cut.Height > height) throw PsdFailure.Truncated;
+        if (compression == 1) return PackRows(width, height, input, end, RowCounts(input, height, largeDocument), crop);
+        if (compression != 0) throw PsdFailure.Compression;
+        var start = input.Offset;
+        if ((long)width * height > end - start) throw PsdFailure.Truncated;
+        var result = MemoryBudget.Allocate<byte>(checked(cut.Width * cut.Height));
+        for (var row = 0; row < cut.Height; row++)
+        {
+            input.Offset = start + (long)(cut.Y + row) * width + cut.X;
+            input.Read(result.AsSpan(row * cut.Width, cut.Width));
+        }
+        return result;
+    }
+
+    public static int[] RowCounts(PsdFileCursor input, int rows, bool largeDocument)
+    {
+        var counts = MemoryBudget.Allocate<int>(rows);
+        for (var row = 0; row < rows; row++)
+        {
+            var value = largeDocument ? input.U32() : input.U16();
+            if (value > int.MaxValue) throw PsdFailure.TooLarge;
+            counts[row] = (int)value;
+        }
+        return counts;
+    }
+
+    public static byte[] PackRows(int width, int height, PsdFileCursor input, long end, int[] counts,
+        PsdCrop? crop, int firstRow = 0)
+    {
+        var cut = crop ?? new PsdCrop(0, 0, width, height);
+        var result = MemoryBudget.Allocate<byte>(checked(cut.Width * cut.Height));
+        for (var row = 0; row < height; row++)
+        {
+            var count = counts[firstRow + row];
+            if (count > end - input.Offset) throw PsdFailure.Truncated;
+            if (row >= cut.Y && row < cut.Y + cut.Height)
+            {
+                // A row, never the complete compressed channel, is resident while unpacking.
+                if (count > DocumentLimits.MaxAssetBytes) throw PsdFailure.TooLarge;
+                var bytes = input.Bytes(count); var offset = 0;
+                UnpackRow(bytes, ref offset, count, width, result.AsSpan((row - cut.Y) * cut.Width, cut.Width), cut.X);
+            }
+            else input.Skip(count);
+        }
+        return result;
+    }
+
     private static byte[] Raw(int width, int height, ReadOnlySpan<byte> data, PsdCrop? crop)
     {
         var expected = width * height;

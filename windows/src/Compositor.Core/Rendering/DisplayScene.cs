@@ -22,13 +22,26 @@ public sealed class DisplayScene : IDisposable
 public sealed class DisplaySceneCache : IDisposable
 {
     private readonly Dictionary<ImportedImage, SKImage> _images = [];
-    public static bool Supports(CanvasDocument document) => document.Layers.All(l =>
+    public static bool Supports(CanvasDocument document)
+    {
+        var byId = document.Layers.ToDictionary(l => l.ID);
+        bool Visible(ImageLayer layer)
+        {
+            var seen = new HashSet<Guid>();
+            while (true)
+            {
+                if (!layer.IsVisible || !seen.Add(layer.ID)) return false;
+                if (layer.ParentID is not { } parent || !byId.TryGetValue(parent, out layer!)) return true;
+            }
+        }
+        return document.Layers.Where(Visible).All(l =>
         l.Adjustment is null && l.Effects is null && l.MaskSourceID is null
         && l.Blending is not { IsDefault: false } && l.Asset?.Deep is null
         && (!l.IsGroup || l.Container == LayerContainer.Group && l.BlendMode == LayerBlendMode.Normal)
         && BlendModes.Skia(BlendModes.From(l.BlendMode)) is not null
         && l.Mask is not { IsEnabled: true, Feather: > 0 }
         && l.Mask is not { IsEnabled: true, Density: < 1 });
+    }
 
     public DisplayScene? Build(CanvasDocument document)
     {

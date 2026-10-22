@@ -24,6 +24,7 @@ internal static partial class Program
         {
             var window = new MainWindow(); window.Show();
             window.InteractionSelfCheck(folder);
+            var resourceWindow = new MainWindow(); resourceWindow.ResourceRollbackSelfCheck(); resourceWindow.PreviewCancellationSelfCheck(); resourceWindow.Close();
             Dispatcher.UIThread.RunJobs();
             using var frame = window.CaptureRenderedFrame();
             frame!.Save(output, new PngBitmapEncoderOptions());
@@ -37,6 +38,49 @@ internal static partial class Program
 
 public sealed partial class MainWindow
 {
+    internal void PreviewCancellationSelfCheck()
+    {
+        var document = _document ?? throw new InvalidOperationException("No preview test document.");
+        var layer = document.Layers[0].ID;
+        _preview = FilterPreview.Begin(document, layer);
+        using var started = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var obsoleteCommitted = false; var currentCommitted = false;
+        RequestPreview(_ => { started.Set(); release.Wait(TimeSpan.FromSeconds(10)); return true; }, () => obsoleteCommitted = true);
+        ShowPreviewOnce(null, EventArgs.Empty);
+        try
+        {
+            if (!started.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException("Preview worker did not start.");
+            RequestPreview(_ => true, () => currentCommitted = true);
+        }
+        finally { release.Set(); }
+        FlushPreviewForCheck(); Dispatcher.UIThread.RunJobs();
+        if (obsoleteCommitted || !currentCommitted)
+            throw new InvalidOperationException("Canceled preview published stale auxiliary state.");
+        StopPreview();
+    }
+
+    internal void ResourceRollbackSelfCheck()
+    {
+        var document = new CanvasDocument(Guid.NewGuid(), 64, 64);
+        using var original = Bitmaps.Allocate(Bitmaps.ColorInfo(64, 64)); original.Erase(SKColors.Red);
+        var deep = ImportedImage.CreateDeep(DeepPixels.From(original), "Deep", 32);
+        var layer = new ImageLayer(Guid.NewGuid(), deep, new Compositor.Core.Model.LayerTransform(0, 0, 64, 64), "Deep");
+        document.Layers.Add(layer); AdoptImported(document, "Budget Check"); _history.MarkSaved();
+        var revision = _history.CurrentRevision;
+        using (new MemoryBudget(32768, () => 0).Enter())
+        {
+            var changed = Edit("Injected Allocation Failure", () =>
+            {
+                var painted = Bitmaps.Allocate(Bitmaps.ColorInfo(64, 64)); painted.Erase(SKColors.Blue);
+                layer.Asset = ImportedImage.Create(painted, "Painted"); return true;
+            });
+            if (changed || !ReferenceEquals(document.Layers[0].Asset, deep) || _history.CurrentRevision != revision || _history.CanUndo)
+                throw new InvalidOperationException("A failure during precision enforcement was not rolled back.");
+        }
+        _history.MarkSaved();
+    }
+
     internal void InteractionSelfCheck(string folder)
     {
         static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

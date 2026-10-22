@@ -105,7 +105,13 @@ internal static class PsdReader
 
     public static PsdDocument Read(ReadOnlySpan<byte> data, int remainingPixels, string flattenedName)
     {
-        var cursor = new PsdCursor(data);
+        using var input = new MemoryStream(data.ToArray(), false);
+        return Read(input, remainingPixels, flattenedName);
+    }
+
+    public static PsdDocument Read(Stream input, int remainingPixels, string flattenedName, CancellationToken cancellation = default)
+    {
+        var cursor = new PsdFileCursor(input, cancellation);
         if (cursor.Ascii(4) != "8BPS") throw PsdFailure.Truncated;
         var version = cursor.U16();
         if (version is not (1 or 2)) throw PsdFailure.Version;
@@ -123,10 +129,10 @@ internal static class PsdReader
         }
         if (depth != 8 || mode is not (3 or 4)) throw PsdFailure.ColorMode;
 
-        cursor.Skip((int)cursor.U32());
-        var resourcesLength = (int)cursor.U32();
+        cursor.Skip(cursor.U32());
+        var resourcesLength = (long)cursor.U32();
         var resourcesEnd = cursor.Offset + resourcesLength;
-        if (resourcesEnd > data.Length) throw PsdFailure.Truncated;
+        if (resourcesEnd > cursor.Length) throw PsdFailure.Truncated;
         var resolution = 72.0; byte[]? cmykProfile = null;
         while (cursor.Offset + 12 <= resourcesEnd)
         {
@@ -135,7 +141,7 @@ internal static class PsdReader
             var nameLength = cursor.U8();
             cursor.Skip(nameLength);
             if ((nameLength + 1) % 2 == 1) cursor.Skip(1);
-            var length = (int)cursor.U32();
+            var length = (long)cursor.U32();
             var dataStart = cursor.Offset;
             if (id == 1005 && length >= 4)
             {
@@ -143,7 +149,7 @@ internal static class PsdReader
                 if (!double.IsFinite(resolution) || resolution < 1) resolution = 72;
                 resolution = Math.Min(9600, Math.Max(1, resolution));
             }
-            if (id == 1039 && mode == 4 && length <= 4 * 1024 * 1024) { cursor.Offset = dataStart; var embedded = cursor.Bytes(length).ToArray(); if (CmykColor.IsProfile(embedded)) cmykProfile = embedded; }
+            if (id == 1039 && mode == 4 && length <= 4 * 1024 * 1024) { cursor.Offset = dataStart; var embedded = cursor.Bytes(checked((int)length)); if (CmykColor.IsProfile(embedded)) cmykProfile = embedded; }
             cursor.Offset = dataStart + length;
             if (length % 2 == 1) cursor.Skip(1);
         }
@@ -151,8 +157,9 @@ internal static class PsdReader
 
         var document = new PsdDocument { Width = canvasWidth, Height = canvasHeight, Resolution = resolution, CmykProfile = mode == 4 ? cmykProfile ?? CmykColor.DefaultProfile : null };
         var layerSection = CheckedLength(isPsb ? cursor.U64() : cursor.U32());
+        cursor.Need(layerSection);
         var layerSectionEnd = cursor.Offset + layerSection;
-        if (layerSectionEnd > data.Length) throw PsdFailure.Truncated;
+        if (layerSectionEnd > cursor.Length) throw PsdFailure.Truncated;
         if (layerSection < 4)
         {
             // A flattened file's layer section is empty, and the merged image follows it.
@@ -171,7 +178,9 @@ internal static class PsdReader
         var count = Math.Abs((int)cursor.I16());
         if (count > 10_000) throw PsdFailure.TooLarge;
         var raw = new List<RawLayer>(count);
-        for (var index = 0; index < count; index++) raw.Add(ReadRecord(ref cursor, data, isPsb));
+        try
+        {
+            for (var index = 0; index < count; index++) raw.Add(ReadRecord(ref cursor, isPsb));
 
         if (!FitsBudget(raw, remainingPixels))
         {
@@ -189,6 +198,12 @@ internal static class PsdReader
         return document.Layers.Count == 0
             ? Merged(ref cursor, document, channelCount, flattenedName, remainingPixels, isPsb)
             : document;
+        }
+        catch
+        {
+            foreach (var layer in raw) { layer.Image?.Dispose(); layer.MaskImage?.Dispose(); }
+            throw;
+        }
     }
 
     private sealed class RawLayer
@@ -201,8 +216,8 @@ internal static class PsdReader
         public bool Clipping;
         public bool Hidden;
         public string BlendKey = "norm";
-        public List<(int Id, int Length)> Channels = [];
-        public Dictionary<string, (int Offset, int Length)> Extra = [];
+        public List<(int Id, long Length)> Channels = [];
+        public Dictionary<string, (long Offset, long Length)> Extra = [];
         public int MaskTop, MaskLeft, MaskBottom, MaskRight;
         public int SourceMaskTop, SourceMaskLeft, SourceMaskBottom, SourceMaskRight;
         public byte MaskDefault = 255;
@@ -223,13 +238,13 @@ internal static class PsdReader
         public byte[]? VectorMask;
     }
 
-    private static int CheckedLength(ulong value)
+    private static long CheckedLength(ulong value)
     {
-        if (value > int.MaxValue) throw PsdFailure.TooLarge;
-        return (int)value;
+        if (value > long.MaxValue) throw PsdFailure.TooLarge;
+        return (long)value;
     }
 
-    private static RawLayer ReadRecord(ref PsdCursor cursor, ReadOnlySpan<byte> data, bool isPsb)
+    private static RawLayer ReadRecord(ref PsdFileCursor cursor, bool isPsb)
     {
         var layer = new RawLayer
         {
@@ -259,11 +274,11 @@ internal static class PsdReader
         cursor.Skip(1);
 
         // Both lengths are measured from where the length field ends, so they are read before they are added.
-        var extraLength = (int)cursor.U32();
+        var extraLength = (long)cursor.U32();
         var extraEnd = cursor.Offset + extraLength;
-        var maskLength = (int)cursor.U32();
+        var maskLength = (long)cursor.U32();
         var maskEnd = cursor.Offset + maskLength;
-        if (extraEnd > data.Length || maskEnd > data.Length) throw PsdFailure.Truncated;
+        if (extraEnd > cursor.Length || maskEnd > cursor.Length) throw PsdFailure.Truncated;
         if (maskLength >= 20)
         {
             layer.HasMask = true;
@@ -283,7 +298,7 @@ internal static class PsdReader
         }
         cursor.Offset = maskEnd;
 
-        cursor.Skip((int)cursor.U32());
+        cursor.Skip(cursor.U32());
         var nameCount = cursor.U8();
         layer.Name = MacRoman(cursor.Bytes(nameCount));
         cursor.Skip((4 - ((nameCount + 1) % 4)) % 4);
@@ -293,7 +308,7 @@ internal static class PsdReader
             var signature = cursor.Ascii(4);
             if (signature is not ("8BIM" or "8B64")) break;
             var key = cursor.Ascii(4);
-            int length;
+            long length;
             if (signature == "8B64" || (isPsb && PsbLargeKeys.Contains(key)))
             {
                 if (cursor.Offset + 8 > extraEnd) break;
@@ -301,20 +316,20 @@ internal static class PsdReader
             }
             else
             {
-                length = (int)cursor.U32();
+                length = cursor.U32();
             }
             var payload = cursor.Offset;
             cursor.Skip(length);
             if (length % 2 == 1) cursor.Skip(1);
             layer.Extra[key] = (payload, length);
-            if (key is "TySh" or "tySh") layer.Text = PsdText.Read(data.Slice(payload, length));
-            if (key is "vmsk" or "vsms" && length <= 4_000_000) layer.VectorMask = data.Slice(payload, length).ToArray();
-            if (key == "luni" && UnicodeName(data.Slice(payload, length)) is { } unicode) layer.Name = unicode;
-            if (key == "iOpa" && length >= 1) layer.Fill = data[payload];
-            if ((key == "lsct" || key == "lsdk") && length >= 4) layer.Section = (int)ReadU32(data.Slice(payload));
+            if (key is "TySh" or "tySh") layer.Text = PsdText.Read(cursor.Block(payload, length));
+            if (key is "vmsk" or "vsms" && length <= 4_000_000) layer.VectorMask = cursor.Block(payload, length);
+            if (key == "luni" && UnicodeName(cursor.Block(payload, length)) is { } unicode) layer.Name = unicode;
+            if (key == "iOpa" && length >= 1) layer.Fill = cursor.Block(payload, 1)[0];
+            if ((key == "lsct" || key == "lsdk") && length >= 4) layer.Section = (int)ReadU32(cursor.Block(payload, 4));
         }
         cursor.Offset = extraEnd;
-        if (layer.Section is not (1 or 2)) layer.Adjustment = PsdAdjustments.Parse(data, layer.Extra);
+        if (layer.Section is not (1 or 2)) layer.Adjustment = PsdAdjustments.Parse(cursor, layer.Extra);
         return layer;
     }
 
@@ -410,7 +425,7 @@ internal static class PsdReader
         }
     }
 
-    private static void DecodeChannels(ref PsdCursor cursor, RawLayer layer, int remainingPixels, bool isPsb, byte[]? cmykProfile)
+    private static void DecodeChannels(ref PsdFileCursor cursor, RawLayer layer, int remainingPixels, bool isPsb, byte[]? cmykProfile)
     {
         var planes = new Dictionary<int, byte[]>();
         var width = Width(layer);
@@ -430,14 +445,14 @@ internal static class PsdReader
             {
                 if (!UnpackedChannelIds.Contains(id) || length < 2) continue;
                 var compression = cursor.U16();
-                var payload = cursor.Bytes(length - 2);
+                cursor.Need(length - 2);
                 var isMask = id == -2;
                 var targetWidth = isMask ? maskWidth : width;
                 var targetHeight = isMask ? maskHeight : height;
                 if (targetWidth <= 0 || targetHeight <= 0) continue;
                 planes[id] = PsdChannelCoder.Decode(compression,
                     isMask ? sourceMaskWidth : sourceWidth, isMask ? sourceMaskHeight : sourceHeight,
-                    payload, isPsb, isMask ? layer.MaskCrop : layer.ImageCrop);
+                    cursor, start + length, isPsb, isMask ? layer.MaskCrop : layer.ImageCrop);
             }
             finally
             {
@@ -547,7 +562,7 @@ internal static class PsdReader
     /// The image data at the end of the file, which holds the merged image rather than any layer. It comes in
     /// as one layer when the file has no layer records: Photoshop writes no records for a flattened file.
     /// </summary>
-    private static PsdDocument Merged(ref PsdCursor cursor, PsdDocument document, int channelCount, string flattenedName,
+    private static PsdDocument Merged(ref PsdFileCursor cursor, PsdDocument document, int channelCount, string flattenedName,
         int remainingPixels, bool isPsb)
     {
         var width = document.Width;
@@ -556,12 +571,11 @@ internal static class PsdReader
         var baseChannels = document.CmykProfile is null ? 3 : 4;
         var planes = Math.Clamp(channelCount, baseChannels, baseChannels + 1); var compression = cursor.U16();
         var channels = new byte[planes][];
-        if (compression == 0) for (var i = 0; i < planes; i++) channels[i] = cursor.Bytes(width * height).ToArray();
+        if (compression == 0) for (var i = 0; i < planes; i++) channels[i] = cursor.Bytes(checked(width * height));
         else if (compression == 1)
         {
-            var data = cursor.Rest; var offset = 0; var counts = PsdChannelCoder.RowCounts(data, ref offset, height * planes, isPsb);
-            for (var i = 0; i < planes; i++) channels[i] = PsdChannelCoder.PackRows(width, height, data, counts, ref offset, null, height * i);
-            cursor.Skip(offset);
+            var counts = PsdChannelCoder.RowCounts(cursor, height * planes, isPsb);
+            for (var i = 0; i < planes; i++) channels[i] = PsdChannelCoder.PackRows(width, height, cursor, cursor.Length, counts, null, height * i);
         }
         else throw PsdFailure.Compression;
         var alpha = planes > baseChannels ? channels[baseChannels] : null;

@@ -29,7 +29,18 @@ public sealed class FilterPreview : IDisposable
     private readonly List<Watched> _watched = [];
     private bool _disposed;
 
-    private FilterPreview(CanvasDocument preview) => Document = preview;
+    private readonly DocumentLease _lease;
+    private FilterPreview(CanvasDocument source) { _lease = new DocumentLease(source); Document = _lease.Document; }
+    public FilterPreview? Fork()
+    {
+        using var baseline = Document.Clone();
+        foreach (var watched in _watched)
+        {
+            var layer = baseline.Layers.First(l => l.ID == watched.ID);
+            layer.Asset = watched.Pixels; layer.Transform = watched.Placed; layer.Mask = watched.Mask;
+        }
+        return Begin(baseline, _watched.Select(w => w.ID).ToArray());
+    }
 
     /// <summary>The document to draw instead of the one being edited. It shares everything but the filtered
     /// layers, so the rest of the picture is what it always was.</summary>
@@ -47,7 +58,7 @@ public sealed class FilterPreview : IDisposable
     /// </summary>
     public static FilterPreview? Begin(CanvasDocument document, IReadOnlyList<Guid> layerIDs)
     {
-        var preview = new FilterPreview(document.Clone());
+        var preview = new FilterPreview(document);
         foreach (var id in layerIDs)
         {
             if (preview.Document.Layers.FirstOrDefault(layer => layer.ID == id) is not { } layer) continue;
@@ -87,7 +98,20 @@ public sealed class FilterPreview : IDisposable
             layer.Transform = watched.Placed;
             layer.Mask = watched.Mask;
         }
-        if (!apply(Document))
+        bool changed;
+        try { changed = apply(Document); }
+        catch
+        {
+            foreach (var watched in _watched)
+            {
+                var layer = Document.Layers.FirstOrDefault(l => l.ID == watched.ID);
+                if (layer?.Asset is { } asset && !ReferenceEquals(asset, watched.Pixels) && !ReferenceEquals(asset, watched.Made)) asset.Dispose();
+                if (layer?.Mask?.Asset is { } mask && !ReferenceEquals(mask, watched.Mask?.Asset) && !ReferenceEquals(mask, watched.MadeMask?.Asset)) mask.Dispose();
+                Restore(watched, viewed: true);
+            }
+            throw;
+        }
+        if (!changed)
         {
             // Refused: the last look stays on the canvas, rather than the picture falling back to how it
             // started because a slider was dragged past its range.
@@ -139,6 +163,6 @@ public sealed class FilterPreview : IDisposable
             watched.MadeMask = null;
         }
         _watched.Clear();
-        Document.Dispose();
+        _lease.Dispose();
     }
 }

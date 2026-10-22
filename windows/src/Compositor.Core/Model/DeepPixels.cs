@@ -52,10 +52,36 @@ public static class DeepPixels
     public static ImportedImage Painted(ImportedImage before, ImportedImage after)
     {
         if (before.Deep is null || after.Deep is not null || before.Width != after.Width || before.Height != after.Height) return after;
-        var deep = before.Deep.Copy(); var p = MemoryMarshal.Cast<byte, float>(deep.GetPixelSpan());
-        using var old = From(before.Image); using var next = From(after.Image);
-        var a = MemoryMarshal.Cast<byte, float>(old.GetPixelSpan()); var b = MemoryMarshal.Cast<byte, float>(next.GetPixelSpan());
-        for (var i = 0; i < p.Length; i++) if (a[i] != b[i]) p[i] = b[i];
-        return ImportedImage.CreateDeep(deep, after.Name, before.BitDepth);
+        var deep = Bitmaps.Allocate(before.Deep.Info);
+        try
+        {
+            if (!before.Deep.CopyTo(deep)) throw new InvalidOperationException("Could not copy high precision pixels.");
+            var p = MemoryMarshal.Cast<byte, float>(deep.GetPixelSpan());
+            if (before.Image.ColorType == SKColorType.Rgba8888 && after.Image.ColorType == SKColorType.Rgba8888
+                && before.Image.AlphaType == SKAlphaType.Unpremul && after.Image.AlphaType == SKAlphaType.Unpremul)
+            {
+                var a = before.Image.GetPixelSpan(); var b = after.Image.GetPixelSpan();
+                for (var y = 0; y < before.Height; y++) for (var x = 0; x < before.Width * 4; x++)
+                {
+                    var oldValue = a[y * before.Image.RowBytes + x]; var nextValue = b[y * after.Image.RowBytes + x];
+                    if (oldValue != nextValue) p[y * deep.RowBytes / 4 + x] = nextValue / 255f;
+                }
+            }
+            else
+            {
+                // Nonstandard proxies retain Skia's color/alpha conversion, with only two rows of scratch.
+                using var old = SKImage.FromBitmap(before.Image); using var next = SKImage.FromBitmap(after.Image);
+                using var a = Bitmaps.Allocate(Info(before.Width, 1)); using var b = Bitmaps.Allocate(a.Info);
+                for (var y = 0; y < before.Height; y++)
+                {
+                    if (!old.ReadPixels(a.Info, a.GetPixels(), a.RowBytes, 0, y)
+                        || !next.ReadPixels(b.Info, b.GetPixels(), b.RowBytes, 0, y)) throw new InvalidOperationException("Could not read brush pixels.");
+                    var left = MemoryMarshal.Cast<byte, float>(a.GetPixelSpan()); var right = MemoryMarshal.Cast<byte, float>(b.GetPixelSpan());
+                    for (var x = 0; x < left.Length; x++) if (left[x] != right[x]) p[y * deep.RowBytes / 4 + x] = right[x];
+                }
+            }
+            return ImportedImage.CreateDeep(deep, after.Name, before.BitDepth);
+        }
+        catch { deep.Dispose(); throw; }
     }
 }

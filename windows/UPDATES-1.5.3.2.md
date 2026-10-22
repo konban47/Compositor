@@ -22,3 +22,7 @@ Camera Raw 数据来源（SHA-256，移植表保持原版本）：
 - 上游 CameraRawTables.bin：`e67ff4dbcce35cb7765752acff4405be5c934d913ef1396b2ca3fc6dc8a85190`。
 - Windows CameraRawTables.deflate：`bc1f99628beadb07f50ddee1fc50de719b97c6e417e47d30b079532395e81034`。
 - 上游及 Windows CameraRawShadows.bin：`76578539bc45a32817aff669c4e41523d7040f3c691ad35adf0723a70a89a705`。
+
+## 2026-10-22 后续源码修订
+
+完成审查报告 F01–F16 对应的安全、内存、调度、文件读取、显示和 CPU 优化；未改变项目格式版本。具体实现、微基准改善与剩余边界见 [性能修订记录](PERFORMANCE.md)。新增性能门禁随 CI 执行；这里不把此前发布包的验证结果视为新修订的验证证据。

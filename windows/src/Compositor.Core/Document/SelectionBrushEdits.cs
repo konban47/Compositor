@@ -9,11 +9,18 @@ public static class SelectionBrushEdits
     public static bool Paint(CanvasDocument doc, IReadOnlyList<SKPoint> points, double diameter, double opacity, SelectionPaintMode mode, double hardness = 1)
     {
         if (points.Count == 0 || diameter <= 0 || (long)doc.Width * doc.Height > DocumentLimits.MaxSurfacePixels) return false;
-        var mask = Bitmaps.Allocate(Bitmaps.MaskInfo(doc.Width, doc.Height)); mask.Erase(SKColors.Black);
+        var radius = (float)diameter / 2;
+        var left = Math.Max(0, (int)Math.Floor(points.Min(p => p.X) - radius - 1));
+        var top = Math.Max(0, (int)Math.Floor(points.Min(p => p.Y) - radius - 1));
+        var right = Math.Min(doc.Width, (int)Math.Ceiling(points.Max(p => p.X) + radius + 1));
+        var bottom = Math.Min(doc.Height, (int)Math.Ceiling(points.Max(p => p.Y) + radius + 1));
+        var area = SKRectI.Create(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+        var mask = Bitmaps.Allocate(Bitmaps.MaskInfo(Math.Max(1, area.Width), Math.Max(1, area.Height))); mask.Erase(SKColors.Black);
         using (var canvas = new SKCanvas(mask))
         using (var paint = new SKPaint { IsAntialias = true, BlendMode = SKBlendMode.Lighten })
         {
-            var radius = (float)diameter / 2; var hard = (float)Math.Clamp(hardness, 0, .9999);
+            canvas.Translate(-left, -top);
+            var hard = (float)Math.Clamp(hardness, 0, .9999);
             void Stamp(SKPoint point)
             {
                 using var shader = SKShader.CreateRadialGradient(point, radius, [SKColors.White, SKColors.White, SKColors.Black], [0, hard, 1], SKShaderTileMode.Clamp);
@@ -26,7 +33,7 @@ public static class SelectionBrushEdits
                 for (var j = 1; j <= count; j++) Stamp(points[i - 1] + PlacementMesh.Scale(points[i] - points[i - 1], (float)j / count));
             }
         }
-        return Combine(doc, mask, opacity, mode);
+        return Combine(doc, mask, opacity, mode, new SKPointI(left, top));
     }
     public static bool Quick(CanvasDocument doc, Guid? sampleLayer, IReadOnlyList<SKPoint> points, double diameter, int tolerance, SelectionPaintMode mode, double angle = 0, bool enhanceEdge = false, double hardness = 1)
     {
@@ -58,16 +65,48 @@ public static class SelectionBrushEdits
         }
         return Combine(doc, mask, 1, mode);
     }
-    public static bool Combine(CanvasDocument doc, SKBitmap mask, double opacity, SelectionPaintMode mode)
+    public static bool Combine(CanvasDocument doc, SKBitmap mask, double opacity, SelectionPaintMode mode, SKPointI origin = default)
     {
-        using var previous = doc.Selection.Path is null ? null : doc.Selection.Coverage(SKRectI.Create(doc.Width, doc.Height));
-        for (var y = 0; y < doc.Height; y++) for (var x = 0; x < doc.Width; x++)
+        if (mask.ColorType != SKColorType.Gray8)
         {
-            var a = (previous?.GetPixel(x, y).Red ?? 0) / 255.0; var b = mask.GetPixel(x, y).Red / 255.0 * Math.Clamp(opacity, 0, 1);
-            var value = mode switch { SelectionPaintMode.Add => a + b - a * b, SelectionPaintMode.Subtract => a * (1 - b), SelectionPaintMode.Intersect => a * b, _ => b };
-            var c = (byte)Math.Round(value * 255); mask.SetPixel(x, y, new SKColor(c, c, c));
+            var gray = Bitmaps.Allocate(Bitmaps.MaskInfo(mask.Width, mask.Height));
+            var bytes = gray.GetPixelSpan();
+            for (var y = 0; y < mask.Height; y++) for (var x = 0; x < mask.Width; x++) bytes[y * gray.RowBytes + x] = mask.GetPixel(x, y).Red;
+            mask.Dispose(); mask = gray;
         }
-        doc.Selection = DocumentSelection.FromCoverage(mask); return true;
+        var incoming = SKRectI.Intersect(SKRectI.Create(origin.X, origin.Y, mask.Width, mask.Height), SKRectI.Create(doc.Width, doc.Height));
+        var old = doc.Selection.CoverageRect(doc.Width, doc.Height);
+        var area = mode switch
+        {
+            SelectionPaintMode.Add => old.IsEmpty ? incoming : incoming.IsEmpty ? old : SKRectI.Union(old, incoming),
+            SelectionPaintMode.Subtract => old,
+            SelectionPaintMode.Intersect => SKRectI.Intersect(old, incoming),
+            _ => incoming,
+        };
+        if (area.IsEmpty)
+        {
+            mask.Dispose(); doc.Selection = DocumentSelection.FromPath(new SKPath()); return true;
+        }
+        using var previous = mode == SelectionPaintMode.New || doc.Selection.Path is null ? null : doc.Selection.Coverage(area);
+        var output = mask;
+        if (area.Left != origin.X || area.Top != origin.Y || area.Width != mask.Width || area.Height != mask.Height || mask.ColorType != SKColorType.Gray8)
+        {
+            output = Bitmaps.Allocate(Bitmaps.MaskInfo(area.Width, area.Height)); output.Erase(SKColors.Black);
+            using (var canvas = new SKCanvas(output)) canvas.DrawBitmap(mask, new SKPoint(origin.X - area.Left, origin.Y - area.Top), new SKSamplingOptions(SKFilterMode.Nearest));
+            mask.Dispose();
+        }
+        var pixels = output.GetPixelSpan();
+        var before = previous is null ? ReadOnlySpan<byte>.Empty : previous.GetPixelSpan();
+        var strength = Math.Clamp(opacity, 0, 1);
+        for (var y = 0; y < area.Height; y++) for (var x = 0; x < area.Width; x++)
+        {
+            var at = y * output.RowBytes + x;
+            var a = previous is null ? 0 : before[y * previous.RowBytes + x] / 255.0;
+            var b = pixels[at] / 255.0 * strength;
+            var value = mode switch { SelectionPaintMode.Add => a + b - a * b, SelectionPaintMode.Subtract => a * (1 - b), SelectionPaintMode.Intersect => a * b, _ => b };
+            pixels[at] = (byte)Math.Round(value * 255);
+        }
+        doc.Selection = DocumentSelection.FromCoverage(output, new SKPoint(area.Left, area.Top)); return true;
     }
     public static SKPoint SnapEdge(SKBitmap image, SKPoint point, double radius, double contrast)
     {

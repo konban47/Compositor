@@ -125,40 +125,38 @@ public sealed partial class DocumentHistory
     }
 
     /// <summary>Bytes only the history holds: the images no live layer names.</summary>
-    public long RetainedBytes(CanvasDocument? current)
+    public long RetainedBytes(CanvasDocument? current) => CountRetained(current).Values.Sum(value => value.Bytes);
+
+    private Dictionary<object, (int Count, long Bytes)> CountRetained(CanvasDocument? current)
     {
-        var live = new HashSet<SKBitmap>();
-        foreach (var (image, thumbnail) in Assets(current)) { live.Add(image); live.Add(thumbnail); }
-        var seen = new HashSet<SKBitmap>();
-        long bytes = 0;
-        foreach (var entry in _past.Concat(_future))
-        {
-            foreach (var snapshot in new[] { entry.Before, entry.After })
-            {
-                foreach (var (image, thumbnail) in Assets(snapshot.Document))
-                {
-                    foreach (var bitmap in new[] { image, thumbnail })
-                    {
-                        if (live.Contains(bitmap) || !seen.Add(bitmap)) continue;
-                        bytes += (long)bitmap.RowBytes * bitmap.Height;
-                    }
-                }
-            }
-        }
-        foreach (var snapshot in _snapshots)
-        foreach (var (image, thumbnail) in Assets(snapshot.State.Document))
-        foreach (var bitmap in new[] { image, thumbnail })
-            if (!live.Contains(bitmap) && seen.Add(bitmap)) bytes += (long)bitmap.RowBytes * bitmap.Height;
-        var livePackages = (current?.Layers ?? []).Where(l => l.SmartObject is not null).Select(l => l.SmartObject!.Package).ToHashSet();
-        var seenPackages = new HashSet<byte[]>();
+        var live = MemoryReferences(current).Select(p => p.Key).ToHashSet(ReferenceEqualityComparer.Instance);
+        var retained = new Dictionary<object, (int Count, long Bytes)>(ReferenceEqualityComparer.Instance);
         foreach (var snapshot in _past.Concat(_future).SelectMany(e => new[] { e.Before, e.After }).Concat(_snapshots.Select(s => s.State)))
-        foreach (var layer in snapshot.Document?.Layers ?? [])
-            if (layer.SmartObject is { } smart && !livePackages.Contains(smart.Package) && seenPackages.Add(smart.Package)) bytes += smart.Package.LongLength;
-        return bytes;
+            foreach (var (key, bytes) in MemoryReferences(snapshot.Document))
+            {
+                if (live.Contains(key)) continue;
+                retained.TryGetValue(key, out var previous);
+                retained[key] = (previous.Count + 1, bytes);
+            }
+        return retained;
+    }
+
+    private static IEnumerable<(object Key, long Bytes)> MemoryReferences(CanvasDocument? document)
+    {
+        foreach (var (image, thumbnail) in Assets(document))
+        {
+            yield return (image, (long)image.RowBytes * image.Height);
+            yield return (thumbnail, (long)thumbnail.RowBytes * thumbnail.Height);
+        }
+        if (document?.Selection.Path is { } path) yield return (path, 128L + path.PointCount * 16L);
+        if (document?.WorkPath is { } work) yield return (work, 24L + work.Length * 2L);
+        foreach (var layer in document?.Layers ?? [])
+            if (layer.SmartObject is { } smart) yield return (smart.Package, smart.Package.LongLength);
     }
 
     private static IEnumerable<(SKBitmap Image, SKBitmap Thumbnail)> Assets(CanvasDocument? document)
     {
+        if (document?.Selection.RasterCoverage is { } coverage) yield return (coverage, coverage);
         foreach (var channel in document?.Channels ?? []) yield return (channel.Asset.Image, channel.Asset.Thumbnail);
         foreach (var layer in document?.Layers ?? [])
         {
@@ -169,13 +167,26 @@ public sealed partial class DocumentHistory
 
     private void Trim(CanvasDocument? current)
     {
-        while (_past.Count + _future.Count > EntryLimit || RetainedBytes(current) > RetainedByteLimit)
+        var references = CountRetained(current);
+        var bytes = references.Values.Sum(value => value.Bytes);
+        void Remove(Snapshot snapshot)
         {
-            if (_past.Count > 0) _past.RemoveAt(0);
-            else if (_future.Count > 0) _future.RemoveAt(0);
-            else if (_snapshots.Count > 0) _snapshots.RemoveAt(0);
+            foreach (var (key, _) in MemoryReferences(snapshot.Document))
+            {
+                if (!references.TryGetValue(key, out var value)) continue;
+                if (value.Count == 1) { bytes -= value.Bytes; references.Remove(key); }
+                else references[key] = (value.Count - 1, value.Bytes);
+            }
+        }
+        var past = 0; var future = 0; var saved = 0;
+        while (_past.Count + _future.Count - past - future > EntryLimit || bytes > RetainedByteLimit)
+        {
+            if (past < _past.Count) { var entry = _past[past++]; Remove(entry.Before); Remove(entry.After); }
+            else if (future < _future.Count) { var entry = _future[future++]; Remove(entry.Before); Remove(entry.After); }
+            else if (saved < _snapshots.Count) Remove(_snapshots[saved++].State);
             else break;
         }
+        _past.RemoveRange(0, past); _future.RemoveRange(0, future); _snapshots.RemoveRange(0, saved);
     }
 
     private static bool Same(CanvasDocument? left, CanvasDocument? right) => left is null

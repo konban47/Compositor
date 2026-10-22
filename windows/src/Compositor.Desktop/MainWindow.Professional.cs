@@ -295,7 +295,7 @@ public sealed partial class MainWindow
                 {
                     using var image = DocumentRenderer.RenderRegion(doc, box);
                     if (slice.Background is { } bg) { using var original = image.Copy(); using var canvas = new SKCanvas(image); canvas.Clear(new SKColor(bg)); canvas.DrawBitmap(original, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest)); }
-                    using var encoded = image.Encode(SKEncodedImageFormat.Png, 100); File.WriteAllBytes(path, encoded.ToArray());
+                    using var encoded = image.Encode(SKEncodedImageFormat.Png, 100); Compositor.Core.IO.AtomicFile.WriteBytes(path, encoded.ToArray());
                 }
                 exported.Add(new { file = slice.NoImage ? null : name, x = box.Left, y = box.Top, width = box.Width, height = box.Height, slice.Name, slice.Url, slice.Target, slice.Text, slice.AltText, slice.NoImage, slice.Background });
             }

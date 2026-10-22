@@ -55,28 +55,16 @@ public class MemorySpikeTests
         Assert.Equal(255, result.GetPixel(100, 100).Alpha);
     }
 
-    /// <summary>
-    /// The format allows a canvas 30,000 pixels on a side, which is a 3.6 GiB buffer, and this machine
-    /// cannot allocate one. Tiling is what will make that size reachable; until it lands, this records
-    /// the gap rather than letting it be rediscovered.
-    /// </summary>
     [Fact]
-    public void ACanvasAtTheFormatsSideLimitDoesNotFitInOneBuffer()
+    public void OversizedSurfaceIsRejectedBeforeNativeAllocation()
     {
         var info = new SKImageInfo(30_000, 30_000, SKColorType.Rgba8888, SKAlphaType.Premul);
-        // 3.6 GB, or 3433 MiB — more than this machine will hand over in one piece.
-        Assert.Equal(3433, 30_000L * 30_000 * 4 / (1024 * 1024));
-        Assert.ThrowsAny<Exception>(() =>
-        {
-            using var bitmap = new SKBitmap(info);
-            Assert.True(bitmap.ReadyToDraw);
-        });
+        Assert.Throws<OutOfMemoryException>(() => Bitmaps.Allocate(info));
     }
 
-    [Fact]
+    [LargeCanvasFact]
     public void ReportTiledExportOfAHugeCanvas()
     {
-        if (Environment.GetEnvironmentVariable("COMPOSITOR_SPIKE") != "1") return;
         // 30,000 x 8,000 is 960 MiB as one RGBA buffer, and the format allows a canvas that big. Nothing
         // ever holds it: the writer renders a band of tiles at a time.
         using var document = new CanvasDocument(Guid.NewGuid(), 30_000, 8_000);
@@ -99,7 +87,7 @@ public class MemorySpikeTests
             var header = File.ReadAllBytes(path).AsSpan(0, 33);
             var width = (header[16] << 24) | (header[17] << 16) | (header[18] << 8) | header[19];
             var height = (header[20] << 24) | (header[21] << 16) | (header[22] << 8) | header[23];
-            File.WriteAllText(@"C:\chenguisen\code_repos\Compositor\windows\memory.txt",
+            File.WriteAllText(Path.ChangeExtension(path, ".metrics.txt"),
                 $"tiled export of 30000x8000: {new FileInfo(path).Length / 1024} KiB on disk, " +
                 $"header {width}x{height}, elapsed {clock.ElapsedMilliseconds} ms, " +
                 $"working set grew {(process.WorkingSet64 - before) / (1024 * 1024)} MiB " +
@@ -108,6 +96,7 @@ public class MemorySpikeTests
         finally
         {
             File.Delete(path);
+            File.Delete(Path.ChangeExtension(path, ".metrics.txt"));
         }
     }
 
@@ -152,5 +141,13 @@ public class MemorySpikeTests
         clock.Stop();
         Assert.True(clock.ElapsedMilliseconds < 5_000,
             $"a streak of 400 across a 2000 x 1169 picture took {clock.ElapsedMilliseconds} ms");
+    }
+}
+
+public sealed class LargeCanvasFactAttribute : FactAttribute
+{
+    public LargeCanvasFactAttribute()
+    {
+        if (Environment.GetEnvironmentVariable("COMPOSITOR_SPIKE") != "1") Skip = "Set COMPOSITOR_SPIKE=1 to run the large-canvas benchmark.";
     }
 }

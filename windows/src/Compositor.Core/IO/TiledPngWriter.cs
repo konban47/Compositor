@@ -15,15 +15,17 @@ public static class TiledPngWriter
     /// <summary>Wide enough that most documents are one band, small enough to stay well under a buffer.</summary>
     public const int DefaultTileSize = 1024;
 
-    public static void Write(CanvasDocument document, string path, int tileSize = DefaultTileSize)
+    public static void Write(CanvasDocument document, string path, int tileSize = DefaultTileSize, CancellationToken cancellation = default)
     {
-        using var file = File.Create(path);
-        Write(document, file, tileSize);
+        AtomicFile.Write(path, file => Write(document, file, tileSize, cancellation), cancellation);
     }
 
-    public static void Write(CanvasDocument document, Stream output, int tileSize = DefaultTileSize)
+    public static void Write(CanvasDocument document, Stream output, int tileSize = DefaultTileSize, CancellationToken cancellation = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(tileSize, 1);
+        // A band is capped independently of canvas width and the requested tile size.
+        var bandHeight = Math.Min(tileSize, Math.Max(1, (int)Math.Min(32L << 20, MemoryBudget.Current.Limit / 32) / checked(document.Width * 4)));
+        using var effectsCache = new RenderCache();
         output.Write([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
         Span<byte> header = stackalloc byte[13];
         WriteBigEndian(header[..4], document.Width);
@@ -39,14 +41,15 @@ public static class TiledPngWriter
         using (var deflate = new ZLibStream(chunks, CompressionLevel.Optimal, leaveOpen: true))
         {
             var row = new byte[document.Width * 4];
-            for (var top = 0; top < document.Height; top += tileSize)
+            for (var top = 0; top < document.Height; top += bandHeight)
             {
-                var band = Math.Min(tileSize, document.Height - top);
+                var band = Math.Min(bandHeight, document.Height - top);
                 var tiles = new List<SKBitmap>();
                 try
                 {
                     for (var left = 0; left < document.Width; left += tileSize)
                     {
+                        cancellation.ThrowIfCancellationRequested();
                         var width = Math.Min(tileSize, document.Width - left);
                         tiles.Add(DocumentRenderer.RenderRegion(document, SKRectI.Create(left, top, width, band)));
                     }

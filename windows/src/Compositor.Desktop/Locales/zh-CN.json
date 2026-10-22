@@ -2794,5 +2794,9 @@
   "Edit Path Components": "编辑路径组件",
   "Make Selection": "建立选区",
   "Feather Radius:": "羽化半径：",
-  "Stroke:": "描边："
+  "Stroke:": "描边：",
+  "The operation exceeds Compositor's memory budget. Close other documents or reduce the image size.": "此操作超出 Compositor 的内存预算。请关闭其他文档或减小图像尺寸。",
+  "The surface exceeds the supported allocation size.": "图像缓冲区超出支持的分配大小。",
+  "Could not preview: {0}": "无法预览：{0}",
+  "Could not render: {0}": "无法绘制：{0}"
 }

@@ -227,7 +227,7 @@ public static class ImageImporter
     private static ImportedImage FromRgba(byte[] rgba, int width, int height, string name, int remainingPixels)
     {
         Check(width, height, remainingPixels);
-        var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul,
+        var bitmap = Bitmaps.Allocate(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul,
             SKColorSpace.CreateSrgb()));
         if (!bitmap.ReadyToDraw) throw new ImportException(ImportError.TooLarge);
         var target = bitmap.GetPixelSpan();
@@ -256,7 +256,7 @@ public static class ImageImporter
         var raster = new int[width * height];
         if (!tiff.ReadRGBAImage(width, height, raster)) throw new ImportException(ImportError.Unreadable);
 
-        var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul,
+        var bitmap = Bitmaps.Allocate(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul,
             SKColorSpace.CreateSrgb()));
         var pixels = bitmap.GetPixelSpan();
         for (var y = 0; y < height; y++)
@@ -286,7 +286,7 @@ public static class ImageImporter
         if (codec is null) return false;
         var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul,
             SKColorSpace.CreateSrgb());
-        using var decoded = new SKBitmap(info);
+        using var decoded = Bitmaps.Allocate(info);
         var result = codec.GetPixels(info, decoded.GetPixels());
         if (result is not (SKCodecResult.Success or SKCodecResult.IncompleteInput)) return false;
 
@@ -318,7 +318,7 @@ public static class ImageImporter
         {
             throw new ImportException(ImportError.TooLarge);
         }
-        var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul,
+        var bitmap = Bitmaps.Allocate(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul,
             SKColorSpace.CreateSrgb()));
         using (var canvas = new SKCanvas(bitmap))
         {
@@ -388,7 +388,7 @@ public static class ImageImporter
             TransY = f,
             Persp2 = 1,
         };
-        var target = new SKBitmap(new SKImageInfo(across, down, source.ColorType, source.AlphaType, source.ColorSpace));
+        var target = Bitmaps.Allocate(new SKImageInfo(across, down, source.ColorType, source.AlphaType, source.ColorSpace));
         using var canvas = new SKCanvas(target);
         canvas.SetMatrix(matrix);
         using var pixels = SKImage.FromBitmap(source);
@@ -400,7 +400,7 @@ public static class ImageImporter
 
     private static SKBitmap Copy(SKBitmap source)
     {
-        var copy = new SKBitmap(source.Info);
+        var copy = Bitmaps.Allocate(source.Info);
         source.CopyTo(copy);
         return copy;
     }

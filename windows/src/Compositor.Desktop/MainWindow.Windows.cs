@@ -117,9 +117,9 @@ public sealed partial class MainWindow
         var layer = document.Layers.FirstOrDefault(l => l.ID == id);
         if (removeBackground && layer is not { IsGroup: false, Asset: not null })
         { Say("Select an image layer to remove its background."); return; }
-        using var source = removeBackground ? layer!.Asset!.Image.Copy()
-            : SelectionEdits.Sample(document, (_tool == Tool.QuickSelection ? Pro.SampleAll : _options.WandAllLayers) ? null : id);
-        if (source is null) { Say("Select an image layer first."); return; }
+        using var snapshot = new DocumentLease(document);
+        var sampleLayer = (_tool == Tool.QuickSelection ? Pro.SampleAll : _options.WandAllLayers) ? null : id;
+        var backgroundAsset = removeBackground ? layer!.Asset : null;
         var revision = _history.CurrentRevision;
         using var cancel = new CancellationTokenSource();
         var progress = new SubjectProgressWindow
@@ -158,11 +158,13 @@ public sealed partial class MainWindow
         var dialog = progress.ShowDialog(this);
         try
         {
-            using var matte = await Task.Run(() =>
+            using var matte = await WorkScheduler.Run(token =>
             {
-                using var detector = new SubjectSegmentation();
-                return detector.Predict(source, cancel.Token);
+                using var sampled = backgroundAsset is null ? SelectionEdits.Sample(snapshot.Document, sampleLayer) : null;
+                var source = backgroundAsset?.Image ?? sampled;
+                return source is null ? null : SubjectSegmentation.PredictShared(source, token);
             }, cancel.Token);
+            if (matte is null) { Say("Select an image layer first."); return; }
             cancel.Token.ThrowIfCancellationRequested();
             if (!ReferenceEquals(document, _document) || _history.CurrentRevision != revision) return;
             if (allObjects)

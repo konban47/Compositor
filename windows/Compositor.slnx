@@ -7,5 +7,6 @@
   <Folder Name="/examples/"><Project Path="examples/Compositor.SamplePlugin/Compositor.SamplePlugin.csproj" /></Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Compositor.Core.Tests/Compositor.Core.Tests.csproj" />
+    <Project Path="tests/Compositor.Performance/Compositor.Performance.csproj" />
   </Folder>
 </Solution>

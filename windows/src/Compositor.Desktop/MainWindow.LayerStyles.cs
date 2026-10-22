@@ -269,7 +269,7 @@ public sealed partial class MainWindow
             var name = doc.Layers.FirstOrDefault(l => l.ID == Selected)?.Name ?? "Layer";
             foreach (var invalid in Path.GetInvalidFileNameChars()) name = name.Replace(invalid, '_');
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = Localize.Text(quick ? "Quick Export as PNG" : "Export Layers As"), SuggestedFileName = name + "." + extension, DefaultExtension = extension, ShowOverwritePrompt = true });
-            if (file?.TryGetLocalPath() is { } path) { await File.WriteAllBytesAsync(path, bytes); Say($"Exported {path}"); }
+            if (file?.TryGetLocalPath() is { } path) { await Compositor.Core.IO.AtomicFile.WriteBytesAsync(path, bytes); Say($"Exported {path}"); }
         }
         catch (Exception error) { Say(Localize.Text("Could not export selected layers.") + " " + error.Message); }
     }

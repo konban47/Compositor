@@ -24,7 +24,7 @@ public sealed class SubjectSegmentation : IDisposable
         }
         using var options = new SessionOptions
         {
-            IntraOpNumThreads = Math.Clamp(Environment.ProcessorCount, 1, 8),
+            IntraOpNumThreads = Math.Clamp(Environment.ProcessorCount / 2, 1, 4),
             InterOpNumThreads = 1,
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
         };
@@ -79,15 +79,34 @@ public sealed class SubjectSegmentation : IDisposable
         var result = Bitmaps.Scale(mask, source.Width, source.Height);
         // Fully transparent source pixels are never foreground. Partial alpha stays in the source;
         // including it here would square it when the mask is applied.
-        using var color = source.Copy(SKColorType.Rgba8888);
-        var rgba = color.GetPixelSpan();
+        using var color = source.ColorType == SKColorType.Rgba8888 ? null : source.Copy(SKColorType.Rgba8888);
+        var rgba = (color ?? source).GetPixelSpan();
         var output = result.GetPixelSpan();
         for (var y = 0; y < source.Height; y++)
             for (var x = 0; x < source.Width; x++)
-                if (rgba[y * color.RowBytes + x * 4 + 3] == 0) output[y * result.RowBytes + x] = 0;
+                if (rgba[y * (color ?? source).RowBytes + x * 4 + 3] == 0) output[y * result.RowBytes + x] = 0;
         return result;
     }
 
+    private static readonly SemaphoreSlim SharedGate = new(1);
+    private static SubjectSegmentation? _shared;
+    public static SKBitmap PredictShared(SKBitmap source, CancellationToken cancellation = default)
+    {
+        SharedGate.Wait(cancellation);
+        try
+        {
+            cancellation.ThrowIfCancellationRequested();
+            _shared ??= new SubjectSegmentation();
+            return _shared.Predict(source, cancellation);
+        }
+        finally { SharedGate.Release(); }
+    }
+    public static void ReleaseShared()
+    {
+        SharedGate.Wait();
+        try { _shared?.Dispose(); _shared = null; }
+        finally { SharedGate.Release(); }
+    }
     public void Dispose() => _session.Dispose();
 }
 

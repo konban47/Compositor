@@ -131,7 +131,7 @@ internal sealed class GenerativeDialog : DialogWindow
             var file = await StorageProvider.SaveFilePickerAsync(new() { Title = Localize.Text("Save Generated Image"), SuggestedFileName = "generated.png", DefaultExtension = "png" });
             if (file?.TryGetLocalPath() is not { } path) return;
             using var bitmap = SKBitmap.Decode(item.Image.Bytes); using var encoded = bitmap.Encode(SKEncodedImageFormat.Png, 100);
-            await File.WriteAllBytesAsync(path, encoded.ToArray()); _status.Text = Localize.Text("Image saved.");
+            await Compositor.Core.IO.AtomicFile.WriteBytesAsync(path, encoded.ToArray()); _status.Text = Localize.Text("Image saved.");
         }
         catch { _status.Text = Localize.Text("Could not save image."); }
     }

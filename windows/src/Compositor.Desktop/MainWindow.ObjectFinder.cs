@@ -9,6 +9,9 @@ namespace Compositor.Desktop;
 
 public sealed partial class MainWindow
 {
+    private CancellationTokenSource? _objectFindingCancellation;
+    private CanvasDocument? _objectFindingDocument;
+    private Guid _objectFindingRevision;
     private SKBitmap? _objectMatte;
     private CanvasDocument? _objectDocument;
     private Guid _objectRevision;
@@ -21,20 +24,32 @@ public sealed partial class MainWindow
         && _objectRevision == _history.CurrentRevision && _objectLayer == Selected && _objectAllLayers == _options.WandAllLayers;
     private async Task RefreshObjectFinder(bool force = false)
     {
-        while (_findingObjects && _objectFinderCompletion is { } pending) await pending.Task;
+        if (_findingObjects && _objectFinderCompletion is { } pending)
+        {
+            if (!force) { await pending.Task; return; }
+            _objectFindingCancellation?.Cancel(); await pending.Task;
+        }
         if (_document is not { } doc || (!force && CurrentObjectMatte)) return;
-        using var source = SelectionEdits.Sample(doc, _options.WandAllLayers ? null : Selected); if (source is null) return;
+        using var snapshot = new DocumentLease(doc);
         var revision = _history.CurrentRevision; var layer = Selected; var all = _options.WandAllLayers; _findingObjects = true;
         var completion = _objectFinderCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource(); _objectFindingCancellation = cancellation;
+        _objectFindingDocument = doc; _objectFindingRevision = revision;
         try
         {
-            var matte = await Task.Run(() => { using var detector = new SubjectSegmentation(); return detector.Predict(source); });
+            var matte = await WorkScheduler.Run(token =>
+            {
+                using var source = SelectionEdits.Sample(snapshot.Document, all ? null : layer);
+                return source is null ? null : SubjectSegmentation.PredictShared(source, token);
+            }, cancellation.Token);
+            if (matte is null) return;
             if (!ReferenceEquals(doc, _document) || revision != _history.CurrentRevision || layer != Selected || all != _options.WandAllLayers) { matte.Dispose(); return; }
             _objectMatte?.Dispose(); _objectMatte = matte; _objectDocument = doc; _objectRevision = revision; _objectLayer = layer; _objectAllLayers = all;
             UpdateObjectHover();
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex) { Say($"Could not find the subject: {ex.Message}"); }
-        finally { _findingObjects = false; completion.TrySetResult(); }
+        finally { _objectFindingCancellation = null; _findingObjects = false; completion.TrySetResult(); }
     }
     private void ObjectHover(SKPoint point)
     {

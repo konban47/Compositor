@@ -155,3 +155,14 @@ if (!(Read-Repo 'windows/scripts/package.ps1').Contains('PEN-AND-LAYERS.md')) { 
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--pen-layer-checks')) { throw 'Pen/layer UI checks missing from CI.' }
 
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."
+
+$performance = Read-Repo 'windows/PERFORMANCE.md'
+foreach ($index in 1..16) {
+    $finding = 'F{0:d2}' -f $index
+    if (!$performance.Contains($finding)) { throw "Missing performance finding: $finding" }
+}
+foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
+    if (!(Read-Repo $path).Contains('PERFORMANCE.md')) { throw "Performance guide missing from $path" }
+}
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('performance-checks.ps1')) { throw 'Performance gates missing from CI.' }
+if (!$performance.Contains('COMPOSITOR_MEMORY_MB') -or !$performance.Contains('512 MiB')) { throw 'Runtime memory/format limits are undocumented.' }

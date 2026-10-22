@@ -1,5 +1,7 @@
 # Compositor for Windows
 
+2026-10-22：当前 `windows-port` 源码已按审查优先级实施 16 项性能与数据安全修订，涵盖原子导出、选区/撤销内存、分块后台显示、PSD 流式读取和 CPU 优化。实现、基准、测试与限制见[性能修订记录](windows/PERFORMANCE.md)。下方已发布安装包的验证记录保留其对应版本与提交。
+
 窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](windows/WINDOW-MENU.md)。
 
 源自 [Robbie Tilton 的 Compositor（macOS 原项目）](https://github.com/robbietilton/Compositor)。感谢 Robbie Tilton / Wonder Assembly 以 MIT 许可证开源，也感谢 [chenguisen 的 Windows 移植](https://github.com/chenguisen/Compositor/tree/compositor_win)为本项目提供基础。

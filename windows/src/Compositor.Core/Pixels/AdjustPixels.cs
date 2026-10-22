@@ -272,7 +272,7 @@ public static partial class AdjustPixels
                                     ReadOnlySpan<float> midtones, ReadOnlySpan<float> highlights,
                                     bool preserveLuminosity)
     {
-        var c = new float[3];
+        var c = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(3));
         for (int y = 0; y < height; ++y)
         {
             int row = y * stride;
@@ -514,14 +514,7 @@ public static partial class AdjustPixels
             return true;
         }
         float[] temp;
-        try
-        {
-            temp = new float[count];
-        }
-        catch (OutOfMemoryException)
-        {
-            return false;
-        }
+        temp = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
         int window = radius * 2 + 1;
         for (int y = 0; y < height; ++y)
         {
@@ -558,7 +551,7 @@ public static partial class AdjustPixels
 
     private static bool GuidedFilterPlane(ReadOnlySpan<float> source, Span<float> target, int width, int height, int radius, float epsilon)
     {
-        var count = width * height; var mean = new float[count]; var square = new float[count]; var a = new float[count]; var b = new float[count];
+        var count = width * height; var mean = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count)); var square = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count)); var a = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count)); var b = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
         if (!BoxBlurPlane(source, mean, width, height, radius)) return false;
         for (var i = 0; i < count; i++) a[i] = source[i] * source[i];
         if (!BoxBlurPlane(a, square, width, height, radius)) return false;
@@ -588,7 +581,7 @@ public static partial class AdjustPixels
     }
     private static double[] DehazeHaze(ReadOnlySpan<byte> rgba, int width, int height, int stride)
     {
-        var histogram = new double[256];
+        var histogram = Compositor.Core.Model.MemoryBudget.Allocate<double>(checked(256));
         for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
         {
             var p = y * stride + x * 4; double alpha = rgba[p + 3]; if (alpha == 0) continue;
@@ -597,7 +590,7 @@ public static partial class AdjustPixels
         }
         var total = histogram.Sum(); var threshold = 255;
         for (double above = 0; threshold > 0 && above + histogram[threshold] < total * .01; threshold--) above += histogram[threshold];
-        var haze = new double[3]; double weight = 0;
+        var haze = Compositor.Core.Model.MemoryBudget.Allocate<double>(checked(3)); double weight = 0;
         for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
         {
             var p = y * stride + x * 4; double alpha = rgba[p + 3]; if (alpha == 0) continue;
@@ -791,14 +784,7 @@ public static partial class AdjustPixels
         bool failed = false;
         if (texture != 0 || clarity != 0 || glow > 0)
         {
-            try
-            {
-                luma = new float[count];
-            }
-            catch (OutOfMemoryException)
-            {
-                return;
-            }
+            luma = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
             for (int y = 0; y < height; ++y)
             {
                 int row = y * stride;
@@ -819,26 +805,12 @@ public static partial class AdjustPixels
             }
             if (texture != 0)
             {
-                try
-                {
-                    fine = new float[count];
-                }
-                catch (OutOfMemoryException)
-                {
-                    fine = null;
-                }
+                fine = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
                 if (fine == null || !GuidedFilterPlane(luma, fine, width, height, Math.Max(1, (int)Math.Round(Math.Max(width, height) * 8.0 / 1456)), .01f)) failed = true;
             }
             if (!failed && clarity != 0)
             {
-                try
-                {
-                    coarse = new float[count];
-                }
-                catch (OutOfMemoryException)
-                {
-                    coarse = null;
-                }
+                coarse = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
                 if (coarse == null || !GuidedFilterPlane(luma, coarse, width, height, Math.Max(2, (int)Math.Round(Math.Max(width, height) * 32.0 / 1456)), .01f)) failed = true;
             }
             if (!failed && glow > 0)
@@ -849,23 +821,9 @@ public static partial class AdjustPixels
                 if (widened < 1) widened = 1;
                 int glowRadius = EffectsRadius(widened, scale);
                 float threshold = (float)(0.55 + 0.4 * (glowRange / 100.0));
-                try
-                {
-                    glowPlane = new float[count];
-                }
-                catch (OutOfMemoryException)
-                {
-                    glowPlane = null;
-                }
+                glowPlane = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
                 float[]? source = null;
-                try
-                {
-                    source = new float[count];
-                }
-                catch (OutOfMemoryException)
-                {
-                    source = null;
-                }
+                source = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
                 if (glowPlane == null || source == null) failed = true;
                 else
                 {
@@ -1069,7 +1027,7 @@ public static partial class AdjustPixels
                                            ReadOnlySpan<float> points, ReadOnlySpan<float> grade,
                                            double blending, double balance, int visualize, float[]? mixerTable = null, float[]? gradeTable = null)
     {
-        var weights = new double[4];
+        var weights = Compositor.Core.Model.MemoryBudget.Allocate<double>(checked(4));
         for (int y = 0; y < height; ++y)
         {
             int row = y * stride;
@@ -1243,14 +1201,7 @@ public static partial class AdjustPixels
         if (width == 0 || height == 0) return;
         int count = width * height;
         float[] luma;
-        try
-        {
-            luma = new float[count];
-        }
-        catch (OutOfMemoryException)
-        {
-            return;
-        }
+        luma = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
         for (int y = 0; y < height; ++y)
         {
             int row = y * stride;
@@ -1304,15 +1255,8 @@ public static partial class AdjustPixels
         int count = width * height;
         float[] luma;
         float[] work;
-        try
-        {
-            luma = new float[count];
-            work = new float[count];
-        }
-        catch (OutOfMemoryException)
-        {
-            return;
-        }
+        luma = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
+        work = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
         for (int y = 0; y < height; ++y)
         {
             int row = y * stride;
@@ -1365,8 +1309,8 @@ public static partial class AdjustPixels
             // Saturation-only smoothing leaves random hue speckles in place.
             double strength = noiseColor / 100.0;
             int radius = EffectsRadius(1.5 + strength * 4.0 * (0.5 + noiseColorSmoothness / 100.0), scale);
-            var red = new float[count]; var blue = new float[count]; var weight = new float[count];
-            var redBlur = new float[count]; var blueBlur = new float[count]; var weightBlur = new float[count];
+            var red = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count)); var blue = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count)); var weight = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
+            var redBlur = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count)); var blueBlur = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count)); var weightBlur = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
             for (int y = 0; y < height; y++)
                 for (int x = 0; x < width; x++)
                 {
@@ -1472,14 +1416,7 @@ public static partial class AdjustPixels
     {
         if (strength <= 0) return;
         byte[] copy;
-        try
-        {
-            copy = new byte[height * stride];
-        }
-        catch (OutOfMemoryException)
-        {
-            return;
-        }
+        copy = Compositor.Core.Model.MemoryBudget.Allocate<byte>(checked(height * stride));
         for (int y = 0; y < height; ++y)
             rgba.Slice(y * stride, width * 4).CopyTo(copy.AsSpan(y * stride, width * 4));
         double cx = width * 0.5, cy = height * 0.5;
@@ -1535,14 +1472,7 @@ public static partial class AdjustPixels
         {
             int bytes = height * stride;
             byte[] copy;
-            try
-            {
-                copy = new byte[bytes];
-            }
-            catch (OutOfMemoryException)
-            {
-                return;
-            }
+            copy = Compositor.Core.Model.MemoryBudget.Allocate<byte>(checked(bytes));
             rgba.Slice(0, bytes).CopyTo(copy);
             LensPixels.LensDistort(copy, rgba, width, height, stride, distortionK);
         }

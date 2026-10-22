@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Compositor.Core.Pixels;
 
 /// <summary>
@@ -68,15 +70,8 @@ public static class GaussianBlur
         var lines = height + pad * 2;
         float[] plane;
         float[] scratch;
-        try
-        {
-            plane = new float[columns * lines];
-            scratch = new float[columns * lines];
-        }
-        catch (OutOfMemoryException)
-        {
-            return;
-        }
+        plane = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(columns * lines));
+        scratch = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(columns * lines));
         for (var channel = 0; channel < channels; channel++)
         {
             // The blur leaves its own values in the room it was given, and a second channel would read them
@@ -124,7 +119,7 @@ public static class GaussianBlur
     /// <summary>A normalized Gaussian, one tap per pixel, three standard deviations wide.</summary>
     private static float[] Weights(float sigma, int half)
     {
-        var weights = new float[half * 2 + 1];
+        var weights = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(half * 2 + 1));
         float total = 0;
         for (var tap = -half; tap <= half; tap++)
         {
@@ -152,28 +147,35 @@ public static class GaussianBlur
     private static void WeightedRows(float[] source, float[] target, int width, int height, float[] weights,
                                      int half, bool zeroPadded)
     {
-        for (var y = 0; y < height; y++)
+        void Row(int y)
         {
             var line = y * width;
-            for (var x = 0; x < width; x++)
+            var x = 0;
+            while (x < width)
             {
-                var total = 0f;
-                if (zeroPadded && (x < half || x + half >= width))
+                if (Vector.IsHardwareAccelerated && x >= half && x + Vector<float>.Count + half <= width)
                 {
+                    var total = Vector<float>.Zero;
                     for (var tap = -half; tap <= half; tap++)
-                    {
-                        var column = x + tap;
-                        if ((uint)column < (uint)width) total += weights[tap + half] * source[line + column];
-                    }
+                        total += new Vector<float>(weights[tap + half]) * new Vector<float>(source, line + x + tap);
+                    total.CopyTo(target, line + x); x += Vector<float>.Count;
                 }
                 else
                 {
+                    var total = 0f;
                     for (var tap = -half; tap <= half; tap++)
-                        total += weights[tap + half] * source[line + Math.Clamp(x + tap, 0, width - 1)];
+                    {
+                        var column = x + tap;
+                        if (zeroPadded && (uint)column >= (uint)width) continue;
+                        total += weights[tap + half] * source[line + Math.Clamp(column, 0, width - 1)];
+                    }
+                    target[line + x++] = total;
                 }
-                target[line + x] = total;
             }
         }
+        if ((long)width * height >= 262144 && Environment.ProcessorCount >= 4)
+            Parallel.For(0, height, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 1, 4) }, Row);
+        else for (var y = 0; y < height; y++) Row(y);
     }
 
     /// <summary>
@@ -184,7 +186,7 @@ public static class GaussianBlur
                                         int half, bool zeroPadded)
     {
         const int Band = 64;
-        var sums = new float[Band];
+        var sums = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(Band));
         for (var start = 0; start < width; start += Band)
         {
             var count = Math.Min(Band, width - start);
@@ -197,7 +199,11 @@ public static class GaussianBlur
                     if (zeroPadded && (uint)row >= (uint)height) continue;
                     var weight = weights[tap + half];
                     var line = Math.Clamp(row, 0, height - 1) * width + start;
-                    for (var index = 0; index < count; index++) sums[index] += weight * source[line + index];
+                    var index = 0;
+                    if (Vector.IsHardwareAccelerated)
+                        for (; index + Vector<float>.Count <= count; index += Vector<float>.Count)
+                            (new Vector<float>(sums, index) + new Vector<float>(weight) * new Vector<float>(source, line + index)).CopyTo(sums, index);
+                    for (; index < count; index++) sums[index] += weight * source[line + index];
                 }
                 var targetLine = y * width + start;
                 for (var index = 0; index < count; index++) target[targetLine + index] = sums[index];
@@ -228,14 +234,14 @@ public static class GaussianBlur
     private static int[] Boxes(float sigma, int room)
     {
         const int Count = 3;
-        var best = new int[Count];
+        var best = Compositor.Core.Model.MemoryBudget.Allocate<int>(checked(Count));
         for (var index = 0; index < Count; index++) best[index] = 1;
         var closest = double.MaxValue;
         for (var total = Count; total <= room; total++)
         {
             var share = total / Count;
             var spare = total - share * Count;
-            var sizes = new int[Count];
+            var sizes = Compositor.Core.Model.MemoryBudget.Allocate<int>(checked(Count));
             var variance = 0.0;
             for (var index = 0; index < Count; index++)
             {
@@ -311,7 +317,7 @@ public static class GaussianBlur
     {
         const int Band = 64;
         var inverse = 1f / (2 * radius + 1);
-        var sums = new float[Band];
+        var sums = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(Band));
         for (var start = 0; start < width; start += Band)
         {
             var count = Math.Min(Band, width - start);

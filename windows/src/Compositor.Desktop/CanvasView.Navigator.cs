@@ -3,6 +3,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Compositor.Core.Rendering;
+using Compositor.Core.Model;
 using SkiaSharp;
 
 namespace Compositor.Desktop;
@@ -32,17 +33,36 @@ public sealed partial class CanvasView
         var box = NavigatorBounds; if (box.Width == 0 || _document is null) return;
         if (_navigatorDirty || _navigatorImage is null)
         {
-            using var pixels = DocumentRenderer.Preview(_document, 180);
-            _navigatorImage?.Dispose(); _navigatorImage = ToImage(pixels); _navigatorDirty = false;
+            QueueNavigator(_document);
         }
         context.DrawRectangle(Skin.ChromeBrush, new Pen(Skin.SecondaryBrush, 1), box, 4, 4);
         var picture = NavigatorPicture;
         using (context.PushClip(picture))
         {
-            context.DrawRectangle(Paper, null, picture); context.DrawImage(_navigatorImage, picture);
+            context.DrawRectangle(Paper, null, picture); if (_navigatorImage is not null) context.DrawImage(_navigatorImage, picture);
             var scale = picture.Width / _document.Width;
             DrawNavigatorViewport(context, picture, scale);
         }
+    }
+    private long _navigatorVersion = -1;
+    private CancellationTokenSource? _navigatorCancellation;
+    private async void QueueNavigator(CanvasDocument document)
+    {
+        if (_navigatorVersion == _cpuVersion) return;
+        _navigatorCancellation?.Cancel();
+        using var cancellation = new CancellationTokenSource(); _navigatorCancellation = cancellation;
+        var version = _navigatorVersion = _cpuVersion;
+        try
+        {
+            using var snapshot = new DocumentLease(document);
+            using var pixels = await WorkScheduler.Run(token => ViewportRenderer.Render(snapshot.Document,
+                SKRectI.Create(document.Width, document.Height), 180, cancellation: token), cancellation.Token);
+            if (cancellation.IsCancellationRequested || version != _cpuVersion || !ReferenceEquals(document, _document)) return;
+            _navigatorImage?.Dispose(); _navigatorImage = ToImage(pixels); _navigatorDirty = false; base.InvalidateVisual();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { if (!cancellation.IsCancellationRequested) RenderFailed?.Invoke(error.Message); }
+        finally { if (ReferenceEquals(_navigatorCancellation, cancellation)) _navigatorCancellation = null; }
     }
     private void NavigateTo(Point point)
     {

@@ -78,7 +78,7 @@ public sealed partial class MainWindow
             if (file?.TryGetLocalPath() is not { } path) return; var bytes = new byte[772];
             for (var i = 0; i < colors.Length; i++) { bytes[i * 3] = (byte)(colors[i] >> 16); bytes[i * 3 + 1] = (byte)(colors[i] >> 8); bytes[i * 3 + 2] = (byte)colors[i]; }
             bytes[768] = (byte)(colors.Length >> 8); bytes[769] = (byte)colors.Length; bytes[770] = bytes[771] = 255;
-            try { await File.WriteAllBytesAsync(path, bytes); } catch { Say("Could not save the color table."); }
+            try { await Compositor.Core.IO.AtomicFile.WriteBytesAsync(path, bytes); } catch { Say("Could not save the color table."); }
         }));
         if (await dialog.ShowDialog<bool>(this) && Parse() is { } palette && ReferenceEquals(doc, _document) && revision == _history.CurrentRevision)
             Edit("Color Table", () => ImageModeEdits.Convert(doc, doc.Image with { Palette = palette }, palette.Length, false));

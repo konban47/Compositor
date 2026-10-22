@@ -407,7 +407,7 @@ public sealed partial class CanvasView : Control
         Focusable = true;
         _antsTimer.Tick += (_, _) => AdvanceAnts();
         AttachedToVisualTree += (_, _) => _antsTimer.Start();
-        DetachedFromVisualTree += (_, _) => { _antsTimer.Stop(); _caretBlink.Stop(); _composite?.Dispose(); _composite = null; _navigatorImage?.Dispose(); _navigatorImage = null; ReleaseDisplayScene(); };
+        DetachedFromVisualTree += (_, _) => { _cpuVersion++; _cpuCancellation?.Cancel(); _navigatorCancellation?.Cancel(); _antsTimer.Stop(); _caretBlink.Stop(); _composite?.Dispose(); _composite = null; _navigatorImage?.Dispose(); _navigatorImage = null; ReleaseDisplayScene(); };
         _caretBlink.Tick += (_, _) =>
         {
             _caretOn = !_caretOn;
@@ -432,6 +432,7 @@ public sealed partial class CanvasView : Control
     internal int CompositeRenderCount { get; private set; }
     public new void InvalidateVisual()
     {
+        _cpuVersion++; _cpuCancellation?.Cancel(); _navigatorCancellation?.Cancel();
         _compositeDirty = true;
         _navigatorDirty = true;
         _sceneDirty = true;
@@ -693,34 +694,7 @@ public sealed partial class CanvasView : Control
         UpdateDisplayScene(document);
         if (_displayScene is null && (_composite is null || _compositeDirty || !ReferenceEquals(document, _compositeDocument) || region != _compositeRegion))
         {
-            using var deepFrame = document.Layers.Any(l => l.Asset?.Deep is not null) && DocumentRenderer.SupportsDeepComposite(document) ? DocumentRenderer.RenderDeep(document, region) : null;
-            using var rendered = deepFrame is null ? DocumentRenderer.RenderRegion(document, region) : DeepPixels.Preview(deepFrame);
-            if (ProofColors || GamutWarning)
-            {
-                using var proof = Compositor.Core.IO.CmykColor.Proof(rendered, document.Image.CmykProfile ?? Compositor.Core.IO.CmykColor.DefaultProfile, ProofColors, GamutWarning);
-                proof.GetPixelSpan().CopyTo(rendered.GetPixelSpan());
-            }
-            ChannelEdits.View(rendered, DisplayChannels, AlphaDisplay is null);
-            if (AlphaDisplay is { } alpha)
-            {
-                for (var y = 0; y < rendered.Height; y++)
-                for (var x = 0; x < rendered.Width; x++)
-                {
-                    var ax = x + region.Left; var ay = y + region.Top;
-                    var value = ax < alpha.Width && ay < alpha.Height ? alpha.GetPixel(ax, ay).Red : (byte)0;
-                    if (DisplayChannels == ColorChannels.None) rendered.SetPixel(x, y, new SKColor(value, value, value));
-                    else
-                    {
-                        var color = rendered.GetPixel(x, y); var mask = (255 - value) / 255.0 * (RefinementOpacity ?? .5);
-                        rendered.SetPixel(x, y, new SKColor((byte)(color.Red * (1 - mask) + 255 * mask),
-                            (byte)(color.Green * (1 - mask)), (byte)(color.Blue * (1 - mask)), 255));
-                    }
-                }
-            }
-            var next = ToImage(rendered);
-            _composite?.Dispose(); _composite = next;
-            _compositeDocument = document; _compositeRegion = region; _compositeDirty = false;
-            CompositeRenderCount++;
+            QueueCpuComposite(document, region);
         }
         var destination = new Rect(
             (region.Left - _origin.X) * _zoom,
@@ -735,7 +709,13 @@ public sealed partial class CanvasView : Control
         // The checkerboard under the picture, so transparent pixels show through it as they do on the Mac.
         context.DrawRectangle(Paper, null, destination);
         if (_displayScene is { } scene) context.Custom(new SceneDrawOperation(scene, new Rect(Bounds.Size), _origin, _zoom));
-        else if (_composite is not null) context.DrawImage(_composite, destination);
+        else if (_composite is not null && ReferenceEquals(document, _compositeDocument))
+        {
+            var oldDestination = new Rect((_compositeRegion.Left - _origin.X) * _zoom, (_compositeRegion.Top - _origin.Y) * _zoom,
+                _compositeRegion.Width * _zoom, _compositeRegion.Height * _zoom);
+            context.DrawImage(_composite, oldDestination);
+            if (!CpuRenderPending) context.Custom(new CpuFrameOperation(new Rect(Bounds.Size), LastCpuCompositeMilliseconds));
+        }
         context.DrawRectangle(null, Skin.PictureEdgePen, destination);
         DrawGrid(context, document);
         DrawPixelGrid(context, document);

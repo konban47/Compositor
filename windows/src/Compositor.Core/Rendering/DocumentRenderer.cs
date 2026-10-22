@@ -39,6 +39,7 @@ public static partial class DocumentRenderer
             scene.Draw(canvas);
             return result;
         }
+        using var effectsCache = new RenderCache();
         for (var y = 0; y < document.Height; y += 1024)
         for (var x = 0; x < document.Width; x += 1024)
         {
@@ -410,11 +411,15 @@ public static partial class DocumentRenderer
                     }
                 }
                 var hideEffects = layer.Mask?.VectorPath is null ? layer.Blending?.LayerMaskHidesEffects == true : layer.Blending?.VectorMaskHidesEffects == true;
+                if (RenderCache.Current?.TryGet(layer, out var cached) == true)
+                    return Raster(layer, cached!, out bounds, hideEffects);
                 var maskSource = layer.Clone(); if (hideEffects) maskSource.Mask = null;
                 using var shown = ImageWithOwnMask(maskSource, asset);
                 if (EffectRasterizer.Render(shown, effects, layer.FillOpacity, layer.Blending?.TransparencyShapesLayer ?? true) is { } raster)
                 {
-                    using (raster) return Raster(layer, raster, out bounds, hideEffects);
+                    var retained = RenderCache.Current?.Store(layer, raster) == true;
+                    try { return Raster(layer, raster, out bounds, hideEffects); }
+                    finally { if (!retained) raster.Dispose(); }
                 }
             }
             if (bounds.Width <= 0 || bounds.Height <= 0) return null;

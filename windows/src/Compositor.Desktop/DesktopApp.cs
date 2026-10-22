@@ -43,7 +43,7 @@ public sealed class DesktopApp : Application
                 if (desktop.Args is ["--performance-checks", var input, var report])
                 {
                     try { await window.PerformanceCheck(input, report); desktop.Shutdown(); }
-                    catch (Exception error) { await File.WriteAllTextAsync(report, error.ToString()); desktop.Shutdown(1); }
+                    catch (Exception error) { Console.Error.WriteLine(error); desktop.Shutdown(1); }
                     return;
                 }
                 foreach (var path in desktop.Args ?? []) await window.OpenPath(path);
