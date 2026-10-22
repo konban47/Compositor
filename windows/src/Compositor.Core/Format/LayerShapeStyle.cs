@@ -17,6 +17,8 @@ public sealed class LayerShapeStyle
 
     /// <summary>A line's thickness, and its two ends as fractions of the layer's box. Nil on other shapes.</summary>
     public double? LineWidth { get; set; }
+    public string? LineStyle { get; set; }
+    public string? LineCap { get; set; }
 
     public JsonPoint? Start { get; set; }
     public JsonPoint? End { get; set; }
@@ -25,8 +27,12 @@ public sealed class LayerShapeStyle
     public string? Path { get; set; }
 
     public bool IsValid =>
-        Kind != ShapeKind.Path || (Path is { Length: > 0 and <= 1_000_000 } && Parses(Path)
-            && (LineWidth is null || double.IsFinite(LineWidth.Value) && LineWidth is > 0 and <= 1000));
+        (LineStyle is null or "Solid" or "Dotted" or "Dashed" or "Long Dash")
+        && (LineCap is null or "Square" or "Round")
+        && (Kind == ShapeKind.Line || LineStyle is null && LineCap is null)
+        && (LineWidth is null || double.IsFinite(LineWidth.Value) && LineWidth is > 0 and <= 1000)
+        && (Kind != ShapeKind.Path || (Path is { Length: > 0 and <= 1_000_000 } && Parses(Path)
+            && (LineWidth is null || double.IsFinite(LineWidth.Value) && LineWidth is > 0 and <= 1000)));
 
     private static bool Parses(string path) => SkiaSharp.SKPath.ParseSvgPathData(path) is not null;
 }

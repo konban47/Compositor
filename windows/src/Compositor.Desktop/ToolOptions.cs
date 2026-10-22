@@ -48,4 +48,5 @@ internal sealed class ToolOptions
     public double ShapeCornerRadius;
     public bool ShapeSmoothing;
     public double ShapeLineWidth = 4;
+    public string ShapeLineStyle = "Solid", ShapeLineCap = "Square";
 }

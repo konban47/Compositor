@@ -43,6 +43,8 @@ internal sealed class ToolPresetState
                 || !Enum.IsDefined(pen.Output) || !Enum.IsDefined(pen.Operation) || pen.Stroke is < 0 or > 1000
                 || pen.CurveFit is < .5 or > 10 || pen.MagneticWidth is < 1 or > 64 || pen.MagneticContrast is < 0 or > 100
                 || pen.MagneticFrequency is < 1 or > 100 || pen.AlignmentTarget is < 0 or > 1) throw new InvalidDataException("Invalid pen preset values.");
+            if (p.Options.ShapeLineStyle is not ("Solid" or "Dotted" or "Dashed" or "Long Dash") || p.Options.ShapeLineCap is not ("Square" or "Round"))
+                throw new InvalidDataException("Invalid line style preset.");
             var b = p.Options.Brush;
             if (typeof(BrushSettings).GetProperties().Where(f => f.PropertyType == typeof(double)).Any(f => !double.IsFinite((double)f.GetValue(b)!))
                 || b.Diameter is <= 0 or > 5000 || b.Opacity is < 0 or > 1 || b.Hardness is < 0 or > 1

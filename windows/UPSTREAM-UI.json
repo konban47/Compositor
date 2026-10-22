@@ -1,12 +1,12 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "365b5745eda537f984f3d5bed1e53c361dbc9c91",
+  "commit": "551a35fc06fb8429fed3b99b175e31681875f580",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
     {
       "path": "Compositor/UI/BrushControls.swift",
-      "sha256": "5c4ba6512b4782c63945824b3554cfa2cab5d85f391e267efe9878fa187ef4d3"
+      "sha256": "6e3d5f4eed7fe1bbce3f1a7f4d310c828dfe9a03db576c6b9ceb0fedd86fc3dc"
     },
     {
       "path": "Compositor/UI/GradientControls.swift",
@@ -26,7 +26,7 @@
     },
     {
       "path": "Compositor/Document/EditorSession.swift",
-      "sha256": "8bf8a3ed657d4df0f745b31c55710bf7f1e701df507ebc432f389dedb56af5a7"
+      "sha256": "238d2a305db6e9785de6b7ac6665abaae0c21d9fbc133b5b2e8f49cb901cb3a5"
     },
     {
       "path": "Compositor/UI/ColorPaletteControls.swift",
@@ -54,19 +54,19 @@
     },
     {
       "path": "Compositor/UI/KeyboardShortcuts.swift",
-      "sha256": "b6fa4749980d96c8dbdbbd2783009169de8b9d4aa42b4150a8231334845c7955"
+      "sha256": "e5dec023740f95aa24ecb2fc0815dfac1ecbc38ddea29577fa46e8fc196153a9"
     },
     {
       "path": "Compositor/Document/ShapeTool.swift",
-      "sha256": "d1a698bc9d29a8445712248b0f290c097c2acb309b8d4574461ac4027624a0aa"
+      "sha256": "adaf9af7524c9ff90ec52d998040362d8f67ac0bc2e4df20ba40505990fe7ec3"
     },
     {
       "path": "Compositor/UI/ShapeControls.swift",
-      "sha256": "0c303bd8196585b7055f764af83cf7246b565edd72e3bc9f69b36e826cd59bba"
+      "sha256": "5818254cb60fd30a95e518ce1b8c3c32bbb924d18f24fb634a765ced3f2204fd"
     },
     {
       "path": "Compositor/UI/NativeLayerList.swift",
-      "sha256": "3a50f6ffcfbae6e9a84a07f7dae72df1e8eb71ba922181efb491d921388198b6"
+      "sha256": "13ca67511748ebdc2b7074238e8d0278cc2adae3e388373e70cfdea982dfb275"
     },
     {
       "path": "Compositor/Document/CameraRaw.swift",

@@ -61,7 +61,7 @@ public static class ShapeEdits
             (byte)Math.Clamp(Math.Round(style.Red * 255), 0, 255),
             (byte)Math.Clamp(Math.Round(style.Green * 255), 0, 255),
             (byte)Math.Clamp(Math.Round(style.Blue * 255), 0, 255));
-        var image = new SKBitmap(Bitmaps.ColorInfo(width, height));
+        var image = Bitmaps.Allocate(Bitmaps.ColorInfo(width, height));
         image.Erase(SKColors.Transparent);
         using var canvas = new SKCanvas(image);
         var bounds = SKRect.Create(0, 0, width, height);
@@ -85,7 +85,7 @@ public static class ShapeEdits
                     StrokeWidth = thickness,
                     StrokeCap = SKStrokeCap.Round,
                 };
-                canvas.DrawLine(from, to, stroke);
+                ShapeLineStroke.Draw(canvas, from, to, stroke, style);
                 break;
             }
             case ShapeKind.Ellipse:

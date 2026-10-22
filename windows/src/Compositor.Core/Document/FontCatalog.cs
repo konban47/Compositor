@@ -22,6 +22,8 @@ public static class FontCatalog
         }
         return result;
     });
+    private static readonly Lazy<string[]> AllFaces = new(() => Names.Value.Keys.OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase).ToArray());
+    public static IReadOnlyList<string> Faces => AllFaces.Value;
     public static bool IsInstalled(string name) => Names.Value.ContainsKey(name);
     public static SKTypeface Resolve(string name) => Names.Value.TryGetValue(name, out var face)
         ? SKTypeface.FromFamilyName(face.Family, face.Style) : SKTypeface.FromFamilyName(name) ?? SKTypeface.Default;

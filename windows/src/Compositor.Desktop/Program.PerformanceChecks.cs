@@ -18,9 +18,13 @@ public sealed partial class MainWindow
         _canvas.RenderFailed += Failed;
         try
         {
-            var parsed = await Compositor.Core.Model.WorkScheduler.Run(_ => PsdImporter.Read(path));
+            var notes = 0;
+            using var snapshot = await Compositor.Core.Model.WorkScheduler.Run(_ =>
+            {
+                if (Directory.Exists(path)) return Compositor.Core.IO.ProjectStore.Load(path);
+                var parsed = PsdImporter.Read(path); notes = parsed.Notes.Count; return parsed.Snapshot();
+            });
             var importMs = clock.Elapsed.TotalMilliseconds;
-            using var snapshot = parsed.Snapshot();
             var document = snapshot.ToDocument();
             CanvasView.FrameRendered = (gpu, time) => frame.TrySetResult((gpu, time));
             stage = "first-frame";
@@ -40,7 +44,7 @@ public sealed partial class MainWindow
                 await Task.Delay(1);
             }
             _canvas.RestoreViewport(viewport);
-            var result = new { Success = true, InputBytes = new FileInfo(path).Length, document.Width, document.Height,
+            var result = new { Success = true, InputBytes = Directory.Exists(path) ? Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories).Sum(p => new FileInfo(p).Length) : new FileInfo(path).Length, document.Width, document.Height,
                 Layers = document.Layers.Count, ImportMs = importMs, FirstFrameMs = firstFrameMs,
                 Gpu = first.Gpu, _canvas.AcceleratedScene, _canvas.SceneBuildCount,
                 MetricStage = _canvas.AcceleratedScene ? "scene-draw-submission" : "cpu-composite-including-queue",
@@ -48,7 +52,8 @@ public sealed partial class MainWindow
                 P95FrameMs = frames.Order().ElementAt((int)(frames.Count * .95)),
                 MedianRenderWorkMs = work.Order().ElementAt(work.Count / 2),
                 PeakWorkingSetMiB = Process.GetCurrentProcess().PeakWorkingSet64 / 1048576,
-                ConversionNotes = parsed.Notes.Count };
+                ConversionNotes = notes, _canvas.CpuCachedBytes, _canvas.CpuTileHits, _canvas.CpuTilesRendered,
+                OS = System.Runtime.InteropServices.RuntimeInformation.OSDescription, ProcessorCount = Environment.ProcessorCount };
             await File.WriteAllTextAsync(report, JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception error)

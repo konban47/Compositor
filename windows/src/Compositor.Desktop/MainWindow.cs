@@ -388,6 +388,7 @@ public sealed partial class MainWindow : Window
         _rail.ShowColours(BrushColour(), BackgroundColour());
         // The options bar is a face on the same settings the Tools menu moves, so either one marks the other.
         _optionsBar = new ToolOptionsBar(_options);
+        _canvas.PenInputDetected += () => { _optionsBar.EnablePenPressure(); _optionsBar.Show(_tool, _document is not null, _options.PaintOnMask); };
         WireWorkspaceTools();
         WireOptionMenus();
         _optionsBar.Changed += OptionsChanged;
@@ -3796,27 +3797,7 @@ public sealed partial class MainWindow : Window
     private void ShapeFinished(SKPoint anchor, SKRectI box, SKPoint lineEnd)
     {
         if (_document is not { } document) return;
-        var style = new LayerShapeStyle
-        {
-            Kind = _options.Shape,
-            Red = _options.Brush.Red,
-            Green = _options.Brush.Green,
-            Blue = _options.Brush.Blue,
-            CornerRadius = _options.ShapeCornerRadius,
-            Smoothing = _options.ShapeSmoothing ? true : null,
-            Path = _options.Shape == ShapeKind.Path ? ShapeToolPath() : null,
-        };
-        var target = box;
-        if (_options.Shape == ShapeKind.Line)
-        {
-            // The layer is the box around the line with room for the stroke's own thickness and its round ends.
-            var half = (float)(_options.ShapeLineWidth / 2);
-            target = CropEdits.Snapped(SKRect.Create(box.Left - half, box.Top - half,
-                box.Width + half * 2, box.Height + half * 2));
-            style.LineWidth = _options.ShapeLineWidth;
-            style.Start = Unit(target, anchor);
-            style.End = Unit(target, lineEnd);
-        }
+        var (style, target) = ShapePlan(box, anchor, lineEnd);
         if (ShapeEdits.TooLarge(target.Width, target.Height))
         {
             Say("That shape is too large to draw as one layer");
@@ -4408,7 +4389,6 @@ public sealed partial class MainWindow : Window
             Say("That size is too large to resample to.");
             return;
         }
-        _canvas.Fit();
         Say($"Image is now {asked.Width} x {asked.Height} at {asked.Resolution:0.##} per inch");
     }
 
@@ -4873,10 +4853,11 @@ public sealed partial class MainWindow : Window
         };
         if (_options.Shape != ShapeKind.Line) return (style, box);
         // A line's layer is the box around it with room for the stroke's own thickness and its round ends.
-        var half = (float)(_options.ShapeLineWidth / 2);
+        var half = ShapeLineStroke.Reach(anchor ?? new SKPoint(box.Left, box.Top), lineEnd ?? new SKPoint(box.Right, box.Bottom), (float)_options.ShapeLineWidth, _options.ShapeLineCap);
         var target = CropEdits.Snapped(SKRect.Create(box.Left - half, box.Top - half,
             box.Width + half * 2, box.Height + half * 2));
         style.LineWidth = _options.ShapeLineWidth;
+            style.LineStyle = _options.ShapeLineStyle; style.LineCap = _options.ShapeLineCap;
         style.Start = Unit(target, anchor ?? new SKPoint(box.Left, box.Top));
         style.End = Unit(target, lineEnd ?? new SKPoint(box.Right, box.Bottom));
         return (style, target);
@@ -5732,6 +5713,7 @@ public sealed partial class MainWindow : Window
     {
         if (_document is not { } document) return;
         if (BrushFor(stroke) is not { } settings) return;
+        settings = settings with { Pressures = _canvas.CompletedStrokePressures };
         if (EditActiveAlpha("Paint Channel", (target, channel) => _tool is Tool.Liquify or Tool.Smudge
             ? WarpEdits.Warp(target, channel, stroke, Warp(_tool), settings)
             : BrushEdits.Paint(target, channel, stroke, settings))) return;

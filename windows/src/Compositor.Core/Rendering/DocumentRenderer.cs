@@ -107,8 +107,7 @@ public static partial class DocumentRenderer
     internal static SKBitmap Allocate(int width, int height)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul, SKColorSpace.CreateSrgb());
-        var bitmap = new SKBitmap(info);
-        if (!bitmap.ReadyToDraw) throw new InvalidOperationException($"Could not allocate a {width}x{height} bitmap.");
+        var bitmap = Bitmaps.Allocate(info);
         bitmap.Erase(SKColors.Transparent);
         return bitmap;
     }

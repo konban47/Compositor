@@ -32,9 +32,11 @@ public sealed partial class CanvasView
         Cursor = cursor;
         InvalidateOverlay();
     }
+    internal event Action? PenInputDetected;
+    private bool _penSeen;
     internal double PointerPressure { get; private set; } = 1;
     private void TrackToolPointer(PointerEventArgs e)
-    { PointerPressure = e.Pointer.Type == PointerType.Pen ? Math.Clamp(e.GetCurrentPoint(this).Properties.Pressure, .05, 1) : 1; _toolPointer = e.GetPosition(this); _sourceModifier = e.KeyModifiers.HasFlag(KeyModifiers.Alt); PointerTracked?.Invoke(_toolPointer); UpdateToolCursor(); }
+    { if (e.Pointer.Type == PointerType.Pen && !_penSeen) { _penSeen = true; PenInputDetected?.Invoke(); } PointerPressure = e.Pointer.Type == PointerType.Pen ? Math.Clamp(e.GetCurrentPoint(this).Properties.Pressure, 0, 1) : 1; _toolPointer = e.GetPosition(this); _sourceModifier = e.KeyModifiers.HasFlag(KeyModifiers.Alt); PointerTracked?.Invoke(_toolPointer); UpdateToolCursor(); }
     protected override void OnPointerEntered(PointerEventArgs e) { base.OnPointerEntered(e); TrackToolPointer(e); }
     protected override void OnKeyUp(KeyEventArgs e)
     { _sourceModifier = e.Key is not (Key.LeftAlt or Key.RightAlt) && e.KeyModifiers.HasFlag(KeyModifiers.Alt); UpdateToolCursor(); base.OnKeyUp(e); }

@@ -16,6 +16,7 @@ var width = args.Length > 1 ? int.Parse(args[1]) : 4000;
 var height = width * 3 / 4;
 var directory = Path.GetFullPath(Environment.GetEnvironmentVariable("COMPOSITOR_PERFORMANCE_DIR") ?? Path.Combine(Environment.CurrentDirectory, "artifacts", "performance"));
 Directory.CreateDirectory(directory);
+if (kind == "viewport-cache") { ViewportProbe.Run(directory, width, height); return; }
 if (kind == "verify")
 {
     using var png = ImageImporter.Decode(Path.Combine(directory, "synthetic-8bit.png"));

@@ -11,7 +11,8 @@ foreach ($path in @('README.md','windows/README.md')) {
     if ($body -match '放大至 300% 后显示|300% 以上的导航器') { throw "$path still documents the old navigator gate." }
     foreach ($feature in @('属性','历史记录','蒙版','快照')) { if (!$body.Contains($feature)) { throw "$path is missing $feature." } }
 }
-if (!(Read-Repo 'README.md').Contains("releases/tag/windows-v$version")) { throw 'Homepage release link is stale.' }
+$homepage = Read-Repo 'README.md'
+if (!$homepage.Contains("releases/tag/windows-v$version") -and !($homepage.Contains('源码构建') -and $homepage.Contains('actions/workflows/windows.yml'))) { throw 'Homepage must link the matching release or explicitly identify a source build.' }
 $updates = "windows/UPDATES-$version.md"
 if (!(Test-Path -LiteralPath (Join-Path $repo $updates))) { throw "Missing $updates." }
 if (!(Read-Repo 'windows/scripts/package.ps1').Contains("[string]`$Version = '$version'")) { throw 'Package version is stale.' }
@@ -166,3 +167,13 @@ foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1
 }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('performance-checks.ps1')) { throw 'Performance gates missing from CI.' }
 if (!$performance.Contains('COMPOSITOR_MEMORY_MB') -or !$performance.Contains('512 MiB')) { throw 'Runtime memory/format limits are undocumented.' }
+
+foreach ($guide in @('COMPATIBILITY.md','UPDATES-1.5.5.0.md')) {
+    foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
+        if (!(Read-Repo $path).Contains($guide)) { throw "$guide missing from $path" }
+    }
+}
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('compatibility-checks.ps1')) { throw 'Low-resource compatibility gate missing.' }
+foreach ($field in @('lineStyle','lineCap')) { if (!$formatDoc.Contains('`' + $field + '`')) { throw "Missing format field $field" } }
+
+if (!(Read-Repo 'README.md').Contains("v1–v$format") -or !(Read-Repo 'windows/README.md').Contains("版本 1–$format")) { throw 'README format range is stale.' }

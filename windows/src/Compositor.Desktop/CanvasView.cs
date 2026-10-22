@@ -71,6 +71,8 @@ public sealed partial class CanvasView : Control
 
     /// <summary>The stroke being drawn, in document pixels, until the pointer comes back up.</summary>
     private readonly List<SKPoint> _stroke = [];
+    private readonly List<float> _strokePressures = [];
+    internal IReadOnlyList<float>? CompletedStrokePressures { get; private set; }
     private bool _painting;
 
     /// <summary>When set, dragging paints instead of panning.</summary>
@@ -407,7 +409,7 @@ public sealed partial class CanvasView : Control
         Focusable = true;
         _antsTimer.Tick += (_, _) => AdvanceAnts();
         AttachedToVisualTree += (_, _) => _antsTimer.Start();
-        DetachedFromVisualTree += (_, _) => { _cpuVersion++; _cpuCancellation?.Cancel(); _navigatorCancellation?.Cancel(); _antsTimer.Stop(); _caretBlink.Stop(); _composite?.Dispose(); _composite = null; _navigatorImage?.Dispose(); _navigatorImage = null; ReleaseDisplayScene(); };
+        DetachedFromVisualTree += (_, _) => { _cpuVersion++; _cpuCancellation?.Cancel(); _navigatorCancellation?.Cancel(); _cpuTiles?.Dispose(); _cpuTiles = null; _antsTimer.Stop(); _caretBlink.Stop(); _composite?.Dispose(); _composite = null; _navigatorImage?.Dispose(); _navigatorImage = null; ReleaseDisplayScene(); };
         _caretBlink.Tick += (_, _) =>
         {
             _caretOn = !_caretOn;
@@ -531,7 +533,7 @@ public sealed partial class CanvasView : Control
         {
             _document = value;
             InvalidateVisual();
-            Fit();
+            Fit(initial: true);
         }
     }
 
@@ -598,13 +600,15 @@ public sealed partial class CanvasView : Control
     public bool ZoomedOutAsFarAsItGoes { get; private set; }
 
     /// <summary>Shows the whole canvas, as far out as one screenful may composite.</summary>
-    public void Fit()
+    public void Fit() => Fit(false);
+
+    private void Fit(bool initial)
     {
         if (_document is null || Bounds.Width <= 0 || Bounds.Height <= 0) return;
         var radians = ViewAngle * Math.PI / 180;
         var across = Bounds.Width / (Math.Abs(Math.Cos(radians)) * _document.Width + Math.Abs(Math.Sin(radians)) * _document.Height);
         var down = Bounds.Height / (Math.Abs(Math.Sin(radians)) * _document.Width + Math.Abs(Math.Cos(radians)) * _document.Height);
-        SetZoom(Math.Min(across, down));
+        SetZoom(Math.Min(initial ? 1 : 32, Math.Min(across, down)));
         _origin = new SKPoint(
             (float)((_document.Width - Bounds.Width / _zoom) / 2),
             (float)((_document.Height - Bounds.Height / _zoom) / 2));
@@ -692,7 +696,7 @@ public sealed partial class CanvasView : Control
         }
 
         UpdateDisplayScene(document);
-        if (_displayScene is null && (_composite is null || _compositeDirty || !ReferenceEquals(document, _compositeDocument) || region != _compositeRegion))
+        if (_displayScene is null && (_composite is null || _compositeDirty || !ReferenceEquals(document, _compositeDocument) || region != _compositeRegion || _cpuRenderedMaximum != CpuMaximum))
         {
             QueueCpuComposite(document, region);
         }
@@ -1397,7 +1401,10 @@ public sealed partial class CanvasView : Control
         var pen = new Pen(new SolidColorBrush(colour), Math.Max(1, Brush.Diameter * _zoom), lineCap: PenLineCap.Round);
         for (var index = 1; index < _stroke.Count; index++)
         {
-            context.DrawLine(pen, ToScreen(_stroke[index - 1]), ToScreen(_stroke[index]));
+            var dynamics = Brush.Dynamics(_strokePressures.Count > index ? (_strokePressures[index - 1] + _strokePressures[index]) / 2 : 1);
+            var strokePen = Brush.PressureSize || Brush.PressureOpacity
+                ? new Pen(new SolidColorBrush(Color.FromArgb((byte)(170 * dynamics.Strength), colour.R, colour.G, colour.B)), Math.Max(1, Brush.Diameter * dynamics.Scale * _zoom), lineCap: PenLineCap.Round) : pen;
+            context.DrawLine(strokePen, ToScreen(_stroke[index - 1]), ToScreen(_stroke[index]));
         }
     }
 
@@ -1638,8 +1645,8 @@ public sealed partial class CanvasView : Control
         if (PaintEnabled && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             _painting = true;
-            _stroke.Clear();
-            _stroke.Add(ToDocument(e.GetPosition(this)));
+            _stroke.Clear(); _strokePressures.Clear();
+            _stroke.Add(ToDocument(e.GetPosition(this))); _strokePressures.Add((float)PointerPressure);
             e.Pointer.Capture(this);
             InvalidateVisual();
             e.Handled = true;
@@ -1786,7 +1793,7 @@ public sealed partial class CanvasView : Control
             // Samples arrive thick and fast; only a real move is worth another dab.
             if (_stroke.Count == 0 || Math.Abs(point.X - _stroke[^1].X) + Math.Abs(point.Y - _stroke[^1].Y) >= 0.5f)
             {
-                _stroke.Add(point);
+                _stroke.Add(point); _strokePressures.Add((float)PointerPressure);
                 InvalidateOverlay();
             }
             base.OnPointerMoved(e);
@@ -1953,7 +1960,9 @@ public sealed partial class CanvasView : Control
             var stroke = _stroke.ToList();
             _stroke.Clear();
             InvalidateVisual();
-            if (stroke.Count > 0) StrokeFinished?.Invoke(stroke);
+            CompletedStrokePressures = _strokePressures.ToArray(); _strokePressures.Clear();
+            try { if (stroke.Count > 0) StrokeFinished?.Invoke(stroke); }
+            finally { CompletedStrokePressures = null; }
             e.Pointer.Capture(null);
             return;
         }

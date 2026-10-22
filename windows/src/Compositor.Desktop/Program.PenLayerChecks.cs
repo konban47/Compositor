@@ -19,7 +19,7 @@ internal static partial class Program
     {
         EditorPreferences.Current.Theme = 1;
         BuildHeadless().SetupWithoutStarting();
-        try { var window = new MainWindow(); window.Show(); window.PenLayerSelfCheck(output); Console.WriteLine("PASS: pen/freeform/curvature options, screen-space closure, blue node selection, handles, work path/history, Ctrl+Enter selection, mask/shape conversion, component operations, layer thumbnail/multiple/hold drag, cancellation, locks and edge scrolling."); return 0; }
+        try { var window = new MainWindow(); window.Show(); window.PenLayerSelfCheck(output); window.Upstream155SelfCheck(output); Console.WriteLine("PASS: pen/freeform/curvature options, screen-space closure, blue node selection, handles, work path/history, Ctrl+Enter selection, mask/shape conversion, component operations, layer thumbnail/multiple/hold drag, cancellation, locks and edge scrolling."); return 0; }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
     }
 }

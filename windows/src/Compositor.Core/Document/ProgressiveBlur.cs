@@ -13,11 +13,21 @@ public static class ProgressiveBlur
         var from = settings.ProgressiveInverted ? settings.ProgressiveTo : settings.ProgressiveFrom;
         var to = settings.ProgressiveInverted ? settings.ProgressiveFrom : settings.ProgressiveTo;
         var min = Math.Min(from, to); var max = Math.Max(from, to); const int levels = 12;
+        if (min == max)
+        {
+            var uniform = min < .001 ? DeepPixels.From(source) : DeepAdjustments.Blur(source, min, false);
+            var rgba = MemoryMarshal.Cast<byte, float>(uniform.GetPixelSpan());
+            for (var i = 0; i < rgba.Length; i += 4) if (rgba[i + 3] == 0) rgba[i] = rgba[i + 1] = rgba[i + 2] = 0;
+            return uniform;
+        }
         var x0 = settings.ProgressiveStartX / 100 * source.Width; var y0 = settings.ProgressiveStartY / 100 * source.Height;
         var dx = (settings.ProgressiveEndX - settings.ProgressiveStartX) / 100 * source.Width;
         var dy = (settings.ProgressiveEndY - settings.ProgressiveStartY) / 100 * source.Height;
         var distance = Math.Max(.0001, dx * dx + dy * dy);
-        var output = new SKBitmap(DeepPixels.Info(source.Width, source.Height)); output.Erase(SKColors.Transparent);
+        var output = Bitmaps.Allocate(DeepPixels.Info(source.Width, source.Height));
+        try
+        {
+        output.Erase(SKColors.Transparent);
         var result = MemoryMarshal.Cast<byte, float>(output.GetPixelSpan());
         for (var level = 0; level <= levels; level++)
         {
@@ -37,5 +47,7 @@ public static class ProgressiveBlur
         }
         for (var i = 0; i < result.Length; i += 4) if (result[i + 3] > 0) for (var c = 0; c < 3; c++) result[i + c] /= result[i + 3];
         return output;
+        }
+        catch { output.Dispose(); throw; }
     }
 }

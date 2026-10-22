@@ -1,8 +1,8 @@
-# Compositor project format, macOS versions 1–14 and Windows extensions 12–23
+# Compositor project format, macOS versions 1–16 and Windows extensions 12–25
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
-The manifest identifies `com.compositor.project`, version `14` for new macOS saves (versions `1`–`13` remain readable), and the sRGB working space. It stores document UUID, pixel dimensions, active layer UUID, and layers in bottom-to-top order. Each layer stores its UUID, name, visibility, transform (origin, size, clockwise rotation, flips, sampling), and optional image filename. Blank layers have no image asset.
+The manifest identifies `com.compositor.project`, version `16` for new macOS saves (versions `1`–`15` remain readable), and the sRGB working space. It stores document UUID, pixel dimensions, active layer UUID, and layers in bottom-to-top order. Each layer stores its UUID, name, visibility, transform (origin, size, clockwise rotation, flips, sampling), and optional image filename. Blank layers have no image asset.
 
 Embedded PNGs preserve source pixels and transparency; transforms remain separate. Projects survive moving or deleting imported source photos. Saving uses a coordinated atomic package replacement. Unsupported versions, invalid metadata, missing assets, unsafe paths, and oversized data are rejected before replacing the live document.
 
@@ -41,7 +41,7 @@ Version 11 lets those letters use different faces too: optional `fontRuns` in th
 Later fields are optional and not gated on the version, so older readers ignore them and keep the pixels or the linked mask as they were:
 
 - `maskPlacement` and `maskLinked`: an unlinked mask (`maskLinked` false; missing means linked) keeps its own transform in `maskPlacement`, a document-space rectangle like the layer transform, and no longer follows the layer when it moves. Both require a `maskFile`.
-- `shape`: a layer made with the Shape tool keeps its style (`kind`, `red`/`green`/`blue`, `cornerRadius` in document pixels, and for lines `lineWidth` plus `start` and `end` as fractions of the layer box) so it redraws cleanly when scaled. Its PNG is still an ordinary raster; once anything else changes those pixels the metadata is dropped.
+- `shape`: a layer made with the Shape tool keeps its style (`kind`, `red`/`green`/`blue`, `cornerRadius` in document pixels, and for lines `lineWidth` plus `start` and `end` as fractions of the layer box, and optional `lineStyle` and `lineCap` (version 15)) so it redraws cleanly when scaled. Its PNG is still an ordinary raster; once anything else changes those pixels the metadata is dropped.
 
 ### Editable text
 
@@ -262,3 +262,15 @@ The work path is included in document clones, undo/redo, recovery snapshots and 
 ## Windows runtime resource policy (2026-10-22)
 
 This implementation revision does not change the manifest schema or version. Encoded assets remain limited to 512 MiB; float32 sidecars also retain their 512 MiB decompressed limit, now checked before creating a 32-bit asset. Save encoders write one asset at a time into the existing staging package and verify encoded size before publication. Cancellation preserves the previous package. Runtime admission additionally accounts for bytes per pixel and process private memory; a schema-valid file can therefore be refused when the process budget is insufficient. PSD/PSB input uses seekable 64-bit offsets and row decoding; the package asset limit no longer acts as a limit on the entire external PSD file. See [runtime performance policy](../windows/PERFORMANCE.md).
+
+## Upstream macOS versions 15–16
+
+Version 15 lets a line carry `lineStyle` (`Solid`, `Dashed`, `Long Dash` or `Dotted`, with dashes measured in multiples of the line's width) and `lineCap` (`Square` or `Round`, applied to the line's ends and to every dash and dot) in its `shape` style. Missing means solid with round caps, as every line was before version 15 (new lines start square-capped); other shape kinds cannot carry them. Files declaring 1–14 cannot contain them, and older app builds reject v15 rather than failing to read the unknown values.
+
+Version 16 adds three adjustment kinds from the Filter menu: `Progressive Blur`, `Bloom / Glow` and `RGB Split`. Their settings are in the adjustment's optional `filterLayerSettings`: `progressiveFrom` and `progressiveTo` (0–250 document pixels), `progressiveStart` and `progressiveEnd` (document points), `progressiveRadial`, `progressiveInverted`; `bloomAmount` (0–100) and `bloomRadius` (1–150); `rgbSplitDistance` (0–200), `rgbSplitBlur` (0–400), `rgbSplitAngle` (−180 to 180 degrees), `rgbSplitRadial`, `rgbSplitCenter` (a document point) and `rgbSplitReach` (document pixels from the center at which Radial's full distance applies). Files declaring 1–15 cannot contain these kinds or `filterLayerSettings`, and older app builds reject v16.
+
+## Windows extension version 25
+
+Optional `lineStyle` (`Solid`, `Dotted`, `Dashed`, `Long Dash`) and `lineCap` (`Square`, `Round`) on a Line shape match upstream macOS v15. Missing fields retain the old solid/round rasterization. New Windows lines default to Solid/Square. Widths are in document pixels; dash/gap multiples are 1/1, 3/2 and 7/2 respectively. The Windows writer chooses v25 when either field is present, preventing older Windows builds from silently changing their appearance. The reader also accepts these fields in upstream v15 and v16. Windows and macOS version numbers are independent extension sequences: v25 is not readable by the upstream v16 writer/reader.
+
+The Windows renderer has not implemented upstream v16 `filterLayerSettings` adjustment kinds (Progressive Blur, Bloom, RGB Split). These documents must be opened in the upstream application or exported with the affected layers rasterized. Unknown adjustment kinds are rejected rather than discarded on save. The original Swift sources in this repository support them; their presence is not a claim of Windows runtime support.

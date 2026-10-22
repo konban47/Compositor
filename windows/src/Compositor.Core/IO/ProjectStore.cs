@@ -93,7 +93,7 @@ public static class ProjectStore
             }
             if (layer.Shape is { } shape)
             {
-                if (!shape.IsValid || shape.Smoothing is not null && version < 14 || shape.Kind == Format.ShapeKind.Path && shape.LineWidth is not null && version < 16 || (shape.Kind == Format.ShapeKind.Path && version < 14)
+                if (!shape.IsValid || (shape.LineStyle is not null || shape.LineCap is not null) && version < 15 || shape.Smoothing is not null && version < 14 || shape.Kind == Format.ShapeKind.Path && shape.LineWidth is not null && version < 16 || (shape.Kind == Format.ShapeKind.Path && version < 14)
                     || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null)
                 {
                     throw new ProjectException(ProjectError.Invalid);

@@ -107,7 +107,7 @@ public sealed partial class MainWindow
         Reselect(_document.Layers.First(l => l.Asset is not null && l.Text is null).ID);
         SetTool(Tool.Object);
         Finish(DetectSubject(removeBackground: true));
-        Check(_document.Layers.First(l => l.ID == Selected).Mask is not null, "The AI background action did not create a mask.");
+        Check(_document.Layers.First(l => l.ID == Selected).Mask is not null, "The AI background action did not create a mask: " + _status.Text);
         Undo();
         var baseID = _document.Layers.First(l => l.Asset is not null && l.Text is null).ID;
         var childID = LayerPlacement.AddBlank(_document, baseID)!.Value;

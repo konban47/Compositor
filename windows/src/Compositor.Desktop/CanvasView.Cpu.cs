@@ -10,7 +10,13 @@ namespace Compositor.Desktop;
 
 public sealed partial class CanvasView
 {
-    private long _cpuVersion, _cpuRequestedVersion = -1;
+    private long _cpuVersion, _cpuRequestedVersion = -1, _cpuTileVersion = -1;
+    private ViewportTileCache? _cpuTiles;
+    private int _cpuRequestedMaximum, _cpuRenderedMaximum;
+    private int CpuMaximum => Math.Clamp((int)Math.Ceiling(Math.Max(Bounds.Width, Bounds.Height) * ((VisualRoot as Avalonia.Controls.TopLevel)?.RenderScaling ?? 1)), 256, 2048);
+    internal long CpuCachedBytes => _cpuTiles?.RetainedBytes ?? 0;
+    internal long CpuTileHits => _cpuTiles?.Hits ?? 0;
+    internal long CpuTilesRendered => _cpuTiles?.RenderedTiles ?? 0;
     private SKRectI _cpuRequestedRegion;
     private CanvasDocument? _cpuRequestedDocument;
     private CancellationTokenSource? _cpuCancellation;
@@ -20,13 +26,16 @@ public sealed partial class CanvasView
 
     private async void QueueCpuComposite(CanvasDocument document, SKRectI region)
     {
-        if (_cpuRequestedVersion == _cpuVersion && _cpuRequestedRegion == region && ReferenceEquals(document, _cpuRequestedDocument)) return;
+        var maximum = CpuMaximum;
+        if (_cpuRequestedVersion == _cpuVersion && _cpuRequestedRegion == region && _cpuRequestedMaximum == maximum && ReferenceEquals(document, _cpuRequestedDocument)) return;
+        if (_cpuTiles is null || _cpuTileVersion != _cpuVersion)
+        { _cpuTiles?.Dispose(); _cpuTiles = new ViewportTileCache(); _cpuTileVersion = _cpuVersion; }
+        var tiles = _cpuTiles; _cpuRequestedMaximum = maximum;
         _cpuCancellation?.Cancel();
         using var cancellation = new CancellationTokenSource(); _cpuCancellation = cancellation;
         _cpuRequestedVersion = _cpuVersion; var version = _cpuVersion;
         _cpuRequestedRegion = region; _cpuRequestedDocument = document;
         var proof = ProofColors; var gamut = GamutWarning; var channels = DisplayChannels; var opacity = RefinementOpacity ?? .5;
-        var maximum = Math.Clamp((int)Math.Ceiling(Math.Max(Bounds.Width, Bounds.Height) * ((VisualRoot as Avalonia.Controls.TopLevel)?.RenderScaling ?? 1)), 256, 2048);
         try
         {
             using var alpha = CopyAlpha();
@@ -53,14 +62,16 @@ public sealed partial class CanvasView
                             (byte)(color.Green * (1 - mask)), (byte)(color.Blue * (1 - mask)), 255));
                     }
                 }
-            }, token);
-            using var rendered = (long)region.Width * region.Height <= 262144 ? Render(cancellation.Token)
+            }, token, tiles);
+            // A small crop of a large document may touch several complete cache tiles. Keep that work off the UI thread.
+            var synchronous = (long)document.Width * document.Height <= 262144 && (long)region.Width * region.Height <= 262144;
+            using var rendered = synchronous ? Render(cancellation.Token)
                 : await WorkScheduler.Run(Render, cancellation.Token);
             if (cancellation.IsCancellationRequested || version != _cpuVersion || !ReferenceEquals(document, PreviewDocument ?? _document)) return;
             LastCpuCompositeMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
             var next = ToImage(rendered); _composite?.Dispose(); _composite = next;
-            _compositeDocument = document; _compositeRegion = region; _compositeDirty = false; CompositeRenderCount++;
-            if ((long)region.Width * region.Height > 262144) base.InvalidateVisual();
+            _compositeDocument = document; _compositeRegion = region; _compositeDirty = false; _cpuRenderedMaximum = maximum; CompositeRenderCount++;
+            if (!synchronous) base.InvalidateVisual();
         }
         catch (OperationCanceledException) { }
         catch (Exception error) { if (!cancellation.IsCancellationRequested) Avalonia.Threading.Dispatcher.UIThread.Post(() => RenderFailed?.Invoke(error.Message)); }

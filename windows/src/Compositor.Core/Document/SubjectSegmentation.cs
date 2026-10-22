@@ -27,6 +27,9 @@ public sealed class SubjectSegmentation : IDisposable
             IntraOpNumThreads = Math.Clamp(Environment.ProcessorCount / 2, 1, 4),
             InterOpNumThreads = 1,
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
+            // A retained arena can consume most of a constrained process budget after one prediction.
+            EnableCpuMemArena = MemoryBudget.Current.Limit > (1024L << 20),
+            EnableMemoryPattern = MemoryBudget.Current.Limit > (1024L << 20),
         };
         _session = new InferenceSession(modelPath, options);
     }

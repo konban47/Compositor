@@ -1,0 +1,37 @@
+{
+  "Kind": "viewport-cache",
+  "Width": 1600,
+  "Height": 1200,
+  "OS": "Microsoft Windows 10.0.26200",
+  "ProcessorCount": 2,
+  "Simd": false,
+  "BudgetMiB": 512,
+  "PixelsEqual": true,
+  "UncachedMs": [
+    1850.7512,
+    1810.9414,
+    1746.3842,
+    1779.5866,
+    1758.6094,
+    1729.7975,
+    1759.6299,
+    1765.106
+  ],
+  "CachedMs": [
+    1783.115,
+    8.7632,
+    8.5399,
+    9.7198,
+    8.4305,
+    7.9646,
+    10.6645,
+    7.4687
+  ],
+  "ColdCacheMs": 1783.115,
+  "WarmMedianMs": 8.5399,
+  "UncachedMedianMs": 1765.106,
+  "Hits": 84,
+  "RenderedTiles": 12,
+  "RetainedBytes": 7680000,
+  "PeakWorkingSetMiB": 78.98828125
+}

@@ -200,6 +200,14 @@ public static class LayerWorkflow
                 {
                     writer.WriteStartElement("ellipse", ns); Attribute("cx", width / 2.0); Attribute("cy", height / 2.0); Attribute("rx", width / 2.0); Attribute("ry", height / 2.0);
                 }
+                else if (style.Kind == ShapeKind.Line && (style.LineStyle is not null || style.LineCap is not null))
+                {
+                    var thickness = (float)Math.Max(1, style.LineWidth ?? 1);
+                    var from = style.Start is { } a ? new SKPoint((float)(a.X * width), (float)(a.Y * height)) : new SKPoint(Math.Min(thickness, width) / 2, Math.Min(thickness, height) / 2);
+                    var to = style.End is { } b ? new SKPoint((float)(b.X * width), (float)(b.Y * height)) : new SKPoint(width - Math.Min(thickness, width) / 2, height - Math.Min(thickness, height) / 2);
+                    using var outline = ShapeLineStroke.Outline(from, to, thickness, style);
+                    writer.WriteStartElement("path", ns); writer.WriteAttributeString("d", outline.ToSvgPathData());
+                }
                 else if (style.Kind == ShapeKind.Line)
                 {
                     var thickness = Math.Max(1, style.LineWidth ?? 1);

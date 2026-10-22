@@ -32,6 +32,10 @@ internal sealed partial class ToolOptionsBar : Border
     /// <summary>How tall the strip is, matching Photoshop's compact tool options bar (36 points).</summary>
     private const double StripHeight = 36;
 
+    private readonly ComboBox _linePattern = new(), _lineCapChoice = new();
+    private readonly CheckBox _pressureSize = new(), _pressureOpacity = new();
+    private bool _penPressureAvailable;
+    internal void EnablePenPressure() => _penPressureAvailable = true;
     private readonly ToolOptions _options;
     private readonly TextBlock _title = new()
     {
@@ -119,6 +123,7 @@ internal sealed partial class ToolOptionsBar : Border
         try
         {
             On("brush", brush && hasDocument);
+            On("pressure", _penPressureAvailable && hasDocument && tool is Tool.Brush or Tool.Pencil or Tool.Eraser or Tool.Clone or Tool.HealingBrush or Tool.Blur or Tool.Heal or Tool.HistoryBrush);
             _hardness.IsVisible = ToolCatalog.IsBrush(tool) && tool != Tool.Pencil && hasDocument;
             _fill.IsVisible = ToolCatalog.IsBrush(tool) && hasDocument;
             On("opacity", (brush && tool != Tool.QuickSelection || tool is Tool.Bucket or Tool.MagicEraser) && hasDocument);
@@ -137,6 +142,7 @@ internal sealed partial class ToolOptionsBar : Border
             On("shape", ToolCatalog.IsShape(tool));
             On("viewRotation", tool == Tool.RotateView);
             On("corner", ToolCatalog.IsShape(tool) && _options.Shape == ShapeKind.Rectangle);
+            On("lineStyle", ToolCatalog.IsShape(tool) && _options.Shape == ShapeKind.Line);
             On("linewidth", ToolCatalog.IsPen(tool) || ToolCatalog.IsShape(tool) && _options.Shape == ShapeKind.Line);
             On("crop", tool == Tool.Crop);
             On("transform", false);
@@ -188,6 +194,9 @@ internal sealed partial class ToolOptionsBar : Border
         _tolerance.Content = Localize.Format($"Tolerance {_options.Wand.Tolerance}");
         _sampleSize.Content = Localize.Format($"Sample {_options.Wand.Radius}");
         _corner.Content = Localize.Format($"Radius {_options.ShapeCornerRadius:0}");
+        _linePattern.SelectedIndex = Array.IndexOf(new[] { "Solid", "Dotted", "Dashed", "Long Dash" }, _options.ShapeLineStyle);
+        _lineCapChoice.SelectedIndex = _options.ShapeLineCap == "Round" ? 1 : 0;
+        _pressureSize.IsChecked = _options.Brush.PressureSize; _pressureOpacity.IsChecked = _options.Brush.PressureOpacity;
         _lineWidth.Content = Localize.Format($"Width {_options.ShapeLineWidth:0}");
         _fill.Show(_options.Brush.Red, _options.Brush.Green, _options.Brush.Blue);
         _gradientFill.Show(_options.GradientBackground.Red, _options.GradientBackground.Green,
@@ -477,6 +486,14 @@ internal sealed partial class ToolOptionsBar : Border
         Cell("brush", _size);
         Cell("brush", _hardness);
         Cell("opacity", _opacity);
+        foreach (var size in new[] { true, false })
+        {
+            var pressure = size ? _pressureSize : _pressureOpacity; pressure.Content = Localize.Text(size ? "Pressure Size" : "Pressure Opacity"); pressure.MinHeight = 24;
+            pressure.IsCheckedChanged += (_, _) => { if (_loading) return; _options.Brush = size
+                ? _options.Brush with { PressureSize = pressure.IsChecked == true }
+                : _options.Brush with { PressureOpacity = pressure.IsChecked == true }; Changed?.Invoke(); };
+            Cell("pressure", pressure);
+        }
         Cell("brush", _fill);
         Cell("mode", _brushMode);
         Cell("mask", _maskPaint);
@@ -506,6 +523,15 @@ internal sealed partial class ToolOptionsBar : Border
         resetView.Click += (_, _) => ResetViewAsked?.Invoke(); Cell("viewRotation", resetView);
         Cell("corner", _corner);
         Cell("linewidth", _lineWidth);
+        foreach (var cap in new[] { false, true })
+        {
+            var values = cap ? new[] { "Square", "Round" } : new[] { "Solid", "Dotted", "Dashed", "Long Dash" };
+            var choice = cap ? _lineCapChoice : _linePattern; choice.Width = 110; choice.Height = 26; choice.ItemsSource = values.Select(Localize.Text).ToArray(); choice.SelectedIndex = 0;
+            ToolTip.SetTip(choice, Localize.Text(cap ? "Line Cap" : "Line Style"));
+            choice.SelectionChanged += (_, _) => { if (_loading || choice.SelectedIndex < 0) return;
+                if (cap) _options.ShapeLineCap = values[choice.SelectedIndex]; else _options.ShapeLineStyle = values[choice.SelectedIndex]; Changed?.Invoke(); };
+            Cell("lineStyle", choice);
+        }
         Cell("crop", _cropRatio);
         Cell("crop", _cropApply);
         Cell("crop", _cropCancel);

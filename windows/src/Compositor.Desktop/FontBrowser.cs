@@ -46,15 +46,16 @@ internal static class FontBrowser
             var favorite = new Button { Content = EditorPreferences.Current.FavoriteFonts.Contains(family!) ? "★" : "☆", Padding = new Thickness(2), Width = 27, MinHeight = 24, Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
             favorite.Click += (_, e) => { if (!EditorPreferences.Current.FavoriteFonts.Add(family!)) EditorPreferences.Current.FavoriteFonts.Remove(family!); favorite.Content = EditorPreferences.Current.FavoriteFonts.Contains(family!) ? "★" : "☆"; EditorPreferences.Current.Save(); e.Handled = true; };
             row.Children.Add(favorite); var label = new TextBlock { Text = family, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }; Grid.SetColumn(label, 1); row.Children.Add(label);
-            var text = new TextBlock { Text = preview, FontFamily = new FontFamily(family!), FontSize = new[] { 12, 14, 18, 24, 30, 36 }[EditorPreferences.Current.FontPreviewSize], IsVisible = EditorPreferences.Current.FontPreviewSize != 0, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }; Grid.SetColumn(text, 2); row.Children.Add(text); return row;
+            using var face = FontCatalog.Resolve(family!);
+            var text = new TextBlock { Text = preview, FontFamily = new FontFamily(face.FamilyName), FontWeight = (FontWeight)face.FontWeight, FontStyle = face.FontSlant == SKFontStyleSlant.Upright ? FontStyle.Normal : FontStyle.Italic, FontSize = new[] { 12, 14, 18, 24, 30, 36 }[EditorPreferences.Current.FontPreviewSize], IsVisible = EditorPreferences.Current.FontPreviewSize != 0, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }; Grid.SetColumn(text, 2); row.Children.Add(text); return row;
         });
         var rebuilding = false;
         void Refresh()
         {
             rebuilding = true;
-            list.ItemsSource = FontCatalog.Families.Where(f => f.Contains(search.Text ?? "", StringComparison.CurrentCultureIgnoreCase)
-                && (favorites.IsChecked != true || EditorPreferences.Current.FavoriteFonts.Contains(f)) && (categories.SelectedIndex == 0 || Category(f) == categories.SelectedIndex)).ToArray();
-            list.SelectedItem = FontCatalog.Family(current); rebuilding = false;
+            list.ItemsSource = FontCatalog.Faces.Where(f => (f.Contains(search.Text ?? "", StringComparison.CurrentCultureIgnoreCase) || FontCatalog.Family(f).Contains(search.Text ?? "", StringComparison.CurrentCultureIgnoreCase))
+                && (favorites.IsChecked != true || EditorPreferences.Current.FavoriteFonts.Contains(f)) && (categories.SelectedIndex == 0 || Category(FontCatalog.Family(f)) == categories.SelectedIndex)).ToArray();
+            list.SelectedItem = current; rebuilding = false;
         }
         search.TextChanged += (_, _) => Refresh(); categories.SelectionChanged += (_, _) => Refresh(); favorites.Click += (_, _) => Refresh();
         top.Children.Add(FormDialog.ActionButton("Clear All", () => { search.Text = ""; favorites.IsChecked = false; categories.SelectedIndex = 0; Refresh(); }));
