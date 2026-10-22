@@ -93,11 +93,7 @@ public sealed partial class MainWindow
                 Number("Hardness", _options.Brush.Hardness * 100, 0, 100, v => { _options.Brush = _options.Brush with { Hardness = v / 100 }; PushBrush(); });
                 Number("Opacity", _options.Brush.Opacity * 100, 0, 100, v => { _options.Brush = _options.Brush with { Opacity = v / 100 }; PushBrush(); });
                 Button("Brush tool", () => SetTool(Tool.Brush)); Button("Define Brush Preset…", () => _ = DefinePreset("Brush")); break;
-            case "Clone Source":
-                Number("X", _cloneSource?.X ?? 0, -100000, 100000, v => { _cloneSource = new((float)v, _cloneSource?.Y ?? 0); _cloneOffset = null; _canvas.CloneSource = _cloneSource; });
-                Number("Y", _cloneSource?.Y ?? 0, -100000, 100000, v => { _cloneSource = new(_cloneSource?.X ?? 0, (float)v); _cloneOffset = null; _canvas.CloneSource = _cloneSource; });
-                var aligned = new CheckBox { Content = Localize.Text("Aligned"), IsChecked = _options.Brush.CloneAligned }; aligned.IsCheckedChanged += (_, _) => { _options.Brush = _options.Brush with { CloneAligned = aligned.IsChecked == true }; PushBrush(); }; body.Children.Add(aligned);
-                Button("Clone Stamp tool", () => SetTool(Tool.Clone)); break;
+            case "Clone Source": BuildCloneSourcePanel(body); break;
             case "Gradients":
                 foreach (var shape in Enum.GetValues<GradientShape>()) Button(shape.ToString(), () => { SetGradient(shape, null, null); SetTool(Tool.Gradient); });
                 Button("Foreground Color…", () => ChooseColour(true)); Button("Background Color…", SetGradientBackground); Button("Reverse", () => SetGradient(null, null, !_options.GradientReversed)); break;
@@ -173,7 +169,7 @@ public sealed partial class MainWindow
             previous?.Dispose(); previous = null; preview.Source = null;
             if (_document is not { } doc || doc.Layers.Count == 0) { _timelineTimer.Stop(); return; }
             frame.Maximum = doc.Layers.Count - 1; var index = Math.Clamp((int)frame.Value, 0, doc.Layers.Count - 1);
-            var layer = doc.Layers[index]; if (layer.Asset is { } asset) { previous = CanvasView.ToImage(asset.Image); preview.Source = previous; } label.Text = $"{index + 1} / {doc.Layers.Count} — {layer.Name}";
+            _timelineFrame = index; var layer = doc.Layers[index]; if (layer.Asset is { } asset) { previous = CanvasView.ToImage(asset.Image); preview.Source = previous; } label.Text = $"{index + 1} / {doc.Layers.Count} — {layer.Name}";
         }
         frame.ValueChanged += (_, _) => ShowFrame(); _timelineTimer.Tick += (_, _) => { if (_dockPanels.GetValueOrDefault("Timeline")?.Visible != true) { _timelineTimer.Stop(); return; } frame.Value = frame.Value >= frame.Maximum ? 0 : frame.Value + 1; };
         body.Children.Add(PropertyPair(PropertyAction("Play", () => { ShowFrame(); _timelineTimer.Start(); }), PropertyAction("Stop", () => _timelineTimer.Stop())));

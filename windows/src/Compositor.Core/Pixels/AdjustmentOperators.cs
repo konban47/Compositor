@@ -14,19 +14,19 @@ public static class AdjustmentOperators
     /// anchored there, so a piece of a canvas gets the same pattern as that part of the whole.</param>
     public static void Apply(LayerAdjustment adjustment, double strength,
                              Span<byte> rgba, int width, int height, int stride,
-                             long originX = 0, long originY = 0)
+                             long originX = 0, long originY = 0, int canvasWidth = 0, int canvasHeight = 0)
     {
         if (width <= 0 || height <= 0 || stride < width * 4 || !(strength > 0)) return;
         if (strength >= 1)
         {
-            ApplyFull(adjustment, rgba, width, height, stride, null, originX, originY);
+            ApplyFull(adjustment, rgba, width, height, stride, null, originX, originY, canvasWidth, canvasHeight);
             return;
         }
         // One copy of the buffer, serving both as the mix's source and as Motion Blur's unmodified input.
         byte[] original;
         original = Compositor.Core.Model.MemoryBudget.Allocate<byte>(checked(height * stride));
         rgba[..original.Length].CopyTo(original);
-        ApplyFull(adjustment, rgba, width, height, stride, original, originX, originY);
+        ApplyFull(adjustment, rgba, width, height, stride, original, originX, originY, canvasWidth, canvasHeight);
         for (int y = 0; y < height; y++)
         {
             int row = y * stride;
@@ -39,10 +39,12 @@ public static class AdjustmentOperators
     }
 
     private static void ApplyFull(LayerAdjustment adjustment, Span<byte> rgba, int width, int height, int stride,
-                                  byte[]? source, long originX, long originY)
+                                  byte[]? source, long originX, long originY, int canvasWidth, int canvasHeight)
     {
         switch (adjustment.Kind)
         {
+            case AdjustmentKind.ProgressiveBlur: case AdjustmentKind.BloomGlow: case AdjustmentKind.RgbSplit:
+                FilterLayerOperators.Apply(adjustment, rgba, width, height, stride, originX, originY, canvasWidth, canvasHeight); break;
             case AdjustmentKind.Extended when adjustment.Extended is { } extended:
                 for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
                 {

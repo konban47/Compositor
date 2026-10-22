@@ -6,14 +6,36 @@ namespace Compositor.Desktop;
 
 internal sealed class ProfessionalOptions
 {
+    internal void Validate()
+    {
+        if (GetType().GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Where(f => f.FieldType == typeof(double)).Any(f => !double.IsFinite((double)f.GetValue(this)!))
+            || !ColorSampling.Sizes.Contains(EyeSize) || !ColorSampling.Sizes.Contains(SamplerSize) || EyeScope is < 0 or > 4
+            || !new Compositor.Core.Format.FrameStyle { Shape = FrameShape, StrokeWidth = FrameStrokeWidth, StrokeAlignment = FrameAlignment, CornerRadius = FrameCorner, CustomPath = FrameCustomPath }.IsValid
+            || !new Compositor.Core.Format.CountGroup(CountGroup, CountColor, true, CountMarkerSize, CountLabelSize).IsValid
+            || PatchDiffusion is < 1 or > 7 || MoveStructure is < 1 or > 7 || MoveColor is < 0 or > 10 || Pupil is < .05 or > 1 || Darken is < 0 or > 1
+            || RemoveMode is < 0 or > 2 || RemoveOverlayOpacity is < 0 or > 100
+            || NoteAuthor is null || NoteAuthor.Length > 256) throw new InvalidDataException("Invalid utility tool preset values.");
+    }
     internal void Reset()
     { var defaults = new ProfessionalOptions(); foreach (var field in typeof(ProfessionalOptions).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)) field.SetValue(this, field.GetValue(defaults)); }
     internal SelectionPaintMode SelectionMode = SelectionPaintMode.Add;
     internal double MagneticWidth = 12, MagneticContrast = 20, MagneticFrequency = 4;
     internal bool SampleAll, EllipseFrame, ExtendMove, PatchDestination, CleanAfterStroke;
     internal int CropWidth, CropHeight;
-    internal double Pupil = .8, Darken = .5;
-    internal string CountGroup = "1";
+    internal double Pupil = .5, Darken = .5;
+    internal string CountGroup = "1", NoteAuthor = "", FrameCustomPath = "M.5 0 L.62 .35 L1 .38 L.72 .62 L.8 1 L.5 .78 L.2 1 L.28 .62 L0 .38 L.38 .35 Z";
+    internal int EyeSize = 1, SamplerSize = 1, EyeScope = 2, FrameShape, FrameAlignment = 1;
+    internal double FrameStrokeWidth = 1, FrameCorner, CountMarkerSize = 2, CountLabelSize = 8;
+    internal uint? FrameStroke;
+    internal uint NoteColor = 0xFFFFFFFF, CountColor = 0xFF9AFFFF;
+    internal bool MeasureUseScale = true;
+    internal bool RemoveSubtract, RemoveAllLayers, RemoveEachStroke = true, RemoveNewLayer;
+    internal int RemoveMode;
+    internal bool PatchContentAware, PatchTransparent, MoveAllLayers, MoveTransform = true;
+    internal int PatchDiffusion = 5, MoveStructure = 4, MoveColor;
+
+    internal uint RemoveOverlayColor = 0xFFEB54AD;
+    internal double RemoveOverlayOpacity = 50;
 }
 internal sealed partial class ToolOptionsBar
 {
@@ -93,5 +115,6 @@ internal sealed partial class ToolOptionsBar
         On("patch", tool == Tool.Patch); On("contentMove", tool == Tool.ContentMove); On("redEye", tool == Tool.RedEye);
         On("replace", tool == Tool.ColorReplacement); On("mixer", tool == Tool.MixerBrush);
         On("proReadout", ToolCatalog.IsAnnotation(tool));
+        ShowUtilityOptions(tool);
     }
 }

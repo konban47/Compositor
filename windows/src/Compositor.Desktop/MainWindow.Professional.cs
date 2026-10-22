@@ -48,13 +48,14 @@ public sealed partial class MainWindow
                 if (_proGrab < 0) _perspectiveQuad = [at, at, at, at]; return true;
             }
             if (_tool is Tool.Patch or Tool.ContentMove)
-            { _proMovingSelection = doc.Selection.Path is { IsEmpty: false } path && path.Contains(at.X, at.Y); _proPoints.Clear(); _proPoints.Add(at); return true; }
+            { _proMode = ProMode(keys); _proMovingSelection = !keys.HasFlag(KeyModifiers.Shift) && !keys.HasFlag(KeyModifiers.Alt) && _options.Selection.Mode == SelectionMode.Replace && doc.Selection.Path is { IsEmpty: false } path && path.Contains(at.X, at.Y); _proPoints.Clear(); _proPoints.Add(at); return true; }
+            if (_tool == Tool.Ruler && BeginRulerHandle(at, keys)) return true;
             if (MarkToolKind is { } kind)
             {
                 _sliceMoveOriginals = null;
-                _markBefore = (_tool == Tool.SliceSelect ? DisplayMarks() : doc.Marks).LastOrDefault(m => m.Kind == kind && m.Visible && (kind == MarkKind.Slice ? new SKRect((float)m.X, (float)m.Y, (float)(m.X + m.Width), (float)(m.Y + m.Height)).Contains(at)
+                _markBefore = (_tool == Tool.SliceSelect ? DisplayMarks() : doc.Marks).LastOrDefault(m => m.Kind == kind && AnnotationVisible(m) && (kind == MarkKind.Slice ? new SKRect((float)m.X, (float)m.Y, (float)(m.X + m.Width), (float)(m.Y + m.Height)).Contains(at)
                     : SKPoint.Distance(at, new SKPoint((float)m.X, (float)m.Y)) < 12 / _canvas.Zoom));
-                if (_tool == Tool.Slice) _markBefore = null;
+                if (_tool is Tool.Slice or Tool.Ruler) _markBefore = null;
                 if (_markBefore is { } found)
                 {
                     _selectedMark = found.ID;
@@ -77,7 +78,9 @@ public sealed partial class MainWindow
                 if (_markBefore is null && _tool is Tool.ColorSampler or Tool.Count or Tool.Note)
                 {
                     if (kind == MarkKind.Sampler && doc.Marks.Count(m => m.Kind == kind) >= 10) { Say("At most 10 color samplers per document."); _proGesture = false; return true; }
-                    AddMark(new DocumentMark { Kind = kind, X = at.X, Y = at.Y, Group = Pro.CountGroup, Name = Localize.Text(kind.ToString()) });
+                    if (kind == MarkKind.Count) EnsureCountGroup();
+                    AddMark(new DocumentMark { Kind = kind, X = at.X, Y = at.Y, Group = Pro.CountGroup, Name = Localize.Text(kind.ToString()),
+                        Author = kind == MarkKind.Note ? Pro.NoteAuthor : "", Color = kind == MarkKind.Note ? Pro.NoteColor : kind == MarkKind.Count ? Pro.CountColor : 0xFFFFB74D });
                     _proGesture = false; if (_tool == Tool.Note) _ = EditAnnotation();
                 }
                 ShowAnnotationReadout(); return true;
@@ -95,7 +98,14 @@ public sealed partial class MainWindow
             _proEnd = snapped; _canvas.InvalidateVisual(); return true;
         }
         if (!_proGesture) return false;
+        if (_tool == Tool.Ruler && keys.HasFlag(KeyModifiers.Shift))
+        {
+            var anchor = _markBefore is { } m ? new SKPoint((float)m.X, (float)m.Y) : _proStart;
+            var length = SKPoint.Distance(anchor, at); var angle = Math.Round(Math.Atan2(at.Y - anchor.Y, at.X - anchor.X) / (Math.PI / 4)) * Math.PI / 4;
+            at = anchor + new SKPoint((float)(Math.Cos(angle) * length), (float)(Math.Sin(angle) * length));
+        }
         _proEnd = at;
+        if (_tool == Tool.Ruler && _markBefore is null && _document is { } measuring) _optionsBar.UtilityDocument(measuring, new DocumentMark { Kind = MarkKind.Measure, X = _proStart.X, Y = _proStart.Y, Width = at.X - _proStart.X, Height = at.Y - _proStart.Y }, Selected);
         if (_tool is Tool.Object or Tool.SelectionBrush or Tool.QuickSelection or Tool.Patch or Tool.ContentMove && _proPoints.Count < 10000) _proPoints.Add(at);
         if (_tool == Tool.PerspectiveCrop && _perspectiveQuad is { } quad)
         {
@@ -106,6 +116,7 @@ public sealed partial class MainWindow
         {
             var delta = at - _proStart;
             var next = _proGrab == 2 ? mark with { Width = Math.Max(1, mark.Width + delta.X), Height = Math.Max(1, mark.Height + delta.Y) } : mark with { X = mark.X + delta.X, Y = mark.Y + delta.Y };
+            if (mark.Kind == MarkKind.Measure) next = RulerMoved(mark, at, delta);
             var index = doc.Marks.FindIndex(m => m.ID == mark.ID); if (index >= 0 && next.IsValid) doc.Marks[index] = next;
             if (mark.Kind == MarkKind.Slice && _proGrab != 2 && _sliceMoveOriginals is { } originals)
                 foreach (var original in originals) { var moved = original with { X = original.X + delta.X, Y = original.Y + delta.Y }; var i = doc.Marks.FindIndex(m => m.ID == original.ID); if (i >= 0 && moved.IsValid) doc.Marks[i] = moved; }
@@ -135,7 +146,7 @@ public sealed partial class MainWindow
         else if (_tool == Tool.PerspectiveCrop) Say("Drag the four corners, then press Enter to crop. Zero dimensions use automatic size.");
         else if (_tool == Tool.Frame && ProBox() is { Width: > 1, Height: > 1 } frame)
         {
-            Guid? made = null; Edit("Frame Tool", () => (made = LayerWorkflow.MakeContainer(doc, SelectedLayers, LayerContainer.Frame, Localize.Text("Frame"), frame, Pro.EllipseFrame)) is not null); Reselect(made);
+            Guid? made = null; Edit("Frame Tool", () => { made = LayerWorkflow.MakeContainer(doc, SelectedLayers, LayerContainer.Frame, Localize.Text("Frame"), frame, Pro.EllipseFrame); return made is { } id && FrameEdits.Apply(doc.Layers.Single(l => l.ID == id), CurrentFrameStyle()); }); Reselect(made);
         }
         else if (_tool == Tool.Slice && ProBox() is { Width: > 0, Height: > 0 } slice)
             AddMark(new DocumentMark { Kind = MarkKind.Slice, X = slice.Left, Y = slice.Top, Width = slice.Width, Height = slice.Height, Name = "slice-" + (doc.Marks.Count(m => m.Kind == MarkKind.Slice) + 1) });
@@ -151,12 +162,12 @@ public sealed partial class MainWindow
         else if (_tool is Tool.Patch or Tool.ContentMove && Selected is { } id)
         {
             if (!_proMovingSelection)
-                Edit("Lasso", () => SelectionEdits.SelectLasso(doc, _proPoints));
+                Edit("Lasso", () => { using var path = SelectionEdits.Lasso(_proPoints); return ApplyToolSelection(doc, path, (SelectionMode)(int)_proMode); });
             else
             {
                 var delta = _proEnd - _proStart;
-                Edit(ToolCatalog.Title(_tool), () => _tool == Tool.ContentMove ? RepairEdits.MoveContent(doc, id, (int)delta.X, (int)delta.Y, Pro.ExtendMove)
-                    : PatchSelection(doc, id, delta));
+                if (_tool == Tool.ContentMove) BeginContentMove(doc, id, delta);
+                else Edit(ToolCatalog.Title(_tool), () => PatchSelection(doc, id, delta));
             }
             _proPoints.Clear();
         }
@@ -164,9 +175,9 @@ public sealed partial class MainWindow
     }
     private bool PatchSelection(CanvasDocument doc, Guid id, SKPoint delta)
     {
-        if (!Pro.PatchDestination) return RepairEdits.Patch(doc, id, delta, true, Pro.SampleAll);
+        if (!Pro.PatchDestination) return RepairEdits.Patch(doc, id, delta, true, Pro.SampleAll, Pro.PatchTransparent, Pro.PatchContentAware, Pro.PatchDiffusion);
         var previous = doc.Selection; doc.Selection = previous.Translated(delta.X, delta.Y);
-        if (RepairEdits.Patch(doc, id, PlacementMesh.Scale(delta, -1), true, Pro.SampleAll)) return true;
+        if (RepairEdits.Patch(doc, id, PlacementMesh.Scale(delta, -1), true, Pro.SampleAll, Pro.PatchTransparent, Pro.PatchContentAware, Pro.PatchDiffusion)) return true;
         doc.Selection = previous; return false;
     }
     private SKRect ProBox() => _tool == Tool.Slice ? SliceRectangle() : new(Math.Min(_proStart.X, _proEnd.X), Math.Min(_proStart.Y, _proEnd.Y), Math.Max(_proStart.X, _proEnd.X), Math.Max(_proStart.Y, _proEnd.Y));
@@ -222,12 +233,14 @@ public sealed partial class MainWindow
     {
         if (_tool == Tool.SliceSelect) { await EditSliceOptions(); return; }
         var doc = _document; if (doc?.Marks.FirstOrDefault(m => m.ID == _selectedMark) is not { } mark) return;
+        if (mark.Kind == MarkKind.Note) { OpenNote(mark); return; }
         var changed = await MarkDialog.Edit(this, mark); if (changed is null || !ReferenceEquals(doc, _document)) return;
         Edit("Edit Annotation", () => { var i = doc.Marks.FindIndex(m => m.ID == mark.ID); if (i < 0 || doc.Marks[i] == changed) return false; doc.Marks[i] = changed; return true; }); ShowAnnotationReadout();
     }
     private void ShowAnnotationReadout()
     {
         if (_document is not { } doc) return;
+        _optionsBar.UtilityDocument(doc, doc.Marks.FirstOrDefault(m => m.ID == _selectedMark), Selected);
         if (doc.Marks.FirstOrDefault(m => m.ID == _selectedMark) is not { } mark) { _optionsBar.ProfessionalReadout(""); return; }
         var text = $"X {mark.X:0.##}  Y {mark.Y:0.##}";
         if (mark.Kind == MarkKind.Measure) text += $"  {Localize.Text("Length")} {Math.Sqrt(mark.Width * mark.Width + mark.Height * mark.Height):0.##} px  ∠ {Math.Atan2(mark.Height, mark.Width) * 180 / Math.PI:0.##}°";
@@ -236,9 +249,8 @@ public sealed partial class MainWindow
         if (mark.Kind == MarkKind.Note) text += "  " + mark.Text.Replace('\n', ' ');
         if (mark.Kind == MarkKind.Sampler)
         {
-            using var image = SelectionEdits.Sample(doc, Pro.SampleAll ? null : Selected);
-            if (image is not null && mark.X >= 0 && mark.Y >= 0 && mark.X < image.Width && mark.Y < image.Height)
-            { var c = image.GetPixel((int)mark.X, (int)mark.Y); text += $"  R {c.Red}  G {c.Green}  B {c.Blue}  #{c.Red:X2}{c.Green:X2}{c.Blue:X2}"; }
+            var c = ColorSampling.Read(doc, Selected, new SKPoint((float)mark.X, (float)mark.Y), Pro.SamplerSize);
+            text += $"  R {c.Red}  G {c.Green}  B {c.Blue}  #{c.Red:X2}{c.Green:X2}{c.Blue:X2}";
         }
         _optionsBar.ProfessionalReadout(text);
     }
@@ -314,19 +326,27 @@ public sealed partial class MainWindow
             {
                 var key = mark.Kind + ":" + (mark.Kind == MarkKind.Count ? mark.Group : "");
                 var number = counts[key] = counts.GetValueOrDefault(key) + 1;
-                if (!mark.Visible) continue;
+                if (!AnnotationVisible(mark)) continue;
+                var group = mark.Kind == MarkKind.Count ? doc.CountGroups.FirstOrDefault(g => g.Name == mark.Group) : null;
                 var at = screen(new SKPoint((float)mark.X, (float)mark.Y)); var end = screen(new SKPoint((float)(mark.X + mark.Width), (float)(mark.Y + mark.Height)));
-                var brush = new SolidColorBrush(Color.FromUInt32(mark.Color)); var stroke = new Pen(brush, mark.ID == _selectedMark || _selectedSlices.Contains(mark.ID) ? 2 : 1);
+                var brush = new SolidColorBrush(Color.FromUInt32(group?.Color ?? mark.Color)); var stroke = new Pen(brush, mark.ID == _selectedMark || _selectedSlices.Contains(mark.ID) ? 2 : 1);
                 if (mark.Kind == MarkKind.Slice)
                 {
                     var points = new[] { at, screen(new SKPoint((float)(mark.X + mark.Width), (float)mark.Y)), end, screen(new SKPoint((float)mark.X, (float)(mark.Y + mark.Height))) };
                     for (var i = 0; i < 4; i++) context.DrawLine(stroke, points[i], points[(i + 1) % 4]);
                 }
-                else if (mark.Kind == MarkKind.Measure) context.DrawLine(stroke, at, end);
-                else context.DrawEllipse(Skin.ChromeBrush, stroke, at, 5, 5);
+                else if (mark.Kind == MarkKind.Measure)
+                {
+                    context.DrawLine(stroke, at, end);
+                    context.DrawEllipse(Skin.ChromeBrush, stroke, at, 3, 3); context.DrawEllipse(Skin.ChromeBrush, stroke, end, 3, 3);
+                    if (mark.SecondX is { } sx && mark.SecondY is { } sy) { var second = screen(new SKPoint((float)sx, (float)sy)); context.DrawLine(stroke, at, second); context.DrawEllipse(Skin.ChromeBrush, stroke, second, 3, 3); }
+                    continue;
+                }
+                else if (mark.Kind == MarkKind.Note) { DrawNoteGlyph(context, at, mark); continue; }
+                else { var radius = group?.MarkerSize ?? 5; context.DrawEllipse(mark.Kind == MarkKind.Count ? brush : Skin.ChromeBrush, stroke, at, radius, radius); }
                 if (mark.Kind == MarkKind.Slice && !EditorPreferences.Current.ShowSliceNumbers) continue;
                 var label = mark.Kind == MarkKind.Note ? "▤" : number.ToString();
-                var text = new FormattedText(label, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, brush);
+                var text = new FormattedText(label, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, group?.LabelSize ?? 12, brush);
                 context.DrawRectangle(Skin.ChromeBrush, null, new Rect(at + new Vector(7, -8), new Size(text.Width + 4, text.Height))); context.DrawText(text, at + new Vector(9, -8));
             }
             if (_tool == Tool.SelectionBrush && doc.Selection.Path is { } selected)

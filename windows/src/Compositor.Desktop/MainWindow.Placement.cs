@@ -34,6 +34,9 @@ public sealed partial class MainWindow
         _canvas.CustomMoved = CanvasActionMoved;
         _canvas.CustomHover = (at, keys) => { MoveHover(at); ObjectHover(at); PenHover(at, keys); if (_tool == Tool.MagneticLasso) ProfessionalMoved(at, keys); };
         _optionsBar.ProfessionalAsked += async action => await ProfessionalAction(action);
+        _optionsBar.UtilityAsked += async action => await UtilityAction(action);
+        _optionsBar.RetouchAsked += async (action, anchor) => await RetouchAction(action, anchor);
+        _canvas.SampleColor = point => _document is { } doc ? ColorSampling.Read(doc, Selected, point, Pro.EyeSize, (SampleScope)Pro.EyeScope) : SKColors.Transparent;
         _canvas.CustomReleased = CanvasActionReleased;
         _canvas.EditingOverlay = DrawEditingOverlay;
         var menu = new ContextMenu(); _canvas.ContextMenu = menu;
@@ -82,6 +85,7 @@ public sealed partial class MainWindow
     {
         if (_placementTab is not { } tab) return;
         var selected = Selected;
+        if (_contentMove is not null) { selected = _contentMove.Target; apply = CompleteContentMove(apply); }
         if (apply) RememberTransform();
         if (!apply && _placementBefore is not null) tab.Document = _placementBefore;
         _puppetPins.Clear(); _puppetSource.Clear(); _placementTab = null; _placementBefore = null; _placeMesh = null; _placeBasis = null; _placedIDs.Clear(); _placeGrab = -1;

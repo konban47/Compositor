@@ -1,4 +1,4 @@
-# Windows 10 与低资源验证 · 1.5.5.0 Preview
+# Windows 10 与低资源验证 · 1.5.5.1 Preview
 
 2026-10-22。当前没有可用 Windows 10 实机或虚拟机，用户选择先完成可复现方案。**Windows 10 验收状态：待执行。** 以下本机结果来自 Windows 11 Pro build 26200；CPU 限制、禁用 SIMD、软件绘制或 Windows Server CI 均不等于 Windows 10 验收。
 
@@ -46,3 +46,13 @@ dotnet build windows/Compositor.slnx -c Release -warnaserror
 6. 在上述设备上完成 30 分钟混合编辑、休眠/唤醒和渲染设备丢失/驱动重启场景。画面不能停留在旧版本；若失败收集最小复现、日志和样本哈希，不上传用户私密原图。
 
 验收通过需要全部自动检查通过，人工清单记录完成，且任何失败保留原文件。冷缓存首帧、稳态平移、编辑后重算分开报告；不能把缓存命中合成耗时解释成显示器帧率。实际 Win10 报告回填本页时保留原始 JSON 与精确提交，不能覆盖本次 Win11 记录。
+
+## 1.5.5.1 追加记录（2026-10-23）
+
+本机两种配置均通过：512 MiB / 两核 / 托管 SIMD 关闭，1024 MiB / 两核 / SIMD 开启；两者强制软件绘制和关闭场景直绘。每种运行 58 项安全/缓存/上游/修饰核心检查、8 组中英界面检查及 60 次原生窗口视口操作。脚本增加 `--utility-retouch-checks`，在低预算下实际调用 PDFium 导入两页 PDF，并检查修复、移动、撤销、标注和预设。12 个缓存图块中，局部编辑复用 11 块；输出与完整重算逐字节相同。
+
+原生复杂场景首帧分别为 3748.72 ms 和 2666.44 ms；帧回调中位分别为 57.28 ms 和 54.74 ms。峰值工作集分别为 219 MiB 和 225 MiB。低资源验证报告仍明确标记 `ActualWindows10Client=false`、`Validation=Host resource simulation; NOT Windows 10 validation`。证据：[512 MiB](benchmarks/2026-10-23-scalar512-summary.json)、[1024 MiB](benchmarks/2026-10-23-simd1024-summary.json)、[1024 MiB 原生窗口](benchmarks/2026-10-23-simd1024-native-cpu.json)。
+
+PDF 新增原生依赖为 PDFium 152.0.7961，完整许可随安装包发布；在 Win10 上必须实际测试原生 DLL 加载、中文字体 PDF、密码 PDF、超大页的预算拒绝。PSD 画板应包括画布外画板及图层蒙版样本。三种新滤镜调整层还应测试保存/重开、CPU 模式下预览、取消与撤销；真实数位板需检查修复/移除笔尖压力。生成式移除和干扰物检测需另外提供服务凭据，确认请求、失败、取消及输出尺寸，本轮未进行真实云端验收。
+
+本机已有安装的 Compositor，未通过覆盖安装/卸载扰动该实例；新安装包的安装/卸载自动检查由干净的 Windows Server CI 执行。该检查仍不等于真实 Win10 或既有用户安装升级测试。

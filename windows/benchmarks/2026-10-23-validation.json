@@ -1,0 +1,234 @@
+{
+  "Version": "1.5.5.1 Preview",
+  "Date": "2026-10-23",
+  "Host": "Windows 11 Pro 26200",
+  "Build": "Release warnings-as-errors passed",
+  "Core": {
+    "Passed": 1260,
+    "Failed": 0,
+    "Skipped": 0,
+    "SpikeEnabled": true
+  },
+  "UI": [
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "clicks"
+    },
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "tabs"
+    },
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "tools"
+    },
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "shortcuts"
+    },
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "camera-raw"
+    },
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "dialogs"
+    },
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "windows-checks"
+    },
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "interaction-checks"
+    },
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "panel-checks"
+    },
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "inspector-checks"
+    },
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "workspace-checks"
+    },
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "layer-style-checks"
+    },
+    {
+      "Language": "en",
+      "ExitCode": 0,
+      "Check": "editing-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "en",
+      "Check": "professional-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "en",
+      "Check": "image-workspace-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "en",
+      "Check": "edit-workspace-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "en",
+      "Check": "preferences-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "en",
+      "Check": "type-mask-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "en",
+      "Check": "docking-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "en",
+      "Check": "chrome-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "en",
+      "Check": "selection-options-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "en",
+      "Check": "panel-workflow-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "en",
+      "Check": "pen-layer-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "en",
+      "Check": "utility-retouch-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "windows-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "interaction-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "panel-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "inspector-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "workspace-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "layer-style-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "editing-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "professional-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "image-workspace-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "edit-workspace-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "preferences-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "type-mask-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "docking-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "chrome-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "selection-options-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "panel-workflow-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "pen-layer-checks"
+    },
+    {
+      "ExitCode": 0,
+      "Language": "zh-CN",
+      "Check": "utility-retouch-checks"
+    }
+  ],
+  "LowResourceProfiles": [
+    "scalar512",
+    "simd1024"
+  ],
+  "PerformanceGates": "passed",
+  "NativePsdSerialRepeats": 3,
+  "Windows10Tested": false,
+  "LiveGenerativeProviderTested": false,
+  "LocalInstallerRun": false,
+  "InstallerValidation": "clean Windows CI"
+}

@@ -109,7 +109,7 @@ internal sealed partial class ToolOptionsBar : Border
             Content = row, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
         }); Child = bar;
-        Build(); BuildExtended(); BuildProfessional(); BuildMoveOptions(); BuildArtboardOptions(); BuildSelectionOptions(); BuildCropSliceOptions(); BuildPenOptions();
+        Build(); BuildExtended(); BuildProfessional(); BuildMoveOptions(); BuildArtboardOptions(); BuildSelectionOptions(); BuildCropSliceOptions(); BuildPenOptions(); BuildUtilityOptions(); BuildRetouchOptions();
     }
 
     /// <summary>
@@ -160,7 +160,7 @@ internal sealed partial class ToolOptionsBar : Border
             _marqueeShape.SelectedIndex = tool == Tool.Ellipse ? 1 : 0;
             _lassoKind.SelectedIndex = tool == Tool.Polygon ? 1 : 0;
             Refresh();
-            ShowSelectionOptions(tool); ShowCropSliceOptions(tool); ShowPenOptions(tool, hasDocument);
+            ShowSelectionOptions(tool); ShowCropSliceOptions(tool); ShowPenOptions(tool, hasDocument); ShowRetouchOptions(tool);
             _shapeKind.SelectedIndex = Array.IndexOf(ShapeTools, tool);
         }
         finally
@@ -507,7 +507,7 @@ internal sealed partial class ToolOptionsBar : Border
         Cell("lasso", _antialias);
         // The eyedropper's own row, which the Mac keeps in the picker's controls: the ring is the only thing that
         // tool can be told.
-        Cell("eye", _sampleRing);
+        // Sampling controls and the ring are built together in BuildUtilityOptions.
         Cell("wand", _tolerance);
         Cell("wand", _sampleSize);
         Cell("wand", _contiguous);

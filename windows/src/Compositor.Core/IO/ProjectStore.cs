@@ -52,7 +52,9 @@ public static class ProjectStore
                 || new[] { m.Area, m.Perimeter, m.Width, m.Height, m.Length, m.Angle, m.Mean }.Any(v => !double.IsFinite(v))))
             || manifest.MeasurementFields is { } fields && (version < 18 || fields.Length > 8 || fields.Any(f => f is not ("Area" or "Perimeter" or "Width" or "Height" or "Length" or "Angle" or "Count" or "Mean"))))
             throw new ProjectException(ProjectError.Invalid);
-        if (manifest.Marks is { } marks && (version < 17 || marks.Count > 10_000 || marks.Any(m => m is null || !m.IsValid || version < 23 && m.HasSliceOptions)
+        if (manifest.CountGroups is { } groups && (version < 26 || groups.Count > 256 || groups.Any(g => g is null || !g.IsValid)
+            || groups.Select(g => g.Name).Distinct(StringComparer.Ordinal).Count() != groups.Count)) throw new ProjectException(ProjectError.Invalid);
+        if (manifest.Marks is { } marks && (version < 17 || marks.Count > 10_000 || marks.Any(m => m is null || !m.IsValid || version < 23 && m.HasSliceOptions || version < 26 && m.HasUtilityOptions)
             || marks.Select(m => m.ID).Distinct().Count() != marks.Count)) throw new ProjectException(ProjectError.Invalid);
         var channelIDs = new HashSet<Guid>();
         if (manifest.Channels?.Count > 64) throw new ProjectException(ProjectError.TooLarge);
@@ -67,6 +69,7 @@ public static class ProjectStore
         {
             if (layer.FloatImageFile is not null && (version < 18 || layer.ImageFile is null || layer.ImageFile.EndsWith(".exr", StringComparison.OrdinalIgnoreCase) || layer.FloatImageFile != Model.FloatPixels.FileName(layer.ID)))
                 throw new ProjectException(ProjectError.Invalid);
+            if (layer.FrameStyle is { } frame && (version < 26 || !frame.IsValid || layer.IsGroup != true || layer.Container != LayerContainer.Frame)) throw new ProjectException(ProjectError.Invalid);
             if ((layer.Blending is not null && (!layer.Blending.IsValid || version < 15))
                 || (layer.Effects is not null && (!layer.Effects.IsValid || version < 15 && (layer.Effects.Items is not null || !layer.Effects.Enabled)))
                 || (layer.Label is { } label && (version < 15 || !Enum.IsDefined(label)))
@@ -106,6 +109,7 @@ public static class ProjectStore
                     throw new ProjectException(ProjectError.Invalid);
                 }
                 if (adjustment.Extended is not null && version < 19) throw new ProjectException(ProjectError.Invalid);
+                if ((adjustment.NeedsVersion16 || adjustment.FilterLayerSettings is not null) && version < 16) throw new ProjectException(ProjectError.Invalid);
                 if (adjustment.NeedsVersion9 && version < 9) throw new ProjectException(ProjectError.Invalid);
             }
             if (!LayerMask.FromRecord(layer).IsValid(version, layer.IsGroup == true, layer.ID))

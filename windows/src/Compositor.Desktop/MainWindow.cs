@@ -505,6 +505,7 @@ public sealed partial class MainWindow : Window
                         new Separator(),
                         Command("_Export PNG…", ExportPng, "Export PNG"),
                         Command("Export As…", () => _ = ExportAs(), "Export As"),
+                        Command("Channel Pack…", () => _ = ExportChannelPack()),
                         Command("Export _JPEG…", () => _ = ExportJpeg(), "Export JPEG"),
                         new Separator(),
                         Command("_Close Tab", () => _ = CloseTab(_open), "Close Tab"),
@@ -529,6 +530,7 @@ public sealed partial class MainWindow : Window
                         Command("Scanlines…", () => _ = ApplyFilter(FilterKind.Scanlines)),
                         Command("_Motion Blur…", () => _ = ApplyFilter(FilterKind.MotionBlur)),
                         Command("Add _Noise…", () => _ = ApplyFilter(FilterKind.AddNoise)),
+                        Command("RGB Split…", () => _ = ApplyFilter(FilterKind.RgbSplit)),
                         Command("_Bloom / Glow…", () => _ = ApplyFilter(FilterKind.BloomGlow)),
                         Command("_Dither…", () => _ = DitherFilter()),
                         new Separator(),
@@ -924,6 +926,7 @@ public sealed partial class MainWindow : Window
         if (_artboardStart is not null && e.Key == Key.Escape) { _artboardStart = null; _artboardDraft = null; _canvas.CancelDraft(); _canvas.InvalidateOverlay(); e.Handled = true; return; }
         if (_cancelDockDrag is not null && e.Key == Key.Escape) { _cancelDockDrag(); e.Handled = true; return; }
         if (!Typing() && e.Key == Key.Escape && (_canvasOnly || _editingFullscreen)) { ExitScreenMode(); e.Handled = true; return; }
+        if (!Typing() && RemoveKey(e)) { e.Handled = true; return; }
         if (!Typing() && ProfessionalKey(e)) { e.Handled = true; return; }
         if (!Typing() && e.Key is Key.Delete or Key.Back && e.KeyModifiers == KeyModifiers.None
             && (_document?.Selection.Path is not null || _open.ActiveAlpha is not null))
@@ -2653,7 +2656,7 @@ public sealed partial class MainWindow : Window
             }
             if (_message.Length == 0) throw new InvalidOperationException($"{tool} left the status line empty");
             // The options bar shows the rows this tool can be told about, and nothing else.
-            if ((_optionsBar.Shows("brush") || _optionsBar.Shows("selectionBrushTip")) != ToolCatalog.HasRoundCursor(tool))
+            if ((_optionsBar.Shows("brush") || _optionsBar.Shows("selectionBrushTip") || _optionsBar.Shows("spotOptions") || _optionsBar.Shows("removeOptions") || _optionsBar.Shows("healingOptions")) != ToolCatalog.HasRoundCursor(tool))
             {
                 throw new InvalidOperationException($"{tool} got the brush rows wrong");
             }
@@ -2765,7 +2768,7 @@ public sealed partial class MainWindow : Window
         if (_placementTab is not null && !ReferenceEquals(tab, _open)) FinishPlacement(true);
         if (!ReferenceEquals(tab, _open))
         {
-            CancelProfessionalDraft(); FinishPen();
+            _noteEditor?.Close(); CancelProfessionalDraft(); FinishPen();
             _open.SelectedRow = _layers.SelectedIndex;
             StopPreview();
             _canvas.CancelDraft();
@@ -2782,7 +2785,7 @@ public sealed partial class MainWindow : Window
     /// <summary>The tab laid out: its document on the canvas, its layers in the panel, its folder watched.</summary>
     private void Show(Tab tab)
     {
-        _cloneSource = null; _cloneOffset = null; _canvas.CloneSource = null; _canvas.CloneOffset = null;
+        _cloneSource = CloneSourceDocument().Document is null ? null : CloneSlotState.Point; CloneSlotState.Anchor = null; _cloneOffset = null; _canvas.CloneSource = _cloneSource; _canvas.CloneOffset = null;
         _selectedMark = null; _optionsBar.ProfessionalReadout("");
         // The Camera Raw panel belongs to the tab it was opened on, so a tab coming in front lets it go: every
         // way the front tab comes to change runs through here.
@@ -3519,6 +3522,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OptionsChanged()
     {
+        ApplyUtilityOptions();
         if (_preferencesReady) SavePreferenceChanges();
         if (_preferencesReady && (EditorPreferences.Current.BrushSmoothing != _options.Brush.Smoothing || EditorPreferences.Current.SampleRing != _options.ShowsSampleRing))
         {
@@ -3539,6 +3543,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void RefreshOptionsBar()
     {
+        SyncUtilityOptions();
         SyncSelectionOptions();
         var layer = Selected is { } id && _document is { } document
             ? document.Layers.FirstOrDefault(one => one.ID == id)
@@ -4179,6 +4184,7 @@ public sealed partial class MainWindow : Window
     {
         if (_document is not { } document || Selected is not { } id) return;
         if (LayerAdjustmentEdits.Settings(document, id) is not { } settings) return;
+        if (settings.NeedsVersion16) { await EditFilterLayer(id, settings); return; }
         if (settings.Extended is { } extended) { await ExtendedImageAdjustment(extended.Kind, adjustmentLayer: true, editingLayer: id); return; }
         StartPreview(document, id);
         var asked = await AdjustmentDialog.Ask(this, settings,
@@ -5331,6 +5337,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Ctrl and Enter: the words are kept, and the whole session is one undo step.</summary>
     private void CommitText()
     {
+        _noteEditor?.Close();
         if (_text is not { } session) return;
         var typed = session.Content;
         _text = null;
@@ -5425,16 +5432,11 @@ public sealed partial class MainWindow : Window
             }
             _pickingWhiteBalance = false; _canvas.EyedropperOnClick = _tool == Tool.Eyedropper; return;
         }
-        if ((long)document.Width * document.Height > DocumentLimits.MaxSurfacePixels)
-        {
-            Say("This canvas is too big to read a color from in one piece");
-            return;
-        }
         var x = (int)Math.Floor(point.X);
         var y = (int)Math.Floor(point.Y);
         if (x < 0 || y < 0 || x >= document.Width || y >= document.Height) return;
-        using var rendered = DocumentRenderer.Render(document);
-        var colour = rendered.GetPixel(x, y);
+        var colour = ColorSampling.Read(document, Selected, point, _tool == Tool.Eyedropper ? Pro.EyeSize : 1,
+            _tool == Tool.Eyedropper ? (SampleScope)Pro.EyeScope : SampleScope.AllLayers);
         if (colour.Alpha == 0)
         {
             Say("Nothing is drawn there");
@@ -5773,23 +5775,13 @@ public sealed partial class MainWindow : Window
             return _canvas.Brush with { Mode = _tool == Tool.ArtHistory ? BrushMode.ArtHistory : BrushMode.History, History = history };
         }
         if (_tool is not (Tool.Clone or Tool.HealingBrush)) return _canvas.Brush;
-        if (_cloneSource is not { } source)
-        {
-            Say("Alt-click where the Clone Stamp should copy from first");
-            return null;
-        }
-        // A clone stroke that is not aligned takes the place it starts from as the new source, so the offset is
-        // worked out again each time; an aligned one keeps copying from where the last stroke did.
-        var offset = new SKPointI((int)Math.Round(source.X - stroke[0].X), (int)Math.Round(source.Y - stroke[0].Y));
-        _cloneOffset = _options.Brush.CloneAligned ? _cloneOffset ?? offset : offset;
-        _canvas.CloneOffset = _cloneOffset;
-        return _canvas.Brush with { CloneFrom = _cloneOffset };
+        return SampledBrushFor(stroke[0]);
     }
 
     /// <summary>Alt-clicking with the Clone Stamp: where the next stroke copies from.</summary>
     private void CloneSourceChosen(SKPoint point)
     {
-        _cloneSource = point;
+        _cloneSource = point; var slot = CloneSlotState; slot.Point = point; slot.Anchor = null; slot.Document = _document?.ID; slot.Layer = Selected; slot.Frame = _timelineFrame; _clonePreviewKey = null; RefreshUtilityPanels();
         // A new source starts a new alignment, as the Mac build's does.
         _cloneOffset = null;
         _canvas.CloneSource = point; _canvas.CloneOffset = null; _canvas.InvalidateVisual();
@@ -6039,12 +6031,14 @@ public sealed partial class MainWindow : Window
         var selectedIds = SelectedLayers.ToHashSet();
         var models = document.Layers.ToDictionary(layer => layer.ID);
         var rows = new List<ListBoxItem>();
+        var matching = document.Layers.Where(MatchesLayerFilter).Select(l => l.ID).ToHashSet();
+        if (LayerFiltering) foreach (var group in document.Layers.Where(l => l.IsGroup && matching.Contains(l.ID)).ToArray()) matching.UnionWith(document.Descendants(group.ID));
         _rows.Clear();
         // Top of the stack first, as the Mac build's panel lists it.
         foreach (var entry in document.HierarchyEntries(collapsed: !LayerFiltering ? _open.Collapsed : [], topFirst: true))
         {
             var record = entry.Layer;
-            if (!MatchesLayerFilter(models[record.ID])) continue;
+            if (!matching.Contains(record.ID)) continue;
             var notes = new List<string>();
             if (!entry.Visible) notes.Add("hidden");
             if (record.BlendMode is { } blend && blend != LayerBlendMode.Normal) notes.Add(Spell(blend));

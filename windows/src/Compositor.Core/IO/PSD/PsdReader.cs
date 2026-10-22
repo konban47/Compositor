@@ -184,6 +184,9 @@ internal static class PsdReader
 
         if (!FitsBudget(raw, remainingPixels))
         {
+            // Artboards may legitimately sit outside the global composite rectangle. Reject an
+            // over-budget import rather than silently cropping away their off-canvas contents.
+            if (raw.Any(layer => layer.Artboard is not null)) throw PsdFailure.TooLarge;
             foreach (var layer in raw) CropToCanvas(layer, canvasWidth, canvasHeight);
             if (!FitsBudget(raw, remainingPixels)) throw PsdFailure.TooLarge;
         }
@@ -235,6 +238,7 @@ internal static class PsdReader
         /// <summary>Parsed adjustment settings, when the layer's blocks map onto one.</summary>
         public LayerAdjustment? Adjustment;
         public PsdText.Source? Text;
+        public PsdRect? Artboard;
         public byte[]? VectorMask;
     }
 
@@ -322,6 +326,7 @@ internal static class PsdReader
             cursor.Skip(length);
             if (length % 2 == 1) cursor.Skip(1);
             layer.Extra[key] = (payload, length);
+            if (key is "artb" or "artd" or "abdd" && length <= 1000000) layer.Artboard = PsdText.Artboard(cursor.Block(payload, length));
             if (key is "TySh" or "tySh") layer.Text = PsdText.Read(cursor.Block(payload, length));
             if (key is "vmsk" or "vsms" && length <= 4_000_000) layer.VectorMask = cursor.Block(payload, length);
             if (key == "luni" && UnicodeName(cursor.Block(payload, length)) is { } unicode) layer.Name = unicode;
@@ -521,7 +526,7 @@ internal static class PsdReader
                 MaskEnabled = !layer.MaskDisabled,
                 MaskLinked = layer.MaskLinked,
                 Adjustment = layer.Adjustment,
-                Text = layer.Text,
+                Text = layer.Text, Artboard = isGroup ? layer.Artboard : null,
                 VectorMask = layer.VectorMask is { } vector ? PsdVectorMask.Read(vector, canvasWidth, canvasHeight) : null,
             };
             if (layer.MaskFromRender && record.VectorMask is not null) { layer.MaskImage?.Dispose(); record.Mask = null; }

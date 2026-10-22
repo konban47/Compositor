@@ -7,10 +7,21 @@ internal static class RetouchBrush
 {
     internal static bool Apply(SKBitmap image, float[] coverage, BrushSettings settings, SKMatrix toDocument, SKPoint start, IReadOnlyList<SKPoint> points, SKBitmap? source = null)
     {
-        using var original = image.Copy();
+        using var original = Model.Bitmaps.Copy(image);
         var sampled = original.GetPixel(Math.Clamp((int)start.X, 0, image.Width - 1), Math.Clamp((int)start.Y, 0, image.Height - 1));
         var foreground = new SKColor((byte)(settings.Red * 255), (byte)(settings.Green * 255), (byte)(settings.Blue * 255));
         var changed = false;
+        var radius = settings.HealingLegacy ? 3 : 1 + Math.Clamp(settings.HealingDiffusion, 1, 7) * 2;
+        NeighborhoodMean? targetMeans = null, donorMeans = null;
+        if (settings.Mode == BrushMode.HealingSample && settings.HealingBlend != HealingBlend.Replace && source is not null)
+        {
+            var left = image.Width; var top = image.Height; var right = 0; var bottom = 0;
+            for (var y = 0; y < image.Height; y++) for (var x = 0; x < image.Width; x++)
+                if (coverage[y * image.Width + x] > 0) { left = Math.Min(left, x); top = Math.Min(top, y); right = Math.Max(right, x + 1); bottom = Math.Max(bottom, y + 1); }
+            if (right <= left || bottom <= top) return false;
+            targetMeans = new NeighborhoodMean(original, new SKRectI(left, top, right, bottom), radius);
+            donorMeans = new NeighborhoodMean(source, SKRectI.Create(source.Width, source.Height), radius);
+        }
         for (var y = 0; y < image.Height; y++) for (var x = 0; x < image.Width; x++)
         {
             var amount = Math.Clamp(coverage[y * image.Width + x] * settings.Opacity, 0, 1);
@@ -20,12 +31,26 @@ internal static class RetouchBrush
             switch (settings.Mode)
             {
                 case BrushMode.HealingSample:
-                    if (source is null || settings.CloneFrom is not { } offset) return false;
-                    var sx = (int)at.X + offset.X; var sy = (int)at.Y + offset.Y;
+                    if (source is null) return false;
+                    var offset = settings.CloneFrom ?? default;
+                    var donorAt = settings.CloneMapping?.MapPoint(at) ?? at + new SKPoint(offset.X, offset.Y);
+                    var sx = (int)Math.Floor(donorAt.X) - settings.SampleOrigin.X; var sy = (int)Math.Floor(donorAt.Y) - settings.SampleOrigin.Y;
                     if (sx < 0 || sy < 0 || sx >= source.Width || sy >= source.Height) continue;
                     var donor = source.GetPixel(sx, sy); if (donor.Alpha == 0) continue;
-                    var targetMean = Mean(original, x, y); var donorMean = Mean(source, sx, sy);
-                    result = new SKColor(Byte(donor.Red + targetMean.Red - donorMean.Red), Byte(donor.Green + targetMean.Green - donorMean.Green), Byte(donor.Blue + targetMean.Blue - donorMean.Blue), Math.Max(color.Alpha, donor.Alpha)); break;
+                    var targetMean = targetMeans?.At(x, y) ?? color; var donorMean = donorMeans?.At(sx, sy) ?? donor;
+                    if (settings.HealingContentAware)
+                    {
+                        var score = Distance(targetMean, donorMean);
+                        for (var dy = -2; dy <= 2; dy += 2) for (var dx = -2; dx <= 2; dx += 2)
+                        {
+                            var nx = sx + dx; var ny = sy + dy; if (nx < 0 || ny < 0 || nx >= source.Width || ny >= source.Height) continue;
+                            var candidate = source.GetPixel(nx, ny); if (candidate.Alpha == 0) continue;
+                            var mean = donorMeans?.At(nx, ny) ?? candidate; var nextScore = Distance(targetMean, mean) + Math.Abs(dx) + Math.Abs(dy);
+                            if (nextScore < score) { score = nextScore; donor = candidate; donorMean = mean; }
+                        }
+                    }
+                    result = settings.HealingBlend == HealingBlend.Replace ? donor : new SKColor(Byte(donor.Red + targetMean.Red - donorMean.Red), Byte(donor.Green + targetMean.Green - donorMean.Green), Byte(donor.Blue + targetMean.Blue - donorMean.Blue), Math.Max(color.Alpha, donor.Alpha));
+                    result = BlendHealing(color, result, settings.HealingBlend); break;
                 case BrushMode.ColorReplacement:
                     if (Distance(color, sampled) > settings.Tolerance || color.Alpha == 0) continue;
                     color.ToHsv(out var h, out var s, out var v); foreground.ToHsv(out var fh, out var fs, out var fv);
@@ -89,21 +114,26 @@ internal static class RetouchBrush
                     result = new SKColor(Byte(gray + (color.Red - gray) * saturation), Byte(gray + (color.Green - gray) * saturation), Byte(gray + (color.Blue - gray) * saturation), color.Alpha); break;
             }
             if (result == color) continue;
-            var a1 = color.Alpha * (1 - amount); var a2 = result.Alpha * amount; var alpha = a1 + a2;
-            image.SetPixel(x, y, alpha < .5 ? SKColors.Transparent : new SKColor(Byte((color.Red * a1 + result.Red * a2) / alpha),
-                Byte((color.Green * a1 + result.Green * a2) / alpha), Byte((color.Blue * a1 + result.Blue * a2) / alpha), Byte(alpha)));
+            image.SetPixel(x, y, Mix(color, result, amount));
             changed = true;
         }
         return changed;
     }
-    private static double Distance(SKColor a, SKColor b) => Math.Max(Math.Abs(a.Red - b.Red), Math.Max(Math.Abs(a.Green - b.Green), Math.Abs(a.Blue - b.Blue)));
-    private static SKColor Mean(SKBitmap image, int x, int y)
+    internal static SKColor Mix(SKColor original, SKColor result, double amount)
     {
-        double r = 0, g = 0, b = 0, weight = 0;
-        for (var dy = -3; dy <= 3; dy++) for (var dx = -3; dx <= 3; dx++)
-        { var c = image.GetPixel(Math.Clamp(x + dx, 0, image.Width - 1), Math.Clamp(y + dy, 0, image.Height - 1)); var a = c.Alpha / 255.0; r += c.Red * a; g += c.Green * a; b += c.Blue * a; weight += a; }
-        return weight == 0 ? SKColors.Transparent : new SKColor(Byte(r / weight), Byte(g / weight), Byte(b / weight));
+        var a1 = original.Alpha * (1 - amount); var a2 = result.Alpha * amount; var alpha = a1 + a2;
+        return alpha < .5 ? SKColors.Transparent : new SKColor(Byte((original.Red * a1 + result.Red * a2) / alpha), Byte((original.Green * a1 + result.Green * a2) / alpha), Byte((original.Blue * a1 + result.Blue * a2) / alpha), Byte(alpha));
     }
+    internal static SKColor BlendHealing(SKColor backdrop, SKColor source, HealingBlend mode)
+    {
+        if (mode is HealingBlend.Normal or HealingBlend.Replace) return source;
+        var blend = mode switch { HealingBlend.Multiply => Pixels.BlendMode.Multiply, HealingBlend.Screen => Pixels.BlendMode.Screen, HealingBlend.Darken => Pixels.BlendMode.Darken, HealingBlend.Lighten => Pixels.BlendMode.Lighten, HealingBlend.Color => Pixels.BlendMode.Color, _ => Pixels.BlendMode.Luminosity };
+        Span<byte> s = stackalloc byte[] { source.Red, source.Green, source.Blue, 255 };
+        Span<byte> b = stackalloc byte[] { backdrop.Red, backdrop.Green, backdrop.Blue, 255 };
+        Span<byte> result = stackalloc byte[4]; Pixels.BlendModes.CompositePixel(blend, s, b, result);
+        return new SKColor(result[0], result[1], result[2], source.Alpha);
+    }
+    private static double Distance(SKColor a, SKColor b) => Math.Max(Math.Abs(a.Red - b.Red), Math.Max(Math.Abs(a.Green - b.Green), Math.Abs(a.Blue - b.Blue)));
     private static int Mod(int n, int d) => (n % d + d) % d;
     private static byte Byte(double n) => (byte)Math.Clamp(Math.Round(n), 0, 255);
 }

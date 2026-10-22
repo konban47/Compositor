@@ -7,6 +7,19 @@ namespace Compositor.Core.Tests;
 
 public partial class PsdImportTests
 {
+    [Fact] public void ArtboardDescriptorOpensItsOffCanvasContentsAsASeparateDocument()
+    {
+        using var descriptor = new MemoryStream(); var d = new BeWriter(descriptor); d.U32(16); d.U32(0); d.U32(0); d.Ascii("null"); d.U32(1);
+        d.U32(12); d.Ascii("artboardRect"); d.Ascii("Objc"); d.U32(0); d.U32(0); d.Ascii("Rct1"); d.U32(4);
+        foreach (var (key, value) in new[] { ("Left", 30d), ("Top ", 20d), ("Rght", 38d), ("Btom", 26d) }) { d.U32(0); d.Ascii(key); d.Ascii("doub"); d.U64(BitConverter.DoubleToInt64Bits(value)); }
+        var group = new LayerSpec { Name = "Board", Section = 1 }; group.Additional.Add(("artb", descriptor.ToArray()));
+        var image = new LayerSpec { Name = "Contents", Left = 30, Top = 20, Right = 38, Bottom = 26, ChannelIds = [0, 1, 2], Planes = [Plane(8, 6, 240), Plane(8, 6, 120), Plane(8, 6, 60)] };
+        using var file = new MemoryStream(); var w = new BeWriter(file); Header(w, 1, 3); w.U32(0); w.U32(0);
+        var section = LayerSection([new LayerSpec { Name = "End", Section = 3 }, image, group], false); w.U32(section.Length); w.Bytes(section); w.U16(0); w.Bytes(new byte[CanvasWidth * CanvasHeight * 3]);
+        var boards = PsdArtboards.Read(Write("artboards.psd", file.ToArray())); Assert.Single(boards); Assert.Equal("Board", boards[0].Name);
+        using var snapshot = boards[0].Import.Snapshot(); using var doc = snapshot.ToDocument(); Assert.Equal(8, doc.Width); Assert.Equal(6, doc.Height);
+        Assert.Single(doc.Layers); Assert.Equal(0, doc.Layers[0].Transform.X); Assert.Equal(0, doc.Layers[0].Transform.Y); Assert.Equal(240, doc.Layers[0].Asset!.Image.GetPixel(2, 2).Red);
+    }
     [Fact]
     public void TypeDescriptorImportsUnicodeAndPerCharacterFormattingAsEditableText()
     {

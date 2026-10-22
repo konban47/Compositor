@@ -34,17 +34,18 @@ public sealed class ViewportTileCache : IDisposable
         internal Lease(SKBitmap pixels, Action release) { Pixels = pixels; _release = release; }
         public void Dispose() => Interlocked.Exchange(ref _release, null)?.Invoke();
     }
-    public Lease Acquire(SKRectI region, Func<SKBitmap> render)
+    public Lease? TryAcquire(SKRectI region)
     {
         lock (_gate)
         {
-            if (_tiles.TryGetValue(region, out var found))
-            {
-                _recent.Remove(found); _recent.AddLast(found); found.Value.Retain();
-                Interlocked.Increment(ref _hits);
-                return new Lease(found.Value.Pixels, found.Value.Release);
-            }
+            if (!_tiles.TryGetValue(region, out var found)) return null;
+            _recent.Remove(found); _recent.AddLast(found); found.Value.Retain(); Interlocked.Increment(ref _hits);
+            return new Lease(found.Value.Pixels, found.Value.Release);
         }
+    }
+    public Lease Acquire(SKRectI region, Func<SKBitmap> render)
+    {
+        if (TryAcquire(region) is { } cached) return cached;
         // Rendering never holds the cache lock: replacing a revision must not block the UI.
         var pixels = render(); pixels.SetImmutable();
         var made = new Entry(region, pixels); var chosen = made;
@@ -69,6 +70,22 @@ public sealed class ViewportTileCache : IDisposable
         }
         foreach (var entry in evicted) entry.Release();
         return new Lease(chosen.Pixels, chosen.Release);
+    }
+    /// <summary>A new revision borrows only proven unchanged tiles. Workers on the old revision
+    /// cannot publish into the new one, even if cancellation races a native render.</summary>
+    public ViewportTileCache Fork(SKRectI? damaged)
+    {
+        var next = new ViewportTileCache(_limit);
+        if (damaged is null) return next;
+        lock (_gate)
+        {
+            foreach (var entry in _recent)
+            {
+                if (!damaged.Value.IsEmpty && entry.Region.IntersectsWith(damaged.Value)) continue;
+                entry.Retain(); next._tiles.Add(entry.Region, next._recent.AddLast(entry)); next._bytes += entry.Bytes;
+            }
+        }
+        return next;
     }
     public void Dispose()
     {

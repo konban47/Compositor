@@ -39,6 +39,7 @@ internal sealed class FilterDialog : DialogWindow
         _amounts = start.Copy();
         Title = Localize.Text(kind switch
         {
+            FilterKind.RgbSplit => "RGB Split",
             FilterKind.ProgressiveBlur => "Progressive Blur",
             FilterKind.Scanlines => "Scanlines",
             FilterKind.GaussianBlur => "Gaussian Blur",
@@ -58,6 +59,16 @@ internal sealed class FilterDialog : DialogWindow
         var group = new StackPanel { Margin = new Thickness(16), Spacing = 4 };
         switch (kind)
         {
+            case FilterKind.RgbSplit:
+                Height = 650;
+                Add(group, "Distance, pixels", 0, 200, start.RgbSplitDistance, 10, (s, v) => s.RgbSplitDistance = v);
+                Add(group, "Blur", 0, 400, start.RgbSplitBlur, 0, (s, v) => s.RgbSplitBlur = v);
+                Add(group, "Angle, degrees", -180, 180, start.RgbSplitAngle, 0, (s, v) => s.RgbSplitAngle = v);
+                Check(group, "Radial", start.RgbSplitRadial, (s, v) => s.RgbSplitRadial = v);
+                Add(group, "Center X (%)", -100, 200, start.RgbSplitCenterX, 50, (s, v) => s.RgbSplitCenterX = v);
+                Add(group, "Center Y (%)", -100, 200, start.RgbSplitCenterY, 50, (s, v) => s.RgbSplitCenterY = v);
+                Add(group, "Reach (px)", 1, 100000, start.RgbSplitReach, 1000, (s, v) => s.RgbSplitReach = v);
+                break;
             case FilterKind.ProgressiveBlur:
                 Height = 620;
                 Add(group, "From Radius (px)", 0, 250, start.ProgressiveFrom, 0, (s, v) => s.ProgressiveFrom = v);

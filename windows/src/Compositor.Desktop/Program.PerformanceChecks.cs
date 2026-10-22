@@ -45,7 +45,7 @@ public sealed partial class MainWindow
             }
             _canvas.RestoreViewport(viewport);
             var result = new { Success = true, InputBytes = Directory.Exists(path) ? Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories).Sum(p => new FileInfo(p).Length) : new FileInfo(path).Length, document.Width, document.Height,
-                Layers = document.Layers.Count, ImportMs = importMs, FirstFrameMs = firstFrameMs,
+                Layers = document.Layers.Count, ImportMs = importMs, FirstFrameMs = firstFrameMs, FirstRenderWorkMs = first.WorkMs,
                 Gpu = first.Gpu, _canvas.AcceleratedScene, _canvas.SceneBuildCount,
                 MetricStage = _canvas.AcceleratedScene ? "scene-draw-submission" : "cpu-composite-including-queue",
                 Frames = frames.Count, MedianFrameMs = frames.Order().ElementAt(frames.Count / 2),

@@ -58,11 +58,11 @@ try {
     [IO.File]::WriteAllText((Join-Path $env:COMPOSITOR_SETTINGS_DIR 'preferences.json'), '{"UseGpu":false,"AcceleratedCanvas":false}')
     Run-Check 'complex-viewport' $dotnetExe @($probe, 'viewport-cache', '1600')
     $viewport = Get-Content (Join-Path $out 'complex-viewport.log') -Raw | ConvertFrom-Json
-    if (!$viewport.PixelsEqual -or $viewport.ProcessorCount -ne 2 -or ($Scalar -and $viewport.Simd)) { throw 'Resource profile or pixel parity not applied.' }
-    Run-Check 'core-safety' $dotnetExe @('test', (Join-Path $repo 'windows/tests/Compositor.Core.Tests'), '-c', 'Release', '--no-build', '--filter', 'FullyQualifiedName~ViewportCacheTests|FullyQualifiedName~Upstream155Tests|FullyQualifiedName~PerformanceSafetyTests|FullyQualifiedName~PerformanceResourceTests')
+    if (!$viewport.PixelsEqual -or !$viewport.EditedPixelsEqual -or $viewport.EditTileHits -le 0 -or $viewport.ProcessorCount -ne 2 -or ($Scalar -and $viewport.Simd)) { throw 'Resource profile or pixel parity not applied.' }
+    Run-Check 'core-safety' $dotnetExe @('test', (Join-Path $repo 'windows/tests/Compositor.Core.Tests'), '-c', 'Release', '--no-build', '--filter', 'FullyQualifiedName~ViewportCacheTests|FullyQualifiedName~Upstream155Tests|FullyQualifiedName~AdvancedRepairTests|FullyQualifiedName~UtilityRetouchTests|FullyQualifiedName~PerformanceSafetyTests|FullyQualifiedName~PerformanceResourceTests')
     foreach ($language in @('en','zh-CN')) {
         $env:COMPOSITOR_LANGUAGE = $language
-        foreach ($check in @('windows-checks','interaction-checks','pen-layer-checks')) {
+        foreach ($check in @('windows-checks','interaction-checks','pen-layer-checks','utility-retouch-checks')) {
             $arguments = @("--$check", (Join-Path $out "$language-$check.png"))
             if ($App) { Run-Check "$language-$check" (Resolve-Path $App).Path $arguments }
             else { Run-Check "$language-$check" $dotnetExe (@($dll) + $arguments) }

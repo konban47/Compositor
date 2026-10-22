@@ -90,7 +90,7 @@ public static class LayerPlacement
         var layer = new ImageLayer(Guid.NewGuid(), null, WholeCanvas(document), FreeName(document, Name(kind)))
         {
             ParentID = active is { IsGroup: true } ? active.ID : active?.ParentID,
-            Adjustment = new LayerAdjustment { Kind = kind },
+            Adjustment = new LayerAdjustment { Kind = kind, FilterLayerSettings = kind is AdjustmentKind.ProgressiveBlur or AdjustmentKind.BloomGlow or AdjustmentKind.RgbSplit ? FilterLayerSettings.From(new FilterSettings { RgbSplitReach = double.Hypot(document.Width, document.Height) / 2 }, document.Width, document.Height) : null },
         };
         document.Layers.Insert(Above(document, active), layer);
         return layer.ID;
@@ -99,6 +99,7 @@ public static class LayerPlacement
     /// <summary>What that kind of adjustment layer is called, as the Filter and Image menus name it.</summary>
     public static string Name(AdjustmentKind kind) => kind switch
     {
+        AdjustmentKind.ProgressiveBlur => "Progressive Blur", AdjustmentKind.BloomGlow => "Bloom / Glow", AdjustmentKind.RgbSplit => "RGB Split",
         AdjustmentKind.HueSaturation => "Hue/Saturation",
         AdjustmentKind.Levels => "Levels",
         AdjustmentKind.Curves => "Curves",

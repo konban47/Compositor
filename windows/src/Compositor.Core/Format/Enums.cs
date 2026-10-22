@@ -54,6 +54,9 @@ public enum AdjustmentKind
     [JsonStringEnumMemberName("Black & White")] BlackWhite,
     [JsonStringEnumMemberName("Color Balance")] ColorBalance,
     Extended,
+    [JsonStringEnumMemberName("Progressive Blur")] ProgressiveBlur,
+    [JsonStringEnumMemberName("Bloom / Glow")] BloomGlow,
+    [JsonStringEnumMemberName("RGB Split")] RgbSplit,
 }
 
 public enum LevelsChannel

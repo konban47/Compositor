@@ -90,3 +90,31 @@ dotnet test windows/tests/Compositor.Core.Tests -c Release --filter 'FullyQualif
 原始数据：[普通复杂视口](benchmarks/2026-10-22-viewport-cache.json)、[512 MiB 标量视口](benchmarks/2026-10-22-viewport-512-scalar.json)、[单层 PSD 窗口](benchmarks/2026-10-22-native-cpu-cached.json)、[512 MiB 窗口](benchmarks/2026-10-22-native-complex-512.json)、[1024 MiB 窗口](benchmarks/2026-10-22-native-complex-1024.json)、[512 MiB 验证清单](benchmarks/2026-10-22-compatibility-512.json)、[1024 MiB 验证清单](benchmarks/2026-10-22-compatibility-1024.json)、[完整性能门禁](benchmarks/2026-10-22-followup-performance.json)。
 
 Windows 10、真实低端 CPU/4 GiB RAM、核显驱动及数位板没有实测结论。`DOTNET_EnableHWIntrinsic=0` 不会关闭原生库 SIMD；`COMPOSITOR_MEMORY_MB` 不是操作系统内存硬限制。用户确认暂无 Win10 环境，已交付 [可复现验证脚本与人工验收表](COMPATIBILITY.md)，并在 CI 加入资源模拟门禁。后续优先测量冷缓存/编辑后重算，再考虑多级分辨率缓存与 GPU 滤镜；必须保持像素、取消、保存及预算约束。
+
+## 1.5.5.1：首帧回退修复与编辑后缓存继承
+
+2026-10-23，同一 Windows 11 主机、Release 构建。普通预算的复杂视口和 12 MP PSD 各启动三个独立进程串行测试；表中为三次中位数。首帧从性能检查开始导入至首个回调，包含导入、窗口更新与排队，不是进程启动总耗时。
+
+| 场景 | 本轮前 | 本轮后 |
+| --- | ---: | ---: |
+| 原 13 层、4000×3000 场景冷缓存 | 1875.76 ms | 1189.35 ms，约减少 37% |
+| 同场景暖缓存合成 | 8.47 ms | 5.24 ms；仍为精确图块 |
+| 额外加入 48×48 小图层后移动 16 px | 同帧完整重算 1178.93 ms | 86.16 ms；复用 11 块，仅重算 1 块 |
+| 12 MP PSD 原生 CPU，导入至首帧 | 上一版 1077.73 ms | 606.07 ms，三次范围 605.92–627.35 ms；约减少 44% |
+| 同 PSD 首帧合成工作 | 本轮诊断前约 230 ms | 76.89 ms |
+| 同 PSD 60 次窗口回调中位 / P95 | 55.60 / 72.72 ms | 56.01 / 73.17 ms，稳态近似不变 |
+| 同 PSD 暖缓存工作 / 峰值工作集 | 8.46 ms / 302 MiB | 8.11 ms / 301–302 MiB |
+| 1600×1200，两核 / 512 MiB / 托管 SIMD 关闭，冷 / 暖 | 1783.12 / 8.54 ms | 1111.84 / 4.98 ms |
+| 上述低资源编辑重算 / 完整参考 | — | 139.91 / 1001.22 ms；像素一致 |
+| 上述低资源原生软件窗口首帧 | 4796.33 ms | 3748.72 ms；60 帧，GPU=false |
+| 两核 / 1024 MiB / SIMD，冷 / 暖 / 编辑 | — | 676.69 / 4.95 / 101.86 ms；完整参考 651.84 ms |
+
+普通基准仍保存原 13 层样本并执行原来的 8 组视口；编辑探针在其后独立预热带小图层的缓存，避免通过改动场景制造首帧收益。所有缓存/无缓存以及编辑后的输出逐字节相同。普通探针缓存 12 MiB，低资源缓存 7.32 MiB。新探针峰值约 123 MiB / 115–117 MiB，包含额外编辑基准的缓存与快照；不是旧探针完全相同的内存负载。1024 px 冷批次也增加短时工作缓冲，受总预算约束。
+
+主要改变是减少重复 Windows 进程内存统计、冷图块批处理与普通图层/调整层的中间表面，以及编辑版本继承安全图块。复杂组、效果、蒙版依赖或滤镜参数修改仍可能全算；没有实现磁盘换页、多级纹理金字塔或新的 GPU 滤镜。窗口回调约 56 ms，不能据暖缓存合成 5–8 ms 声称稳定 60 fps。
+
+修复画笔的扩散均值改为滑动累计，在颜色与透明度加权、边缘钳制相同的前提下降低重复运算；三档半径与逐像素参考均值对照通过。仿制源后台预览持有像素租约，源关闭/历史清理不能提前释放工作中的位图。笔刷及区域渲染的失败路径释放未提交的结果，不改变源资源。
+
+原始证据：[本轮前复杂视口](benchmarks/2026-10-23-viewport-before.json)；[视口 1](benchmarks/2026-10-23-retouch-viewport-1.json)、[2](benchmarks/2026-10-23-retouch-viewport-2.json)、[3](benchmarks/2026-10-23-retouch-viewport-3.json)；[PSD 窗口 1](benchmarks/2026-10-23-retouch-native-1.json)、[2](benchmarks/2026-10-23-retouch-native-2.json)、[3](benchmarks/2026-10-23-retouch-native-3.json)；[512 MiB 视口](benchmarks/2026-10-23-scalar512-complex-viewport.json)、[窗口](benchmarks/2026-10-23-scalar512-native-cpu.json)、[验证清单](benchmarks/2026-10-23-scalar512-summary.json)；[1024 MiB 视口](benchmarks/2026-10-23-simd1024-complex-viewport.json)。
+
+最终本机验证：Release 零警告构建；1260 项核心测试通过、零跳过（含大画布压力）；24 组英文 / 18 组中文 UI 通过；完整合成性能/分配/原子导出门禁通过。旧工具栏与“切换文档清源”的两项检查已更新为专用工具栏和五槽跨文档来源检查，不删除相应交互验证。最后的修饰位图预算修正后，又运行全量核心以及两核/512 MiB/无托管 SIMD 的中英修饰流程。记录：[验证清单](benchmarks/2026-10-23-validation.json)、[性能门禁](benchmarks/2026-10-23-performance-gates.json)。便携/安装包由 `package.ps1` 构建；本机已有安装实例，安装/卸载由干净 CI 验证，结果以对应提交的工作流为准。

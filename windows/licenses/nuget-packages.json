@@ -403,6 +403,84 @@
     }
   },
   {
+    "package": "bblanchon.PDFium.Linux",
+    "version": "152.0.7961",
+    "authors": {
+      "text": "Benoît Blanchon"
+    },
+    "license": {
+      "type": "expression",
+      "text": "Apache-2.0"
+    },
+    "licenseUrl": {
+      "text": "https://licenses.nuget.org/Apache-2.0"
+    },
+    "projectUrl": {
+      "text": "https://github.com/bblanchon/pdfium-binaries"
+    },
+    "copyright": {
+      "text": "Copyright © Benoît Blanchon 2017-2025"
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/bblanchon/pdfium-binaries.git",
+      "branch": "master",
+      "commit": "c6529b58791d142002f819beb46e370e668797d7"
+    }
+  },
+  {
+    "package": "bblanchon.PDFium.macOS",
+    "version": "152.0.7961",
+    "authors": {
+      "text": "Benoît Blanchon"
+    },
+    "license": {
+      "type": "expression",
+      "text": "Apache-2.0"
+    },
+    "licenseUrl": {
+      "text": "https://licenses.nuget.org/Apache-2.0"
+    },
+    "projectUrl": {
+      "text": "https://github.com/bblanchon/pdfium-binaries"
+    },
+    "copyright": {
+      "text": "Copyright © Benoît Blanchon 2017-2025"
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/bblanchon/pdfium-binaries.git",
+      "branch": "master",
+      "commit": "c6529b58791d142002f819beb46e370e668797d7"
+    }
+  },
+  {
+    "package": "bblanchon.PDFium.Win32",
+    "version": "152.0.7961",
+    "authors": {
+      "text": "Benoît Blanchon"
+    },
+    "license": {
+      "type": "expression",
+      "text": "Apache-2.0"
+    },
+    "licenseUrl": {
+      "text": "https://licenses.nuget.org/Apache-2.0"
+    },
+    "projectUrl": {
+      "text": "https://github.com/bblanchon/pdfium-binaries"
+    },
+    "copyright": {
+      "text": "Copyright © Benoît Blanchon 2017-2025"
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/bblanchon/pdfium-binaries.git",
+      "branch": "master",
+      "commit": "c6529b58791d142002f819beb46e370e668797d7"
+    }
+  },
+  {
     "package": "BitMiracle.LibTiff.NET",
     "version": "2.4.660",
     "authors": {
@@ -703,6 +781,28 @@
       "url": "https://github.com/microsoft/onnxruntime",
       "commit": "f2c39fe2f838cf35ce7da92824f5a5e3ee6e88a7",
       "text": ""
+    }
+  },
+  {
+    "package": "PDFtoImage",
+    "version": "5.4.0",
+    "authors": {
+      "text": "David Sungaila"
+    },
+    "license": {
+      "type": "expression",
+      "text": "MIT"
+    },
+    "licenseUrl": {
+      "text": "https://licenses.nuget.org/MIT"
+    },
+    "projectUrl": {
+      "text": "https://github.com/sungaila/PDFtoImage"
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/sungaila/PDFtoImage.git",
+      "commit": "5948628cb2cf7d070c7fd28b1b4496db39e3afcd"
     }
   },
   {

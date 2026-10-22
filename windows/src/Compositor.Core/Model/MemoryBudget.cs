@@ -9,19 +9,21 @@ public sealed class MemoryBudget
     private readonly object _gate = new();
     private readonly Func<long> _committed;
     private long _reserved;
+    private readonly bool _cacheMeasurements;
+    private long _measured, _charged, _measuredAt;
     private static readonly AsyncLocal<MemoryBudget?> Override = new();
     public static MemoryBudget Shared { get; } = new(DefaultLimit(), () =>
     {
         using var process = Process.GetCurrentProcess();
         return process.PrivateMemorySize64;
-    });
+    }, cacheMeasurements: true);
     public static MemoryBudget Current => Override.Value ?? Shared;
     public long Limit { get; }
     public long ReservedBytes { get { lock (_gate) return _reserved; } }
-    public MemoryBudget(long limit, Func<long> committed)
+    public MemoryBudget(long limit, Func<long> committed, bool cacheMeasurements = false)
     {
         if (limit <= 0) throw new ArgumentOutOfRangeException(nameof(limit));
-        Limit = limit; _committed = committed;
+        Limit = limit; _committed = committed; _cacheMeasurements = cacheMeasurements;
     }
     private static long DefaultLimit()
     {
@@ -39,14 +41,22 @@ public sealed class MemoryBudget
     {
         lock (_gate)
         {
-            if (bytes < 0 || bytes > Limit - Math.Max(0, _committed()) - _reserved)
+            // Windows process accounting is expensive enough to dominate small tile allocations.
+            // Between samples, charge every completed reservation in full; this is conservative
+            // even when that reservation was only an estimate or its allocation was freed.
+            var now = Stopwatch.GetTimestamp();
+            if (!_cacheMeasurements || _measuredAt == 0 || Stopwatch.GetElapsedTime(_measuredAt, now).TotalMilliseconds >= 16)
+            { _measured = Math.Max(0, _committed()); _charged = 0; _measuredAt = now; }
+            if (_cacheMeasurements && bytes >= 0 && bytes > Limit - _measured - _charged - _reserved)
+            { _measured = Math.Max(0, _committed()); _charged = 0; _measuredAt = now; }
+            if (bytes < 0 || bytes > Limit - _measured - _charged - _reserved)
                 throw new OutOfMemoryException("The operation exceeds Compositor's memory budget. Close other documents or reduce the image size.");
         }
     }
     public IDisposable Reserve(long bytes)
     {
         lock (_gate) { Check(bytes); _reserved = checked(_reserved + bytes); }
-        return new Release(() => { lock (_gate) _reserved -= bytes; });
+        return new Release(() => { lock (_gate) { _reserved -= bytes; if (_cacheMeasurements) _charged += Math.Min(bytes, Limit - _charged); } });
     }
     public static T[] Allocate<T>(int count) where T : unmanaged
     {

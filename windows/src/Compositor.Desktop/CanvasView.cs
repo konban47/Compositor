@@ -409,7 +409,7 @@ public sealed partial class CanvasView : Control
         Focusable = true;
         _antsTimer.Tick += (_, _) => AdvanceAnts();
         AttachedToVisualTree += (_, _) => _antsTimer.Start();
-        DetachedFromVisualTree += (_, _) => { _cpuVersion++; _cpuCancellation?.Cancel(); _navigatorCancellation?.Cancel(); _cpuTiles?.Dispose(); _cpuTiles = null; _antsTimer.Stop(); _caretBlink.Stop(); _composite?.Dispose(); _composite = null; _navigatorImage?.Dispose(); _navigatorImage = null; ReleaseDisplayScene(); };
+        DetachedFromVisualTree += (_, _) => { _cpuVersion++; _cpuCancellation?.Cancel(); _navigatorCancellation?.Cancel(); _cpuTiles?.Dispose(); _cpuTiles = null; _cpuTileDocument?.Dispose(); _cpuTileDocument = null; _antsTimer.Stop(); _caretBlink.Stop(); _composite?.Dispose(); _composite = null; _navigatorImage?.Dispose(); _navigatorImage = null; ReleaseDisplayScene(); };
         _caretBlink.Tick += (_, _) =>
         {
             _caretOn = !_caretOn;
@@ -749,6 +749,7 @@ public sealed partial class CanvasView : Control
     /// pixel through the region renderer rather than of the whole picture, so a drag can sample as fast as the
     /// pointer moves; it is the same route the canvas's own drawing takes, so what the ring names is drawn.
     /// </summary>
+    internal Func<SKPoint, SKColor>? SampleColor;
     private void Sample()
     {
         var point = ToDocument(_sampleAt);
@@ -758,11 +759,11 @@ public sealed partial class CanvasView : Control
         if ((PreviewDocument ?? _document) is { } document
             && x >= 0 && y >= 0 && x < document.Width && y < document.Height)
         {
-            using var one = DocumentRenderer.RenderRegion(document, SKRectI.Create(x, y, 1, 1));
-            sampled = one.GetPixel(0, 0);
+            if (SampleColor is not null) sampled = SampleColor(point);
+            else { using var one = DocumentRenderer.RenderRegion(document, SKRectI.Create(x, y, 1, 1)); sampled = one.GetPixel(0, 0); }
         }
         _sampleRing = ShowsSampleRing ? (_sampleOriginal, sampled) : null;
-        InvalidateVisual();
+        InvalidateOverlay();
     }
 
     /// <summary>

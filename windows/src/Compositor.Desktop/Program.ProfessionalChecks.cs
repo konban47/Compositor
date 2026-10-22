@@ -64,11 +64,11 @@ public sealed partial class MainWindow
         SetTool(Tool.ColorSampler); Click(new(200, 100)); Check(doc.Marks.Any(m => m.Kind == MarkKind.Sampler), "Color sampler failed");
         SetTool(Tool.Ruler); Drag(new(10, 200), new(110, 200)); Check(doc.Marks.Single(m => m.Kind == MarkKind.Measure).Width == 100, "Ruler failed");
         SetTool(Tool.Note); Click(new(150, 80)); Pump();
-        var noteDialog = OwnedWindows.OfType<MarkDialog>().Single();
+        var noteDialog = OwnedWindows.OfType<NoteEditorWindow>().Single();
         noteDialog.GetVisualDescendants().OfType<TextBox>().Single(t => t.AcceptsReturn).Text = "中文注释";
         noteDialog.GetVisualDescendants().OfType<Button>().Single(b => b.IsDefault).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
         Check(doc.Marks.Single(m => m.Kind == MarkKind.Note).Text == "中文注释", "Note dialog did not save text");
-        var snapshot = ProjectSnapshot.FromDocument(doc); ProjectStore.Validate(snapshot.Manifest); Check(snapshot.Manifest.Version == 17 && snapshot.Manifest.Marks!.Count == 6, "Annotations not serializable");
+        var snapshot = ProjectSnapshot.FromDocument(doc); ProjectStore.Validate(snapshot.Manifest); Check(snapshot.Manifest.Version == 26 && snapshot.Manifest.Marks!.Count == 6, "Annotations not serializable");
         Save("annotations"); SetTool(Tool.PerspectiveCrop); Drag(new(10, 10), new(300, 220)); Check(_perspectiveQuad is not null, "No perspective quad");
         Drag(new(10, 10), new(20, 20)); Save("perspective"); Key(Avalonia.Input.Key.Enter); Check(_document!.Width < 320 && _perspectiveQuad is null, "Perspective crop did not apply"); Undo(); doc = _document!;
         SetTool(Tool.Frame); Drag(new(20, 20), new(100, 100)); Check(PropertyLayer?.Container == LayerContainer.Frame, "Frame tool did not create frame");
@@ -80,6 +80,12 @@ public sealed partial class MainWindow
             Check(label.Bounds.Height + .5 >= label.TextLayout.Height, "Clipped shortcut label: " + label.Text);
         using (var image = shortcuts.CaptureRenderedFrame()) image!.Save(Path.ChangeExtension(output, "shortcuts.png"), new PngBitmapEncoderOptions()); shortcuts.Close();
         var dialog = new ToolbarDialog(ToolCatalog.Defaults()); dialog.Show(this); Pump(); using (var image = dialog.CaptureRenderedFrame()) image!.Save(Path.ChangeExtension(output, "toolbar.png"), new PngBitmapEncoderOptions()); dialog.Close();
-        AdoptImported(LayerPlacement.NewDocument(120, 120)!, "New"); Check(_cloneSource is null && _canvas.CloneSource is null, "Clone source leaked across documents");
+        var sourceBefore = CloneSourceDocument(); var pointBefore = _cloneSource;
+        AdoptImported(LayerPlacement.NewDocument(120, 120)!, "New"); SetTool(Tool.Clone); Pump();
+        var settings = SampledBrushFor(new SKPoint(30, 30));
+        Check(settings is not null && pointBefore is not null && _cloneSource == pointBefore && _canvas.CloneSource == pointBefore && settings.CloneDocument == sourceBefore.Document && settings.CloneLayerID == sourceBefore.Layer,
+            "Cross-document clone did not retain the selected source");
+        var sourceTab = _tabs.Single(t => t.Document == sourceBefore.Document); _tabs.Remove(sourceTab);
+        Check(SampledBrushFor(new SKPoint(30, 30)) is null, "Unavailable clone source silently sampled the destination"); _tabs.Add(sourceTab);
     }
 }

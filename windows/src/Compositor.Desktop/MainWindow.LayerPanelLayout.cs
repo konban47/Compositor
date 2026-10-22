@@ -29,7 +29,7 @@ public sealed partial class MainWindow
     {
         var row = new Grid { ColumnDefinitions = new("94,*,24"), Margin = new Thickness(6, 4), Tag = "layer-filter-row" };
         _layerKind.Width = double.NaN; _layerKind.MinWidth = 0; _layerKind.Height = 26; _layerKind.Padding = new Thickness(5, 1); _layerKind.CornerRadius = new CornerRadius(3);
-        foreach (var name in new[] { "Kind", "Pixels", "Adjustment", "Text", "Shape", "Groups", "Locked", "Name", "Smart Objects" }) _layerKind.Items.Add(Localize.Text(name));
+        foreach (var name in new[] { "Kind", "Pixels", "Adjustment", "Text", "Shape", "Groups", "Locked", "Name", "Smart Objects", "Selected Layers" }) _layerKind.Items.Add(Localize.Text(name));
         _layerKind.SelectedIndex = 0; row.Children.Add(_layerKind);
         var filterArea = new Grid { Margin = new Thickness(4, 0) }; Grid.SetColumn(filterArea, 1); row.Children.Add(filterArea);
         var icons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };

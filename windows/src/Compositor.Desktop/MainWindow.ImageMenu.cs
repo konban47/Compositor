@@ -44,6 +44,7 @@ public sealed partial class MainWindow
             foreach (var pair in depthRows) { pair.Value.IsChecked = _document?.Image.Depth == pair.Key; pair.Value.IsEnabled = _document is { } d && (pair.Key == 8 || d.Image.Mode is not (ImageMode.Bitmap or ImageMode.Indexed or ImageMode.Duotone)); }
         };
         menu.Items.Add(modes);
+        menu.Items.Add(Command("Split Channels", SplitChannels));
         var adjustments = new MenuItem { Header = Localize.Text("Adjustments") };
         void Existing(string title, AdjustmentKind kind, string? key = null) => adjustments.Items.Add(Command(title, () => _ = ImageAdjustment(kind), key));
         void Added(ImageAdjustmentKind kind, bool immediate = false, string? key = null) => adjustments.Items.Add(Command(ImageAdjustmentTitle(kind) + (immediate ? "" : "…"), () => _ = ExtendedImageAdjustment(kind, immediate), key));

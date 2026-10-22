@@ -3,14 +3,22 @@ using SkiaSharp;
 
 namespace Compositor.Core.Document;
 
-public static class RepairEdits
+public static partial class RepairEdits
 {
-    public static bool Patch(CanvasDocument doc, Guid id, SKPoint offset, bool heal, bool allLayers = false)
+    public static bool Patch(CanvasDocument doc, Guid id, SKPoint offset, bool heal, bool allLayers = false, bool transparent = false, bool contentAware = false, int diffusion = 5, SKBitmap? pattern = null)
     {
         if (!LayerProtection.CanPaint(doc, id) || doc.Selection.Path is not { IsEmpty: false }) return false;
         var box = doc.Selection.CoverageRect(doc.Width, doc.Height);
-        return BrushEdits.Paint(doc, id, [new SKPoint(box.MidX, box.MidY)], new BrushSettings(Diameter: Math.Sqrt((double)box.Width * box.Width + (double)box.Height * box.Height) + 4, Hardness: 1,
-            Mode: heal ? BrushMode.HealingSample : BrushMode.Clone, CloneFrom: new SKPointI((int)offset.X, (int)offset.Y), CloneAllLayers: allLayers));
+        var layer = doc.Layers.Single(l => l.ID == id); var original = layer.Asset;
+        var changed = BrushEdits.Paint(doc, id, [new SKPoint(box.MidX, box.MidY)], new BrushSettings(Diameter: Math.Sqrt((double)box.Width * box.Width + (double)box.Height * box.Height) + 4, Hardness: 1,
+            Mode: heal ? BrushMode.HealingSample : BrushMode.Clone, CloneFrom: new SKPointI((int)offset.X, (int)offset.Y), CloneAllLayers: allLayers,
+            HealingContentAware: contentAware, HealingDiffusion: diffusion, HealingLegacy: !contentAware && diffusion == 1, HealingPattern: pattern is not null, Pattern: pattern));
+        if (changed && transparent && original is not null && layer.Asset is { } output)
+        {
+            var before = original.Image.GetPixelSpan(); var after = output.Image.GetPixelSpan();
+            for (var y = 0; y < output.Height; y++) for (var x = 0; x < output.Width; x++) after[y * output.Image.RowBytes + x * 4 + 3] = before[y * original.Image.RowBytes + x * 4 + 3];
+        }
+        return changed;
     }
     public static bool MoveContent(CanvasDocument doc, Guid id, int dx, int dy, bool extend)
     {
@@ -34,7 +42,7 @@ public static class RepairEdits
             var c = output.GetPixel(x, y); if (c.Red < Math.Max(c.Green, c.Blue) * 1.3 || c.Red < 40) continue;
             var amount = FillEdits.Amount(coverage, region, at); if (amount <= 0) continue;
             var gray = (c.Green + c.Blue) / 2.0 * (1 - Math.Clamp(darken, 0, 1) * .7);
-            output.SetPixel(x, y, new SKColor((byte)(c.Red * (1 - amount) + gray * amount), c.Green, c.Blue, c.Alpha)); changed = true;
+            output.SetPixel(x, y, new SKColor((byte)(c.Red * (1 - amount) + gray * amount), (byte)(c.Green * (1 - amount) + gray * amount), (byte)(c.Blue * (1 - amount) + gray * amount), c.Alpha)); changed = true;
         }
         if (!changed) { output.Dispose(); return false; } layer.Asset = ImportedImage.Create(output, asset.Name); return true;
     }

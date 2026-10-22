@@ -37,6 +37,9 @@ internal sealed class EditorIcon(string kind) : Control
     private const string Eye = "M2,12 Q12,0 22,12 Q12,24 2,12 Z M15,12 A3,3 0 1 1 9,12 A3,3 0 1 1 15,12";
     private static readonly Dictionary<string, string> Paths = new(StringComparer.Ordinal)
     {
+        ["image"] = "M3,4 L21,4 L21,20 L3,20 Z M3,17 L9,10 L13,14 L16,11 L21,17 M16,7 A1,1 0 1 1 14,7 A1,1 0 1 1 16,7",
+        ["pressure"] = "M21,12 A9,9 0 1 1 12,3 M17,12 A5,5 0 1 1 12,7 M11,13 L13,8 L21,0 L24,3 L16,11 Z",
+        ["undo"] = "M3,10 L3,3 M3,10 L10,10 M3,10 C8,0 23,5 21,15 C20,20 15,22 9,20",
         ["swap"] = "M3,7 L21,7 L17,3 M21,7 L17,11 M21,17 L3,17 L7,13 M3,17 L7,21",
         ["chevron"] = "M6,9 L12,15 L18,9", ["reset"] = "M4,10 A8,8 0 1 1 6,19 M4,3 L4,10 L11,10",
         ["grid"] = "M4,4 L20,4 L20,20 L4,20 Z M9,2 L9,22 M15,2 L15,22 M2,9 L22,9 M2,15 L22,15",

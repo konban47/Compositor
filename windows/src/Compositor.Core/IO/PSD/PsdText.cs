@@ -11,6 +11,14 @@ internal static class PsdText
 {
     internal sealed record Source(LayerTextStyle Style, double X, double Y, double Rotation, bool FlipY, bool Frame, List<string> Notes);
 
+    internal static PsdRect? Artboard(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length > 1000000) return null;
+        try { var reader = new Descriptor(bytes); var rect = Rect(reader.Read(), "artboardRect");
+            if (rect is not { Width: >= 1, Height: >= 1 } r || r.Width > DocumentLimits.MaxSide || r.Height > DocumentLimits.MaxSide || Math.Abs(r.Left) > 1000000 || Math.Abs(r.Top) > 1000000) return null;
+            var bounds = SKRectI.Ceiling(r); return new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom); }
+        catch (Exception error) when (error is InvalidDataException or ImportException or OverflowException) { return null; }
+    }
     public static Source? Read(ReadOnlySpan<byte> bytes)
     {
         if (bytes.Length is < 60 or > 8_000_000) return null;

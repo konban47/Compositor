@@ -13,7 +13,8 @@ public static class DocumentMarks
         {
             var mark = doc.Marks[i]; var a = matrix.MapPoint((float)mark.X, (float)mark.Y);
             var b = matrix.MapPoint((float)(mark.X + mark.Width), (float)(mark.Y + mark.Height));
-            var next = mark with { X = a.X, Y = a.Y, Width = b.X - a.X, Height = b.Y - a.Y };
+            var second = mark.SecondX is { } sx && mark.SecondY is { } sy ? matrix.MapPoint((float)sx, (float)sy) : (SKPoint?)null;
+            var next = mark with { X = a.X, Y = a.Y, Width = b.X - a.X, Height = b.Y - a.Y, SecondX = second?.X, SecondY = second?.Y };
             if (mark.Kind == MarkKind.Slice)
             {
                 var corners = new[] { a, b, matrix.MapPoint((float)mark.X, (float)(mark.Y + mark.Height)), matrix.MapPoint((float)(mark.X + mark.Width), (float)mark.Y) };

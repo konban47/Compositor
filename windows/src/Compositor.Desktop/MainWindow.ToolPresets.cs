@@ -27,9 +27,9 @@ public sealed partial class MainWindow
         if (_tool == Tool.MagneticLasso) { p.MagneticWidth = 12; p.MagneticContrast = 20; p.MagneticFrequency = 4; }
         if (_tool == Tool.PerspectiveCrop) p.CropWidth = p.CropHeight = 0;
         if (_tool == Tool.Frame) p.EllipseFrame = false;
-        if (_tool == Tool.ContentMove) p.ExtendMove = false;
-        if (_tool == Tool.Patch) p.PatchDestination = false;
-        if (_tool == Tool.RedEye) { p.Pupil = .8; p.Darken = .5; }
+        if (_tool == Tool.ContentMove) { p.ExtendMove = false; p.MoveAllLayers = false; p.MoveTransform = true; p.MoveStructure = 4; p.MoveColor = 0; }
+        if (_tool == Tool.Patch) { p.PatchDestination = p.PatchContentAware = p.PatchTransparent = false; p.PatchDiffusion = 5; }
+        if (_tool == Tool.RedEye) { p.Pupil = .5; p.Darken = .5; }
         if (_tool == Tool.Count) p.CountGroup = "1";
         if (_tool is Tool.SelectionBrush or Tool.QuickSelection) p.SelectionMode = Compositor.Core.Document.SelectionPaintMode.Add;
         preset.Professional = ToolPresetState.CaptureProfessional(p); ApplyToolPreset(preset); _optionsBar.RefreshProfessional();

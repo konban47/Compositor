@@ -170,7 +170,7 @@ public sealed partial class MainWindow
         {
             1 => !layer.IsGroup && layer.LiveText is null && layer.LiveShape is null && layer.Adjustment is null && layer.SmartObject is null,
             2 => layer.Adjustment is not null, 3 => layer.LiveText is not null, 4 => layer.LiveShape is not null,
-            5 => layer.IsGroup, 6 => layer.Locks != LayerLocks.None, 8 => layer.SmartObject is not null, _ => true,
+            5 => layer.IsGroup, 6 => layer.Locks != LayerLocks.None, 8 => layer.SmartObject is not null, 9 => SelectedLayers.Contains(layer.ID), _ => true,
         };
         return _layerFilterKinds.Count > 0 ? _layerFilterKinds.Any(Kind) : Kind(_layerKind.SelectedIndex);
     }

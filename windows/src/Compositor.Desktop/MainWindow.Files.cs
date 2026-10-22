@@ -93,15 +93,16 @@ public sealed partial class MainWindow
             if (Path.GetFileName(path).Equals("manifest.json", StringComparison.OrdinalIgnoreCase))
             { Open(Path.GetDirectoryName(path)!); return; }
             var extension = Path.GetExtension(path);
+            if (extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase)) { await OpenPdf(path); return; }
             if (extension.Equals(".psd", StringComparison.OrdinalIgnoreCase) || extension.Equals(".psb", StringComparison.OrdinalIgnoreCase))
             {
-                var imported = await Task.Run(() => PsdImporter.Read(path));
-                var snapshot = imported.Snapshot();
-                if (imported.Notes.Count > 0 && !await ConfirmDialog.Ask(this, "Photoshop conversion report",
-                    string.Join(Environment.NewLine, imported.Notes.Select(note => $"{note.Layer}: {Localize.Text(note.What)}")), "Import", "Cancel"))
-                { snapshot.Dispose(); return; }
-                AdoptImported(snapshot.ToDocument(), "Import Photoshop");
-                Say($"Imported {Path.GetFileName(path)} with {imported.Manifest.Layers.Count} layers.");
+                var imports = await WorkScheduler.Run(token => PsdArtboards.Read(path, token), CancellationToken.None);
+                var notes = imports.SelectMany(i => i.Import.Notes).ToArray();
+                if (notes.Length > 0 && !await ConfirmDialog.Ask(this, "Photoshop conversion report",
+                    string.Join(Environment.NewLine, notes.Select(note => $"{note.Layer}: {Localize.Text(note.What)}")), "Import", "Cancel"))
+                { foreach (var item in imports) item.Import.Snapshot().Dispose(); return; }
+                foreach (var item in imports) { AdoptImported(item.Import.Snapshot().ToDocument(), "Import Photoshop"); _open.CustomName = item.Name; }
+                RefreshTabs(); Say($"Imported {Path.GetFileName(path)}: {imports.Count} document(s).");
                 return;
             }
             if (!ImageImporter.LooksImportable(path)) throw new ImportException(ImportError.Unsupported);
@@ -155,6 +156,7 @@ public sealed partial class MainWindow
 
     private void AdoptImported(CanvasDocument document, string name)
     {
+        _noteEditor?.Close();
         _open = TabForNew();
         _document = document;
         _projectPath = null;

@@ -67,30 +67,51 @@ public static partial class DocumentRenderer
         var wanted = SKRectI.Intersect(region, canvas);
         if (wanted.Width <= 0 || wanted.Height <= 0) return result;
         var grown = SKRectI.Intersect(Inflate(wanted, Halo(document)), canvas);
-        using var bitmap = Allocate(grown.Width, grown.Height);
-        if (document.Image.Background is { } background) bitmap.Erase((SKColor)background);
-        new Renderer(document, bitmap, grown).Draw();
-        using var surface = new SKCanvas(result);
-        using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
-        // The grown render's inner rectangle, into the piece's own corner.
-        surface.DrawBitmap(bitmap,
-            SKRect.Create(wanted.Left - grown.Left, wanted.Top - grown.Top, wanted.Width, wanted.Height),
-            SKRect.Create(wanted.Left - region.Left, wanted.Top - region.Top, wanted.Width, wanted.Height),
-            OneToOne, paint);
-        return result;
+        // The common in-canvas, halo-free case can render straight into its final tile.
+        if (grown == region)
+        {
+            try
+            {
+                if (document.Image.Background is { } fill) result.Erase((SKColor)fill);
+                new Renderer(document, result, region).Draw();
+                return result;
+            }
+            catch { result.Dispose(); throw; }
+        }
+        try
+        {
+            using var bitmap = Allocate(grown.Width, grown.Height);
+            if (document.Image.Background is { } background) bitmap.Erase((SKColor)background);
+            new Renderer(document, bitmap, grown).Draw();
+            using var surface = new SKCanvas(result);
+            using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+            // The grown render's inner rectangle, into the piece's own corner.
+            surface.DrawBitmap(bitmap,
+                SKRect.Create(wanted.Left - grown.Left, wanted.Top - grown.Top, wanted.Width, wanted.Height),
+                SKRect.Create(wanted.Left - region.Left, wanted.Top - region.Top, wanted.Width, wanted.Height),
+                OneToOne, paint);
+            return result;
+        }
+        catch { result.Dispose(); throw; }
     }
 
     /// <summary>
     /// The halo the document needs: what every visible blur-type adjustment can reach, summed, because one
     /// blur's output can feed the next. Hidden layers are left out since they change nothing.
     /// </summary>
-    private static int Halo(CanvasDocument document)
+    internal static int Halo(CanvasDocument document)
     {
         var halo = 0L;
         foreach (var layer in document.Layers)
         {
             if (!layer.IsVisible) continue;
-            halo += layer.Adjustment?.SamplingMargin ?? 0;
+            if (layer.Adjustment is { Kind: AdjustmentKind.RgbSplit } split && split.FilterLayer is { RgbSplitRadial: true } f)
+            {
+                var center = f.RgbSplitCenter ?? new JsonPoint(document.Width / 2d, document.Height / 2d);
+                var reach = double.Hypot(Math.Max(Math.Abs(center.X), Math.Abs(document.Width - center.X)), Math.Max(Math.Abs(center.Y), Math.Abs(document.Height - center.Y))) / f.RgbSplitReach;
+                halo += (long)Math.Min(DocumentLimits.MaxSide, Math.Ceiling((f.RgbSplitDistance + f.RgbSplitBlur) * reach + 2));
+            }
+            else halo += layer.Adjustment?.SamplingMargin ?? 0;
             if (layer.IsGroup && layer.Effects is { Enabled: true } fx)
                 halo += (long)Math.Ceiling(fx.Items?.Where(e => e.Enabled).Select(e => e.Size * 3 + e.Distance + e.Soften * 3).DefaultIfEmpty(0).Max()
                     ?? Math.Max(fx.Shadow is { } shadow ? shadow.Distance + shadow.Blur * 3 : 0, fx.OuterGlow?.Size * 3 ?? 0));
@@ -251,6 +272,26 @@ public static partial class DocumentRenderer
 
             var opacity = Opacity(layer);
             if (opacity <= 0) return;
+            // An integer, unscaled raster with no masks needs no intermediate copy. Keep the
+            // general path for resampling, effects and opacity (whose rounding is observable).
+            if (opacity == 1 && layer.FillOpacity == 1 && layer.Effects is null
+                && (layer.Blending is null || layer.Blending.IsDefault) && layer.BlendMode == LayerBlendMode.Normal
+                && layer.Asset is { } asset && layer.Transform is { Rotation: 0, FlipX: false, FlipY: false } placement
+                && placement.Width == asset.Width && placement.Height == asset.Height
+                && placement.X == Math.Truncate(placement.X) && placement.Y == Math.Truncate(placement.Y)
+                && !Masks(layer, includeOwn: true).Any())
+            {
+                using var paint = new SKPaint();
+                // Skia may materialize the complete straight-alpha image when making a raster image.
+                // Extracting a shared pixel subset limits that conversion to the visible tile.
+                var visible = SKRectI.Intersect(_region, SKRectI.Create((int)placement.X, (int)placement.Y, asset.Width, asset.Height));
+                if (visible.IsEmpty) return;
+                using var subset = new SKBitmap();
+                var sourceRect = SKRectI.Create(visible.Left - (int)placement.X, visible.Top - (int)placement.Y, visible.Width, visible.Height);
+                if (asset.Image.ExtractSubset(subset, sourceRect)) target.Canvas.DrawBitmap(subset, visible.Left, visible.Top, OneToOne, paint);
+                else target.Canvas.DrawBitmap(asset.Image, (float)placement.X, (float)placement.Y, OneToOne, paint);
+                return;
+            }
             var content = Content(layer, out var bounds);
             if (content is null) return;
             using (content) CompositeLayer(target, content, bounds, layer, opacity);
@@ -271,10 +312,16 @@ public static partial class DocumentRenderer
             var height = target.Bitmap.Height;
             if (width <= 0 || height <= 0) return;
 
+            if (opacity == 1 && layer.BlendMode == LayerBlendMode.Normal && !Masks(layer, includeOwn: true).Any())
+            {
+                AdjustmentOperators.Apply(adjustment, 1, target.Bitmap.GetPixelSpan(), width, height,
+                    target.Bitmap.RowBytes, target.Origin.X, target.Origin.Y, _document.Width, _document.Height);
+                return;
+            }
             using var original = Copy(target.Bitmap);
             using var adjusted = Copy(target.Bitmap);
             AdjustmentOperators.Apply(adjustment, 1, adjusted.GetPixelSpan(), width, height, width * 4,
-                target.Origin.X, target.Origin.Y);
+                target.Origin.X, target.Origin.Y, _document.Width, _document.Height);
             if (layer.BlendMode != LayerBlendMode.Normal) Reblend(original, adjusted, layer.BlendMode);
 
             using var mixed = Mix(original, adjusted, (float)opacity, null, default, Coverage.Gray);

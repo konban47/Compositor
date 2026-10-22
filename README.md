@@ -1,8 +1,8 @@
 # Compositor for Windows
 
-2026-10-22：当前源码为 **1.5.5.0 Preview**，已合并上游 1.5.5 / `551a35f`。Windows 同步线条样式、压力画笔、字体检索和初始缩放修复，并增加受预算限制的 CPU 图块缓存及低资源兼容性门禁。[本次更新与移植边界](windows/UPDATES-1.5.5.0.md) · [性能记录](windows/PERFORMANCE.md) · [Windows 10 可复现验收方案](windows/COMPATIBILITY.md)。
+2026-10-23：当前源码为 **1.5.5.1 Preview**，已合并上游 1.5.5 / `551a35f`。Windows 继续移植 PDF 分页、PSD 画板、光谱 RGB Split、通道打包及三种滤镜调整层，补全图 1–24 工具流程，并优化冷缓存和编辑后重算。[本次更新与移植边界](windows/UPDATES-1.5.5.1.md) · [性能记录](windows/PERFORMANCE.md) · [Windows 10 可复现验收方案](windows/COMPATIBILITY.md)。
 
-本版为源码构建，尚未发布 GitHub Release；[Actions 构建产物](https://github.com/konban47/Compositor/actions/workflows/windows.yml)中的安装包名为 `Compositor-Windows-1.5.5.0-x64-setup.exe`。下方 1.5.3.2 下载链接和测试数字保留历史含义。
+本版为源码构建，尚未发布 GitHub Release；[Actions 构建产物](https://github.com/konban47/Compositor/actions/workflows/windows.yml)中的安装包名为 `Compositor-Windows-1.5.5.1-x64-setup.exe`。下方 1.5.3.2 下载链接和测试数字保留历史含义。
 
 窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](windows/WINDOW-MENU.md)。
 
@@ -90,11 +90,11 @@
 - 多标签页、撤销／重做、历史快照、从状态新建独立文档、异步保存、未保存关闭保护和独立 Windows 更新频道。
 - 中文界面使用 Photoshop 常见术语，提供中文输入法接口、随包中文字体和中文换行。
 
-本版读取支持字段范围内的 v1–v25 项目。线条样式和端点使用 **Windows 扩展格式 v25**；工作路径 `workPath` 使用 **Windows 扩展格式 v24**；平滑圆角及扩展切片属性使用 **Windows 扩展格式 v23**；非白色画板背景使用 **Windows 扩展格式 v22**；画板参考线归属使用 **Windows 扩展格式 v21**；文字范围样式、几何、PSD 矢量蒙版孔洞和 ICC 配置使用 **Windows 扩展格式 v20**；新增八类可编辑调整层使用 **Windows 扩展格式 v19**；图像模式／位深、变量／数据组、测量记录及新版文字布局使用 **Windows 扩展格式 v18**；切片、注释、计数、颜色取样点和测量使用 **Windows 扩展格式 v17**；直排文字和开放路径描边使用 **Windows 扩展格式 v16**；新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 **Windows 扩展格式 v15**；使用高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，或使用任意轮廓形状时保存为 **Windows 扩展格式 v14**；使用非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式时保存为 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时保存为 v12，其余为 v11。旧版不接受超出其支持范围的版本；上游 macOS 1.5.5 支持至 v16，但 Windows 的 v13–v25 扩展并非同一版本序列；Windows 暂不支持上游 v16 的新增滤镜调整层。不能仅修改版本号强行降级。[文件格式与兼容性](docs/project-format.md#windows-extension-version-25)
+本版读取支持字段范围内的 v1–v26 项目。新版图框、计数组、注释作者/双臂标尺及滤镜调整使用 **Windows 扩展格式 v26**；线条样式和端点使用 **Windows 扩展格式 v25**；工作路径 `workPath` 使用 **Windows 扩展格式 v24**；平滑圆角及扩展切片属性使用 **Windows 扩展格式 v23**；非白色画板背景使用 **Windows 扩展格式 v22**；画板参考线归属使用 **Windows 扩展格式 v21**；文字范围样式、几何、PSD 矢量蒙版孔洞和 ICC 配置使用 **Windows 扩展格式 v20**；新增八类可编辑调整层使用 **Windows 扩展格式 v19**；图像模式／位深、变量／数据组、测量记录及新版文字布局使用 **Windows 扩展格式 v18**；切片、注释、计数、颜色取样点和测量使用 **Windows 扩展格式 v17**；直排文字和开放路径描边使用 **Windows 扩展格式 v16**；新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 **Windows 扩展格式 v15**；使用高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，或使用任意轮廓形状时保存为 **Windows 扩展格式 v14**；使用非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式时保存为 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时保存为 v12，其余为 v11。旧版不接受超出其支持范围的版本；上游 macOS 1.5.5 支持至 v16，但 Windows 的 v13–v26 扩展并非同一版本序列；Windows 已支持上游 v16 的三种滤镜调整层（当前为 8 位 CPU 合成）。不能仅修改版本号强行降级。[文件格式与兼容性](docs/project-format.md#windows-extension-version-26)
 
 ## 验证与当前状态
 
-**1.5.5.0 Preview** 源码已同步上游 **1.5.5 / 551a35f**。本机 1236 项核心测试（含大画布压力）通过，另完成 23 组英文／17 组中文界面回归及低资源软件模式验证。当前改动、实际性能和未移植范围见[本次更新](windows/UPDATES-1.5.5.0.md)。Windows 10 尚未实机验收。
+**1.5.5.1 Preview** 源码已同步上游 **1.5.5 / 551a35f**。本机核心测试（含大画布压力）、中英文界面及低资源软件模式证据见本次更新与性能记录。当前改动、实际性能和未移植范围见[本次更新](windows/UPDATES-1.5.5.1.md)。Windows 10 尚未实机验收。
 
 [历史 1.5.3.2 提交 b0bce9c 的云端验证](https://github.com/konban47/Compositor/actions/runs/39230205560)在 Windows Server 2022／2025 均通过文档检查、零警告构建、1200 项核心测试以及 23 组英文／17 组中文界面检查。安装版与免安装版已成功构建；发行程序的 17 组界面检查及临时 Windows Server 2025 环境中的全新安装／卸载均通过。[下载历史 1.5.3.2](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.2)。
 
@@ -117,3 +117,5 @@ dotnet test windows/tests/Compositor.Core.Tests -c Release
 生成安装包需要 Inno Setup 6。GitHub Actions 可构建自带运行时的安装版与免安装版。
 
 MIT 许可证，见 [LICENSE](LICENSE)。原始 macOS 源码及历史保留在仓库，macOS 的下载、介绍和贡献请访问顶部上游链接。
+
+图 1–24 的图框、吸管、标注、移除、修复画笔、仿制源、修补、内容识别移动及红眼操作见 [辅助与修饰工具](windows/UTILITY-RETOUCH.md)。

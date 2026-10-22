@@ -168,7 +168,7 @@ foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('performance-checks.ps1')) { throw 'Performance gates missing from CI.' }
 if (!$performance.Contains('COMPOSITOR_MEMORY_MB') -or !$performance.Contains('512 MiB')) { throw 'Runtime memory/format limits are undocumented.' }
 
-foreach ($guide in @('COMPATIBILITY.md','UPDATES-1.5.5.0.md')) {
+foreach ($guide in @('COMPATIBILITY.md','UPDATES-1.5.5.1.md')) {
     foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
         if (!(Read-Repo $path).Contains($guide)) { throw "$guide missing from $path" }
     }
@@ -177,3 +177,19 @@ if (!(Read-Repo '.github/workflows/windows.yml').Contains('compatibility-checks.
 foreach ($field in @('lineStyle','lineCap')) { if (!$formatDoc.Contains('`' + $field + '`')) { throw "Missing format field $field" } }
 
 if (!(Read-Repo 'README.md').Contains("v1–v$format") -or !(Read-Repo 'windows/README.md').Contains("版本 1–$format")) { throw 'README format range is stale.' }
+
+foreach ($field in @('frameStyle','countGroups','author','secondX','secondY','filterLayerSettings','rgbSplitReach')) {
+    if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v26 field $field" }
+}
+foreach ($guide in @('UTILITY-RETOUCH.md','UPDATES-1.5.5.1.md')) {
+    foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
+        if (!(Read-Repo $path).Contains($guide)) { throw "$guide missing from $path" }
+    }
+}
+if (!(Read-Repo 'windows/UTILITY-RETOUCH.md').Contains("**$version Preview**")) { throw 'Utility/retouch manual version is stale.' }
+foreach ($path in @('.github/workflows/windows.yml','windows/scripts/compatibility-checks.ps1')) {
+    if (!(Read-Repo $path).Contains('utility-retouch-checks')) { throw "Utility/retouch checks missing from $path" }
+}
+foreach ($license in @('PDFtoImage-LICENSE.txt','PDFium-build-LICENSE.txt','PDFium/pdfium.txt')) {
+    if (!(Test-Path -LiteralPath (Join-Path $repo "windows/licenses/$license"))) { throw "Missing PDF dependency license: $license" }
+}

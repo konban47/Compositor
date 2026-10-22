@@ -30,6 +30,8 @@ public enum BrushMode
 }
 
 /// <summary>How Spot Healing works out what to put in the painted area.</summary>
+public enum HealingBlend { Normal, Replace, Multiply, Screen, Darken, Lighten, Color, Luminosity }
+
 public enum HealingMode
 {
     ContentAware,
@@ -93,7 +95,13 @@ public sealed record BrushSettings(
     int ArtStyle = 0,
     int ReplaceMode = 0,
     double MixerWet = .5, double MixerLoad = 1, double MixerMix = .5, double MixerFlow = 1, SKBitmap? TipImage = null, bool PressureSize = false, bool PressureOpacity = false,
-    [property: System.Text.Json.Serialization.JsonIgnore] IReadOnlyList<float>? Pressures = null)
+    [property: System.Text.Json.Serialization.JsonIgnore] IReadOnlyList<float>? Pressures = null,
+    double Angle = 0, double Roundness = 1, HealingBlend HealingBlend = HealingBlend.Normal, double SpacingFraction = 0, int HealingDiffusion = 5, bool HealingPattern = false, bool HealingLegacy = false,
+    int CloneScope = 0, bool CloneIgnoreAdjustments = false,
+    [property: System.Text.Json.Serialization.JsonIgnore] SKMatrix? CloneMapping = null,
+    [property: System.Text.Json.Serialization.JsonIgnore] SKPointI SampleOrigin = default,
+    [property: System.Text.Json.Serialization.JsonIgnore] CanvasDocument? CloneDocument = null,
+    Guid? CloneLayerID = null, bool HealingContentAware = false)
 {
     public (double Scale, double Strength) Dynamics(double pressure)
     {
@@ -127,6 +135,7 @@ public static class BrushEdits
     }
 
     /// <summary>How far apart dabs sit: a fraction of the diameter, so a soft tip is stamped closer.</summary>
+    private static double DabSpacing(BrushSettings settings, double scale) => settings.SpacingFraction > 0 ? Math.Max(.25, settings.Diameter * scale * Math.Clamp(settings.SpacingFraction, .01, 10)) : Spacing(settings.Diameter * scale, settings.Hardness);
     public static double Spacing(double diameter, double hardness) =>
         Math.Max(0.25, diameter * (hardness >= 1 ? 0.015 : 0.025));
 
@@ -146,7 +155,7 @@ public static class BrushEdits
         {
             return false;
         }
-        var bitmap = new SKBitmap(Bitmaps.ColorInfo(width, height));
+        var bitmap = Bitmaps.Allocate(Bitmaps.ColorInfo(width, height));
         bitmap.Erase(SKColors.Transparent);
         layer.Asset = ImportedImage.Create(bitmap, layer.Name);
         return true;
@@ -163,7 +172,7 @@ public static class BrushEdits
         if (points.Count == 0 || settings.Diameter <= 0 || settings.Opacity <= 0) return false;
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { Asset: { } asset } layer) return false;
         if (layer.IsGroup) return false;
-        if (settings.Mode is BrushMode.Clone or BrushMode.HealingSample && settings.CloneFrom is null) return false;
+        if (settings.Mode is BrushMode.Clone or BrushMode.HealingSample && settings.CloneFrom is null && settings.CloneMapping is null && !settings.HealingPattern) return false;
         var width = asset.Width;
         var height = asset.Height;
         if (width <= 0 || height <= 0) return false;
@@ -192,7 +201,7 @@ public static class BrushEdits
         SKBitmap? owned = null;
         if (settings.Mode is BrushMode.Clone or BrushMode.Blur or BrushMode.HealingSample)
         {
-            owned = Sampled(document, layer, settings);
+            owned = settings.Mode == BrushMode.Blur ? Sampled(document, layer, settings) : CloneSampling.Read(document, layer.ID, points, settings, out settings);
             if (owned is null) return false;
             sample = owned;
         }
@@ -204,25 +213,44 @@ public static class BrushEdits
         using var _sample = owned;
         if (!Stroke(document, points, settings, toDocument, toPixel, width, height, out var coverage)) return false;
 
-        var painted = new SKBitmap(Bitmaps.ColorInfo(width, height));
-        using (var canvas = new SKCanvas(painted))
+        var painted = Bitmaps.Allocate(Bitmaps.ColorInfo(width, height));
+        try
         {
-            using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
-            using var source = SKImage.FromBitmap(asset.Image);
-            canvas.DrawImage(source, SKRect.Create(0, 0, width, height), new SKSamplingOptions(SKFilterMode.Nearest), paint);
+            using (var canvas = new SKCanvas(painted))
+            {
+                using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+                using var source = SKImage.FromBitmap(asset.Image);
+                canvas.DrawImage(source, SKRect.Create(0, 0, width, height), new SKSamplingOptions(SKFilterMode.Nearest), paint);
+            }
+            if (settings.Mode == BrushMode.Heal && settings.CloneAllLayers)
+            {
+                var box = new int[4]; CoverageBounds(coverage, width, height, box);
+                var reach = (float)Math.Ceiling((Math.Max(box[2] - box[0], box[3] - box[1]) + 32) * 3.2);
+                var local = new SKRect(box[0] - reach, box[1] - reach, box[2] + reach, box[3] + reach);
+                var region = SKRectI.Intersect(SKRectI.Ceiling(toDocument.MapRect(local)), SKRectI.Create(document.Width, document.Height));
+                if (region.IsEmpty) { painted.Dispose(); return false; }
+                using var composite = DocumentRenderer.RenderRegion(document, region);
+                using var canvas = new SKCanvas(painted); using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+                canvas.SetMatrix(toPixel); canvas.DrawBitmap(composite, new SKPoint(region.Left, region.Top), new SKSamplingOptions(SKFilterMode.Nearest), paint);
+            }
+            var separateHealingMix = settings.Mode == BrushMode.Heal && (settings.CloneAllLayers || settings.HealingBlend != HealingBlend.Normal);
+            var healCoverage = coverage;
+            if (separateHealingMix) { healCoverage = MemoryBudget.Allocate<float>(coverage.Length); for (var i = 0; i < coverage.Length; i++) healCoverage[i] = coverage[i] > 0 ? 1 : 0; }
+            var paintedNow = settings.Mode >= BrushMode.Pattern
+                ? RetouchBrush.Apply(painted, coverage, settings, toDocument, toPixel.MapPoint(points[0]), points, sample)
+                : sample is not null
+                ? ApplySampled(painted, coverage, settings, sample, toDocument)
+                : settings.Mode == BrushMode.Heal ? Heal(painted, healCoverage, separateHealingMix ? settings with { Opacity = 1 } : settings) : Apply(painted, coverage, settings);
+            if (!paintedNow)
+            {
+                painted.Dispose();
+                return false;
+            }
+            if (settings.Mode == BrushMode.Heal) FinishHealing(painted, asset.Image, coverage, settings);
+            layer.Asset = ImportedImage.Create(painted, asset.Name);
+            return true;
         }
-        var paintedNow = settings.Mode >= BrushMode.Pattern
-            ? RetouchBrush.Apply(painted, coverage, settings, toDocument, toPixel.MapPoint(points[0]), points, sample)
-            : sample is not null
-            ? ApplySampled(painted, coverage, settings, sample, toDocument)
-            : settings.Mode == BrushMode.Heal ? Heal(painted, coverage, settings) : Apply(painted, coverage, settings);
-        if (!paintedNow)
-        {
-            painted.Dispose();
-            return false;
-        }
-        layer.Asset = ImportedImage.Create(painted, asset.Name);
-        return true;
+        catch { painted.Dispose(); throw; }
     }
 
     /// <summary>
@@ -230,7 +258,23 @@ public static class BrushEdits
     /// in one go. The Mac build shows a dark wash while the stroke is being drawn and does this when it
     /// ends; this port does the same work without the wash, so the picture changes on release.
     /// </summary>
-    private static bool Heal(SKBitmap painted, float[] coverage, BrushSettings settings)
+    private static void FinishHealing(SKBitmap result, SKBitmap original, float[] coverage, BrushSettings settings)
+    {
+        if (settings.CloneAllLayers || settings.HealingBlend != HealingBlend.Normal)
+        {
+            for (var y = 0; y < result.Height; y++) for (var x = 0; x < result.Width; x++)
+            {
+                var amount = coverage[y * result.Width + x] * settings.Opacity; if (amount <= 0) continue;
+                var old = original.GetPixel(x, y); var color = RetouchBrush.BlendHealing(old, result.GetPixel(x, y), settings.HealingBlend);
+                result.SetPixel(x, y, RetouchBrush.Mix(old, color, amount));
+            }
+        }
+        // Sampling other layers must never flatten the unpainted part of the active layer.
+        for (var y = 0; y < result.Height; y++) for (var x = 0; x < result.Width; x++)
+            if (coverage[y * result.Width + x] <= 0) original.GetPixelSpan().Slice(y * original.RowBytes + x * 4, 4).CopyTo(result.GetPixelSpan().Slice(y * result.RowBytes + x * 4, 4));
+    }
+
+    internal static bool Heal(SKBitmap painted, float[] coverage, BrushSettings settings)
     {
         var width = painted.Width;
         var height = painted.Height;
@@ -252,8 +296,8 @@ public static class BrushEdits
         // The kernel works on premultiplied pixels, which is what a render is held in; a layer's own
         // pixels are straight, so the region is premultiplied on the way in and unpremultiplied on the way
         // back out.
-        var room = new byte[w * h * 4];
-        var gray = new byte[w * h];
+        var room = MemoryBudget.Allocate<byte>(checked(w * h * 4));
+        var gray = MemoryBudget.Allocate<byte>(checked(w * h));
         var pixels = painted.GetPixelSpan();
         for (var y = 0; y < h; y++)
         {
@@ -342,8 +386,8 @@ public static class BrushEdits
         // distance is left over the end of one run into the next so a fast pointer leaves no gaps.
         double Pressure(int i) => settings.Pressures is { } p && i < p.Count && float.IsFinite(p[i]) ? Math.Clamp(p[i], 0, 1) : 1;
         var first = settings.Dynamics(Pressure(0));
-        Stamp(coverage, width, height, points[0], radius * first.Scale, toDocument, toPixel, hard, settings.Hardness, selection, settings.TipImage, first.Strength, settings.PressureOpacity);
-        var next = Spacing(settings.Diameter * first.Scale, settings.Hardness);
+        Stamp(coverage, width, height, points[0], radius * first.Scale, toDocument, toPixel, hard, settings.Hardness, selection, settings.TipImage, first.Strength, settings.PressureOpacity, settings.Angle, settings.Roundness);
+        var next = DabSpacing(settings, first.Scale);
         for (var index = 1; index < points.Count; index++)
         {
             var from = points[index - 1];
@@ -356,8 +400,8 @@ public static class BrushEdits
             {
                 var at = new SKPoint((float)(from.X + dx * next / length), (float)(from.Y + dy * next / length));
                 var dynamics = settings.Dynamics(Pressure(index - 1) + (Pressure(index) - Pressure(index - 1)) * next / length);
-                Stamp(coverage, width, height, at, radius * dynamics.Scale, toDocument, toPixel, hard, settings.Hardness, selection, settings.TipImage, dynamics.Strength, settings.PressureOpacity);
-                next += Spacing(settings.Diameter * dynamics.Scale, settings.Hardness);
+                Stamp(coverage, width, height, at, radius * dynamics.Scale, toDocument, toPixel, hard, settings.Hardness, selection, settings.TipImage, dynamics.Strength, settings.PressureOpacity, settings.Angle, settings.Roundness);
+                next += DabSpacing(settings, dynamics.Scale);
             }
             next -= length;
         }
@@ -499,8 +543,9 @@ public static class BrushEdits
                 var index = y * painted.Width + x;
                 if (coverage[index] <= 0) continue;
                 var at = toDocument.MapPoint(x + 0.5f, y + 0.5f);
-                var sx = (int)Math.Floor(at.X) + offset.X;
-                var sy = (int)Math.Floor(at.Y) + offset.Y;
+                var fromPoint = settings.CloneMapping?.MapPoint(at) ?? at + new SKPoint(offset.X, offset.Y);
+                var sx = (int)Math.Floor(fromPoint.X) - settings.SampleOrigin.X;
+                var sy = (int)Math.Floor(fromPoint.Y) - settings.SampleOrigin.Y;
                 if (sx < 0 || sy < 0 || sx >= sample.Width || sy >= sample.Height) continue;
                 var from = sy * sourceStride + sx * 4;
                 var sourceAlpha = source[from + 3];
@@ -562,7 +607,7 @@ public static class BrushEdits
     /// selection scales each pixel, so a dab that straddles a feathered edge is painted in part.
     /// </summary>
     private static void Stamp(float[] coverage, int width, int height, SKPoint centre, double radius,
-        SKMatrix toDocument, SKMatrix toPixel, bool hard, double hardness, Clip selection, SKBitmap? tipImage, double strength, bool pressureOpacity)
+        SKMatrix toDocument, SKMatrix toPixel, bool hard, double hardness, Clip selection, SKBitmap? tipImage, double strength, bool pressureOpacity, double angle, double roundness)
     {
         // The document square around the dab, brought into pixels: a generous box, since the transform may
         // turn it.
@@ -579,18 +624,21 @@ public static class BrushEdits
         var top = Math.Max(0, (int)Math.Floor(minY) - 1);
         var right = Math.Min(width, (int)Math.Ceiling(maxX) + 1);
         var bottom = Math.Min(height, (int)Math.Ceiling(maxY) + 1);
+        var radians = angle * Math.PI / 180; var cos = Math.Cos(radians); var sin = Math.Sin(radians);
         for (var y = top; y < bottom; y++)
         {
             for (var x = left; x < right; x++)
             {
                 var at = toDocument.MapPoint(x + 0.5f, y + 0.5f);
-                var distance = Math.Sqrt(Math.Pow(at.X - centre.X, 2) + Math.Pow(at.Y - centre.Y, 2));
+                var dx = at.X - centre.X; var dy = at.Y - centre.Y;
+                var tipX = dx * cos + dy * sin; var tipY = (-dx * sin + dy * cos) / Math.Clamp(roundness, .01, 1);
+                var distance = Math.Sqrt(tipX * tipX + tipY * tipY);
                 var shape = Tip(distance, radius, hardness);
                 if (tipImage is not null)
                 {
                     var side = Math.Max(tipImage.Width, tipImage.Height);
-                    var tx = (int)Math.Floor((at.X - centre.X) / (radius * 2) * side + tipImage.Width / 2.0);
-                    var ty = (int)Math.Floor((at.Y - centre.Y) / (radius * 2) * side + tipImage.Height / 2.0);
+                    var tx = (int)Math.Floor(tipX / (radius * 2) * side + tipImage.Width / 2.0);
+                    var ty = (int)Math.Floor(tipY / (radius * 2) * side + tipImage.Height / 2.0);
                     if (tx < 0 || ty < 0 || tx >= tipImage.Width || ty >= tipImage.Height) continue;
                     var c = tipImage.GetPixel(tx, ty); shape = (1 - (.2126 * c.Red + .7152 * c.Green + .0722 * c.Blue) / 255) * c.Alpha / 255;
                 }

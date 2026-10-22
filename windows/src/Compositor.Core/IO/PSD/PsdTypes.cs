@@ -53,6 +53,8 @@ internal sealed class PsdRecord
     public PsdText.Source? Text { get; set; }
     public PsdVectorMask.Source? VectorMask { get; set; }
 
+    public PsdRect? Artboard { get; set; }
+    internal PsdRecord Copy() => (PsdRecord)MemberwiseClone();
     public PsdRect Bounds { get; set; }
     public SKBitmap? Image { get; set; }
     public SKBitmap? Mask { get; set; }

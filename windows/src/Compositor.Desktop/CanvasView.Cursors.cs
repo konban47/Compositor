@@ -17,6 +17,8 @@ public sealed partial class CanvasView
     internal bool ClosePathHint { get; set; }
     internal bool PreciseBrushCursor { get; set; }
     internal bool BrushOutlineEnabled { get; set; }
+    internal bool IsPainting => _painting;
+    internal SKPoint DocumentPoint(Point point) => ToDocument(point);
     internal SKPoint? CloneSource { get; set; }
     internal SKPointI? CloneOffset { get; set; }
     internal double OutlineDiameter => Brush.Diameter * Zoom;

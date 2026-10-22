@@ -44,7 +44,7 @@ public static class ImageImporter
 {
     /// <summary>What the importer will attempt, by extension.</summary>
     public static readonly string[] Extensions =
-        [".exr", ".hdr", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg", ".tif", ".tiff", ".psd", ".psb",
+        [".pdf", ".exr", ".hdr", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg", ".tif", ".tiff", ".psd", ".psb",
          ".heic", ".heif", ".hif", ".avif", ".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw", ".srf", ".sr2",
          ".raf", ".orf", ".rw2", ".raw", ".rwl", ".pef", ".3fr", ".erf", ".mrw", ".kdc", ".dcr", ".x3f", ".iiq"];
 
@@ -66,6 +66,7 @@ public static class ImageImporter
     {
         var name = Path.GetFileNameWithoutExtension(path);
         var extension = Path.GetExtension(path);
+        if (extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase)) return PdfImporter.Page(path, 0);
         if (extension.Equals(".svg", StringComparison.OrdinalIgnoreCase))
         {
             return DecodeSvg(path, fitting, name, remainingPixels);

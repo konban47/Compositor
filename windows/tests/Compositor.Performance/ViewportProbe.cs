@@ -43,15 +43,28 @@ internal static class ViewportProbe
             cached.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
             pixelsEqual &= expected.GetPixelSpan().SequenceEqual(actual.GetPixelSpan());
         }
+        var markerPixels = Bitmaps.Allocate(Bitmaps.ColorInfo(48, 48)); markerPixels.Erase(SKColors.Lime);
+        var marker = new ImageLayer(Guid.NewGuid(), ImportedImage.Create(markerPixels, "Edit marker"), new LayerTransform(300, 200, 48, 48), "Edit marker"); document.Layers.Insert(document.Layers.Count - 1, marker);
+        using var editBaseCache = new ViewportTileCache();
+        var editRegion = SKRectI.Create(128, 32, Math.Min(1536, width), Math.Min(1024, height));
+        using (ViewportRenderer.Render(document, editRegion, 1024, tileCache: editBaseCache)) { }
+        using var before = document.Clone(); marker.Transform = marker.Transform with { X = marker.Transform.X + 16 };
+        using var editedCache = editBaseCache.Fork(ViewportDamage.Between(before, document));
+        var editStart = Stopwatch.GetTimestamp(); using var edited = ViewportRenderer.Render(document, editRegion, 1024, tileCache: editedCache);
+        var editedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
+        editStart = Stopwatch.GetTimestamp(); using var editReference = ViewportRenderer.Render(document, editRegion, 1024);
+        var editReferenceMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
+        var editedEqual = editReference.GetPixelSpan().SequenceEqual(edited.GetPixelSpan());
         process.Refresh();
         Console.WriteLine(JsonSerializer.Serialize(new { Kind = "viewport-cache", Width = width, Height = height,
             OS = RuntimeInformation.OSDescription, ProcessorCount = Environment.ProcessorCount,
             Simd = System.Numerics.Vector.IsHardwareAccelerated, BudgetMiB = MemoryBudget.Current.Limit / 1048576,
+            EditedMs = editedMs, EditReferenceMs = editReferenceMs, EditedPixelsEqual = editedEqual, EditTileHits = editedCache.Hits, EditTilesRendered = editedCache.RenderedTiles,
             PixelsEqual = pixelsEqual, UncachedMs = uncached, CachedMs = cached,
             ColdCacheMs = cached[0], WarmMedianMs = cached.Skip(1).Order().ElementAt(3),
             UncachedMedianMs = uncached.Order().ElementAt(4), cache.Hits, cache.RenderedTiles, cache.RetainedBytes,
             PeakWorkingSetMiB = process.PeakWorkingSet64 / 1048576.0 }));
-        if (!pixelsEqual || cache.Hits == 0 || cache.RetainedBytes > Math.Min(128L << 20, MemoryBudget.Current.Limit / 8))
+        if (!editedEqual || editedCache.Hits == 0 || !pixelsEqual || cache.Hits == 0 || cache.RetainedBytes > Math.Min(128L << 20, MemoryBudget.Current.Limit / 8))
             throw new InvalidOperationException("Viewport cache correctness or budget gate failed.");
     }
 }

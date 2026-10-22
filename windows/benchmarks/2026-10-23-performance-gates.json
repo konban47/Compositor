@@ -1,0 +1,496 @@
+{
+  "TimestampUtc": "2026-10-22T17:01:10.6983951Z",
+  "ProcessorCount": 20,
+  "Runtime": "10.0.11",
+  "Failures": [],
+  "Cases": [
+    {
+      "Kind": "preview",
+      "Width": 4000,
+      "Height": 3000,
+      "DisplaySceneSupported": true,
+      "ColdMs": 18.1387,
+      "BaselineWorkingSetMiB": 31.6875,
+      "PeakWorkingSetMiB": 33.68359375,
+      "GCBeforeEachMeasuredIteration": true,
+      "Samples": [
+        {
+          "Ms": 4.0282,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.00780487060546875,
+          "WorkingSetMiB": 33.6015625,
+          "PrivateMiB": 10.14453125
+        },
+        {
+          "Ms": 1.0005,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.0047607421875,
+          "WorkingSetMiB": 33.078125,
+          "PrivateMiB": 9.65234375
+        },
+        {
+          "Ms": 1.0215,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.0047607421875,
+          "WorkingSetMiB": 33.09375,
+          "PrivateMiB": 9.72265625
+        },
+        {
+          "Ms": 1.0236,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.0047607421875,
+          "WorkingSetMiB": 33.12109375,
+          "PrivateMiB": 9.79296875
+        },
+        {
+          "Ms": 3.6221,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.00780487060546875,
+          "WorkingSetMiB": 33.1484375,
+          "PrivateMiB": 9.86328125
+        }
+      ]
+    },
+    {
+      "Kind": "preview-hidden",
+      "Width": 4000,
+      "Height": 3000,
+      "DisplaySceneSupported": true,
+      "ColdMs": 17.8636,
+      "BaselineWorkingSetMiB": 32,
+      "PeakWorkingSetMiB": 33.74609375,
+      "GCBeforeEachMeasuredIteration": true,
+      "Samples": [
+        {
+          "Ms": 4.0226,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.00786590576171875,
+          "WorkingSetMiB": 33.73828125,
+          "PrivateMiB": 10.1484375
+        },
+        {
+          "Ms": 1.1486,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.00482177734375,
+          "WorkingSetMiB": 33.2109375,
+          "PrivateMiB": 9.65625
+        },
+        {
+          "Ms": 1.0671,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.00482177734375,
+          "WorkingSetMiB": 33.2421875,
+          "PrivateMiB": 9.7265625
+        },
+        {
+          "Ms": 1.0393,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.00482177734375,
+          "WorkingSetMiB": 33.265625,
+          "PrivateMiB": 9.796875
+        },
+        {
+          "Ms": 3.9793,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.00786590576171875,
+          "WorkingSetMiB": 33.296875,
+          "PrivateMiB": 9.8671875
+        }
+      ]
+    },
+    {
+      "Kind": "render-fit",
+      "Width": 4000,
+      "Height": 3000,
+      "DisplaySceneSupported": true,
+      "ColdMs": 280.4074,
+      "BaselineWorkingSetMiB": 31.65625,
+      "PeakWorkingSetMiB": 170.3828125,
+      "GCBeforeEachMeasuredIteration": true,
+      "Samples": [
+        {
+          "Ms": 270.2046,
+          "CpuMs": 281.25,
+          "ManagedAllocatedMiB": 0.00506591796875,
+          "WorkingSetMiB": 33.05078125,
+          "PrivateMiB": 9.640625
+        },
+        {
+          "Ms": 267.6577,
+          "CpuMs": 265.625,
+          "ManagedAllocatedMiB": 0.00506591796875,
+          "WorkingSetMiB": 32.609375,
+          "PrivateMiB": 9.14453125
+        },
+        {
+          "Ms": 271.2423,
+          "CpuMs": 281.25,
+          "ManagedAllocatedMiB": 0.00506591796875,
+          "WorkingSetMiB": 32.671875,
+          "PrivateMiB": 9.21484375
+        },
+        {
+          "Ms": 268.1972,
+          "CpuMs": 265.625,
+          "ManagedAllocatedMiB": 0.00506591796875,
+          "WorkingSetMiB": 32.71484375,
+          "PrivateMiB": 9.28515625
+        },
+        {
+          "Ms": 271.8152,
+          "CpuMs": 296.875,
+          "ManagedAllocatedMiB": 0.00506591796875,
+          "WorkingSetMiB": 32.765625,
+          "PrivateMiB": 9.35546875
+        }
+      ]
+    },
+    {
+      "Kind": "render-tile",
+      "Width": 4000,
+      "Height": 3000,
+      "DisplaySceneSupported": true,
+      "ColdMs": 21.7854,
+      "BaselineWorkingSetMiB": 31.671875,
+      "PeakWorkingSetMiB": 35.5078125,
+      "GCBeforeEachMeasuredIteration": true,
+      "Samples": [
+        {
+          "Ms": 8.8051,
+          "CpuMs": 15.625,
+          "ManagedAllocatedMiB": 0.00506591796875,
+          "WorkingSetMiB": 32.93359375,
+          "PrivateMiB": 9.52734375
+        },
+        {
+          "Ms": 5.9847,
+          "CpuMs": 15.625,
+          "ManagedAllocatedMiB": 0.00202178955078125,
+          "WorkingSetMiB": 32.4140625,
+          "PrivateMiB": 9.03515625
+        },
+        {
+          "Ms": 8.8982,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.00506591796875,
+          "WorkingSetMiB": 32.453125,
+          "PrivateMiB": 9.10546875
+        },
+        {
+          "Ms": 5.935,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.00202178955078125,
+          "WorkingSetMiB": 32.46875,
+          "PrivateMiB": 9.17578125
+        },
+        {
+          "Ms": 8.7698,
+          "CpuMs": 15.625,
+          "ManagedAllocatedMiB": 0.00506591796875,
+          "WorkingSetMiB": 32.49609375,
+          "PrivateMiB": 9.24609375
+        }
+      ]
+    },
+    {
+      "Kind": "selection",
+      "Width": 4000,
+      "Height": 3000,
+      "DisplaySceneSupported": true,
+      "ColdMs": 9.9772,
+      "BaselineWorkingSetMiB": 31.7109375,
+      "PeakWorkingSetMiB": 32.6484375,
+      "GCBeforeEachMeasuredIteration": true,
+      "Samples": [
+        {
+          "Ms": 0.3452,
+          "CpuMs": 15.625,
+          "ManagedAllocatedMiB": 0.010894775390625,
+          "WorkingSetMiB": 32.6484375,
+          "PrivateMiB": 9.5859375
+        },
+        {
+          "Ms": 0.0654,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.010894775390625,
+          "WorkingSetMiB": 32.12890625,
+          "PrivateMiB": 9.0859375
+        },
+        {
+          "Ms": 0.0609,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.010894775390625,
+          "WorkingSetMiB": 32.15625,
+          "PrivateMiB": 9.14453125
+        },
+        {
+          "Ms": 3.0174,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.01393890380859375,
+          "WorkingSetMiB": 32.19140625,
+          "PrivateMiB": 9.21484375
+        },
+        {
+          "Ms": 0.0859,
+          "CpuMs": 0,
+          "ManagedAllocatedMiB": 0.010894775390625,
+          "WorkingSetMiB": 32.2265625,
+          "PrivateMiB": 9.28515625
+        }
+      ]
+    },
+    {
+      "Kind": "decode-png",
+      "Width": 4000,
+      "Height": 3000,
+      "DisplaySceneSupported": true,
+      "ColdMs": 80.0626,
+      "BaselineWorkingSetMiB": 31.6640625,
+      "PeakWorkingSetMiB": 170.06640625,
+      "GCBeforeEachMeasuredIteration": true,
+      "Samples": [
+        {
+          "Ms": 73.796,
+          "CpuMs": 78.125,
+          "ManagedAllocatedMiB": 0.010284423828125,
+          "WorkingSetMiB": 78.53515625,
+          "PrivateMiB": 55.515625
+        },
+        {
+          "Ms": 72.4588,
+          "CpuMs": 78.125,
+          "ManagedAllocatedMiB": 0.010284423828125,
+          "WorkingSetMiB": 78.01171875,
+          "PrivateMiB": 55.0078125
+        },
+        {
+          "Ms": 73.7863,
+          "CpuMs": 78.125,
+          "ManagedAllocatedMiB": 0.010284423828125,
+          "WorkingSetMiB": 78.2265625,
+          "PrivateMiB": 55.875
+        },
+        {
+          "Ms": 75.3495,
+          "CpuMs": 78.125,
+          "ManagedAllocatedMiB": 0.010284423828125,
+          "WorkingSetMiB": 78.54296875,
+          "PrivateMiB": 55.9609375
+        },
+        {
+          "Ms": 74.384,
+          "CpuMs": 78.125,
+          "ManagedAllocatedMiB": 0.010284423828125,
+          "WorkingSetMiB": 78.51171875,
+          "PrivateMiB": 56.03125
+        }
+      ]
+    },
+    {
+      "Kind": "decode-tiff",
+      "Width": 4000,
+      "Height": 3000,
+      "DisplaySceneSupported": true,
+      "ColdMs": 253.9554,
+      "BaselineWorkingSetMiB": 31.60546875,
+      "PeakWorkingSetMiB": 394.68359375,
+      "GCBeforeEachMeasuredIteration": true,
+      "Samples": [
+        {
+          "Ms": 217.7534,
+          "CpuMs": 218.75,
+          "ManagedAllocatedMiB": 34.42119598388672,
+          "WorkingSetMiB": 74.4921875,
+          "PrivateMiB": 50.046875
+        },
+        {
+          "Ms": 218.6347,
+          "CpuMs": 218.75,
+          "ManagedAllocatedMiB": 34.42119598388672,
+          "WorkingSetMiB": 73.5546875,
+          "PrivateMiB": 49.50390625
+        },
+        {
+          "Ms": 216.1722,
+          "CpuMs": 234.375,
+          "ManagedAllocatedMiB": 34.42119598388672,
+          "WorkingSetMiB": 73.640625,
+          "PrivateMiB": 49.51953125
+        },
+        {
+          "Ms": 218.4835,
+          "CpuMs": 218.75,
+          "ManagedAllocatedMiB": 34.42119598388672,
+          "WorkingSetMiB": 73.6640625,
+          "PrivateMiB": 49.51953125
+        },
+        {
+          "Ms": 220.7684,
+          "CpuMs": 218.75,
+          "ManagedAllocatedMiB": 34.42119598388672,
+          "WorkingSetMiB": 73.4140625,
+          "PrivateMiB": 49.48828125
+        }
+      ]
+    },
+    {
+      "Kind": "blur-8",
+      "Width": 1024,
+      "Height": 768,
+      "DisplaySceneSupported": true,
+      "ColdMs": 58.9165,
+      "BaselineWorkingSetMiB": 34.74609375,
+      "PeakWorkingSetMiB": 43.9140625,
+      "GCBeforeEachMeasuredIteration": true,
+      "Samples": [
+        {
+          "Ms": 44.493,
+          "CpuMs": 93.75,
+          "ManagedAllocatedMiB": 6.0145263671875,
+          "WorkingSetMiB": 43.078125,
+          "PrivateMiB": 19.79296875
+        },
+        {
+          "Ms": 43.9449,
+          "CpuMs": 46.875,
+          "ManagedAllocatedMiB": 6.01458740234375,
+          "WorkingSetMiB": 43.15234375,
+          "PrivateMiB": 19.87109375
+        },
+        {
+          "Ms": 43.4654,
+          "CpuMs": 46.875,
+          "ManagedAllocatedMiB": 6.0145263671875,
+          "WorkingSetMiB": 43.2109375,
+          "PrivateMiB": 19.94140625
+        },
+        {
+          "Ms": 44.0493,
+          "CpuMs": 46.875,
+          "ManagedAllocatedMiB": 6.0146484375,
+          "WorkingSetMiB": 43.23828125,
+          "PrivateMiB": 19.94140625
+        },
+        {
+          "Ms": 44.2156,
+          "CpuMs": 46.875,
+          "ManagedAllocatedMiB": 6.015693664550781,
+          "WorkingSetMiB": 43.6171875,
+          "PrivateMiB": 20.01953125
+        }
+      ]
+    },
+    {
+      "Kind": "blur-9",
+      "Width": 1024,
+      "Height": 768,
+      "DisplaySceneSupported": true,
+      "ColdMs": 41.6322,
+      "BaselineWorkingSetMiB": 34.671875,
+      "PeakWorkingSetMiB": 42.4609375,
+      "GCBeforeEachMeasuredIteration": true,
+      "Samples": [
+        {
+          "Ms": 26.2533,
+          "CpuMs": 15.625,
+          "ManagedAllocatedMiB": 6.0079498291015625,
+          "WorkingSetMiB": 42.08203125,
+          "PrivateMiB": 19.40234375
+        },
+        {
+          "Ms": 26.4962,
+          "CpuMs": 15.625,
+          "ManagedAllocatedMiB": 6.008270263671875,
+          "WorkingSetMiB": 42.08984375,
+          "PrivateMiB": 18.99609375
+        },
+        {
+          "Ms": 26.2691,
+          "CpuMs": 15.625,
+          "ManagedAllocatedMiB": 6.008270263671875,
+          "WorkingSetMiB": 42.11328125,
+          "PrivateMiB": 19.06640625
+        },
+        {
+          "Ms": 26.3186,
+          "CpuMs": 15.625,
+          "ManagedAllocatedMiB": 6.008270263671875,
+          "WorkingSetMiB": 42.13671875,
+          "PrivateMiB": 19.13671875
+        },
+        {
+          "Ms": 27.2793,
+          "CpuMs": 31.25,
+          "ManagedAllocatedMiB": 6.008270263671875,
+          "WorkingSetMiB": 42.16015625,
+          "PrivateMiB": 19.20703125
+        }
+      ]
+    }
+  ],
+  "Correctness": {
+    "PngDepth": 8,
+    "TiffDepth": 8,
+    "DecodedPixelsEqual": false,
+    "PngPixel": "#ff6495ed",
+    "TiffPixel": "#ff6495ed",
+    "MaxChannelDelta": 1,
+    "DifferentChannelSamples": 738,
+    "PreviewPixelsEqualWithHiddenAdjustment": true
+  },
+  "History": {
+    "UndoCount": 15,
+    "RetainedByteLimit": 16777216,
+    "ReportedRetainedBytes": 15731520,
+    "UniqueOldCoverageBuffers": 15,
+    "ActualRetainedCoverageBytes": 15728640
+  },
+  "Export": {
+    "InjectedFault": "Invalid shadow opacity forces a rendering exception after output open",
+    "Error": "ProjectException",
+    "OriginalPreserved": true,
+    "ResultBytes": 5
+  },
+  "Viewport": {
+    "Kind": "viewport-cache",
+    "Width": 4000,
+    "Height": 3000,
+    "OS": "Microsoft Windows 10.0.26200",
+    "ProcessorCount": 20,
+    "Simd": true,
+    "BudgetMiB": 19548,
+    "EditedMs": 87.6898,
+    "EditReferenceMs": 1186.3563,
+    "EditedPixelsEqual": true,
+    "EditTileHits": 11,
+    "EditTilesRendered": 1,
+    "PixelsEqual": true,
+    "UncachedMs": [
+      1222.9496,
+      1181.4924,
+      1179.6375,
+      1194.2988,
+      1182.3422,
+      1188.4993,
+      1180.5727,
+      1182.6133
+    ],
+    "CachedMs": [
+      1179.9357,
+      5.5568,
+      5.1877,
+      5.6334,
+      5.2753,
+      6.2555,
+      5.1729,
+      5.2228
+    ],
+    "ColdCacheMs": 1179.9357,
+    "WarmMedianMs": 5.2753,
+    "UncachedMedianMs": 1182.6133,
+    "Hits": 84,
+    "RenderedTiles": 12,
+    "RetainedBytes": 12582912,
+    "PeakWorkingSetMiB": 123.8828125
+  }
+}

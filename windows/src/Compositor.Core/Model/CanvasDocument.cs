@@ -38,6 +38,7 @@ public sealed class CanvasDocument : IDisposable
     /// <summary>Saved with the project; undo covers them.</summary>
     public List<CanvasGuide> Guides { get; } = [];
     public List<DocumentMark> Marks { get; } = [];
+    public List<CountGroup> CountGroups { get; } = [];
 
     /// <summary>What an edit may touch. Part of the document so undo covers it; not saved to disk.</summary>
     public DocumentSelection Selection { get; set; } = DocumentSelection.All;
@@ -108,7 +109,7 @@ public sealed class CanvasDocument : IDisposable
     {
         if (ID != other.ID || Width != other.Width || Height != other.Height || Resolution != other.Resolution
             || Layers.Count != other.Layers.Count || Guides.Count != other.Guides.Count || !Channels.SequenceEqual(other.Channels)
-            || !Marks.SequenceEqual(other.Marks) || !Selection.Matches(other.Selection) || WorkPath != other.WorkPath
+            || !CountGroups.SequenceEqual(other.CountGroups) || !Marks.SequenceEqual(other.Marks) || !Selection.Matches(other.Selection) || WorkPath != other.WorkPath
             || Image != other.Image || MeasurementScale != other.MeasurementScale || !Variables.SequenceEqual(other.Variables)
             || !DataSets.SequenceEqual(other.DataSets) || !Measurements.SequenceEqual(other.Measurements)
             || !MeasurementFields.SequenceEqual(other.MeasurementFields)) return false;
@@ -192,6 +193,7 @@ public sealed class CanvasDocument : IDisposable
         Effects = layer.Effects,
         Blending = layer.Blending,
         Label = layer.Label == LayerLabel.None ? null : layer.Label,
+        FrameStyle = layer.FrameStyle,
         Container = layer.Container == LayerContainer.Group ? null : layer.Container,
         ArtboardBackground = layer.Container == LayerContainer.Artboard && layer.ArtboardBackground != 0xffffffff ? layer.ArtboardBackground : null,
         SmartObjectFile = layer.SmartObject is null ? null : SmartObjectData.FileName(layer.ID),
@@ -201,6 +203,7 @@ public sealed class CanvasDocument : IDisposable
 
     public void CopyImageMetadataTo(CanvasDocument copy)
     {
+        copy.CountGroups.Clear(); copy.CountGroups.AddRange(CountGroups);
         copy.Image = Image; copy.MeasurementScale = MeasurementScale; copy.MeasurementFields = MeasurementFields.ToArray();
         copy.Variables.Clear(); copy.Variables.AddRange(Variables);
         copy.DataSets.Clear(); copy.DataSets.AddRange(DataSets);

@@ -59,6 +59,7 @@ public sealed class ImageLayer : IDisposable
     public Format.LayerBlending? Blending { get; set; }
     public Format.LayerLabel Label { get; set; }
     public Format.LayerContainer Container { get; set; }
+    public Format.FrameStyle? FrameStyle { get; set; }
     public uint ArtboardBackground { get; set; } = 0xffffffff;
     public SmartObjectData? SmartObject { get; set; }
 
@@ -100,7 +101,7 @@ public sealed class ImageLayer : IDisposable
             Shape = Shape,
             Effects = Effects,
             Text = Text,
-            Blending = Blending, Label = Label, Container = Container, ArtboardBackground = ArtboardBackground, SmartObject = SmartObject,
+            Blending = Blending, Label = Label, Container = Container, ArtboardBackground = ArtboardBackground, FrameStyle = FrameStyle, SmartObject = SmartObject,
         };
 
     /// <summary>
@@ -115,7 +116,7 @@ public sealed class ImageLayer : IDisposable
         && ReferenceEquals(Asset?.Image, other.Asset?.Image)
         && SameMask(Mask, other.Mask)
         && ReferenceEquals(Adjustment, other.Adjustment) && ReferenceEquals(Shape, other.Shape)
-        && Label == other.Label && Container == other.Container && ArtboardBackground == other.ArtboardBackground && ReferenceEquals(Blending, other.Blending) && ReferenceEquals(SmartObject, other.SmartObject)
+        && FrameStyle == other.FrameStyle && Label == other.Label && Container == other.Container && ArtboardBackground == other.ArtboardBackground && ReferenceEquals(Blending, other.Blending) && ReferenceEquals(SmartObject, other.SmartObject)
         && ReferenceEquals(Effects, other.Effects) && ReferenceEquals(Text, other.Text);
 
     private static bool SameMask(LayerMask? left, LayerMask? right) =>

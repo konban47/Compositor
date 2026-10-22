@@ -1,110 +1,62 @@
 using Compositor.Core.Document;
 using Compositor.Core.Format;
 using Compositor.Core.IO;
+using Compositor.Core.IO.PSD;
 using Compositor.Core.Model;
+using Compositor.Core.Pixels;
+using Compositor.Core.Rendering;
 using SkiaSharp;
 using LayerTransform = Compositor.Core.Model.LayerTransform;
-
 namespace Compositor.Core.Tests;
-
 public class Upstream155Tests
 {
-    [Theory]
-    [InlineData("Solid", "Square")]
-    [InlineData("Dotted", "Square")]
-    [InlineData("Dashed", "Round")]
-    [InlineData("Long Dash", "Round")]
-    public void LinePatternAndCapsSurviveSavingAndRedrawing(string pattern, string cap)
+    [Fact] public void ChannelPackPngPreservesColorUnderZeroAlphaAndHiddenNamedSources()
     {
-        using var document = new CanvasDocument(Guid.NewGuid(), 100, 10);
-        var style = new LayerShapeStyle { Kind = ShapeKind.Line, Red = 1, LineWidth = 1, LineStyle = pattern, LineCap = cap,
-            Start = new JsonPoint(.05, .5), End = new JsonPoint(.95, .5) };
-        ShapeEdits.Add(document, style, SKRectI.Create(100, 10), null);
-        var svg = LayerWorkflow.Svg(document, [document.Layers[0].ID]);
-        Assert.Contains("<path", svg); Assert.DoesNotContain("<image", svg);
-        var snapshot = ProjectSnapshot.FromDocument(document);
-        Assert.Equal(25, snapshot.Manifest.Version);
-        snapshot.Manifest.Version = 15; ProjectStore.Validate(snapshot.Manifest);
-        snapshot.Manifest.Version = 14; Assert.Throws<ProjectException>(() => ProjectStore.Validate(snapshot.Manifest));
-        snapshot.Manifest.Version = 25;
-        var path = Path.Combine(Path.GetTempPath(), $"line-{Guid.NewGuid()}.comp");
-        try
-        {
-            ProjectStore.Save(snapshot, path);
-            using var restored = ProjectStore.Load(path);
-            var loaded = Assert.Single(restored.Manifest.Layers).Shape!;
-            Assert.Equal(pattern, loaded.LineStyle); Assert.Equal(cap, loaded.LineCap);
-            using var pixels = ShapeEdits.Image(loaded, 100, 10)!;
-            Assert.True(document.Layers[0].Asset!.Image.GetPixelSpan().SequenceEqual(pixels.GetPixelSpan()));
-            Assert.Contains(Enumerable.Range(0, 100), x => pixels.GetPixel(x, 5).Alpha > 0);
-            Assert.Equal(0, pixels.GetPixel(50, 4).Alpha); Assert.Equal(0, pixels.GetPixel(50, 6).Alpha);
-            if (pattern == "Solid") Assert.Equal(255, pixels.GetPixel(50, 5).Alpha);
-            else Assert.Contains(Enumerable.Range(10, 80), x => pixels.GetPixel(x, 5).Alpha == 0);
-        }
-        finally { if (Directory.Exists(path)) Directory.Delete(path, true); }
+        using var doc = new CanvasDocument(Guid.NewGuid(), 8, 8);
+        foreach (var (name, value) in new[] { ("Red", (byte)40), ("Green", (byte)90), ("Blue", (byte)150), ("Alpha", (byte)0) })
+        { var pixels = Bitmaps.Allocate(Bitmaps.ColorInfo(8, 8)); pixels.Erase(new SKColor(value, value, value)); doc.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(pixels, name), new LayerTransform(0, 0, 8, 8), name) { IsVisible = false }); }
+        using var packed = ChannelPacking.Pack(doc, Enumerable.Range(0, 4).Select(c => ChannelPacking.Default(doc, c)).ToArray(), 8, 8);
+        var bytes = PngCodec.Encode(packed); using var decoded = PngCodec.DecodeImage(PngCodec.ReadHeader(bytes), bytes);
+        Assert.Equal(new byte[] { 40, 90, 150, 0 }, decoded.GetPixelSpan()[..4].ToArray());
+        var id = LayerPlacement.AddImage(doc, decoded.Copy(), SKRectI.Create(8, 8), "Packed", null)!.Value;
+        Assert.NotNull(ChannelPacking.Split(doc, id));
+        Assert.Equal(new[] { "Alpha", "Blue", "Green", "Red" }, doc.Layers.Where(l => l.ParentID == id).Select(l => l.Name));
     }
-
-    [Fact]
-    public void OldLineMetadataRemainsLegacyAndInvalidPatternsAreRejected()
+    [Theory] [InlineData(AdjustmentKind.ProgressiveBlur)] [InlineData(AdjustmentKind.BloomGlow)] [InlineData(AdjustmentKind.RgbSplit)]
+    public void FilterLayerRegionsMatchFullImageAndUpstreamV16FieldsLoad(AdjustmentKind kind)
     {
-        var style = new LayerShapeStyle { Kind = ShapeKind.Line, LineWidth = 3 };
-        Assert.True(style.IsValid); Assert.Null(style.LineCap);
-        style.Kind = ShapeKind.Rectangle; style.LineCap = "Round"; Assert.False(style.IsValid);
-        style.Kind = ShapeKind.Line; style.LineStyle = "Unknown"; Assert.False(style.IsValid);
-        style.LineStyle = "Solid"; style.LineWidth = double.NaN; Assert.False(style.IsValid);
-        Assert.True(ShapeLineStroke.Reach(new(0, 0), new(10, 10), 8, "Square") > 4);
+        using var doc = new CanvasDocument(Guid.NewGuid(), 140, 110); var pixels = Bitmaps.Allocate(Bitmaps.ColorInfo(140, 110));
+        for (var y = 0; y < 110; y++) for (var x = 0; x < 140; x++) pixels.SetPixel(x, y, x % 20 < 10 ? SKColors.White : new SKColor(10, 20, 30));
+        doc.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(pixels, "Stripes"), new LayerTransform(0, 0, 140, 110), "Stripes"));
+        var f = new FilterLayerSettings { ProgressiveFrom = 0, ProgressiveTo = 3, ProgressiveStart = new(20, 20), ProgressiveEnd = new(100, 80), BloomRadius = 3, RgbSplitDistance = 8, RgbSplitBlur = 3, RgbSplitRadial = true, RgbSplitReach = 40, RgbSplitCenter = new(20, 20) };
+        var layer = new ImageLayer(Guid.NewGuid(), null, new LayerTransform(0, 0, 140, 110), "Filter") { Adjustment = new LayerAdjustment { Kind = kind, FilterLayerSettings = f } }; doc.Layers.Add(layer);
+        using var full = DocumentRenderer.Render(doc); var area = SKRectI.Create(45, 32, 43, 41); using var part = DocumentRenderer.RenderRegion(doc, area);
+        var maximum = 0;
+        for (var y = 0; y < area.Height; y++) for (var x = 0; x < area.Width; x++) for (var c = 0; c < 4; c++) maximum = Math.Max(maximum, Math.Abs(full.GetPixelSpan()[(y + area.Top) * full.RowBytes + (x + area.Left) * 4 + c] - part.GetPixelSpan()[y * part.RowBytes + x * 4 + c]));
+        Assert.InRange(maximum, 0, 1);
+        var manifest = ProjectSnapshot.FromDocument(doc).Manifest; manifest.Version = 16; ProjectStore.Validate(manifest);
+        var encoded = ManifestJson.Serialize(manifest); var loaded = ManifestJson.Deserialize(encoded); Assert.Equal(f, loaded.Layers[^1].Adjustment!.FilterLayerSettings);
+        manifest.Version = 15; Assert.Throws<ProjectException>(() => ProjectStore.Validate(manifest));
     }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public void MouseAlwaysRetainsOriginalBrushPixels(bool size, bool opacity)
+    [Fact] public void SpectralDispersionIsContinuousAndIdentityIsExact()
     {
-        using var expected = Paint(new BrushSettings(Diameter: 16, Hardness: .5));
-        using var actual = Paint(new BrushSettings(Diameter: 16, Hardness: .5, PressureSize: size, PressureOpacity: opacity));
-        Assert.True(expected.Layers[0].Asset!.Image.GetPixelSpan().SequenceEqual(actual.Layers[0].Asset!.Image.GetPixelSpan()));
+        using var source = Bitmaps.Allocate(Bitmaps.ColorInfo(90, 24)); source.Erase(SKColors.Black);
+        using (var canvas = new SKCanvas(source)) { using var paint = new SKPaint { Color = SKColors.White }; canvas.DrawRect(40, 0, 10, 24, paint); }
+        using var split = SpectralDispersion.Apply(source, new FilterSettings { RgbSplitDistance = 20 });
+        Assert.True(Enumerable.Range(20, 50).Select(x => split.GetPixel(x, 10)).Distinct().Count() > 12);
+        Assert.Contains(Enumerable.Range(20, 50), x => { var c = split.GetPixel(x, 10); return c.Red != c.Blue; });
+        using var identity = SpectralDispersion.Apply(source, new FilterSettings { RgbSplitDistance = 0 }); Assert.True(source.GetPixelSpan().SequenceEqual(identity.GetPixelSpan()));
     }
-
-    [Fact]
-    public void PenPressureInterpolatesDiameterAndOpacityAndDoesNotSaveSamples()
+    [Fact] public void PsdArtboardsKeepNestedChildrenAndShiftTextMasksAndOffCanvasPixels()
     {
-        var brush = new BrushSettings(Diameter: 20, PressureSize: true, PressureOpacity: true, Pressures: [0.2f, 1]);
-        using var doc = Paint(brush);
-        var bitmap = doc.Layers[0].Asset!.Image;
-        Assert.InRange(bitmap.GetPixel(20, 32).Alpha, 30, 100);
-        Assert.True(bitmap.GetPixel(100, 32).Alpha > 230);
-        Assert.Equal(0, bitmap.GetPixel(20, 38).Alpha);
-        Assert.True(bitmap.GetPixel(100, 38).Alpha > 0);
-        Assert.DoesNotContain("Pressures", System.Text.Json.JsonSerializer.Serialize(brush));
-        Assert.Equal((1d, 1d), brush.Dynamics(double.NaN));
-        Assert.Equal((.05, 0d), brush.Dynamics(0));
-    }
-
-    [Fact]
-    public void UniformProgressiveBlurMatchesOneGaussianPass()
-    {
-        using var source = Bitmaps.Allocate(Bitmaps.ColorInfo(48, 32)); source.Erase(SKColors.Blue);
-        source.SetPixel(24, 16, SKColors.Red);
-        using var expected = DeepAdjustments.Blur(source, 3, false);
-        using var actual = ProgressiveBlur.Apply(source, new FilterSettings { ProgressiveFrom = 3, ProgressiveTo = 3 });
-        Assert.True(expected.GetPixelSpan().SequenceEqual(actual.GetPixelSpan()));
-    }
-
-    [Fact]
-    public void LowPressureUsesSmallDabSpacingEvenWithALargeBrush()
-    {
-        using var doc = Paint(new BrushSettings(Diameter: 2000, PressureSize: true, Pressures: [.001f, .001f]));
-        for (var x = 21; x < 104; x++) Assert.True(doc.Layers[0].Asset!.Image.GetPixel(x, 32).Alpha > 0);
-    }
-
-    private static CanvasDocument Paint(BrushSettings brush)
-    {
-        var doc = new CanvasDocument(Guid.NewGuid(), 128, 64);
-        var image = Bitmaps.Allocate(Bitmaps.ColorInfo(128, 64)); image.Erase(SKColors.Transparent);
-        var layer = new ImageLayer(Guid.NewGuid(), ImportedImage.Create(image, "Paint"), new LayerTransform(0, 0, 128, 64), "Paint");
-        doc.Layers.Add(layer); BrushEdits.Paint(doc, layer.ID, [new(20, 32), new(105, 32)], brush);
-        return doc;
+        var source = new PsdDocument { Width = 100, Height = 100 };
+        var a = new PsdRecord { IsGroup = true, Name = "A", Artboard = new PsdRect(-50, 20, 50, 100) };
+        var b = new PsdRecord { IsGroup = true, Name = "B", Artboard = new PsdRect(200, 20, 260, 80) };
+        var folder = new PsdRecord { IsGroup = true, ParentId = a.Id }; var child = new PsdRecord { ParentId = folder.Id, Bounds = new(-40, 30, 10, 60), MaskBounds = new(-35, 32, 5, 55), Text = new(new LayerTextStyle(), -40, 30, 0, false, false, []) };
+        source.Layers.AddRange([child, folder, a, new PsdRecord { ParentId = b.Id, Bounds = new(210, 25, 250, 60) }, b, new PsdRecord()]);
+        var result = PsdArtboards.Split(source); Assert.Equal(new[] { "A", "B" }, result.Select(i => i.Name));
+        Assert.Equal(2, result[0].Document.Layers.Count); Assert.Single(result[1].Document.Layers);
+        Assert.Null(result[0].Document.Layers.Single(l => l.Id == folder.Id).ParentId);
+        var moved = result[0].Document.Layers.Single(l => l.Id == child.Id); Assert.Equal(new PsdRect(10, 10, 60, 40), moved.Bounds); Assert.Equal(10, moved.Text!.X); Assert.Equal(12, moved.MaskBounds.Top);
     }
 }

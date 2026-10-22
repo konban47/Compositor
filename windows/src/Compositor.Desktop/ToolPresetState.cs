@@ -38,6 +38,7 @@ internal sealed class ToolPresetState
         if (values.Count > 512 || values.Any(p => p is null || !Enum.IsDefined(p.Tool) || string.IsNullOrWhiteSpace(p.Name) || p.Name.Length > 200 || p.Options?.Brush is null || p.Options.Wand is null || p.Options.Selection is null || p.Options.Crop is null || p.Options.Pen is null || p.Artboard is null || p.Professional is null)) throw new InvalidDataException("Invalid tool presets.");
         foreach (var p in values)
         {
+            var professional = new ProfessionalOptions(); p.ApplyProfessional(professional); professional.Validate();
             var pen = p.Options.Pen;
             if (typeof(PenToolSettings).GetFields().Where(f => f.FieldType == typeof(double)).Any(f => !double.IsFinite((double)f.GetValue(pen)!))
                 || !Enum.IsDefined(pen.Output) || !Enum.IsDefined(pen.Operation) || pen.Stroke is < 0 or > 1000
@@ -47,6 +48,8 @@ internal sealed class ToolPresetState
                 throw new InvalidDataException("Invalid line style preset.");
             var b = p.Options.Brush;
             if (typeof(BrushSettings).GetProperties().Where(f => f.PropertyType == typeof(double)).Any(f => !double.IsFinite((double)f.GetValue(b)!))
+                || b.SpacingFraction is < 0 or > 10 || b.HealingDiffusion is < 1 or > 7 || b.CloneScope is < 0 or > 2
+                || !Enum.IsDefined(b.HealingBlend) || b.Angle is < -180 or > 180 || b.Roundness is < .01 or > 1
                 || b.Diameter is <= 0 or > 5000 || b.Opacity is < 0 or > 1 || b.Hardness is < 0 or > 1
                 || p.Artboard.Width is < 1 or > 30000 || p.Artboard.Height is < 1 or > 30000) throw new InvalidDataException("Invalid tool preset values.");
             var s = p.Options.Selection; var c = p.Options.Crop;

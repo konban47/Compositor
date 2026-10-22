@@ -30,7 +30,7 @@ public enum FilterKind
     /// <summary>Radial distortion: either direction straightens a lens.</summary>
     LensCorrection,
     Scanlines,
-    ProgressiveBlur,
+    ProgressiveBlur, RgbSplit,
 }
 
 /// <summary>
@@ -43,6 +43,13 @@ public enum FilterKind
 /// </summary>
 public sealed class FilterSettings
 {
+    public double RgbSplitDistance { get; set; } = 10;
+    public double RgbSplitBlur { get; set; }
+    public double RgbSplitAngle { get; set; }
+    public bool RgbSplitRadial { get; set; }
+    public double RgbSplitCenterX { get; set; } = 50;
+    public double RgbSplitCenterY { get; set; } = 50;
+    public double RgbSplitReach { get; set; } = 1000;
     public double ProgressiveFrom { get; set; }
     public double ProgressiveTo { get; set; } = 20;
     public double ProgressiveStartX { get; set; } = 50;
@@ -118,7 +125,8 @@ public sealed class FilterSettings
     /// <summary>Whether the amounts this filter reads are ones it may use.</summary>
     public bool IsValid(FilterKind kind) => kind switch
     {
-        FilterKind.ProgressiveBlur => Within(ProgressiveFrom, 0, 250) && Within(ProgressiveTo, 0, 250) && new[] { ProgressiveStartX, ProgressiveStartY, ProgressiveEndX, ProgressiveEndY }.All(v => Within(v, -1000, 1000)),
+        FilterKind.RgbSplit => Within(RgbSplitDistance, 0, 200) && Within(RgbSplitBlur, 0, 400) && Within(RgbSplitAngle, -180, 180) && Within(RgbSplitReach, 1, 100000) && double.IsFinite(RgbSplitCenterX + RgbSplitCenterY),
+        FilterKind.ProgressiveBlur => Within(ProgressiveFrom, 0, 250) && Within(ProgressiveTo, 0, 250) && new[] { ProgressiveStartX, ProgressiveStartY, ProgressiveEndX, ProgressiveEndY }.All(double.IsFinite),
         FilterKind.Scanlines => Scanlines.IsValid,
         FilterKind.GaussianBlur => Within(BlurRadius, 0.1, 250),
         FilterKind.MotionBlur => Within(MotionAngle, -90, 90) && Within(MotionDistance, 1, 2000),
@@ -137,6 +145,7 @@ public sealed class FilterSettings
     /// <summary>Whether this filter would change anything at all.</summary>
     public bool DoesAnything(FilterKind kind) => kind switch
     {
+        FilterKind.RgbSplit => RgbSplitDistance > 0 || RgbSplitBlur > 0,
         FilterKind.ProgressiveBlur => ProgressiveFrom > 0 || ProgressiveTo > 0,
         FilterKind.Scanlines => true,
         FilterKind.GaussianBlur => BlurRadius > 0,
@@ -169,6 +178,7 @@ public static class FilterEdits
         FilterKind.GaussianBlur => (int)Math.Ceiling(settings.BlurRadius * 3 + 2),
         FilterKind.MotionBlur => (int)Math.Ceiling(settings.MotionDistance / 2 + 2),
         FilterKind.BloomGlow => (int)Math.Ceiling(settings.BloomRadius * 3 + 2),
+        FilterKind.RgbSplit => (int)Math.Ceiling((settings.RgbSplitDistance + settings.RgbSplitBlur) * (settings.RgbSplitRadial ? 2 : 1) + 2),
         _ => 0,
     };
 
@@ -185,6 +195,21 @@ public static class FilterEdits
     {
         if (!settings.IsValid(kind) || !settings.DoesAnything(kind)) return false;
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { } layer) return false;
+        if (kind == FilterKind.RgbSplit && layer.Asset is { } splitSource)
+        {
+            var margin = Margin(kind, settings); var oldMask = layer.MaskTransform;
+            if (!FilterSurface.Begin(layer, margin, out var surface, out var transform)) return false;
+            using (surface)
+            using (var splitBefore = document.Selection.Path is null ? null : FilterSurface.Copy(surface))
+            {
+                var local = new FilterSettings { RgbSplitDistance = settings.RgbSplitDistance, RgbSplitBlur = settings.RgbSplitBlur, RgbSplitAngle = settings.RgbSplitAngle, RgbSplitRadial = settings.RgbSplitRadial, RgbSplitReach = settings.RgbSplitReach,
+                    RgbSplitCenterX = (settings.RgbSplitCenterX / 100 * splitSource.Width + margin) / surface.Width * 100,
+                    RgbSplitCenterY = (settings.RgbSplitCenterY / 100 * splitSource.Height + margin) / surface.Height * 100 };
+                var t = layer.Transform; var sides = t.Rotation == 0 && !t.FlipX && !t.FlipY ? (t.X <= 0 ? 1 : 0) | (t.X + t.Width >= document.Width ? 2 : 0) | (t.Y <= 0 ? 4 : 0) | (t.Y + t.Height >= document.Height ? 8 : 0) : 0;
+                using var split = SpectralDispersion.Apply(surface, local, -margin, -margin, clampBounds: SKRectI.Create(margin, margin, splitSource.Width, splitSource.Height), sides: sides);
+                FilterSurface.Settle(document, layer, split, splitBefore, transform, oldMask, true); return true;
+            }
+        }
         if (kind == FilterKind.ProgressiveBlur && layer.Asset is { } progressiveSource)
         {
             using var blurred = ProgressiveBlur.Apply(progressiveSource.WorkingImage, settings);

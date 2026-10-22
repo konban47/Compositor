@@ -64,6 +64,12 @@ public static partial class DocumentRenderer
             if (rendered.Mask is not null) rendered.Mask.Placement = layer.MaskTransform;
             using var content = Content(rendered, out var bounds);
             if (content is not null) CompositeLayer(target, content, bounds, rendered, opacity);
+            if (layer.FrameStyle is { Stroke: not null, StrokeWidth: > 0 })
+            {
+                using var border = Allocate(area.Width, area.Height);
+                using (var canvas = new SKCanvas(border)) { canvas.Translate(-area.Left, -area.Top); Document.FrameEdits.Stroke(canvas, layer); }
+                Composite(target, border, area, layer.BlendMode, opacity * layer.FillOpacity);
+            }
         }
         private void DrawIndependentStack(List<ImageLayer> siblings, int start, int end, Target target)
         {

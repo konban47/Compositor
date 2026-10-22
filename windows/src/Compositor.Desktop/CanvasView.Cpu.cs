@@ -12,6 +12,9 @@ public sealed partial class CanvasView
 {
     private long _cpuVersion, _cpuRequestedVersion = -1, _cpuTileVersion = -1;
     private ViewportTileCache? _cpuTiles;
+    private CanvasDocument? _cpuTileDocument;
+    private bool _cpuTileHadAlpha;
+    private (bool Proof, bool Gamut, ColorChannels Channels, double Opacity) _cpuTileDisplay;
     private int _cpuRequestedMaximum, _cpuRenderedMaximum;
     private int CpuMaximum => Math.Clamp((int)Math.Ceiling(Math.Max(Bounds.Width, Bounds.Height) * ((VisualRoot as Avalonia.Controls.TopLevel)?.RenderScaling ?? 1)), 256, 2048);
     internal long CpuCachedBytes => _cpuTiles?.RetainedBytes ?? 0;
@@ -29,7 +32,14 @@ public sealed partial class CanvasView
         var maximum = CpuMaximum;
         if (_cpuRequestedVersion == _cpuVersion && _cpuRequestedRegion == region && _cpuRequestedMaximum == maximum && ReferenceEquals(document, _cpuRequestedDocument)) return;
         if (_cpuTiles is null || _cpuTileVersion != _cpuVersion)
-        { _cpuTiles?.Dispose(); _cpuTiles = new ViewportTileCache(); _cpuTileVersion = _cpuVersion; }
+        {
+            var display = (ProofColors, GamutWarning, DisplayChannels, RefinementOpacity ?? .5);
+            var damaged = !_cpuTileHadAlpha && AlphaDisplay is null && _cpuTileDisplay == display && _cpuTileDocument is { } previous
+                ? ViewportDamage.Between(previous, document) : null;
+            var next = _cpuTiles?.Fork(damaged) ?? new ViewportTileCache();
+            _cpuTiles?.Dispose(); _cpuTiles = next; _cpuTileVersion = _cpuVersion;
+            _cpuTileDocument?.Dispose(); _cpuTileDocument = document.Clone(); _cpuTileDisplay = display; _cpuTileHadAlpha = AlphaDisplay is not null;
+        }
         var tiles = _cpuTiles; _cpuRequestedMaximum = maximum;
         _cpuCancellation?.Cancel();
         using var cancellation = new CancellationTokenSource(); _cpuCancellation = cancellation;

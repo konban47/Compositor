@@ -245,6 +245,9 @@ public sealed class ColorBalanceSettings
 /// </summary>
 public sealed class LayerAdjustment
 {
+    public FilterLayerSettings? FilterLayerSettings { get; set; }
+    [JsonIgnore] public FilterLayerSettings FilterLayer => FilterLayerSettings ?? new();
+    [JsonIgnore] public bool NeedsVersion16 => Kind is AdjustmentKind.ProgressiveBlur or AdjustmentKind.BloomGlow or AdjustmentKind.RgbSplit;
     public Document.ImageAdjustmentSettings? Extended { get; set; }
     public AdjustmentKind Kind { get; set; }
     public double Hue { get; set; }
@@ -296,6 +299,9 @@ public sealed class LayerAdjustment
     /// </summary>
     public int SamplingMargin => Kind switch
     {
+        AdjustmentKind.ProgressiveBlur => (int)Math.Ceiling(Math.Max(FilterLayer.ProgressiveFrom, FilterLayer.ProgressiveTo) * 3 + 2),
+        AdjustmentKind.BloomGlow => (int)Math.Ceiling(FilterLayer.BloomRadius * 3 + 2),
+        AdjustmentKind.RgbSplit => (int)Math.Ceiling((FilterLayer.RgbSplitDistance + FilterLayer.RgbSplitBlur) * (FilterLayer.RgbSplitRadial ? 2 : 1) + 2),
         AdjustmentKind.GaussianBlur => (int)Math.Ceiling(GaussianRadius * 3 + 2),
         AdjustmentKind.MotionBlur => (int)Math.Ceiling(ResolvedMotionDistance / 2 + 2),
         _ => 0,
@@ -309,6 +315,7 @@ public sealed class LayerAdjustment
     {
         get
         {
+            if (!Enum.IsDefined(Kind) || FilterLayerSettings is { IsValid: false }) return false;
             if (!(double.IsFinite(Hue) && Math.Abs(Hue) <= 360
                   && double.IsFinite(Saturation) && Math.Abs(Saturation) <= 100
                   && double.IsFinite(Lightness) && Math.Abs(Lightness) <= 100)) return false;

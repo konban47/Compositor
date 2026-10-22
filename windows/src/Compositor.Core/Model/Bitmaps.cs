@@ -33,6 +33,19 @@ public static class Bitmaps
         return bitmap;
     }
 
+    /// <summary>Copy exact pixel bytes through the same budget gate as a new surface.</summary>
+    public static SKBitmap Copy(SKBitmap source)
+    {
+        var result = Allocate(source.Info);
+        try
+        {
+            var bytes = checked(source.Width * source.BytesPerPixel);
+            for (var y = 0; y < source.Height; y++) source.GetPixelSpan().Slice(y * source.RowBytes, bytes).CopyTo(result.GetPixelSpan().Slice(y * result.RowBytes, bytes));
+            return result;
+        }
+        catch { result.Dispose(); throw; }
+    }
+
     /// <summary>A mask image: 8-bit grayscale, no alpha, and not itself a mask (Skia has no such flag).</summary>
     public static bool IsValidMask(SKBitmap image) =>
         !image.IsNull && image.ColorType == SKColorType.Gray8 && image.AlphaType == SKAlphaType.Opaque
