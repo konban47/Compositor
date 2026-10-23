@@ -9,6 +9,7 @@ public sealed class ProjectLayerRecord
     [JsonRequired] public string Name { get; set; } = "";
     [JsonRequired] public bool IsVisible { get; set; }
     [JsonRequired] public LayerTransform Transform { get; set; } = new();
+    public Model.GifRecord? Gif { get; set; }
     public string? ImageFile { get; set; }
     public string? FloatImageFile { get; set; }
     public Guid? ParentID { get; set; }

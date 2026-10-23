@@ -21,7 +21,7 @@ public enum SelectionMode
 }
 
 /// <summary>What the Magic Wand matches, as its tool header sets it.</summary>
-public sealed record WandOptions(int Radius = 4, int Tolerance = 32, bool Contiguous = true);
+public sealed record WandOptions(int Radius = 4, int Tolerance = 32, bool Contiguous = true, bool Antialias = false);
 
 /// <summary>
 /// The pixels a selection has lifted, while a drag is carrying them. The layer is left holding the hole they came

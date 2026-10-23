@@ -1,6 +1,6 @@
 # Windows 性能与数据安全修订 · 2026-10-22
 
-最新源码为 1.5.5.0 Preview，见本页末节“CPU 图块复用与低资源后续验证”。下方保留 1.5.3.2 审查基线及原始 16 项记录。
+最新源码为 1.5.6.0 Preview，见本页末节的画笔／GIF 回归记录。下方保留 1.5.3.2 审查基线及原始 16 项记录。
 
 适用于 **1.5.3.2 Preview** 的 `windows-port` 后续源码修订。审查基线为 `87af882ebea9566c85e10c630f8845616b18171c`。本页区分当前源码验证与既有 GitHub Release 的历史验证；安装包的内容以对应发布提交为准。
 
@@ -118,3 +118,11 @@ Windows 10、真实低端 CPU/4 GiB RAM、核显驱动及数位板没有实测�
 原始证据：[本轮前复杂视口](benchmarks/2026-10-23-viewport-before.json)；[视口 1](benchmarks/2026-10-23-retouch-viewport-1.json)、[2](benchmarks/2026-10-23-retouch-viewport-2.json)、[3](benchmarks/2026-10-23-retouch-viewport-3.json)；[PSD 窗口 1](benchmarks/2026-10-23-retouch-native-1.json)、[2](benchmarks/2026-10-23-retouch-native-2.json)、[3](benchmarks/2026-10-23-retouch-native-3.json)；[512 MiB 视口](benchmarks/2026-10-23-scalar512-complex-viewport.json)、[窗口](benchmarks/2026-10-23-scalar512-native-cpu.json)、[验证清单](benchmarks/2026-10-23-scalar512-summary.json)；[1024 MiB 视口](benchmarks/2026-10-23-simd1024-complex-viewport.json)。
 
 最终本机验证：Release 零警告构建；1260 项核心测试通过、零跳过（含大画布压力）；24 组英文 / 18 组中文 UI 通过；完整合成性能/分配/原子导出门禁通过。旧工具栏与“切换文档清源”的两项检查已更新为专用工具栏和五槽跨文档来源检查，不删除相应交互验证。最后的修饰位图预算修正后，又运行全量核心以及两核/512 MiB/无托管 SIMD 的中英修饰流程。记录：[验证清单](benchmarks/2026-10-23-validation.json)、[性能门禁](benchmarks/2026-10-23-performance-gates.json)。便携/安装包由 `package.ps1` 构建；本机已有安装实例，安装/卸载由干净 CI 验证，结果以对应提交的工作流为准。
+
+## 1.5.6.0 画笔／GIF 回归（2026-10-23）
+
+本机合成性能、分配、像素一致性、历史内存与失败导出门禁全部通过。4000×3000 复杂视口完整重算中位 1223.91 ms，热缓存中位 5.26 ms；局部编辑 90.21 ms，对照重算 1228.05 ms，复用 11 / 12 图块，像素逐字节相同。这些是特定合成场景的 CPU 结果，不是所有编辑操作或显示器帧率。
+
+历史保留 15 个旧选区缓冲，实际覆盖率内存 15,728,640 字节，报告值 15,731,520 字节，未超过 16 MiB 限额。注入导出失败后原文件保持原字节。原始证据：[性能门禁](benchmarks/2026-10-23-156-performance-gates.json)；双逻辑处理器与预算配置见 [兼容性记录](COMPATIBILITY.md#1560-画笔gif-追加记录2026-10-23)。
+
+新画笔只在影响区域分配工作缓冲，最后发布结果；旋转方形／自定义笔尖保留完整边角。流量与不透明度分开计算，超长笔画或过大计算量在修改源像素前拒绝。GIF 保留压缩源，按需解码；播放复用未改变的帧组合，独立预览不写入历史。绘画期间当前仍显示路径，松开后提交实际像素。

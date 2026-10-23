@@ -1,0 +1,106 @@
+{
+  "TimestampUtc": "2026-10-23T10:56:26.5411899Z",
+  "Success": true,
+  "Error": null,
+  "OS": "Microsoft Windows 11 专业版",
+  "Build": "26200",
+  "ProductType": 1,
+  "ActualWindows10Client": false,
+  "Validation": "Host resource simulation; NOT Windows 10 validation",
+  "PhysicalMemoryMiB": 32581.0,
+  "MemoryAdmissionBudgetMiB": 1024,
+  "Scalar": false,
+  "NativeWindowTest": true,
+  "Checks": [
+    {
+      "Name": "complex-viewport",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "core-safety",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "en-windows-checks",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "en-interaction-checks",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "en-pen-layer-checks",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "en-utility-retouch-checks",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "en-painting-checks",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "en-gif-checks",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "zh-CN-windows-checks",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "zh-CN-interaction-checks",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "zh-CN-pen-layer-checks",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "zh-CN-utility-retouch-checks",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "zh-CN-painting-checks",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "zh-CN-gif-checks",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    },
+    {
+      "Name": "native-cpu",
+      "ExitCode": 0,
+      "Affinity": 3,
+      "LogicalProcessors": 2
+    }
+  ]
+}

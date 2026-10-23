@@ -19,7 +19,11 @@ internal sealed class ToolRail : Grid
     /// <summary>How wide the rail is, which is the Mac's own 56 points.</summary>
     private const double RailWidth = 44;
     internal bool TwoColumns { get; private set; }
-    internal void SetColumns(bool two)
+    private bool _requestedTwo;
+    private double _availableHeight = double.PositiveInfinity, _singleColumnHeight;
+    internal void SetAvailableHeight(double height) { _availableHeight = height; SetEffectiveColumns(_requestedTwo || _singleColumnHeight > height); }
+    internal void SetColumns(bool two) { _requestedTwo = two; SetEffectiveColumns(two || _singleColumnHeight > _availableHeight); }
+    private void SetEffectiveColumns(bool two)
     {
         if (TwoColumns == two) return;
         TwoColumns = two; Width = two ? 80 : RailWidth; ApplyLayout(_layout);
@@ -70,6 +74,7 @@ internal sealed class ToolRail : Grid
         if (layout.ShowScreenMode) Footer("screen", "Screen Mode (F)", () => ScreenModeRequested?.Invoke());
         if (layout.ShowGenerative) Footer("generate", "Generative Workspace", () => GenerativeRequested?.Invoke());
         footer.Measure(new Size(Width, double.PositiveInfinity));
+        _singleColumnHeight = _layout.Groups.Count * UpstreamArtwork.ButtonSide + 6 + footer.DesiredSize.Height;
         MaxHeight = Math.Ceiling(_layout.Groups.Count / (TwoColumns ? 2d : 1)) * UpstreamArtwork.ButtonSide + 6 + footer.DesiredSize.Height;
         SetRow(footer, 1); Children.Add(footer);
         Mark(_marked); ShowShortcuts(_shortcuts);
@@ -105,6 +110,10 @@ internal sealed class ToolRail : Grid
     {
         Width = RailWidth;
         ApplyLayout(ToolCatalog.Load());
+        MainWindow? owner = null;
+        void Reflow(object? sender, SizeChangedEventArgs args) => SetAvailableHeight(Math.Max(100, owner!.ClientSize.Height - 150));
+        AttachedToVisualTree += (_, _) => { if (TopLevel.GetTopLevel(this) is MainWindow window) { owner = window; owner.SizeChanged += Reflow; SetAvailableHeight(Math.Max(100, owner.ClientSize.Height - 150)); } else SetAvailableHeight(double.PositiveInfinity); };
+        DetachedFromVisualTree += (_, _) => { if (owner is not null) owner.SizeChanged -= Reflow; owner = null; };
     }
 
     /// <summary>Marks the tool in hand, which is the only one lit.</summary>

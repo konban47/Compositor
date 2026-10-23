@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Compositor.Core.Format;
 using Compositor.Core.Model;
 using SkiaSharp;
@@ -30,7 +31,7 @@ public static class ImageEdits
         var sy = height / (double)document.Height;
         // Every new picture is made before anything is replaced, so a refusal leaves the document as it was.
         var made = new List<(ImageLayer Layer, ImportedImage? Asset, Model.LayerMask? Mask, Model.LayerTransform Transform,
-            Model.LayerTransform? Placement)>();
+            Model.LayerTransform? Placement, GifAnimation? Animation)>();
         long used = 0;
         foreach (var layer in document.Layers)
         {
@@ -79,7 +80,20 @@ public static class ImageEdits
             Model.LayerTransform? placement = layer.Mask?.Placement is { } placed
                 ? placed with { X = placed.X * sx, Y = placed.Y * sy, Width = placed.Width * sx, Height = placed.Height * sy }
                 : null;
-            made.Add((layer, replacement, maskResult, transform, placement));
+            GifAnimation? animation = null;
+            if (layer.Gif is { } gif)
+            {
+                var mapping = SKMatrix.Concat(SKMatrix.CreateScale(1f / box.Width, 1f / box.Height), SKMatrix.Concat(SKMatrix.CreateTranslation(-box.Left, -box.Top), SKMatrix.Concat(SKMatrix.CreateScale((float)sx, (float)sy), BrushEdits.PixelToDocument(layer.Transform, 1, 1))));
+                if (gif.Geometry is { } oldGeometry) mapping = SKMatrix.Concat(mapping, new SKMatrix((float)oldGeometry.A,(float)oldGeometry.C,(float)oldGeometry.Tx,(float)oldGeometry.B,(float)oldGeometry.D,(float)oldGeometry.Ty,0,0,1));
+                var edited = ImmutableDictionary.CreateBuilder<int,ImportedImage>();
+                foreach (var (index, image) in gif.Edited)
+                {
+                    used += (long)box.Width * box.Height; if (used > DocumentLimits.DocumentPixelBudget) throw new InvalidOperationException("GIF edits exceed the resized document pixel budget.");
+                    edited[index] = ResampleAsset(image, layer.Transform, sx, sy, box, sampling);
+                }
+                animation = gif with { Geometry = new GifGeometry(box.Width,box.Height,mapping.ScaleX,mapping.SkewY,mapping.SkewX,mapping.ScaleY,mapping.TransX,mapping.TransY,sampling), Edited = edited.ToImmutable() };
+            }
+            made.Add((layer, replacement, maskResult, transform, placement, animation));
         }
 
         DocumentMarks.Transform(document, SKMatrix.CreateScale((float)sx, (float)sy)); PenPaths.Transform(document, SKMatrix.CreateScale((float)sx, (float)sy));
@@ -87,9 +101,11 @@ public static class ImageEdits
         {
             guide.Position *= guide.Axis == GuideAxis.Vertical ? sx : sy;
         }
-        foreach (var (layer, asset, mask, transform, placement) in made)
+        foreach (var (layer, asset, mask, transform, placement, animation) in made)
         {
+            layer.Gif = null;
             if (asset is not null) layer.Asset = asset;
+            layer.Gif = animation;
             if (mask is not null)
             {
                 layer.Mask = mask;

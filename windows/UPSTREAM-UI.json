@@ -1,6 +1,6 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "551a35fc06fb8429fed3b99b175e31681875f580",
+  "commit": "47cb96b83f73dbb8deda4c417e702c83b7107cab",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
@@ -18,15 +18,15 @@
     },
     {
       "path": "Compositor/ContentView.swift",
-      "sha256": "e3745c87263f08033366c4e9f2e771880e489db34d8bb99c975fbee0cfa6859f"
+      "sha256": "479714eb301277f3131a2b5f6bf78f79cf4549795f92e0ad410d1de27e154e8b"
     },
     {
       "path": "Compositor/UI/ToolHeaderStyle.swift",
-      "sha256": "857e04a85f8d76711a169b547b037871e62b501ab40b0f65e58e83c2714153e2"
+      "sha256": "ae1124efd7e787bcda7b847f01758bd43612d676988b92574452b7c60053dc7a"
     },
     {
       "path": "Compositor/Document/EditorSession.swift",
-      "sha256": "238d2a305db6e9785de6b7ac6665abaae0c21d9fbc133b5b2e8f49cb901cb3a5"
+      "sha256": "75066ca7e1e506afa80abb075d6f22d9adf910df721e66a146f8f25f0bdd69b3"
     },
     {
       "path": "Compositor/UI/ColorPaletteControls.swift",
@@ -42,7 +42,7 @@
     },
     {
       "path": "Compositor/Document/DeepLayers.swift",
-      "sha256": "2057f849da01052aa03293d7d3412210c6fab9f8941e44e081f5ae8f11a1b0f0"
+      "sha256": "d8e45f38f088190fb50e3a5d8b69fc1a34c3bec7d3525c37266492f1c70713af"
     },
     {
       "path": "Compositor/Document/CameraRawReset.swift",
@@ -66,11 +66,43 @@
     },
     {
       "path": "Compositor/UI/NativeLayerList.swift",
-      "sha256": "13ca67511748ebdc2b7074238e8d0278cc2adae3e388373e70cfdea982dfb275"
+      "sha256": "25b93f69a13a7b9e404691261bda09375f1d6aef488e5eea007ab566398aa932"
     },
     {
       "path": "Compositor/Document/CameraRaw.swift",
       "sha256": "fbf2eddbe4451b98086c2f3c439ec7d1b13ccff5e573dd0251ac2ae802a71830"
+    },
+    {
+      "path": "Compositor/UI/ToolRail.swift",
+      "sha256": "26123b2c9dc038a06d179ca705b8e7dff0dbe40d9b7d013dab4085f8fe8f7a81"
+    },
+    {
+      "path": "Compositor/UI/GIFTimeline.swift",
+      "sha256": "1e47b70596c53386071650ef76b3a6e54492a45672fdca668e9ac77581785cb1"
+    },
+    {
+      "path": "Compositor/Document/GIFAnimation.swift",
+      "sha256": "8d7cd060e79c315ee40452083359e8c8b314e90d81174a05d7e0d61eb6e0cf2e"
+    },
+    {
+      "path": "Compositor/Document/GIFFrameTiming.swift",
+      "sha256": "e2febd7d3baf936271a904fb129b4fa7d1068b00e889802d3fe80cc000b53e56"
+    },
+    {
+      "path": "Compositor/Document/GIFPreviewPlayback.swift",
+      "sha256": "0407a0cbc3d16f01b0ad3e6a1eca6516c055a01110b86701a05902173e0f5bf4"
+    },
+    {
+      "path": "Compositor/IO/GIFDecoder.swift",
+      "sha256": "181a5ceaad2e12e2c643076429b92111057a2f7aa40cff8de504e9d45e8af0f0"
+    },
+    {
+      "path": "Compositor/IO/GIFExportSchedule.swift",
+      "sha256": "07081ca6f4369b3707700245b4fe79e1408ef5dea0144339c9a989199cc39118"
+    },
+    {
+      "path": "Compositor/IO/GIFExporter.swift",
+      "sha256": "0677d6f86fee070f2232348aba47f396f3f54d91afe9ca9bee8b20c49382e34d"
     }
   ],
   "directPorts": [

@@ -165,9 +165,9 @@ public sealed partial class MainWindow
     }
     private void PaintBucket(SKPoint point, bool erase)
     {
-        if (EditActiveAlpha(erase ? "Magic Eraser" : "Paint Bucket", (target, channel) => BucketEdits.Apply(target, channel, point, _options.Wand, BrushColour(), erase, _options.Brush.Opacity))) return;
+        if (EditActiveAlpha(erase ? "Magic Eraser" : "Paint Bucket", (target, channel) => BucketEdits.Apply(target, channel, point, _options.Wand with { Antialias = erase && _options.SelectionAntialiased }, BrushColour(), erase, _options.Brush.Opacity))) return;
         if (_document is not { } doc || Selected is not { } id || !LayerProtection.CanPaint(doc, id)) { Say("The layer is locked."); return; }
-        Edit(erase ? "Magic Eraser" : "Paint Bucket", () => BucketEdits.Apply(doc, id, point, _options.Wand, BrushColour(), erase, _options.Brush.Opacity, _options.WandAllLayers));
+        Edit(erase ? "Magic Eraser" : "Paint Bucket", () => BucketEdits.Apply(doc, id, point, _options.Wand with { Antialias = erase && _options.SelectionAntialiased }, BrushColour(), erase, _options.Brush.Opacity, _options.WandAllLayers));
     }
     private void PaintAdjustment(IReadOnlyList<SKPoint> stroke)
     {

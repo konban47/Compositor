@@ -1,4 +1,4 @@
-# Windows 10 与低资源验证 · 1.5.5.1 Preview
+# Windows 10 与低资源验证 · 1.5.6.0 Preview
 
 2026-10-22。当前没有可用 Windows 10 实机或虚拟机，用户选择先完成可复现方案。**Windows 10 验收状态：待执行。** 以下本机结果来自 Windows 11 Pro build 26200；CPU 限制、禁用 SIMD、软件绘制或 Windows Server CI 均不等于 Windows 10 验收。
 
@@ -56,3 +56,14 @@ dotnet build windows/Compositor.slnx -c Release -warnaserror
 PDF 新增原生依赖为 PDFium 152.0.7961，完整许可随安装包发布；在 Win10 上必须实际测试原生 DLL 加载、中文字体 PDF、密码 PDF、超大页的预算拒绝。PSD 画板应包括画布外画板及图层蒙版样本。三种新滤镜调整层还应测试保存/重开、CPU 模式下预览、取消与撤销；真实数位板需检查修复/移除笔尖压力。生成式移除和干扰物检测需另外提供服务凭据，确认请求、失败、取消及输出尺寸，本轮未进行真实云端验收。
 
 本机已有安装的 Compositor，未通过覆盖安装/卸载扰动该实例；新安装包的安装/卸载自动检查由干净的 Windows Server CI 执行。该检查仍不等于真实 Win10 或既有用户安装升级测试。
+
+## 1.5.6.0 画笔／GIF 追加记录（2026-10-23）
+
+两档配置均完成 137 项核心安全检查、12 组中英界面检查和 60 帧原生软件绘制。新增画笔／图章／历史／橡皮擦与 GIF 导入、播放隔离、帧编辑、保存重开、导出检查。最终失败保护和中文标签另由完整核心回归与两语言关键流程复核。
+
+| 配置 | 原生首帧 | 帧回调中位 | CPU 合成中位 | 峰值工作集 |
+| --- | --- | --- | --- | --- |
+| 512 MiB，双逻辑处理器，托管 SIMD 关闭 | 3918.79 ms | 56.77 ms | 9.13 ms | 226 MiB |
+| 1024 MiB，双逻辑处理器，SIMD 开启 | 2685.30 ms | 57.27 ms | 8.86 ms | 227 MiB |
+
+两档复杂视口与编辑后输出均逐字节一致；编辑仅重绘 1 块，复用 11 块。报告明确保留 `ActualWindows10Client=false`，不代表真实低端 CPU 或 Windows 10 验收。证据：[512 MiB](benchmarks/2026-10-23-156-scalar512-summary.json)、[1024 MiB](benchmarks/2026-10-23-156-simd1024-summary.json)、[512 MiB 原生窗口](benchmarks/2026-10-23-156-scalar512-native-cpu.json)、[1024 MiB 原生窗口](benchmarks/2026-10-23-156-simd1024-native-cpu.json)。

@@ -48,6 +48,7 @@ internal sealed class ToolPresetState
                 throw new InvalidDataException("Invalid line style preset.");
             var b = p.Options.Brush;
             if (typeof(BrushSettings).GetProperties().Where(f => f.PropertyType == typeof(double)).Any(f => !double.IsFinite((double)f.GetValue(b)!))
+                || b.Painting is { IsValid: false }
                 || b.SpacingFraction is < 0 or > 10 || b.HealingDiffusion is < 1 or > 7 || b.CloneScope is < 0 or > 2
                 || !Enum.IsDefined(b.HealingBlend) || b.Angle is < -180 or > 180 || b.Roundness is < .01 or > 1
                 || b.Diameter is <= 0 or > 5000 || b.Opacity is < 0 or > 1 || b.Hardness is < 0 or > 1

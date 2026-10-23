@@ -11,6 +11,7 @@ public sealed class DocumentLease : IDisposable
         try
         {
             foreach (var asset in Document.Layers.SelectMany(l => new[] { l.Asset, l.Mask?.Asset })
+                .Concat(Document.Layers.SelectMany(l => l.Gif?.Edited.Values ?? []))
                 .Concat(Document.Channels.Select(c => c.Asset)).OfType<ImportedImage>().Distinct())
                 _leases.Add(asset.Retain());
         }

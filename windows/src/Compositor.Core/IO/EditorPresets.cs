@@ -4,7 +4,8 @@ using Compositor.Core.Document;
 namespace Compositor.Core.IO;
 
 public sealed record EditorPreset(Guid ID, string Name, string Kind, double Diameter = 40, double Hardness = 1,
-    double Opacity = 1, string? Image = null, string? Path = null);
+    double Opacity = 1, string? Image = null, string? Path = null, BrushSettings? Brush = null,
+    bool CaptureSize = true, bool IncludeTool = false, bool IncludeColor = false, string Tool = "Brush");
 
 public static class EditorPresets
 {
@@ -20,7 +21,11 @@ public static class EditorPresets
     private static bool Valid(EditorPreset preset)
     {
         if (preset.ID == Guid.Empty || string.IsNullOrWhiteSpace(preset.Name) || preset.Name.Length > 200 || preset.Kind is not ("Brush" or "Pattern" or "Shape")
-            || !double.IsFinite(preset.Diameter + preset.Hardness + preset.Opacity) || preset.Diameter is < 1 or > 2500 || preset.Hardness is < 0 or > 1 || preset.Opacity is < 0 or > 1) return false;
+            || !double.IsFinite(preset.Diameter + preset.Hardness + preset.Opacity) || preset.Diameter is < 1 or > 5000 || preset.Hardness is < 0 or > 1 || preset.Opacity is < 0 or > 1) return false;
+        if (preset.Brush is { } b && (b.Painting is { IsValid: false } || b.Diameter is < 1 or > 5000 || b.Hardness is < 0 or > 1 || b.Opacity is < 0 or > 1
+            || b.Angle is < -180 or > 180 || b.Roundness is < .01 or > 1 || b.SpacingFraction is < 0 or > 10
+            || typeof(BrushSettings).GetProperties().Where(p => p.PropertyType == typeof(double)).Any(p => !double.IsFinite((double)p.GetValue(b)!)))) return false;
+        if (preset.Tool is not ("Brush" or "Pencil" or "ColorReplacement" or "MixerBrush" or "Clone" or "PatternStamp" or "HistoryBrush" or "ArtHistory" or "Eraser" or "BackgroundEraser")) return false;
         try
         {
             if (preset.Kind == "Shape") return preset.Path is not null && ShapeTemplates.Normalize(preset.Path).Length > 0;

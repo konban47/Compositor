@@ -47,8 +47,7 @@ public sealed partial class MainWindow
         else if (preset.Kind == "Pattern") { _options.Brush = _options.Brush with { Pattern = SKBitmap.Decode(Convert.FromBase64String(preset.Image!)) }; SetTool(Tool.PatternStamp); }
         else
         {
-            _options.Brush = _options.Brush with { Diameter = preset.Diameter, Hardness = preset.Hardness, Opacity = preset.Opacity,
-                TipImage = preset.Image is null ? null : SKBitmap.Decode(Convert.FromBase64String(preset.Image)) }; SetTool(Tool.Brush);
+            ApplyBrushPreset(preset);
         }
         Refresh();
     }

@@ -1,6 +1,6 @@
 # 编辑菜单与首选项
 
-适用于 Windows **1.5.5.1 Preview**。本次截图展示的是 Photoshop 的“编辑”菜单；原有“图像”菜单保留在 [图像与属性手册](IMAGE-WORKSPACE.md)。以下说明实际行为及平台边界。
+适用于 Windows **1.5.6.0 Preview**。本次截图展示的是 Photoshop 的“编辑”菜单；原有“图像”菜单保留在 [图像与属性手册](IMAGE-WORKSPACE.md)。以下说明实际行为及平台边界。
 
 ## 历史与粘贴
 

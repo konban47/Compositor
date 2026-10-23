@@ -43,12 +43,6 @@ public sealed partial class MainWindow
     {
         void Button(string title, Action action) => body.Children.Add(PropertyAction(title, action));
         void Hint(string text) => body.Children.Add(new TextBlock { Text = Localize.Text(text), TextWrapping = TextWrapping.Wrap, FontSize = 12, Foreground = Skin.SecondaryBrush });
-        void Number(string title, double value, double minimum, double maximum, Action<double> changed)
-        {
-            var input = new NumericUpDown { Value = (decimal)value, Minimum = (decimal)minimum, Maximum = (decimal)maximum, Increment = 1, FormatString = "0.##", MinHeight = 26 };
-            body.Children.Add(PropertyPair(new TextBlock { Text = Localize.Text(title), VerticalAlignment = VerticalAlignment.Center }, input));
-            input.ValueChanged += (_, _) => { if (input.Value is { } v) changed((double)v); };
-        }
         switch (name)
         {
             case "Navigator":
@@ -88,11 +82,7 @@ public sealed partial class MainWindow
                 }
                 break;
             }
-            case "Brush Settings":
-                Number("Size", _options.Brush.Diameter, 1, 2500, v => { _options.Brush = _options.Brush with { Diameter = v }; PushBrush(); });
-                Number("Hardness", _options.Brush.Hardness * 100, 0, 100, v => { _options.Brush = _options.Brush with { Hardness = v / 100 }; PushBrush(); });
-                Number("Opacity", _options.Brush.Opacity * 100, 0, 100, v => { _options.Brush = _options.Brush with { Opacity = v / 100 }; PushBrush(); });
-                Button("Brush tool", () => SetTool(Tool.Brush)); Button("Define Brush Preset…", () => _ = DefinePreset("Brush")); break;
+            case "Brush Settings": BuildBrushSettingsPanel(body); break;
             case "Clone Source": BuildCloneSourcePanel(body); break;
             case "Gradients":
                 foreach (var shape in Enum.GetValues<GradientShape>()) Button(shape.ToString(), () => { SetGradient(shape, null, null); SetTool(Tool.Gradient); });
@@ -160,20 +150,5 @@ public sealed partial class MainWindow
         body.Children.Add(PropertyAction("Delete Action", () => { if (saved.SelectedItem is string key) { EditorPreferences.Current.Actions.Remove(key); SavePreferenceChanges(); saved.ItemsSource = EditorPreferences.Current.Actions.Keys.ToArray(); } }));
     }
 
-    private void BuildLayerTimeline(StackPanel body)
-    {
-        var preview = new Image { Height = 180, Stretch = Stretch.Uniform }; var frame = new Slider { Minimum = 0, Maximum = 0, TickFrequency = 1, IsSnapToTickEnabled = true }; var label = new TextBlock { FontSize = 12 };
-        WriteableBitmap? previous = null; body.Children.Add(preview); body.Children.Add(frame); body.Children.Add(label);
-        void ShowFrame()
-        {
-            previous?.Dispose(); previous = null; preview.Source = null;
-            if (_document is not { } doc || doc.Layers.Count == 0) { _timelineTimer.Stop(); return; }
-            frame.Maximum = doc.Layers.Count - 1; var index = Math.Clamp((int)frame.Value, 0, doc.Layers.Count - 1);
-            _timelineFrame = index; var layer = doc.Layers[index]; if (layer.Asset is { } asset) { previous = CanvasView.ToImage(asset.Image); preview.Source = previous; } label.Text = $"{index + 1} / {doc.Layers.Count} — {layer.Name}";
-        }
-        frame.ValueChanged += (_, _) => ShowFrame(); _timelineTimer.Tick += (_, _) => { if (_dockPanels.GetValueOrDefault("Timeline")?.Visible != true) { _timelineTimer.Stop(); return; } frame.Value = frame.Value >= frame.Maximum ? 0 : frame.Value + 1; };
-        body.Children.Add(PropertyPair(PropertyAction("Play", () => { ShowFrame(); _timelineTimer.Start(); }), PropertyAction("Stop", () => _timelineTimer.Stop())));
-        body.Children.Add(new TextBlock { Text = Localize.Text("Layer frame preview (5 fps). Document pixels stay unchanged."), TextWrapping = TextWrapping.Wrap, FontSize = 12 });
-        _utilityRefresh["Timeline"] = ShowFrame; Closed += (_, _) => { _timelineTimer.Stop(); previous?.Dispose(); };
-    }
+    private void BuildLayerTimeline(StackPanel body) => BuildGifTimeline(body);
 }

@@ -127,11 +127,8 @@ internal static class RetouchBrush
     internal static SKColor BlendHealing(SKColor backdrop, SKColor source, HealingBlend mode)
     {
         if (mode is HealingBlend.Normal or HealingBlend.Replace) return source;
-        var blend = mode switch { HealingBlend.Multiply => Pixels.BlendMode.Multiply, HealingBlend.Screen => Pixels.BlendMode.Screen, HealingBlend.Darken => Pixels.BlendMode.Darken, HealingBlend.Lighten => Pixels.BlendMode.Lighten, HealingBlend.Color => Pixels.BlendMode.Color, _ => Pixels.BlendMode.Luminosity };
-        Span<byte> s = stackalloc byte[] { source.Red, source.Green, source.Blue, 255 };
-        Span<byte> b = stackalloc byte[] { backdrop.Red, backdrop.Green, backdrop.Blue, 255 };
-        Span<byte> result = stackalloc byte[4]; Pixels.BlendModes.CompositePixel(blend, s, b, result);
-        return new SKColor(result[0], result[1], result[2], source.Alpha);
+        var blend = mode switch { HealingBlend.Multiply => PaintBlend.Multiply, HealingBlend.Screen => PaintBlend.Screen, HealingBlend.Darken => PaintBlend.Darken, HealingBlend.Lighten => PaintBlend.Lighten, HealingBlend.Color => PaintBlend.Color, _ => PaintBlend.Luminosity };
+        return BrushBlending.Composite(backdrop.WithAlpha(255), source.WithAlpha(255), 1, blend).WithAlpha(source.Alpha);
     }
     private static double Distance(SKColor a, SKColor b) => Math.Max(Math.Abs(a.Red - b.Red), Math.Max(Math.Abs(a.Green - b.Green), Math.Abs(a.Blue - b.Blue)));
     private static int Mod(int n, int d) => (n % d + d) % d;

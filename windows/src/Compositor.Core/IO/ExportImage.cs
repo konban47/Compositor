@@ -4,11 +4,11 @@ using SkiaSharp;
 
 namespace Compositor.Core.IO;
 
-public enum ExportFormat { Png, Jpeg, Pdf, Tiff, Exr }
+public enum ExportFormat { Png, Jpeg, Pdf, Tiff, Exr, Gif }
 public sealed record ExportOptions(ExportFormat Format, int Width, int Height, int Quality = 90,
     bool Transparency = true, SKColor? Background = null, double Resolution = 72, byte[]? CmykProfile = null, bool NativeColorMode = false)
 {
-    public string Extension => Format switch { ExportFormat.Jpeg => "jpg", ExportFormat.Pdf => "pdf", ExportFormat.Tiff => "tif", ExportFormat.Exr => "exr", _ => "png" };
+    public string Extension => Format switch { ExportFormat.Jpeg => "jpg", ExportFormat.Pdf => "pdf", ExportFormat.Tiff => "tif", ExportFormat.Exr => "exr", ExportFormat.Gif => "gif", _ => "png" };
     public bool IsValid => (CmykProfile is null || CmykColor.IsProfile(CmykProfile) && Format is ExportFormat.Jpeg or ExportFormat.Tiff or ExportFormat.Pdf) && Enum.IsDefined(Format) && Width > 0 && Height > 0
         && Width <= DocumentLimits.MaxSide && Height <= DocumentLimits.MaxSide
         && (long)Width * Height <= DocumentLimits.MaxSurfacePixels && Quality is >= 1 and <= 100
@@ -30,6 +30,7 @@ public static class ExportImage
         if (!options.IsValid) throw new ArgumentOutOfRangeException(nameof(options));
         if ((long)document.Width * document.Height > DocumentLimits.MaxSurfacePixels)
             throw new InvalidOperationException("This canvas is too large for an export preview. Use Export PNG for tiled export.");
+        if (options.Format == ExportFormat.Gif) return GifExport.Encode(document, options);
         // Resize the complete composite, so rotated layers, masks and effects scale together.
         using var original = document.Image.Depth > 8 || document.Layers.Any(l => l.Asset?.Deep is not null) ? DocumentRenderer.RenderDeep(document) : DocumentRenderer.Render(document);
         using var pixels = original.Resize(original.ColorType == SKColorType.RgbaF32 ? DeepPixels.Info(options.Width, options.Height) : Bitmaps.ColorInfo(options.Width, options.Height),

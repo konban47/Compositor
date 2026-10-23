@@ -19,7 +19,17 @@ public static class BucketEdits
         var coverage = Bitmaps.Allocate(Bitmaps.MaskInfo(document.Width, document.Height));
         var buffer = coverage.GetPixelSpan(); var matched = matches.GetPixelSpan(); var old = existing is null ? default : existing.GetPixelSpan();
         for (var y = 0; y < document.Height; y++) for (var x = 0; x < document.Width; x++)
-            buffer[y * coverage.RowBytes + x] = (byte)Math.Round(matched[y * matches.RowBytes + x] * (existing is null ? 1 : old[y * existing.RowBytes + x] / 255.0) * Math.Clamp(opacity, 0, 1));
+        {
+            var edge = 1d;
+            if (options.Antialias && matched[y * matches.RowBytes + x] > 0)
+            {
+                var neighbours = 0; var total = 0;
+                for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++)
+                { var nx = x + dx; var ny = y + dy; if (nx < 0 || ny < 0 || nx >= document.Width || ny >= document.Height) continue; total++; if (matched[ny * matches.RowBytes + nx] > 0) neighbours++; }
+                edge = .5 + .5 * neighbours / Math.Max(1d, total);
+            }
+            buffer[y * coverage.RowBytes + x] = (byte)Math.Round(edge * matched[y * matches.RowBytes + x] * (existing is null ? 1 : old[y * existing.RowBytes + x] / 255.0) * Math.Clamp(opacity, 0, 1));
+        }
         var saved = document.Selection;
         try { document.Selection = DocumentSelection.FromCoverage(coverage); return erase ? FillEdits.Clear(document, layerID) : FillEdits.Fill(document, layerID, color); }
         finally { document.Selection = saved; }

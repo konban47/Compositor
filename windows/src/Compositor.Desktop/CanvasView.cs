@@ -1648,6 +1648,7 @@ public sealed partial class CanvasView : Control
             _painting = true;
             _stroke.Clear(); _strokePressures.Clear();
             _stroke.Add(ToDocument(e.GetPosition(this))); _strokePressures.Add((float)PointerPressure);
+            StartPaintInput(_stroke[0]);
             e.Pointer.Capture(this);
             InvalidateVisual();
             e.Handled = true;
@@ -1709,6 +1710,7 @@ public sealed partial class CanvasView : Control
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         if (_customDragging) { _customDragging = false; CustomReleased?.Invoke(); }
+        if (_painting) CancelPaintInput();
         _rotatingView = false;
         _dragging = null; _zoomDragging = false; _navigatorDragging = false;
         UpdateToolCursor();
@@ -1722,10 +1724,13 @@ public sealed partial class CanvasView : Control
     /// </summary>
     private SKPoint Smoothed(SKPoint point)
     {
-        var smoothing = Math.Clamp(Brush.Smoothing, 0, 1);
+        var smoothing = Brush.Painting is { SmoothingEnabled: false } ? 0 : Math.Clamp(Brush.Smoothing, 0, 1);
         if (smoothing <= 0 || _stroke.Count == 0) return point;
         var last = _stroke[^1];
         var share = 1 - smoothing * 0.9;
+        if (Brush.Painting is { PulledString: true } p)
+        { var radius = smoothing * 60 / (p.AdjustForZoom ? Math.Max(.01, Zoom) : 1); var distance = SKPoint.Distance(last, point); share = distance > radius ? (distance - radius) / Math.Max(.001, distance) : 0; }
+        else if (Brush.Painting is { AdjustForZoom: true }) share = Math.Clamp(share * Math.Sqrt(Math.Max(.01, Zoom)), .01, 1);
         return new SKPoint((float)(last.X + (point.X - last.X) * share),
             (float)(last.Y + (point.Y - last.Y) * share));
     }
@@ -1790,11 +1795,12 @@ public sealed partial class CanvasView : Control
         }
         if (_painting)
         {
-            var point = Smoothed(ToDocument(now));
+            _brushTarget = ToDocument(now);
+            var point = Smoothed(_brushTarget);
             // Samples arrive thick and fast; only a real move is worth another dab.
             if (_stroke.Count == 0 || Math.Abs(point.X - _stroke[^1].X) + Math.Abs(point.Y - _stroke[^1].Y) >= 0.5f)
             {
-                _stroke.Add(point); _strokePressures.Add((float)PointerPressure);
+                AddPaintPoint(point);
                 InvalidateOverlay();
             }
             base.OnPointerMoved(e);
@@ -1957,13 +1963,14 @@ public sealed partial class CanvasView : Control
         }
         if (_painting)
         {
+            EndPaintInput();
             _painting = false;
             var stroke = _stroke.ToList();
             _stroke.Clear();
             InvalidateVisual();
             CompletedStrokePressures = _strokePressures.ToArray(); _strokePressures.Clear();
             try { if (stroke.Count > 0) StrokeFinished?.Invoke(stroke); }
-            finally { CompletedStrokePressures = null; }
+            finally { CompletedStrokePressures = null; CompletedPenSamples = null; }
             e.Pointer.Capture(null);
             return;
         }

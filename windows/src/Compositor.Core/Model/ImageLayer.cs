@@ -39,7 +39,25 @@ public sealed class ImageLayer : IDisposable
     }
 
     public Guid ID { get; init; }
-    public ImportedImage? Asset { get; set; }
+    private ImportedImage? _asset;
+    public GifAnimation? Gif { get; set; }
+    public int GifFrameIndex { get; private set; }
+    public ImportedImage? Asset
+    {
+        get => _asset;
+        set
+        {
+            // Validate before publishing: a refused geometry edit must preserve every frame.
+            var animation = Gif is { } gif && value is not null ? gif.Edit(GifFrameIndex, value) : null;
+            _asset = value; Gif = animation;
+        }
+    }
+    /// <summary>Navigation uses a fresh display asset without turning a decoded frame into an edit.</summary>
+    public void ShowGifFrame(int index, ImportedImage? decoded = null)
+    {
+        if (Gif is not { } gif) return;
+        var frame = decoded ?? gif.Decode(index, Name); _asset = frame; GifFrameIndex = index;
+    }
     public LayerTransform Transform { get; set; }
     public string Name { get; set; }
     public bool IsVisible { get; set; } = true;
@@ -87,6 +105,7 @@ public sealed class ImageLayer : IDisposable
     public ImageLayer Copy(Guid id, string name, Guid? parentID, Guid? maskSourceID) =>
         new(id, Asset, Transform, name)
         {
+            Gif = Gif, GifFrameIndex = GifFrameIndex,
             IsVisible = IsVisible,
             Locks = Locks,
             FillOpacity = FillOpacity,
@@ -113,7 +132,7 @@ public sealed class ImageLayer : IDisposable
         && Locks == other.Locks && FillOpacity == other.FillOpacity && LinkID == other.LinkID
         && ParentID == other.ParentID && IsGroup == other.IsGroup && Opacity == other.Opacity
         && BlendMode == other.BlendMode && MaskSourceID == other.MaskSourceID
-        && ReferenceEquals(Asset?.Image, other.Asset?.Image)
+        && ReferenceEquals(Asset?.Image, other.Asset?.Image) && ReferenceEquals(Gif, other.Gif)
         && SameMask(Mask, other.Mask)
         && ReferenceEquals(Adjustment, other.Adjustment) && ReferenceEquals(Shape, other.Shape)
         && FrameStyle == other.FrameStyle && Label == other.Label && Container == other.Container && ArtboardBackground == other.ArtboardBackground && ReferenceEquals(Blending, other.Blending) && ReferenceEquals(SmartObject, other.SmartObject)
@@ -132,6 +151,7 @@ public sealed class ImageLayer : IDisposable
     public void Dispose()
     {
         Asset?.Dispose();
+        foreach (var frame in Gif?.Edited.Values ?? []) frame.Dispose();
         Mask?.Dispose();
     }
 }

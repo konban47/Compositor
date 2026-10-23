@@ -193,3 +193,18 @@ foreach ($path in @('.github/workflows/windows.yml','windows/scripts/compatibili
 foreach ($license in @('PDFtoImage-LICENSE.txt','PDFium-build-LICENSE.txt','PDFium/pdfium.txt')) {
     if (!(Test-Path -LiteralPath (Join-Path $repo "windows/licenses/$license"))) { throw "Missing PDF dependency license: $license" }
 }
+
+foreach ($guide in @('PAINTING-AND-GIF.md','UPDATES-1.5.6.0.md')) {
+    foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
+        if (!(Read-Repo $path).Contains($guide)) { throw "$guide missing from $path" }
+    }
+}
+if (!(Read-Repo 'windows/PAINTING-AND-GIF.md').Contains("**$version Preview**")) { throw 'Painting guide is stale.' }
+foreach ($field in @('gif.sourceFile','gif.selectedFrameIndex','framePixels','frameOrder','deletedFrameIndices','uniformDelay','frameDelays')) {
+    if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented GIF field: $field" }
+}
+foreach ($path in @('.github/workflows/windows.yml','windows/scripts/compatibility-checks.ps1')) {
+    foreach ($check in @('painting-checks','gif-checks')) { if (!(Read-Repo $path).Contains($check)) { throw "$check missing from $path" } }
+}
+if ((Read-Repo 'windows/WINDOW-MENU.md').Contains('不提供视频轨道、关键帧或动画文件导出')) { throw 'Timeline capabilities are stale.' }
+if ((Read-Repo 'windows/PROFESSIONAL-TOOLS.md').Contains('不做笔触平滑')) { throw 'Pencil smoothing documentation is stale.' }

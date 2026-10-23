@@ -151,6 +151,8 @@ public sealed partial class DocumentHistory
         if (document?.Selection.Path is { } path) yield return (path, 128L + path.PointCount * 16L);
         if (document?.WorkPath is { } work) yield return (work, 24L + work.Length * 2L);
         foreach (var layer in document?.Layers ?? [])
+            if (layer.Gif is { } gif) yield return (gif.Source.Data, gif.Source.Data.LongLength);
+        foreach (var layer in document?.Layers ?? [])
             if (layer.SmartObject is { } smart) yield return (smart.Package, smart.Package.LongLength);
     }
 
@@ -160,6 +162,7 @@ public sealed partial class DocumentHistory
         foreach (var channel in document?.Channels ?? []) yield return (channel.Asset.Image, channel.Asset.Thumbnail);
         foreach (var layer in document?.Layers ?? [])
         {
+            foreach (var frame in layer.Gif?.Edited.Values ?? []) { yield return (frame.Image, frame.Thumbnail); if (frame.Deep is { } deepFrame) yield return (deepFrame, deepFrame); }
             if (layer.Asset is { } asset) { yield return (asset.Image, asset.Thumbnail); if (asset.Deep is { } deep) yield return (deep, deep); }
             if (layer.Mask?.Asset is { } mask) yield return (mask.Image, mask.Thumbnail);
         }

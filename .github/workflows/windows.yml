@@ -42,7 +42,7 @@ jobs:
           New-Item -ItemType Directory artifacts/screenshots -Force | Out-Null
           $env:COMPOSITOR_LANGUAGE = 'en'
           $env:COMPOSITOR_SETTINGS_DIR = Join-Path $env:RUNNER_TEMP 'compositor-en-tests'
-          foreach ($check in @('clicks', 'tabs', 'tools', 'shortcuts', 'camera-raw', 'dialogs', 'windows-checks', 'interaction-checks', 'panel-checks', 'inspector-checks', 'workspace-checks', 'layer-style-checks', 'editing-checks', 'professional-checks', 'image-workspace-checks', 'edit-workspace-checks', 'preferences-checks', 'type-mask-checks', 'docking-checks', 'chrome-checks', 'selection-options-checks', 'panel-workflow-checks', 'pen-layer-checks', 'utility-retouch-checks')) {
+          foreach ($check in @('clicks', 'tabs', 'tools', 'shortcuts', 'camera-raw', 'dialogs', 'windows-checks', 'interaction-checks', 'panel-checks', 'inspector-checks', 'workspace-checks', 'layer-style-checks', 'editing-checks', 'professional-checks', 'image-workspace-checks', 'edit-workspace-checks', 'preferences-checks', 'type-mask-checks', 'docking-checks', 'chrome-checks', 'selection-options-checks', 'panel-workflow-checks', 'pen-layer-checks', 'utility-retouch-checks', 'painting-checks', 'gif-checks')) {
             dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll "--$check" "artifacts/screenshots/$check.png"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
@@ -84,6 +84,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Chinese pen/layer checks failed' }
           dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --utility-retouch-checks artifacts/screenshots/chinese-utility-retouch.png
           if ($LASTEXITCODE -ne 0) { throw 'Chinese utility/retouch checks failed' }
+          dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --painting-checks artifacts/screenshots/chinese-painting.png
+          if ($LASTEXITCODE -ne 0) { throw 'Chinese painting checks failed' }
+          dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --gif-checks artifacts/screenshots/chinese-gif.png
+          if ($LASTEXITCODE -ne 0) { throw 'Chinese GIF checks failed' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -144,6 +148,10 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "Published pen/layer checks failed: $($process.ExitCode)" }
           $process = Start-Process -FilePath $app -ArgumentList @('--utility-retouch-checks', "$env:RUNNER_TEMP/published-utility-retouch.png") -WindowStyle Hidden -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Published utility/retouch checks failed: $($process.ExitCode)" }
+          foreach ($check in @('painting-checks','gif-checks')) {
+            $process = Start-Process -FilePath $app -ArgumentList @("--$check", "$env:RUNNER_TEMP/published-$check.png") -WindowStyle Hidden -Wait -PassThru
+            if ($process.ExitCode -ne 0) { throw "Published $check failed: $($process.ExitCode)" }
+          }
           $installer = Get-Item artifacts/*-setup.exe
           $destination = Join-Path $env:RUNNER_TEMP 'Compositor-Install-Test'
           $process = Start-Process -FilePath $installer.FullName -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$destination") -WindowStyle Hidden -Wait -PassThru

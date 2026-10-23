@@ -4,7 +4,7 @@ The application code and original icon are distributed under the repository's [M
 
 ## Source provenance
 
-The 1.5.5.1 Windows source preview merges upstream macOS commit `551a35fc06fb8429fed3b99b175e31681875f580` (1.5.5). Directly adapted line-stroke geometry retains the upstream MIT attribution. Windows runtime parity and deferred backends are listed in [UPDATES-1.5.5.1.md](UPDATES-1.5.5.1.md); imported Swift reference code is not a claim that every upstream feature runs on Windows.
+The 1.5.6.0 Windows source preview merges upstream macOS commit `47cb96b83f73dbb8deda4c417e702c83b7107cab` (1.5.6). Directly adapted line-stroke geometry retains the upstream MIT attribution. Windows runtime parity and deferred backends are listed in [UPDATES-1.5.6.0.md](UPDATES-1.5.6.0.md); imported Swift reference code is not a claim that every upstream feature runs on Windows.
 
 - macOS reference: [robbietilton/Compositor](https://github.com/robbietilton/Compositor), commit `fa41b9b6693b8e1b3a01a13a9ea112edd8e008e3` (initial 1.4.6 baseline). Windows 1.4.8.1 integrates upstream through `75147a27d90c681215151a6301373dd2b07b7aa2`, including measured color tables and ported Camera Raw/Scanlines algorithms. Windows 1.4.9.1 merges upstream through `b4bfdea87f9dc0cbc9eabfa63683eb1b9c2bca60`. The original MIT notices are retained. The original CRT3/XZ table stays at `Compositor/Resources/CameraRawTables.bin`; `windows/scripts/convert-camera-raw-tables.py` losslessly repacks its quantized planes into `windows/src/Compositor.Core/Resources/CameraRawTables.deflate` for .NET. No measured values are changed.
 - Initial Windows implementation: [chenguisen/Compositor, compositor_win](https://github.com/chenguisen/Compositor/tree/compositor_win), commit `c51be1e57d699edce857115f43bbca579f18dcd4`, under the same MIT license. Its `windows/` directory was imported and extended. The original notices are retained.
@@ -63,3 +63,5 @@ Windows 1.5.1.3 adds 35 individually generated panel-icon references using built
 ## Windows 1.5.2.0 / Camera Raw Shadows
 
 Upstream MIT sources are merged through `43d691b67995e924965bcd520f8b300f96b7d5b8`. `CameraRawShadows.cs` ports `CameraRawShadows.swift` and `adjust_camera_raw_shadows` from commit 735c2cc. `Resources/CameraRawShadows.bin` is the unmodified upstream coefficient data (SHA-256 `76578539bc45a32817aff669c4e41523d7040f3c691ad35adf0723a70a89a705`). The shadow landscape tests preserve upstream synthetic fields and reference measurements. No user video, PSD or Photoshop artwork is distributed.
+
+GIF timeline and persistence behavior are adapted from the retained upstream MIT sources listed in `UPSTREAM-UI.json`. Windows GIF decode/encode reuse the existing SkiaSharp and Magick.NET dependencies. The procedural brush tips and tree/grass/water tiles are original code assets, not Adobe ABR/PAT resources.

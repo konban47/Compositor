@@ -318,6 +318,7 @@ public sealed partial class MainWindow
     private void DrawProfessionalOverlay(DrawingContext context, Func<SKPoint, Point> screen)
     {
         DrawObjectFinder(context, screen);
+        DrawPaintSymmetry(context, screen);
         var pen = new Pen(Skin.AccentBrush, 1.5);
         if (_document is { } doc)
         {

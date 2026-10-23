@@ -67,6 +67,7 @@ public static class ProjectStore
         }
         foreach (var layer in manifest.Layers)
         {
+            if (layer.Gif is { } gif && (version < 17 || !gif.IsValid(layer.ID) || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null || layer.Text is not null || layer.Shape is not null || layer.SmartObjectFile is not null)) throw new ProjectException(ProjectError.Invalid);
             if (layer.FloatImageFile is not null && (version < 18 || layer.ImageFile is null || layer.ImageFile.EndsWith(".exr", StringComparison.OrdinalIgnoreCase) || layer.FloatImageFile != Model.FloatPixels.FileName(layer.ID)))
                 throw new ProjectException(ProjectError.Invalid);
             if (layer.FrameStyle is { } frame && (version < 26 || !frame.IsValid || layer.IsGroup != true || layer.Container != LayerContainer.Frame)) throw new ProjectException(ProjectError.Invalid);
@@ -254,6 +255,15 @@ public static class ProjectStore
             if (embeddedBytes > Model.SmartObjectData.MaxBytes) throw new ProjectException(ProjectError.TooLarge);
             images[layer.SmartObjectFile!] = output => output.Write(smart.Package);
         }
+        long gifBytes = 0;
+        foreach (var layer in snapshot.Manifest.Layers.Where(l => l.Gif is not null))
+        {
+            if (!snapshot.Animations.TryGetValue(layer.ID, out var animation)) throw new ProjectException(ProjectError.MissingImage);
+            var record = layer.Gif!; Model.GifAnimation.Restore(animation.Source, record, animation.Edited);
+            gifBytes += animation.Source.Data.LongLength; if (gifBytes > (long)Model.DocumentLimits.DocumentPixelBudget * 4) throw new ProjectException(ProjectError.TooLarge);
+            images[record.SourceFile] = output => output.Write(animation.Source.Data);
+            foreach (var frame in record.FramePixels ?? []) { var asset = animation.Edited[frame.Index]; CheckSize(asset.Width, asset.Height, ref pixels); images[frame.ImageFile] = output => PngCodec.Encode(asset.Image, output); }
+        }
         var metadata = ManifestJson.Serialize(snapshot.Manifest);
         if (metadata.Length > Model.DocumentLimits.MaxManifestBytes) throw new ProjectException(ProjectError.TooLarge);
 
@@ -392,6 +402,23 @@ public static class ProjectStore
                     if (isMask) snapshot.Masks[layer.ID] = asset;
                     else snapshot.Images[layer.ID] = asset;
                 }
+            }
+            long gifBytes = 0;
+            foreach (var layer in manifest.Layers.Where(l => l.Gif is not null))
+            {
+                var record = layer.Gif!; var file = ResolveAsset(package, $"{ImagesName}/{record.SourceFile}", Model.DocumentLimits.MaxAssetBytes);
+                var bytes = File.ReadAllBytes(file); gifBytes += bytes.LongLength; if (gifBytes > (long)Model.DocumentLimits.DocumentPixelBudget * 4) throw new ProjectException(ProjectError.TooLarge);
+                var source = new Model.GifSource(bytes); var frames = new Dictionary<int, Model.ImportedImage>();
+                try
+                {
+                    foreach (var frame in record.FramePixels ?? [])
+                    {
+                        cancellation.ThrowIfCancellationRequested(); var data = File.ReadAllBytes(ResolveAsset(package, $"{ImagesName}/{frame.ImageFile}", Model.DocumentLimits.MaxAssetBytes)); var frameHeader = PngCodec.ReadHeader(data); CheckSize(frameHeader.Width, frameHeader.Height, ref pixels);
+                        frames.Add(frame.Index, Model.ImportedImage.Create(PngCodec.DecodeImage(frameHeader, data), layer.Name));
+                    }
+                    snapshot.Animations[layer.ID] = Model.GifAnimation.Restore(source, record, frames);
+                }
+                catch { foreach (var frame in frames.Values) frame.Dispose(); throw; }
             }
             long embeddedBytes = 0;
             foreach (var layer in manifest.Layers.Where(l => l.SmartObjectFile is not null))

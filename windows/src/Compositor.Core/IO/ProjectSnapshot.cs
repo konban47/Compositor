@@ -20,6 +20,7 @@ public sealed class ProjectSnapshot : IDisposable
 
     public ProjectManifest Manifest { get; }
 
+    public Dictionary<Guid, GifAnimation> Animations { get; } = [];
     public Dictionary<Guid, ImportedImage> Images { get; } = [];
 
     public Dictionary<Guid, Model.SmartObjectData> SmartObjects { get; } = [];
@@ -63,6 +64,7 @@ public sealed class ProjectSnapshot : IDisposable
                 Text = record.Text is { } text && Images.TryGetValue(record.ID, out var textPixels)
                     ? new LayerText(text, textPixels.Image) : null,
             };
+            if (Animations.TryGetValue(record.ID, out var animation)) { layer.Gif = animation; layer.ShowGifFrame(animation.SelectedFrameIndex); }
             layers.Add(layer);
         }
         return layers;
@@ -96,7 +98,7 @@ public sealed class ProjectSnapshot : IDisposable
         var defaultMeasurementFields = document.MeasurementFields.SequenceEqual(new[] { "Area", "Perimeter", "Width", "Height", "Length", "Angle", "Count", "Mean" });
         var manifest = new ProjectManifest
         {
-            Version = document.Layers.Any(l => l.Adjustment?.NeedsVersion16 == true || l.Adjustment?.FilterLayerSettings is not null) || document.CountGroups.Count > 0 || document.Marks.Any(m => m.HasUtilityOptions) || document.Layers.Any(l => l.FrameStyle is not null) ? 26 : document.Layers.Any(l => l.LiveShape is { LineStyle: not null } or { LineCap: not null }) ? 25 : document.WorkPath is not null ? 24 : document.Layers.Any(l => l.LiveShape?.Smoothing is not null) || document.Marks.Any(m => m.HasSliceOptions) ? 23 : document.Layers.Any(l => l.Container == LayerContainer.Artboard && l.ArtboardBackground != 0xffffffff) ? 22 : document.Guides.Any(g => g.ArtboardID is not null) ? 21 : document.Image.CmykProfile is not null || document.Layers.Any(l => l.Label > LayerLabel.Gray || l.Mask is { VectorPath: not null, VectorEvenOdd: true } || l.LiveText?.StyleRuns is not null || l.LiveText?.Geometry is not null || l.LiveText?.Layout is { BottomLeading: true } or { TateChuYoko: true } or { Smoothing: > TextSmoothing.Smooth }) ? 20 : document.Layers.Any(l => l.Adjustment?.Extended is not null) ? 19 : !document.Image.IsDefault || document.Variables.Count > 0 || document.DataSets.Count > 0
+            Version = document.Layers.Any(l => l.Gif is not null) ? 27 : document.Layers.Any(l => l.Adjustment?.NeedsVersion16 == true || l.Adjustment?.FilterLayerSettings is not null) || document.CountGroups.Count > 0 || document.Marks.Any(m => m.HasUtilityOptions) || document.Layers.Any(l => l.FrameStyle is not null) ? 26 : document.Layers.Any(l => l.LiveShape is { LineStyle: not null } or { LineCap: not null }) ? 25 : document.WorkPath is not null ? 24 : document.Layers.Any(l => l.LiveShape?.Smoothing is not null) || document.Marks.Any(m => m.HasSliceOptions) ? 23 : document.Layers.Any(l => l.Container == LayerContainer.Artboard && l.ArtboardBackground != 0xffffffff) ? 22 : document.Guides.Any(g => g.ArtboardID is not null) ? 21 : document.Image.CmykProfile is not null || document.Layers.Any(l => l.Label > LayerLabel.Gray || l.Mask is { VectorPath: not null, VectorEvenOdd: true } || l.LiveText?.StyleRuns is not null || l.LiveText?.Geometry is not null || l.LiveText?.Layout is { BottomLeading: true } or { TateChuYoko: true } or { Smoothing: > TextSmoothing.Smooth }) ? 20 : document.Layers.Any(l => l.Adjustment?.Extended is not null) ? 19 : !document.Image.IsDefault || document.Variables.Count > 0 || document.DataSets.Count > 0
                 || document.MeasurementScale != new MeasurementScale() || document.Measurements.Count > 0
                 || document.Layers.Any(l => l.Asset?.Deep is not null || l.LiveText?.Layout is not null) || !defaultMeasurementFields ? 18
                 : document.Marks.Count > 0 ? 17 : document.Layers.Any(layer => layer.LiveText?.Vertical is not null || layer.LiveShape is { Kind: ShapeKind.Path, LineWidth: not null }) ? 16
@@ -131,6 +133,7 @@ public sealed class ProjectSnapshot : IDisposable
         foreach (var channel in channels) snapshot.Channels[channel.ID] = channel.Asset;
         foreach (var layer in document.Layers)
         {
+            if (layer.Gif is { } animation) snapshot.Animations[layer.ID] = animation;
             if (layer.SmartObject is { } smart) snapshot.SmartObjects[layer.ID] = smart;
             if (layer.Asset is { } asset) snapshot.Images[layer.ID] = asset;
             if (layer.Mask is { } mask) snapshot.Masks[layer.ID] = mask.Asset;
@@ -140,6 +143,8 @@ public sealed class ProjectSnapshot : IDisposable
 
     public void Dispose()
     {
+        foreach (var frame in Animations.Values.SelectMany(a => a.Edited.Values).Distinct()) frame.Dispose();
+        Animations.Clear();
         foreach (var image in Images.Values) image.Dispose();
         foreach (var mask in Masks.Values) mask.Dispose();
         foreach (var channel in Channels.Values) channel.Dispose();

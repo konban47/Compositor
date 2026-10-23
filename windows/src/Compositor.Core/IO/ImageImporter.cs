@@ -94,7 +94,13 @@ public static class ImageImporter
         {
             return DecodeRaw(path, name, remainingPixels);
         }
+        if (extension.Equals(".gif", StringComparison.OrdinalIgnoreCase)) { var length = new FileInfo(path).Length; if (length > DocumentLimits.MaxAssetBytes) throw new ImportException(ImportError.TooLarge); MemoryBudget.Current.Check(length); }
         var bytes = Read(path);
+        if (extension.Equals(".gif", StringComparison.OrdinalIgnoreCase))
+        {
+            var source = new GifSource(bytes); Check(source.Width, source.Height, remainingPixels);
+            var first = source.Decode(0, name); first.Animation = new GifAnimation(source); return first;
+        }
         if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
         {
             try { if (PngCodec.ReadHeader(bytes).BitDepth == 16) return DeepImageCodec.Decode(bytes, name, remainingPixels); }
@@ -340,7 +346,7 @@ public static class ImageImporter
 
     /// <summary>The image as a layer, at its own pixel size with its top-left on the canvas's.</summary>
     public static ImageLayer Layer(ImportedImage image) =>
-        new(Guid.NewGuid(), image, new Model.LayerTransform(0, 0, image.Width, image.Height), image.Name);
+        new(Guid.NewGuid(), image, new Model.LayerTransform(0, 0, image.Width, image.Height), image.Name) { Gif = image.Animation };
 
     private static byte[] Read(string path)
     {

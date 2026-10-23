@@ -101,7 +101,7 @@ public sealed record BrushSettings(
     [property: System.Text.Json.Serialization.JsonIgnore] SKMatrix? CloneMapping = null,
     [property: System.Text.Json.Serialization.JsonIgnore] SKPointI SampleOrigin = default,
     [property: System.Text.Json.Serialization.JsonIgnore] CanvasDocument? CloneDocument = null,
-    Guid? CloneLayerID = null, bool HealingContentAware = false)
+    Guid? CloneLayerID = null, bool HealingContentAware = false, PaintBrushOptions? Painting = null)
 {
     public (double Scale, double Strength) Dynamics(double pressure)
     {
@@ -173,6 +173,8 @@ public static class BrushEdits
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { Asset: { } asset } layer) return false;
         if (layer.IsGroup) return false;
         if (settings.Mode is BrushMode.Clone or BrushMode.HealingSample && settings.CloneFrom is null && settings.CloneMapping is null && !settings.HealingPattern) return false;
+        if (settings.Painting is not null && settings.Mode is BrushMode.Paint or BrushMode.ColorReplacement or BrushMode.Mixer or BrushMode.Clone or BrushMode.Pattern or BrushMode.History or BrushMode.ArtHistory or BrushMode.BackgroundErase)
+            return PaintBrushEngine.Paint(document, layer, points, settings);
         var width = asset.Width;
         var height = asset.Height;
         if (width <= 0 || height <= 0) return false;
@@ -444,6 +446,7 @@ public static class BrushEdits
         // the layer's own pixels first, as the Mac build's brush does.
         GrowMask(document, layerID);
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { Mask: { } mask } layer) return false;
+        if (settings.Painting is not null) return PaintBrushEngine.Paint(document, layer, points, settings, mask: true);
         var width = mask.Asset.Width;
         var height = mask.Asset.Height;
         if (width <= 0 || height <= 0) return false;

@@ -392,6 +392,7 @@ public sealed partial class MainWindow : Window
         WireWorkspaceTools();
         WireOptionMenus();
         _optionsBar.Changed += OptionsChanged;
+        _optionsBar.PaintingAsked += (action, anchor) => _ = PaintingAction(action, anchor);
         _optionsBar.SelectionAsked += (action, anchor) => _ = SelectionAction(action, anchor);
         _optionsBar.BrushSettingAsked += which => _ = SetBrush(which);
         _optionsBar.WandSettingAsked += which => _ = SetWand(which);
@@ -2656,7 +2657,7 @@ public sealed partial class MainWindow : Window
             }
             if (_message.Length == 0) throw new InvalidOperationException($"{tool} left the status line empty");
             // The options bar shows the rows this tool can be told about, and nothing else.
-            if ((_optionsBar.Shows("brush") || _optionsBar.Shows("selectionBrushTip") || _optionsBar.Shows("spotOptions") || _optionsBar.Shows("removeOptions") || _optionsBar.Shows("healingOptions")) != ToolCatalog.HasRoundCursor(tool))
+            if ((_optionsBar.Shows("brush") || _optionsBar.Shows("paintTip") || _optionsBar.Shows("selectionBrushTip") || _optionsBar.Shows("spotOptions") || _optionsBar.Shows("removeOptions") || _optionsBar.Shows("healingOptions")) != ToolCatalog.HasRoundCursor(tool))
             {
                 throw new InvalidOperationException($"{tool} got the brush rows wrong");
             }
@@ -2972,6 +2973,7 @@ public sealed partial class MainWindow : Window
     /// <summary>One edit, wrapped in the history so it undoes in a single step. False when it changed nothing.</summary>
     private bool Edit(string name, Func<bool> change)
     {
+        _stopGifPlayback?.Invoke();
         if (_document is not { } document) return false;
         _history.Begin(name, document, Selected);
         var revision = _history.CurrentRevision;
@@ -2980,8 +2982,10 @@ public sealed partial class MainWindow : Window
         void Restore()
         {
             var originalAssets = rollback.Layers.SelectMany(l => new[] { l.Asset, l.Mask?.Asset })
+                .Concat(rollback.Layers.SelectMany(l => l.Gif?.Edited.Values ?? []))
                 .Concat(rollback.Channels.Select(c => c.Asset)).OfType<ImportedImage>().ToHashSet();
             foreach (var asset in document.Layers.SelectMany(l => new[] { l.Asset, l.Mask?.Asset })
+                .Concat(document.Layers.SelectMany(l => l.Gif?.Edited.Values ?? []))
                 .Concat(document.Channels.Select(c => c.Asset)).OfType<ImportedImage>().Distinct())
                 if (!originalAssets.Contains(asset)) asset.Dispose();
             document.Adopt(rollback); _history.End(document, Selected); Refresh();
@@ -2998,6 +3002,7 @@ public sealed partial class MainWindow : Window
             // Precision/protection enforcement can allocate too; it is part of the same transaction.
             _history.End(document, Selected);
         }
+        catch (Exception error) when (error is GifGeometryException or PaintStrokeLimitException or InvalidDataException) { Restore(); Say(error.Message); return false; }
         catch (OutOfMemoryException error) { Restore(); Say(error.Message); return false; }
         catch (ProjectException error) when (error.Error == ProjectError.TooLarge) { Restore(); Say(error.Message); return false; }
         catch { Restore(); throw; }
@@ -3370,6 +3375,7 @@ public sealed partial class MainWindow : Window
 
     private void SetTool(Tool tool)
     {
+        _stopGifPlayback?.Invoke();
         if (_tool != tool && !(_tool is Tool.Slice or Tool.SliceSelect && tool is Tool.Slice or Tool.SliceSelect))
         { _selectedMark = null; _optionsBar.ProfessionalReadout(""); }
         if (_tool != tool) { CancelProfessionalDraft(); _canvas.CancelCropStraighten(); _artboardStart = null; _artboardDraft = null; }
@@ -3384,7 +3390,7 @@ public sealed partial class MainWindow : Window
         _canvas.ZoomToolEnabled = tool == Tool.Zoom;
         _canvas.PanEnabled = tool == Tool.Pan;
         if (!_canvas.IsPanning) _canvas.Cursor = tool == Tool.Pan ? new Cursor(StandardCursorType.Hand) : null;
-        _canvas.SampleSourceOnClick = tool is Tool.Clone or Tool.HealingBrush;
+        _canvas.SampleSourceOnClick = tool is Tool.Clone or Tool.HealingBrush or Tool.MixerBrush;
         // A colour range being picked takes the press whatever tool is in hand, so the canvas keeps sampling
         // until its panel is put away.
         _canvas.EyedropperOnClick = tool == Tool.Eyedropper || _colorRange is not null;
@@ -3562,10 +3568,11 @@ public sealed partial class MainWindow : Window
     {
         _canvas.Brush = _options.Brush with
         {
-            Hardness = _tool == Tool.Pencil ? 1 : _options.Brush.Hardness,
-            Smoothing = _tool == Tool.Pencil ? 0 : _options.Brush.Smoothing,
+            Hardness = _tool == Tool.Pencil || _tool == Tool.Eraser && PaintingOptions.EraserMode != 0 ? 1 : _options.Brush.Hardness,
+            Smoothing = _options.Brush.Smoothing,
+            Painting = PaintingTool ? PaintingOptions with { Pencil = _tool == Tool.Pencil || _tool == Tool.Eraser && PaintingOptions.EraserMode == 1, Symmetry = _tool is Tool.Brush or Tool.Pencil or Tool.Eraser ? PaintingOptions.Symmetry : BrushSymmetry.Off, Blend = _tool == Tool.ArtHistory && PaintingOptions.Blend is not (PaintBlend.Normal or PaintBlend.Darken or PaintBlend.Lighten or PaintBlend.Hue or PaintBlend.Saturation or PaintBlend.Color or PaintBlend.Luminosity) || _tool is Tool.Clone or Tool.PatternStamp or Tool.HistoryBrush && PaintingOptions.Blend == PaintBlend.Clear ? PaintBlend.Normal : PaintingOptions.Blend, Background = (uint)BackgroundColour() } : null,
             Healing = _tool == Tool.Remove ? HealingMode.ContentAware : _options.Brush.Healing,
-            Erasing = _tool == Tool.Eraser || _tool == Tool.Brush && _options.Erase,
+            Erasing = _tool == Tool.Eraser && !PaintingOptions.EraseToHistory || _tool == Tool.Brush && _options.Erase,
             Mode = _tool switch
             {
                 Tool.HealingBrush => BrushMode.HealingSample, Tool.ColorReplacement => BrushMode.ColorReplacement, Tool.MixerBrush => BrushMode.Mixer, Tool.Remove => BrushMode.Heal,
@@ -3576,6 +3583,7 @@ public sealed partial class MainWindow : Window
                 Tool.Blur => BrushMode.Blur,
                 Tool.Heal => BrushMode.Heal,
                 Tool.HistoryBrush => BrushMode.History,
+                Tool.Eraser when PaintingOptions.EraseToHistory => BrushMode.History,
                 _ => BrushMode.Paint,
             },
         };
@@ -5716,6 +5724,7 @@ public sealed partial class MainWindow : Window
         if (_document is not { } document) return;
         if (BrushFor(stroke) is not { } settings) return;
         settings = settings with { Pressures = _canvas.CompletedStrokePressures };
+        if (settings.Painting is { } paint) settings = settings with { Seed = (uint)Random.Shared.Next(1, int.MaxValue), Painting = paint with { Samples = _canvas.CompletedPenSamples, Reservoir = _mixerReservoir } };
         if (EditActiveAlpha("Paint Channel", (target, channel) => _tool is Tool.Liquify or Tool.Smudge
             ? WarpEdits.Warp(target, channel, stroke, Warp(_tool), settings)
             : BrushEdits.Paint(target, channel, stroke, settings))) return;
@@ -5751,8 +5760,7 @@ public sealed partial class MainWindow : Window
             BrushEdits.EnsurePixels(document, id);
             return BrushEdits.Paint(document, id, stroke, settings);
         });
-        if (_tool == Tool.MixerBrush && Pro.CleanAfterStroke)
-        { _options.Brush = _options.Brush with { MixerLoad = 0 }; _optionsBar.RefreshProfessional(); PushBrush(); }
+        if (_tool == Tool.MixerBrush) FinishMixerStroke();
     }
 
     /// <summary>Which of the two push modes the tool in hand is.</summary>
@@ -5765,7 +5773,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private BrushSettings? BrushFor(IReadOnlyList<SKPoint> stroke)
     {
-        if (_tool is Tool.HistoryBrush or Tool.ArtHistory)
+        if (_tool is Tool.HistoryBrush or Tool.ArtHistory || _tool == Tool.Eraser && PaintingOptions.EraseToHistory)
         {
             if (_historyBrushSource is not { } history)
             {
@@ -5774,6 +5782,7 @@ public sealed partial class MainWindow : Window
             }
             return _canvas.Brush with { Mode = _tool == Tool.ArtHistory ? BrushMode.ArtHistory : BrushMode.History, History = history };
         }
+        if (_tool == Tool.MixerBrush) PrepareMixerStroke();
         if (_tool is not (Tool.Clone or Tool.HealingBrush)) return _canvas.Brush;
         return SampledBrushFor(stroke[0]);
     }
@@ -5781,6 +5790,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Alt-clicking with the Clone Stamp: where the next stroke copies from.</summary>
     private void CloneSourceChosen(SKPoint point)
     {
+        if (_tool == Tool.MixerBrush) { LoadMixer(point); return; }
         _cloneSource = point; var slot = CloneSlotState; slot.Point = point; slot.Anchor = null; slot.Document = _document?.ID; slot.Layer = Selected; slot.Frame = _timelineFrame; _clonePreviewKey = null; RefreshUtilityPanels();
         // A new source starts a new alignment, as the Mac build's does.
         _cloneOffset = null;

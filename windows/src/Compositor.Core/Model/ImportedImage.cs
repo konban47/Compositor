@@ -20,6 +20,7 @@ public sealed class ImportedImage : IDisposable
         Name = name;
     }
 
+    public GifAnimation? Animation { get; internal set; }
     public SKBitmap Image { get; private set; }
     public SKBitmap Thumbnail { get; private set; }
     public string Name { get; private set; }

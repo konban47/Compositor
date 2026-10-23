@@ -21,6 +21,8 @@ internal static partial class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args is ["--gif-checks", var gifOutput]) return GifChecks(gifOutput);
+        if (args is ["--painting-checks", var paintingOutput]) return PaintingChecks(paintingOutput);
         if (args is ["--utility-retouch-checks", var utilityRetouchOutput]) return UtilityRetouchChecks(utilityRetouchOutput);
         if (args is ["--pen-layer-checks", var penLayerOutput]) return PenLayerChecks(penLayerOutput);
         if (args is ["--panel-workflow-checks", var panelWorkflowOutput]) return PanelWorkflowChecks(panelWorkflowOutput);

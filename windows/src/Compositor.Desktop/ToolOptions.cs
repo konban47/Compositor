@@ -12,7 +12,7 @@ namespace Compositor.Desktop;
 internal sealed class ToolOptions
 {
     /// <summary>The brush family's settings: size, hardness, opacity, colour and the rest.</summary>
-    public BrushSettings Brush = new();
+    public BrushSettings Brush = new(Painting: new());
 
     /// <summary>Whether a stroke goes on the layer's mask, and whether it paints or erases.</summary>
     public bool PaintOnMask;

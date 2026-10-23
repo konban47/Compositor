@@ -15,7 +15,7 @@ internal sealed class ExportAsDialog : DialogWindow
     private readonly CanvasDocument _document;
     private readonly ComboBox _format = new()
     {
-        ItemsSource = new[] { "PNG", "JPEG", "PDF", "TIFF", "EXR" },
+        ItemsSource = new[] { "PNG", "JPEG", "PDF", "TIFF", "EXR", "GIF" },
         Width = 170,
         Height = 24,
         FontSize = 11.5,
@@ -91,7 +91,7 @@ internal sealed class ExportAsDialog : DialogWindow
         _transparent.IsChecked = EditorPreferences.Current.ExportTransparency;
         var currentFormat = new MenuItem { Header = ((string[])_format.ItemsSource!)[(int)format] + " ▾" };
         var more = new MenuItem { Header = Localize.Text("More") };
-        foreach (var (label, value) in new[] { ("JPEG", ExportFormat.Jpeg), ("PNG", ExportFormat.Png), ("PDF", ExportFormat.Pdf), ("TIFF", ExportFormat.Tiff), ("EXR", ExportFormat.Exr) })
+        foreach (var (label, value) in new[] { ("JPEG", ExportFormat.Jpeg), ("PNG", ExportFormat.Png), ("PDF", ExportFormat.Pdf), ("TIFF", ExportFormat.Tiff), ("EXR", ExportFormat.Exr), ("GIF", ExportFormat.Gif) })
         {
             var choice = new MenuItem { Header = label };
             choice.Click += (_, _) => { _format.SelectedIndex = (int)value; currentFormat.Header = label + " ▾"; };
@@ -169,7 +169,7 @@ internal sealed class ExportAsDialog : DialogWindow
         if (_closed) return;
         _colorSpace.IsEnabled = _format.SelectedIndex is 1 or 2 or 3; if (!_colorSpace.IsEnabled || _colorSpace.SelectedIndex == 2 && _format.SelectedIndex != 3) _colorSpace.SelectedIndex = 0;
         _revision++; _export.IsEnabled = false; _quality.IsEnabled = _format.SelectedIndex == 1;
-        _transparent.IsEnabled = _colorSpace.SelectedIndex == 0 && _format.SelectedIndex is 0 or 3 or 4;
+        _transparent.IsEnabled = _colorSpace.SelectedIndex == 0 && _format.SelectedIndex is 0 or 3 or 4 or 5;
         _background.IsEnabled = _format.SelectedIndex is not (0 or 3 or 4) || _transparent.IsChecked != true;
         _size.Text = Localize.Text("Rendering preview…"); _timer.Stop(); _timer.Start();
     }

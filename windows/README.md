@@ -1,12 +1,12 @@
 # Compositor for Windows — 简体中文 / English
 
-2026-10-23：当前源码为 **1.5.5.1 Preview**，已合并上游 1.5.5 / `551a35f`。Windows 继续移植 PDF 分页、PSD 画板、光谱 RGB Split、通道打包及三种滤镜调整层，补全图 1–24 工具流程，并优化冷缓存和编辑后重算。[本次更新与移植边界](UPDATES-1.5.5.1.md) · [性能记录](PERFORMANCE.md) · [Windows 10 可复现验收方案](COMPATIBILITY.md)。
+2026-10-23：当前源码为 **1.5.6.0 Preview**，已合并上游 1.5.6 / `47cb96b`。补全画笔、铅笔、颜色替换、混合器，以及图章、历史画笔和橡皮擦的工具栏与像素逻辑；增加 GIF 逐帧编辑、计时与动画导出，并根据窗口高度自动切换双列工具栏。[本次更新与移植边界](UPDATES-1.5.6.0.md) · [画笔与 GIF 手册](PAINTING-AND-GIF.md) · [性能记录](PERFORMANCE.md) · [Windows 10 验收方案](COMPATIBILITY.md)。
 
-本版为源码构建，尚未发布 GitHub Release；[Actions 构建产物](https://github.com/konban47/Compositor/actions/workflows/windows.yml)中的安装包名为 `Compositor-Windows-1.5.5.1-x64-setup.exe`。下方 1.5.3.2 下载链接和测试数字保留历史含义。
+本版为源码构建，尚未发布 GitHub Release；[Actions 构建产物](https://github.com/konban47/Compositor/actions/workflows/windows.yml)中的安装包名为 `Compositor-Windows-1.5.6.0-x64-setup.exe`。下方 1.5.3.2 下载链接和测试数字保留历史含义。
 
 窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](WINDOW-MENU.md)。
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 源码版本为 **1.5.5.1 Preview**。
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 源码版本为 **1.5.6.0 Preview**。
 
 现有界面包含 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](design/panel-icons/README.md)。
 
@@ -23,7 +23,7 @@
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
 - 界面中文字体随包提供，不依赖系统是否安装中文语言包。画布文字支持中文输入法预编辑、候选窗口光标位置、汉字字体回退、无空格中文段落换行。
 - `.comp` 是**文件夹项目**，包含 `manifest.json` 和图层资源。打开整个项目文件夹；保存时选择 `.comp` 名称。不要只复制 `manifest.json`。
-- 普通图像、PDF（页码/分辨率选择）、PSD/PSB（画板独立标签）、相机 RAW 通过“文件 → 导入图像”打开；PSD 转换限制会在导入报告中显示。PNG/JPEG/PDF/TIFF/EXR 通过“导出为”菜单输出；PDF 为单页合成图像。
+- 普通图像、PDF（页码/分辨率选择）、PSD/PSB（画板独立标签）、相机 RAW 通过“文件 → 导入图像”打开；PSD 转换限制会在导入报告中显示。PNG/JPEG/GIF/PDF/TIFF/EXR 通过“导出为”菜单输出；PDF 为单页合成图像。
 - 可将项目文件夹或图像路径作为参数：`Compositor.exe "D:\图片\项目.comp"`。
 - 设置保存在 `%APPDATA%\CompositorWindows`。卸载不会删除项目文件和个人设置。
 
@@ -174,7 +174,7 @@
 
 ### 项目兼容性
 
-当前读取版本 1–26（限已实现字段）。新版图框、计数组、注释作者/双臂标尺及滤镜调整使用 Windows 扩展 v26；线条样式与端点使用 Windows 扩展 v25；工作路径使用 Windows 扩展 v24；平滑圆角和扩展切片属性使用 Windows 扩展 v23；非白色或透明画板背景使用 Windows 扩展 v22；画板参考线归属使用 Windows 扩展 v21；字符范围样式、文字几何、矢量孔洞规则、额外标签色和 ICC 配置使用 Windows 扩展 v20；新增八类可编辑调整层使用 Windows 扩展 v19；图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，上游 macOS 1.5.5 支持 v1–v16，但不支持 Windows v13–v26 扩展序列；Windows 已支持上游 v16 的三种滤镜调整层（当前为 8 位 CPU 合成），不能仅修改版本号强行降级；交付合成结果可导出 PNG。详细字段见 [项目格式 v26](../docs/project-format.md#windows-extension-version-26)。
+当前读取版本 1–27（限已实现字段）。新版图框、计数组、注释作者/双臂标尺及滤镜调整使用 Windows 扩展 v26；线条样式与端点使用 Windows 扩展 v25；工作路径使用 Windows 扩展 v24；平滑圆角和扩展切片属性使用 Windows 扩展 v23；非白色或透明画板背景使用 Windows 扩展 v22；画板参考线归属使用 Windows 扩展 v21；字符范围样式、文字几何、矢量孔洞规则、额外标签色和 ICC 配置使用 Windows 扩展 v20；新增八类可编辑调整层使用 Windows 扩展 v19；图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，上游 macOS 1.5.5 支持 v1–v16，但不支持 Windows v13–v26 扩展序列；Windows 已支持上游 v16 的三种滤镜调整层（当前为 8 位 CPU 合成），不能仅修改版本号强行降级；交付合成结果可导出 PNG。详细字段见 [项目格式 v26](../docs/project-format.md#windows-extension-version-26)。
 
 ## 功能与迁移范围
 

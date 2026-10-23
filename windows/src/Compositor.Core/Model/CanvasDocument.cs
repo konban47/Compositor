@@ -168,6 +168,7 @@ public sealed class CanvasDocument : IDisposable
     {
         ID = layer.ID,
         Name = layer.Name,
+        Gif = layer.Gif is { } gif ? gif.Record(layer.ID) with { SelectedFrameIndex = layer.GifFrameIndex } : null,
         IsVisible = layer.IsVisible,
         Locks = layer.Locks == LayerLocks.None ? null : (int)layer.Locks,
         FillOpacity = layer.FillOpacity == 1 ? null : layer.FillOpacity,

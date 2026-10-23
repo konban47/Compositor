@@ -38,6 +38,7 @@ internal sealed class EditorIcon(string kind) : Control
     private static readonly Dictionary<string, string> Paths = new(StringComparer.Ordinal)
     {
         ["image"] = "M3,4 L21,4 L21,20 L3,20 Z M3,17 L9,10 L13,14 L16,11 L21,17 M16,7 A1,1 0 1 1 14,7 A1,1 0 1 1 16,7",
+        ["symmetry"] = "M12,2 L12,22 M10,6 C1,-2 1,15 8,13 C1,17 5,25 10,17 Z M14,6 C23,-2 23,15 16,13 C23,17 19,25 14,17 Z",
         ["pressure"] = "M21,12 A9,9 0 1 1 12,3 M17,12 A5,5 0 1 1 12,7 M11,13 L13,8 L21,0 L24,3 L16,11 Z",
         ["undo"] = "M3,10 L3,3 M3,10 L10,10 M3,10 C8,0 23,5 21,15 C20,20 15,22 9,20",
         ["swap"] = "M3,7 L21,7 L17,3 M21,7 L17,11 M21,17 L3,17 L7,13 M3,17 L7,21",
