@@ -12,7 +12,7 @@ using Compositor.Core.Model;
 using SkiaSharp;
 namespace Compositor.Desktop;
 
-internal sealed class BrushSettingsEditor : StackPanel, IDisposable
+internal sealed class BrushSettingsEditor : Grid, IDisposable
 {
     internal static readonly string[] Sections = ["Brush Tip Shape", "Shape Dynamics", "Scattering", "Texture", "Dual Brush", "Color Dynamics", "Transfer", "Brush Pose", "Noise", "Wet Edges", "Build-up", "Smoothing", "Protect Texture"];
     internal static readonly string[] EnabledFields = ["", "ShapeEnabled", "ScatterEnabled", "TextureEnabled", "DualEnabled", "ColorEnabled", "TransferEnabled", "PoseEnabled", "Noise", "WetEdges", "BuildUp", "SmoothingEnabled", "ProtectTexture"];
@@ -29,94 +29,178 @@ internal sealed class BrushSettingsEditor : StackPanel, IDisposable
     private readonly Action<BrushSettings> _set;
     private readonly Func<bool> _isMixer;
     private readonly Action _picker, _save, _texture;
-    private readonly StackPanel _categories = new() { Spacing = 2 };
-    private readonly ToolSettingsPopup _fields = new() { Margin = new Thickness(6), MinWidth = 0 };
-    private readonly Grid _layout = new() { ColumnDefinitions = new ColumnDefinitions("135,*") };
-    private readonly ComboBox _compact = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly Image _preview = new() { Height = 115, Stretch = Stretch.Uniform };
+    private readonly StackPanel _categories = new() { Spacing = 0 };
+    private readonly StackPanel _fields = new() { Spacing = 12, Margin = new Thickness(12, 8, 8, 8) };
+    private readonly Grid _layout = new() { ColumnDefinitions = new ColumnDefinitions("144,*") };
+    private readonly Image _preview = new() { Stretch = Stretch.Fill, IsHitTestVisible = false };
     private readonly DispatcherTimer _previewTimer = new() { Interval = TimeSpan.FromMilliseconds(90) };
+    private readonly List<Action> _refreshControls = [], _refreshCategories = [];
+    private readonly ScrollViewer _fieldScroll;
     private WriteableBitmap? _previewBitmap;
-    private bool _busy, _dirty, _disposed;
+    private bool _busy, _dirty, _disposed, _updating;
     private int _section;
     private PaintBrushOptions Options => _get().Painting ?? new();
     internal static string SplitName(string name) => Regex.Replace(name, "([a-z])([A-Z])", "$1 $2");
     internal BrushSettingsEditor(Func<BrushSettings> get, Action<BrushSettings> set, Func<bool> isMixer, Action picker, Action save, Action texture)
     {
-        _get = get; _set = set; _isMixer = isMixer; _picker = picker; _save = save; _texture = texture; Spacing = 8;
-        var header = new DockPanel(); var plus = new Button { Content = "+", Tag = "save-brush-preset", Width = 28 }; plus.Click += (_, _) => _save(); DockPanel.SetDock(plus, Dock.Right); header.Children.Add(plus);
-        var brushes = new Button { Content = Localize.Text("Brushes"), Tag = "brush-presets" }; brushes.Click += (_, _) => _picker(); header.Children.Add(brushes); Children.Add(header);
-        _compact.ItemsSource = Sections.Select(Localize.Text).ToArray(); _compact.SelectedIndex = 0; _compact.SelectionChanged += (_, _) => { if (_compact.SelectedIndex >= 0) SelectSection(_compact.SelectedIndex); }; Children.Add(_compact);
-        _layout.Children.Add(_categories); Grid.SetColumn(_fields, 1); _layout.Children.Add(_fields); Children.Add(_layout);
-        Children.Add(new Border { Background = new SolidColorBrush(Color.Parse("#777777")), BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(1), Padding = new Thickness(4), Child = _preview });
-        SizeChanged += (_, _) => { var wide = Bounds.Width >= 390; _categories.IsVisible = wide; _compact.IsVisible = !wide; _layout.ColumnDefinitions[0].Width = new GridLength(wide ? 135 : 0); };
+        _get = get; _set = set; _isMixer = isMixer; _picker = picker; _save = save; _texture = texture;
+        RowDefinitions = new RowDefinitions("*,145,30"); ClipToBounds = true;
+        var sidebar = new StackPanel { Margin = new Thickness(4, 8, 0, 4) };
+        var brushes = new Button { Content = Localize.Text("Brushes"), Tag = "brush-presets", HorizontalAlignment = HorizontalAlignment.Center, MinHeight = 28, Margin = new Thickness(0, 0, 0, 14) };
+        brushes.Click += (_, _) => _picker(); sidebar.Children.Add(brushes); sidebar.Children.Add(_categories);
+        _layout.Children.Add(new ScrollViewer { Content = sidebar, AllowAutoHide = false, HorizontalContentAlignment = HorizontalAlignment.Stretch, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
+        _fieldScroll = new ScrollViewer { Content = _fields, AllowAutoHide = false, HorizontalContentAlignment = HorizontalAlignment.Stretch, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Tag = "brush-parameter-scroll" };
+        Grid.SetColumn(_fieldScroll, 1); _layout.Children.Add(_fieldScroll); Children.Add(_layout);
+        var preview = new Border { Background = Skin.ScrollThumbBrush, BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(1), Margin = new Thickness(4, 4, 4, 2), Padding = new Thickness(16, 12), Child = _preview, Tag = "brush-stroke-preview" };
+        Grid.SetRow(preview, 1); Children.Add(preview);
+        var footer = new Border { BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(4, 1), Tag = "brush-settings-footer" };
+        var plus = new Button { Content = new BrushSettingsGlyph(false, true), Tag = "save-brush-preset", Width = 28, Height = 26, MinHeight = 0, MinWidth = 0, Padding = new Thickness(5), HorizontalAlignment = HorizontalAlignment.Right };
+        ToolTip.SetTip(plus, Localize.Text("New Brush")); Avalonia.Automation.AutomationProperties.SetName(plus, Localize.Text("New Brush")); plus.Click += (_, _) => _save(); footer.Child = plus;
+        Grid.SetRow(footer, 2); Children.Add(footer);
+        SizeChanged += (_, _) => { _layout.ColumnDefinitions[0].Width = new GridLength(Math.Clamp(Bounds.Width * .31, 148, 172)); RowDefinitions[1].Height = new GridLength(Math.Clamp(Bounds.Height * .19, 80, 150)); };
         _previewTimer.Tick += async (_, _) => { _previewTimer.Stop(); await RenderPreview(); };
         SelectSection(0);
     }
     private void Set(string property, object value)
     {
-        var next = Options with { }; typeof(PaintBrushOptions).GetProperty(property)!.SetValue(next, value); _set(_get() with { Painting = next }); UpdatePreview();
+        if (_updating) return;
+        var next = Options with { }; typeof(PaintBrushOptions).GetProperty(property)!.SetValue(next, value); _set(_get() with { Painting = next }); Refresh();
+    }
+    internal void Refresh()
+    {
+        if (_updating || _disposed) return; _updating = true;
+        try { foreach (var update in _refreshCategories) update(); foreach (var update in _refreshControls) update(); }
+        finally { _updating = false; }
+        UpdatePreview();
     }
     internal void SelectSection(int index)
     {
-        if (_compact.SelectedIndex != index) { _compact.SelectedIndex = index; return; }
-        _section = index; _categories.Children.Clear();
+        _section = Math.Clamp(index, 0, Sections.Length - 1); _categories.Children.Clear(); _refreshCategories.Clear();
         for (var i = 0; i < Sections.Length; i++)
         {
-            var n = i; var row = new DockPanel();
-            if (i > 0) { var enabled = new CheckBox { IsChecked = (bool)typeof(PaintBrushOptions).GetProperty(EnabledFields[i])!.GetValue(Options)!, MinHeight = 22, MinWidth = 22, Width = 24, Tag = "brush-enable-" + i }; enabled.IsCheckedChanged += (_, _) => { Set(EnabledFields[n], enabled.IsChecked == true); }; DockPanel.SetDock(enabled, Dock.Left); row.Children.Add(enabled); }
-            var locked = new ToggleButton { Content = "♙", Width = 22, MinWidth = 0, Height = 24, Padding = new Thickness(0), IsChecked = (Options.LockedSections & (1UL << i)) != 0, Tag = "brush-lock-" + i }; ToolTip.SetTip(locked, Localize.Text("Keep This Section When Changing Presets"));
-            locked.IsCheckedChanged += (_, _) => Set("LockedSections", locked.IsChecked == true ? Options.LockedSections | (1UL << n) : Options.LockedSections & ~(1UL << n)); DockPanel.SetDock(locked, Dock.Right); row.Children.Add(locked);
-            var button = new Button { Content = Localize.Text(Sections[i]), MinWidth = 0, Padding = new Thickness(2), Height = 26, HorizontalAlignment = HorizontalAlignment.Stretch, Background = i == index ? Skin.SurfaceDarkBrush : Brushes.Transparent, Tag = "brush-section-" + i }; button.Click += (_, _) => { _compact.SelectedIndex = n; SelectSection(n); }; row.Children.Add(button); _categories.Children.Add(row);
+            var n = i; var row = new Grid { ColumnDefinitions = new ColumnDefinitions("24,*,23"), MinHeight = 30 };
+            var face = new Border { Child = row, BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(1, 0, 1, 1), Background = i == index ? Skin.SurfaceControlBrush : Brushes.Transparent };
+            if (i > 0)
+            {
+                var enabled = new CheckBox { MinHeight = 24, MinWidth = 0, Width = 22, Padding = new Thickness(0), Tag = "brush-enable-" + i, VerticalAlignment = VerticalAlignment.Center };
+                Avalonia.Automation.AutomationProperties.SetName(enabled, Localize.Text(Sections[i]));
+                enabled.IsCheckedChanged += (_, _) => { if (_updating) return; Set(EnabledFields[n], enabled.IsChecked == true); if (enabled.IsChecked == true) SelectSection(n); };
+                _refreshCategories.Add(() => enabled.IsChecked = (bool)typeof(PaintBrushOptions).GetProperty(EnabledFields[n])!.GetValue(Options)!); row.Children.Add(enabled);
+            }
+            var glyph = new BrushSettingsGlyph(false);
+            var locked = new ToggleButton { Content = glyph, Width = 22, MinWidth = 0, Height = 26, MinHeight = 0, Padding = new Thickness(3), BorderThickness = new Thickness(0), Background = Brushes.Transparent, Tag = "brush-lock-" + i };
+            ToolTip.SetTip(locked, Localize.Text("Keep This Section When Changing Presets")); Avalonia.Automation.AutomationProperties.SetName(locked, Localize.Text("Keep This Section When Changing Presets") + ": " + Localize.Text(Sections[i]));
+            locked.IsCheckedChanged += (_, _) => { if (!_updating) Set("LockedSections", locked.IsChecked == true ? Options.LockedSections | (1UL << n) : Options.LockedSections & ~(1UL << n)); };
+            _refreshCategories.Add(() => { locked.IsChecked = (Options.LockedSections & (1UL << n)) != 0; glyph.Locked = locked.IsChecked == true; glyph.InvalidateVisual(); }); Grid.SetColumn(locked, 2); row.Children.Add(locked);
+            var button = new Button { Content = new TextBlock { Text = Localize.Text(Sections[i]), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center }, MinWidth = 0, MinHeight = 28, Padding = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Tag = "brush-section-" + i };
+            ToolTip.SetTip(button, Localize.Text(Sections[i])); button.Click += (_, _) => { if (n > 0) Set(EnabledFields[n], true); SelectSection(n); }; Grid.SetColumn(button, 1); row.Children.Add(button); _categories.Children.Add(face);
         }
-        _fields.Children.Clear(); _fields.Changed = UpdatePreview;
-        if (index > 0) _fields.Check("Enable " + Sections[index], (bool)typeof(PaintBrushOptions).GetProperty(EnabledFields[index])!.GetValue(Options)!, v => Set(EnabledFields[index], v));
+        _fields.Children.Clear(); _refreshControls.Clear(); _fieldScroll.Offset = default;
         if (index == 0)
         {
-            _fields.Children.Add(TipGrid(Options.Tip, tip => { Set("Tip", tip); _set(_get() with { TipImage = null, Hardness = tip == 0 ? 0 : 1 }); }));
-            BrushNumber("Size", b => b.Diameter, (b, n) => b with { Diameter = n }, 1, 5000);
-            _fields.Check("Flip X", Options.FlipX, v => Set("FlipX", v)); _fields.Check("Flip Y", Options.FlipY, v => Set("FlipY", v));
-            _fields.Children.Add(new BrushTipAngleControl(() => _get(), b => { _set(b); UpdatePreview(); }));
-            BrushNumber("Angle", b => b.Angle, (b, n) => b with { Angle = n }, -180, 180);
-            BrushNumber("Roundness %", b => b.Roundness * 100, (b, n) => b with { Roundness = n / 100 }, 1, 100);
-            BrushNumber("Hardness %", b => b.Hardness * 100, (b, n) => b with { Hardness = n / 100 }, 0, 100);
-            _fields.Check("Spacing", Options.SpacingEnabled, v => Set("SpacingEnabled", v));
-            BrushNumber("Spacing %", b => b.SpacingFraction > 0 ? b.SpacingFraction * 100 : 25, (b, n) => b with { SpacingFraction = n / 100 }, 1, 1000);
+            _fields.Children.Add(TipGrid(Options.Tip, tip => { Set("Tip", tip); _set(_get() with { TipImage = null, Hardness = tip == 0 ? 0 : 1 }); Refresh(); }));
+            BrushNumber("Size", b => b.Diameter, (b, n) => b with { Diameter = n }, 1, 5000, " px");
+            AddField("FlipX"); AddField("FlipY");
+            _fields.Children.Add(new BrushTipAngleControl(() => _get(), b => { _set(b); Refresh(); }));
+            BrushNumber("Angle", b => b.Angle, (b, n) => b with { Angle = n }, -180, 180, "°");
+            BrushNumber("Roundness", b => b.Roundness * 100, (b, n) => b with { Roundness = n / 100 }, 1, 100, "%");
+            BrushNumber("Hardness", b => b.Hardness * 100, (b, n) => b with { Hardness = n / 100 }, 0, 100, "%");
+            AddField("SpacingEnabled");
+            BrushNumber("Spacing", b => b.SpacingFraction > 0 ? b.SpacingFraction * 100 : 25, (b, n) => b with { SpacingFraction = n / 100 }, 1, 1000, "%", () => Options.SpacingEnabled);
         }
-        else foreach (var field in Fields[index]) AddField(field);
+        else if (index == 6)
+        {
+            foreach (var (jitter, control, minimum) in new[] { ("OpacityJitter", "OpacityControl", "MinimumOpacity"), ("FlowJitter", "FlowControl", "MinimumFlow"), ("WetJitter", "WetControl", "MinimumWet"), ("MixJitter", "MixControl", "MinimumMix") })
+            {
+                var group = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 6), Tag = "brush-transfer-" + jitter };
+                var mixerOnly = jitter is "WetJitter" or "MixJitter";
+                _refreshControls.Add(() => { group.IsEnabled = Options.TransferEnabled && (!mixerOnly || _isMixer()); group.Opacity = group.IsEnabled ? 1 : .4; });
+                AddNumber(jitter, group); AddControl(control, group); AddNumber(minimum, group, compact: true, enabled: () => (BrushControl)typeof(PaintBrushOptions).GetProperty(control)!.GetValue(Options)! != BrushControl.Off); _fields.Children.Add(group);
+            }
+        }
+        else foreach (var field in Fields[index]) if (field != "FadeSteps") AddField(field);
         if (index == 3) { var load = new Button { Content = Localize.Text("Load Texture…"), Tag = "brush-load-texture" }; load.Click += (_, _) => _texture(); _fields.Children.Add(load); }
-        if (index is 8 or 9 or 10 or 12) _fields.Heading(new[] { "", "", "", "", "", "", "", "", "Noise varies coverage within every tip.", "Wet edges reduce the center deposit and emphasize the rim.", "Build-up continues depositing while the pointer is held still.", "", "Preserve the current texture when switching brush presets." }[index]);
-        UpdatePreview();
+        if (index is 8 or 9 or 10 or 12) _fields.Children.Add(new TextBlock { Text = Localize.Text(new[] { "", "", "", "", "", "", "", "", "Noise varies coverage within every tip.", "Wet edges reduce the center deposit and emphasize the rim.", "Build-up continues depositing while the pointer is held still.", "", "Preserve the current texture when switching brush presets." }[index]), TextWrapping = TextWrapping.Wrap, Foreground = Skin.SecondaryBrush });
+        _refreshControls.Add(() => _fields.IsEnabled = _section == 0 || (bool)typeof(PaintBrushOptions).GetProperty(EnabledFields[_section])!.GetValue(Options)!);
+        Refresh();
     }
-    private void BrushNumber(string title, Func<BrushSettings, double> get, Func<BrushSettings, double, BrushSettings> set, double min, double max) => _fields.Number(title, get(_get()), min, max, n => _set(set(_get(), n)), true);
+    private TextBlock Label(string title) => new() { Text = Localize.Text(title), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, Foreground = Skin.LabelBrush };
+    private void Number(StackPanel host, string title, Func<double> get, Action<double> set, double min, double max, string suffix, string tag, bool compact = false, Func<bool>? enabled = null)
+    {
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions(compact ? "42,*,64" : "*,70"), RowDefinitions = new RowDefinitions(compact ? "Auto" : "Auto,32"), Tag = tag };
+        row.Children.Add(Label(title));
+        var number = new NumericUpDown { Value = (decimal)get(), Minimum = (decimal)min, Maximum = (decimal)max, Increment = 1, ShowButtonSpinner = false, FormatString = "0.##'" + suffix + "'", MinWidth = 0, MinHeight = 0, Height = 28, Padding = new Thickness(6, 0), HorizontalAlignment = HorizontalAlignment.Stretch, Tag = tag + "-value" };
+        Avalonia.Automation.AutomationProperties.SetName(number, Localize.Text(title)); Grid.SetColumn(number, compact ? 2 : 1); row.Children.Add(number);
+        var slider = new Slider { Minimum = min, Maximum = max, Value = get(), MinWidth = 0, MinHeight = 0, Height = 32, Margin = new Thickness(compact ? 3 : 0, 0, compact ? 8 : 0, 0), Tag = tag + "-slider" };
+        slider.Resources["SliderPreContentMargin"] = new GridLength(6); slider.Resources["SliderPostContentMargin"] = new GridLength(6);
+        Avalonia.Automation.AutomationProperties.SetName(slider, Localize.Text(title)); Grid.SetColumn(slider, compact ? 1 : 0); if (!compact) { Grid.SetRow(slider, 1); Grid.SetColumnSpan(slider, 2); } row.Children.Add(slider);
+        if (compact) row.SizeChanged += (_, _) =>
+        {
+            var narrow = row.Bounds.Width < 220;
+            row.ColumnDefinitions = new ColumnDefinitions(narrow ? "*,64" : "42,*,64"); row.RowDefinitions = new RowDefinitions(narrow ? "Auto,32" : "Auto");
+            Grid.SetColumn(number, narrow ? 1 : 2); Grid.SetColumn(slider, narrow ? 0 : 1); Grid.SetRow(slider, narrow ? 1 : 0); Grid.SetColumnSpan(slider, narrow ? 2 : 1);
+        };
+        number.ValueChanged += (_, _) => { if (!_updating && number.Value is { } value) { set((double)value); Refresh(); } };
+        slider.ValueChanged += (_, _) => { if (!_updating) { set(Math.Round(slider.Value, 2)); Refresh(); } };
+        _refreshControls.Add(() => { number.Value = (decimal)get(); slider.Value = get(); row.IsEnabled = enabled?.Invoke() ?? true; }); host.Children.Add(row);
+    }
+    private void BrushNumber(string title, Func<BrushSettings, double> get, Func<BrushSettings, double, BrushSettings> set, double min, double max, string suffix, Func<bool>? enabled = null)
+        => Number(_fields, title, () => get(_get()), n => _set(set(_get(), n)), min, max, suffix, "brush-field-" + title, enabled: enabled);
+    private void AddControl(string name, StackPanel host)
+    {
+        var property = typeof(PaintBrushOptions).GetProperty(name)!;
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("48,*,58"), Tag = "brush-field-" + name }; row.Children.Add(Label("Control:"));
+        var combo = new ComboBox { ItemsSource = Enum.GetNames<BrushControl>().Select(n => Localize.Text(SplitName(n))).ToArray(), MinWidth = 0, MinHeight = 0, Height = 28, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 0, 6, 0), Tag = "brush-field-" + name + "-choice" };
+        Avalonia.Automation.AutomationProperties.SetName(combo, Localize.Text(SplitName(name))); Grid.SetColumn(combo, 1); row.Children.Add(combo);
+        var fade = new NumericUpDown { Minimum = 1, Maximum = 10000, ShowButtonSpinner = false, FormatString = "0", MinWidth = 0, MinHeight = 0, Height = 28, Padding = new Thickness(6, 0), Tag = "brush-fade-" + name };
+        ToolTip.SetTip(fade, Localize.Text("Fade Steps")); Avalonia.Automation.AutomationProperties.SetName(fade, Localize.Text("Fade Steps")); Grid.SetColumn(fade, 2); row.Children.Add(fade);
+        combo.SelectionChanged += (_, _) => { if (!_updating && combo.SelectedIndex >= 0) Set(name, (BrushControl)combo.SelectedIndex); };
+        fade.ValueChanged += (_, _) => { if (!_updating && fade.Value is { } value) Set("FadeSteps", (int)value); };
+        void LayoutFade()
+        {
+            var wide = row.Bounds.Width >= 240; fade.IsVisible = wide || fade.IsEnabled;
+            row.ColumnDefinitions[2].Width = new GridLength(wide ? 58 : 0); row.RowDefinitions = new RowDefinitions(!wide && fade.IsEnabled ? "Auto,28" : "Auto");
+            Grid.SetRow(fade, wide ? 0 : 1); Grid.SetColumn(fade, wide ? 2 : 1); fade.Width = 58; fade.HorizontalAlignment = HorizontalAlignment.Right;
+        }
+        row.SizeChanged += (_, _) => LayoutFade();
+        _refreshControls.Add(() => { var mode = (BrushControl)property.GetValue(Options)!; combo.SelectedIndex = (int)mode; fade.IsEnabled = mode == BrushControl.Fade; fade.Value = mode == BrushControl.Fade ? Options.FadeSteps : null; LayoutFade(); }); host.Children.Add(row);
+    }
+    private void AddNumber(string name, StackPanel host, bool compact = false, Func<bool>? enabled = null)
+    {
+        var property = typeof(PaintBrushOptions).GetProperty(name)!; var min = 0d; var max = 100d; var scale = property.PropertyType == typeof(int) ? 1 : 100d; var suffix = "%";
+        if (name is "Count" or "DualCount") { min = 1; max = 16; suffix = ""; }
+        if (name is "DualSize") { min = 1; max = 5000; scale = 1; suffix = " px"; }
+        if (name is "TiltX" or "TiltY") { min = -90; max = 90; scale = 1; suffix = "°"; }
+        if (name == "Rotation") { max = 360; scale = 1; suffix = "°"; }
+        if (name is "Scatter" or "DualScatter" or "DualSpacing" or "TextureScale") max = 1000;
+        if (name is "DualSpacing" or "TextureScale") min = 1;
+        if (name == "TiltScale") { min = 1; max = 200; }
+        if (name is "TextureBrightness" or "TextureContrast" or "Purity") min = -100;
+        Number(host, compact ? "Minimum" : SplitName(name), () => Convert.ToDouble(property.GetValue(Options)) * scale, n => Set(name, property.PropertyType == typeof(int) ? (object)(int)n : n / scale), min, max, suffix, "brush-field-" + name, compact, enabled);
+    }
     private void AddField(string name)
     {
-        var property = typeof(PaintBrushOptions).GetProperty(name)!; var value = property.GetValue(Options)!;
-        if (name is "TextureImage") return;
-        if (name == "DualTip") { _fields.Children.Add(TipGrid((int)value, n => Set(name, n))); return; }
-        if (name == "Texture") { _fields.Choice("Texture", ["Paper", "Weave", "Clouds", "Checkerboard", "Custom Image"], Options.TextureImage is null ? (int)value : 4, n => { if (n == 4) _texture(); else { Set(name, n); Set("TextureImage", null!); } }); return; }
-        if (name == "TextureMode") { _fields.Choice("Mode", ["Height", "Multiply", "Darken", "Lighten", "Difference", "Color Burn"], (int)value, n => Set(name, n)); return; }
-        var title = SplitName(name);
-        var before = _fields.Children.Count;
-        if (property.PropertyType == typeof(bool)) _fields.Check(title, (bool)value, v => Set(name, v));
-        else if (property.PropertyType.IsEnum)
-        { var values = Enum.GetNames(property.PropertyType); _fields.Choice(title, values.Select(SplitName).ToArray(), Convert.ToInt32(value), n => Set(name, Enum.ToObject(property.PropertyType, n))); }
-        else
+        var property = typeof(PaintBrushOptions).GetProperty(name)!;
+        if (name == "TextureImage") return;
+        if (name == "DualTip") { _fields.Children.Add(TipGrid(Options.DualTip, n => Set(name, n))); return; }
+        if (property.PropertyType == typeof(bool))
         {
-            var min = 0d; var max = 100d; var scale = property.PropertyType == typeof(int) ? 1 : 100d;
-            if (name is "Count" or "DualCount") { min = 1; max = 16; }
-            if (name is "FadeSteps") { min = 1; max = 10000; }
-            if (name is "DualSize") { min = 1; max = 5000; scale = 1; }
-            if (name is "TiltX" or "TiltY") { min = -90; max = 90; scale = 1; }
-            if (name == "Rotation") { max = 360; scale = 1; }
-            if (name is "Scatter" or "DualScatter" or "DualSpacing" or "TextureScale") max = 1000;
-            if (name is "DualSpacing" or "TextureScale") min = 1;
-            if (name == "TiltScale") { min = 1; max = 200; }
-            if (name is "TextureBrightness" or "TextureContrast" or "Purity") min = -100;
-            _fields.Number(title, Convert.ToDouble(value) * scale, min, max, n => Set(name, property.PropertyType == typeof(int) ? (object)(int)n : n / scale), true);
+            var check = new CheckBox { Content = Localize.Text(name == "SpacingEnabled" ? "Spacing" : SplitName(name)), MinHeight = 26, Tag = "brush-field-" + name };
+            check.IsCheckedChanged += (_, _) => { if (!_updating) Set(name, check.IsChecked == true); }; _refreshControls.Add(() => check.IsChecked = (bool)property.GetValue(Options)!); _fields.Children.Add(check);
         }
-        var mixerOnly = name.StartsWith("Wet", StringComparison.Ordinal) || name.StartsWith("Mix", StringComparison.Ordinal) || name is "MinimumWet" or "MinimumMix";
-        foreach (var control in _fields.Children.Skip(before)) { control.Tag = "brush-field-" + name; if (_section == 6 && mixerOnly) control.IsEnabled = _isMixer(); }
+        else if (property.PropertyType == typeof(BrushControl)) AddControl(name, _fields);
+        else if (property.PropertyType.IsEnum || name is "Texture" or "TextureMode")
+        {
+            var values = name == "Texture" ? new[] { "Paper", "Weave", "Clouds", "Checkerboard", "Custom Image" } : name == "TextureMode" ? ["Height", "Multiply", "Darken", "Lighten", "Difference", "Color Burn"] : Enum.GetNames(property.PropertyType).Select(SplitName).ToArray();
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("64,*"), Tag = "brush-field-" + name }; row.Children.Add(Label(name.EndsWith("Mode", StringComparison.Ordinal) ? "Mode" : SplitName(name)));
+            var combo = new ComboBox { ItemsSource = values.Select(Localize.Text).ToArray(), MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+            combo.SelectionChanged += (_, _) => { if (_updating || combo.SelectedIndex < 0) return; var n = combo.SelectedIndex; if (name == "Texture" && n == 4) _texture(); else { Set(name, property.PropertyType.IsEnum ? Enum.ToObject(property.PropertyType, n) : n); if (name == "Texture") Set("TextureImage", null!); } };
+            _refreshControls.Add(() => combo.SelectedIndex = name == "Texture" && Options.TextureImage is not null ? 4 : Convert.ToInt32(property.GetValue(Options))); Grid.SetColumn(combo, 1); row.Children.Add(combo); _fields.Children.Add(row);
+        }
+        else AddNumber(name, _fields);
     }
+
+
     internal static WrapPanel TipGrid(int selected, Action<int> set)
     {
         var grid = new WrapPanel();

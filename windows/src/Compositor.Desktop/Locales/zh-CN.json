@@ -3155,5 +3155,7 @@
   "Linear Dodge Add": "线性减淡（添加）",
   "Pressure": "压力",
   "Rotation": "旋转",
-  "History brush painting back “{0}” — drag on the canvas": "历史记录画笔：从“{0}”恢复；在画布上拖动绘制"
+  "History brush painting back “{0}” — drag on the canvas": "历史记录画笔：从“{0}”恢复；在画布上拖动绘制",
+  "Control:": "控制:",
+  "Minimum": "最小"
 }

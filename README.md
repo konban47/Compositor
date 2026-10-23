@@ -1,8 +1,8 @@
 # Compositor for Windows
 
-2026-10-23：当前源码为 **1.5.6.0 Preview**，已合并上游 1.5.6 / `47cb96b`。补全画笔、铅笔、颜色替换、混合器，以及图章、历史画笔和橡皮擦的工具栏与像素逻辑；增加 GIF 逐帧编辑、计时与动画导出，并根据窗口高度自动切换双列工具栏。[本次更新与移植边界](windows/UPDATES-1.5.6.0.md) · [画笔与 GIF 手册](windows/PAINTING-AND-GIF.md) · [性能记录](windows/PERFORMANCE.md) · [Windows 10 验收方案](windows/COMPATIBILITY.md)。
+2026-10-23：当前源码为 **1.5.6.1 Preview**，已合并上游 1.5.6 / `64097c9`。画笔设置改为固定分类、分组参数与底部笔触预览；统一主窗口和普通对话框的矩形标题按钮、主题悬停与红色关闭悬停，浮窗按钮保持原样。同步上游 GIF 解码复用与按保存时长播放的修复。[本次更新与移植边界](windows/UPDATES-1.5.6.1.md) · [画笔与 GIF 手册](windows/PAINTING-AND-GIF.md) · [性能记录](windows/PERFORMANCE.md) · [Windows 10 验收方案](windows/COMPATIBILITY.md)。
 
-[下载 1.5.6.0 Preview](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.6.0)：安装版 `Compositor-Windows-1.5.6.0-x64-setup.exe`、免安装版 `Compositor-Windows-1.5.6.0-x64-portable.zip` 和 `SHA256SUMS.txt`。发行包包含本版手册；下方旧版本章节及其测试数字保留历史含义。
+[下载 1.5.6.1 Preview](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.6.1)：安装版 `Compositor-Windows-1.5.6.1-x64-setup.exe`、免安装版 `Compositor-Windows-1.5.6.1-x64-portable.zip` 和 `SHA256SUMS.txt`。发行包包含本版手册；[1.5.6.0 历史更新](windows/UPDATES-1.5.6.0.md)及下方旧版本测试数字保留历史含义。
 
 窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](windows/WINDOW-MENU.md)。
 
@@ -10,7 +10,7 @@
 
 本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
 
-[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.6.0) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.6.0.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
+[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.6.1) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.6.1.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
 
 现有界面包含 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](windows/design/panel-icons/README.md)。
 
@@ -28,8 +28,8 @@
 
 目标系统：Windows 11、Windows 10 22H2（待实机验收），64 位 x64。安装器历史门槛 1809 不代表已通过测试，详见 [兼容性方案](windows/COMPATIBILITY.md)。
 
-- **安装版**：运行 `Compositor-Windows-1.5.6.0-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.5.6.0-x64-portable.zip`，运行 `Compositor.exe`。
+- **安装版**：运行 `Compositor-Windows-1.5.6.1-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.5.6.1-x64-portable.zip`，运行 `Compositor.exe`。
 - 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
 - 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
 
@@ -94,7 +94,7 @@
 
 ## 验证与当前状态
 
-**1.5.6.0 Preview** 已同步上游 **1.5.6 / 47cb96b**。[功能提交 4f16a5d 的云端验证](https://github.com/konban47/Compositor/actions/runs/39944437463)在 Windows Server 2022／2025 均通过零警告构建、1,339 项核心测试（无跳过）、26 组英文／20 组中文界面回归、性能与 512 MiB／双核软件模式门禁。发布提交的构建与安装验收链接见 [Release](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.6.0)。当前改动、实际性能和未移植范围见[本次更新](windows/UPDATES-1.5.6.0.md)。Windows 10 尚未实机验收。
+**1.5.6.1 Preview** 已同步上游 **1.5.6 / 64097c9**。[功能提交 4f16a5d 的云端验证](https://github.com/konban47/Compositor/actions/runs/39944437463)在 Windows Server 2022／2025 均通过零警告构建、1,339 项核心测试（无跳过）、26 组英文／20 组中文界面回归、性能与 512 MiB／双核软件模式门禁。发布提交的构建与安装验收链接见 [Release](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.6.1)。当前改动、实际性能和未移植范围见[本次更新](windows/UPDATES-1.5.6.1.md)。Windows 10 尚未实机验收。
 
 [历史 1.5.3.2 提交 b0bce9c 的云端验证](https://github.com/konban47/Compositor/actions/runs/39230205560)在 Windows Server 2022／2025 均通过文档检查、零警告构建、1200 项核心测试以及 23 组英文／17 组中文界面检查。安装版与免安装版已成功构建；发行程序的 17 组界面检查及临时 Windows Server 2025 环境中的全新安装／卸载均通过。[下载历史 1.5.3.2](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.2)。
 

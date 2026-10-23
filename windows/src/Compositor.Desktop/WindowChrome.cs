@@ -34,14 +34,14 @@ internal static class WindowChrome
             var button = new Button { Content = glyph, Tag = "caption-" + symbol, Width = 46, Height = Height,
                 MinWidth = 0, MinHeight = 0, Padding = new Thickness(0), CornerRadius = new CornerRadius(0),
                 HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center,
-                Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
+                Background = Brushes.Transparent, BorderThickness = new Thickness(0), BorderBrush = Brushes.Transparent };
             ToolTip.SetTip(button, Localize.Text(symbol));
             Avalonia.Automation.AutomationProperties.SetName(button, Localize.Text(symbol));
-            if (symbol == "Close")
+            foreach (var state in new[] { ":pointerover", ":pressed" })
             {
-                foreach (var state in new[] { ":pointerover", ":pressed" })
-                    button.Styles.Add(new Style(s => s.OfType<Button>().Class(state).Template().OfType<ContentPresenter>().Name("PART_ContentPresenter"))
-                    { Setters = { new Setter(ContentPresenter.BackgroundProperty, new SolidColorBrush(Color.Parse(state == ":pressed" ? "#A92016" : "#C42B1C"))) } });
+                var fill = symbol == "Close" ? new SolidColorBrush(Color.Parse(state == ":pressed" ? "#A92016" : "#C42B1C")) : state == ":pressed" ? Skin.CaptionPressedBrush : Skin.CaptionHoverBrush;
+                button.Styles.Add(new Style(s => s.OfType<Button>().Class(state).Template().OfType<ContentPresenter>().Name("PART_ContentPresenter"))
+                { Setters = { new Setter(ContentPresenter.BackgroundProperty, fill), new Setter(ContentPresenter.BorderBrushProperty, Brushes.Transparent), new Setter(ContentPresenter.CornerRadiusProperty, new CornerRadius(0)) } });
             }
             button.PointerEntered += (_, _) => { glyph.Hover = true; glyph.InvalidateVisual(); };
             button.PointerExited += (_, _) => { glyph.Hover = false; glyph.InvalidateVisual(); };
@@ -76,10 +76,15 @@ internal static class WindowChrome
         public override void Render(DrawingContext context)
         {
             var pen = new Pen(symbol == "Close" && Hover ? Brushes.White : Skin.LabelBrush, 1);
-            if (symbol == "Minimize") context.DrawLine(pen, new Point(1, 7.5), new Point(13, 7.5));
+            if (symbol == "Minimize") context.DrawLine(pen, new Point(2, 7.5), new Point(12, 7.5));
             else if (symbol == "Close") { context.DrawLine(pen, new Point(1.5, 1.5), new Point(12.5, 12.5)); context.DrawLine(pen, new Point(1.5, 12.5), new Point(12.5, 1.5)); }
-            else if (window.WindowState == WindowState.Maximized) { context.DrawRectangle(null, pen, new Rect(4.5, 1.5, 8, 8)); context.DrawRectangle(Skin.ChromeBrush, pen, new Rect(1.5, 4.5, 8, 8)); }
-            else context.DrawRectangle(null, pen, new Rect(1.5, 1.5, 11, 11), 1, 1);
+            else if (window.WindowState == WindowState.Maximized)
+            {
+                // Outline both windows without covering the hover surface with a chrome-colored patch.
+                context.DrawLine(pen, new(4.5, 1.5), new(12.5, 1.5)); context.DrawLine(pen, new(12.5, 1.5), new(12.5, 9.5)); context.DrawLine(pen, new(10.5, 9.5), new(12.5, 9.5)); context.DrawLine(pen, new(4.5, 1.5), new(4.5, 3.5));
+                context.DrawRectangle(null, pen, new Rect(1.5, 4.5, 8, 8), .7, .7);
+            }
+            else context.DrawRectangle(null, pen, new Rect(2, 2, 10, 10), 1, 1);
         }
     }
 }

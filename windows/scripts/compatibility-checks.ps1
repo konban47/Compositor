@@ -59,7 +59,7 @@ try {
     Run-Check 'complex-viewport' $dotnetExe @($probe, 'viewport-cache', '1600')
     $viewport = Get-Content (Join-Path $out 'complex-viewport.log') -Raw | ConvertFrom-Json
     if (!$viewport.PixelsEqual -or !$viewport.EditedPixelsEqual -or $viewport.EditTileHits -le 0 -or $viewport.ProcessorCount -ne 2 -or ($Scalar -and $viewport.Simd)) { throw 'Resource profile or pixel parity not applied.' }
-    Run-Check 'core-safety' $dotnetExe @('test', (Join-Path $repo 'windows/tests/Compositor.Core.Tests'), '-c', 'Release', '--no-build', '--filter', 'FullyQualifiedName~ViewportCacheTests|FullyQualifiedName~Upstream155Tests|FullyQualifiedName~AdvancedRepairTests|FullyQualifiedName~UtilityRetouchTests|FullyQualifiedName~PerformanceSafetyTests|FullyQualifiedName~PerformanceResourceTests|FullyQualifiedName~PaintBrushEngineTests|FullyQualifiedName~GifAnimationTests')
+    Run-Check 'core-safety' $dotnetExe @('test', (Join-Path $repo 'windows/tests/Compositor.Core.Tests'), '-c', 'Release', '--no-build', '--filter', 'FullyQualifiedName~ViewportCacheTests|FullyQualifiedName~Upstream155Tests|FullyQualifiedName~AdvancedRepairTests|FullyQualifiedName~UtilityRetouchTests|FullyQualifiedName~PerformanceSafetyTests|FullyQualifiedName~PerformanceResourceTests|FullyQualifiedName~PaintBrushEngineTests|FullyQualifiedName~GifAnimationTests|FullyQualifiedName~GifPlaybackTests')
     foreach ($language in @('en','zh-CN')) {
         $env:COMPOSITOR_LANGUAGE = $language
         foreach ($check in @('windows-checks','interaction-checks','pen-layer-checks','utility-retouch-checks','painting-checks','gif-checks')) {

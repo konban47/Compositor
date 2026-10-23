@@ -31,8 +31,13 @@ public sealed partial class MainWindow
         var delay=new NumericUpDown{Minimum=.02m,Maximum=655.35m,Increment=.01m,FormatString="0.00",Tag="gif-delay"};
         body.Children.Add(preview);body.Children.Add(frame);body.Children.Add(label);body.Children.Add(mode);body.Children.Add(new TextBlock{Text=Localize.Text("Frame delay, seconds")});body.Children.Add(delay);
         WriteableBitmap? previous=null;var loading=false;var playing=false;var legacyPlayback=false;var busy=false;var clock=new Stopwatch();string? playbackKey=null;CanvasDocument? playback=null;var decoded=new List<ImportedImage>();CanvasDocument? playbackSource=null;
+        GifDecodeSession? readers=null;var retiredReaders=new List<GifDecodeSession>();var generation=0;var schedules=new Dictionary<Guid,GifPlaybackSchedule>();
         void ReleasePreview(){if(ReferenceEquals(_canvas.PreviewDocument,playback))_canvas.PreviewDocument=null;playback?.Dispose();playback=null;foreach(var image in decoded)image.Dispose();decoded.Clear();_canvas.InvalidateVisual();}
-        void Stop(){playing=false;legacyPlayback=false;playbackKey=null;_timelineTimer.Stop();clock.Stop();ReleasePreview();}
+        void Stop()
+        {
+            generation++;playing=false;legacyPlayback=false;playbackKey=null;_timelineTimer.Stop();clock.Stop();ReleasePreview();
+            if(readers is { } old){readers=null;if(busy)retiredReaders.Add(old);else old.Dispose();}
+        }
         _stopGifPlayback=Stop;
         void RefreshTimeline()
         {
@@ -60,30 +65,31 @@ public sealed partial class MainWindow
         }
         body.Children.Add(PropertyPair(PropertyAction("Duplicate Frame",()=>Change("Duplicate GIF Frame",(g,i)=>g.Duplicate(i))),PropertyAction("Delete Frame",()=>Change("Delete GIF Frame",(g,i)=>g.Remove(i)))));
         body.Children.Add(PropertyPair(PropertyAction("Move Frame Left",()=>Change("Move GIF Frame",(g,i)=>g.Move(i,-1))),PropertyAction("Move Frame Right",()=>Change("Move GIF Frame",(g,i)=>g.Move(i,1)))));
-        body.Children.Add(PropertyPair(PropertyAction("Play",()=>{if(_document is null)return;Stop();if(PropertyLayer?.Gif is null){legacyPlayback=true;_timelineTimer.Interval=TimeSpan.FromMilliseconds(200);_timelineTimer.Start();return;}playing=true;playbackSource=_document;clock.Restart();_timelineTimer.Interval=TimeSpan.FromMilliseconds(20);_timelineTimer.Start();_=Tick();}),PropertyAction("Stop",Stop)));
+        body.Children.Add(PropertyPair(PropertyAction("Play",()=>{if(_document is null)return;Stop();if(PropertyLayer?.Gif is null){legacyPlayback=true;_timelineTimer.Interval=TimeSpan.FromMilliseconds(200);_timelineTimer.Start();return;}readers=new GifDecodeSession();schedules=_document.Layers.Where(l=>l.Gif is not null).ToDictionary(l=>l.ID,l=>new GifPlaybackSchedule(l.Gif!,l.GifFrameIndex));playing=true;playbackSource=_document;clock.Restart();_timelineTimer.Interval=TimeSpan.FromMilliseconds(20);_timelineTimer.Start();_=Tick();}),PropertyAction("Stop",Stop)));
         body.Children.Add(PropertyAction("Export GIF…",()=>{Stop();_=ExportAs(ExportFormat.Gif);}));
         async Task Tick()
         {
             if(legacyPlayback){if(_dockPanels.GetValueOrDefault("Timeline")?.Visible!=true){Stop();return;}frame.Value=frame.Value>=frame.Maximum?0:frame.Value+1;return;}
             if(!playing||busy)return;if(_document!=playbackSource||_dockPanels.GetValueOrDefault("Timeline")?.Visible!=true){Stop();return;}
-            if(_document is not { } doc)return;busy=true;
+            if(_document is not { } doc||readers is not { } activeReaders)return;busy=true;var requestGeneration=generation;
             try
             {
-                var time=(int)(clock.Elapsed.TotalSeconds*100);
-                var key=string.Join("/",doc.Layers.Where(l=>l.Gif is not null).Select(l=>{var gif=l.Gif!;var duration=gif.Frames.Sum(f=>(int)Math.Round(gif.Delay(f.Index)*100));return l.ID+":"+GifExport.FrameAt(gif,time%Math.Max(2,duration));}));
+                var elapsed=clock.Elapsed;
+                var indices=schedules.ToDictionary(p=>p.Key,p=>p.Value.FrameAt(elapsed));
+                var key=string.Join("/",indices.Select(p=>p.Key+":"+p.Value));
                 if(key==playbackKey)return;
                 using var lease=new DocumentLease(doc);
                 var result=await WorkScheduler.Run(_=>
                 {
                     var view=lease.Document.Clone();var owned=new List<ImportedImage>();
-                    try{foreach(var layer in view.Layers.Where(l=>l.Gif is not null)){var gif=layer.Gif!;var duration=gif.Frames.Sum(f=>(int)Math.Round(gif.Delay(f.Index)*100));var index=GifExport.FrameAt(gif,time%Math.Max(2,duration));layer.ShowGifFrame(index);if(!gif.Edited.ContainsKey(index))owned.Add(layer.Asset!);}return(view,owned);}
+                    try{foreach(var layer in view.Layers.Where(l=>l.Gif is not null)){var gif=layer.Gif!;var index=indices[layer.ID];layer.ShowGifFrame(index,activeReaders.Decode(gif,index,layer.Name));if(!gif.Edited.ContainsKey(index))owned.Add(layer.Asset!);}return(view,owned);}
                     catch{view.Dispose();foreach(var image in owned)image.Dispose();throw;}
                 });
-                if(!playing||_document!=doc){result.view.Dispose();foreach(var image in result.owned)image.Dispose();return;}
+                if(!playing||_document!=doc||requestGeneration!=generation){result.view.Dispose();foreach(var image in result.owned)image.Dispose();return;}
                 ReleasePreview();playbackKey=key;playback=result.view;decoded=result.owned;_canvas.PreviewDocument=playback;_canvas.InvalidateVisual();
             }
-            catch(Exception error){Stop();Say(error.Message);}
-            finally{busy=false;}
+            catch(Exception error){if(requestGeneration==generation){Stop();Say(error.Message);}}
+            finally{busy=false;foreach(var reader in retiredReaders)reader.Dispose();retiredReaders.Clear();}
         }
         _gifPlaybackFrame=Tick;_timelineTimer.Tick+=async(_,_)=>await Tick();
         _utilityRefresh["Timeline"]=RefreshTimeline;Closed+=(_,_)=>{Stop();previous?.Dispose();};RefreshTimeline();

@@ -39,6 +39,12 @@ internal static class Skin
     /// <summary>Photoshop control pressed and active tool sunken state (#252525).</summary>
     public static Color SurfaceControlPressed => Tone(0x25, 0x40, 0xA8, 0xC0);
 
+    // Caption hit areas brighten dark chrome and darken light chrome.
+    public static Color CaptionHover => Tone(0x3C, 0x68, 0xA2, 0xD6);
+    public static Color CaptionPressed => Tone(0x48, 0x78, 0x90, 0xC6);
+    public static readonly IBrush CaptionHoverBrush = new SolidColorBrush(CaptionHover);
+    public static readonly IBrush CaptionPressedBrush = new SolidColorBrush(CaptionPressed);
+
     /// <summary>Subtle 1px border between docked workspace sections (#262626).</summary>
     public static Color BorderSubtle => Tone(0x26, 0x40, 0xA0, 0xC0);
 
@@ -108,7 +114,7 @@ internal static class Skin
     public static void RefreshPalette()
     {
         foreach (var (brush, color) in new[] { (ChromeBrush, Chrome), (ScrollTrackBrush, ScrollTrack), (ScrollThumbBrush, ScrollThumb), (SurfaceDarkBrush, SurfaceDark),
-            (SurfaceControlBrush, SurfaceControl), (SurfaceControlHoverBrush, SurfaceControlHover),
+            (SurfaceControlBrush, SurfaceControl), (SurfaceControlHoverBrush, SurfaceControlHover), (CaptionHoverBrush, CaptionHover), (CaptionPressedBrush, CaptionPressed),
             (SurfaceControlPressedBrush, SurfaceControlPressed), (BorderSubtleBrush, BorderSubtle),
             (BorderControlBrush, BorderControl), (LabelBrush, Label), (SecondaryBrush, Secondary), (MenuRule, BorderControl), (RulerFaceBrush, RulerFace) })
             if (brush is SolidColorBrush mutable) mutable.Color = color;

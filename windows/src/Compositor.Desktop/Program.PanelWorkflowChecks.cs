@@ -87,8 +87,26 @@ public sealed partial class MainWindow
                 Check(face.Background is ISolidColorBrush hover && hover.Color == Color.Parse("#C42B1C"), "Close hover is not red.");
                 if (theme == 1) Save(owner, owner == this ? "editor-close-hover" : "dialog-close-hover");
                 owner.MouseMove(new Point(100, 100)); Pump();
+                foreach (var symbol in new[] { "Minimize", "Maximize / Restore" })
+                {
+                    var button = owner.GetVisualDescendants().OfType<Button>().SingleOrDefault(b => Equals(b.Tag, "caption-" + symbol));
+                    if (button is null) continue;
+                    Check(button.Bounds.Width == 46 && button.Bounds.Height == 32 && button.CornerRadius == new CornerRadius(0), "Caption hit region is not rectangular.");
+                    var point = button.TranslatePoint(new Point(12, 12), owner)!.Value; owner.MouseMove(point); Pump();
+                    var surface = button.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ContentPresenter>().Single();
+                    Check(surface.Background is ISolidColorBrush hoverFill && hoverFill.Color == Skin.CaptionHover, "Caption hover did not follow the theme.");
+                    Check(theme < 2 ? Skin.CaptionHover.R > Skin.Chrome.R : Skin.CaptionHover.R < Skin.Chrome.R, "Caption hover contrast has the wrong direction.");
+                    Save(owner, "caption-theme-" + theme + "-" + (symbol == "Minimize" ? "minimize" : "maximize"));
+                    owner.MouseDown(point, MouseButton.Left); Pump();
+                    Check(surface.Background is ISolidColorBrush pressed && pressed.Color == Skin.CaptionPressed, "Caption pressed state is missing.");
+                    owner.MouseMove(new Point(100, 100)); owner.MouseUp(new Point(100, 100), MouseButton.Left); Pump();
+                }
             }
         }
+        var maximize = this.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "caption-Maximize / Restore"));
+        Click(this, maximize); Check(WindowState == WindowState.Maximized, "Maximize button failed.");
+        Click(this, maximize); Check(WindowState == WindowState.Normal, "Restore button failed.");
+        Click(this, this.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "caption-Minimize"))); Check(WindowState == WindowState.Minimized, "Minimize button failed."); WindowState = WindowState.Normal; Pump();
         EditorPreferences.Current.Theme = 1; ((DesktopApp)Application.Current!).RefreshAppearance();
         Click(form, form.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, Localize.Text("OK"))));
         Check(doc.Marks.Single(m => m.Kind == MarkKind.Slice).Name == "Review slice", "The real Slice Options button did not commit properties.");

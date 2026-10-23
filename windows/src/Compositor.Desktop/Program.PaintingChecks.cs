@@ -43,6 +43,7 @@ public sealed partial class MainWindow
         SetTool(Tool.Brush);OpenUtilityPanel("Brush Settings");Pump();Check(_brushSettingsEditor is not null,"Brush settings missing");
         for(var i=0;i<BrushSettingsEditor.Sections.Length;i++){_brushSettingsEditor!.SelectSection(i);Pump();Check(_brushSettingsEditor.GetVisualDescendants().OfType<ToggleButton>().Any(b=>Equals(b.Tag,"brush-lock-"+i)),"Missing section lock");Save("Section"+i);}
         _brushSettingsEditor!.SelectSection(1);Pump();var enabled=_brushSettingsEditor.GetVisualDescendants().OfType<CheckBox>().Single(b=>Equals(b.Tag,"brush-enable-1"));enabled.IsChecked=true;Check(PaintingOptions.ShapeEnabled,"Dynamics checkbox did not update state");
+        BrushLayoutSelfCheck(output);
         var anchor=_optionsBar.GetVisualDescendants().OfType<Button>().Single(b=>Equals(b.Tag,"Brush Tip Presets"));OpenBrushPicker(anchor);Pump();Save("BrushPicker");
         SetTool(Tool.PatternStamp);var pattern=_optionsBar.GetVisualDescendants().OfType<Button>().Single(b=>Equals(b.Tag,"Pattern Presets"));OpenPatternPicker(pattern);Pump();Save("Patterns");
         var presets=PatternLibrary.Defaults();ApplyPreset(presets[0]);Click(new(200,170));Click(new(200,170));Check(PropertyLayer!.Asset!.Image.GetPixel(200,170)!=SKColors.Blue,"Pattern did not paint");

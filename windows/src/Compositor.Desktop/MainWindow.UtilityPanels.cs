@@ -28,7 +28,13 @@ public sealed partial class MainWindow
         {
             body = new StackPanel { Spacing = 6, Margin = new Thickness(8) }; _utilityPanels[name] = body;
             var tab = new TabItem { Tag = "utility-panel-" + name, Content = new ScrollViewer { Content = body, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } };
-            _inspectorTabs.Items.Add(tab); RegisterPanel(name, _inspectorTabs, tab); BuildUtilityPanel(name, body);
+            _inspectorTabs.Items.Add(tab);
+            if (name == "Brush Settings")
+            {
+                BuildBrushSettingsPanel(body); body.Children.Clear(); tab.Content = _brushSettingsEditor;
+                RegisterPanel(name, _inspectorTabs, tab);
+            }
+            else { RegisterPanel(name, _inspectorTabs, tab); BuildUtilityPanel(name, body); }
         }
         ShowDockPanel(name); RefreshUtilityPanels();
     }

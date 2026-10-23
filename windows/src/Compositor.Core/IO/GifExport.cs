@@ -42,7 +42,7 @@ public static class GifExport
         var visible=document.EffectiveVisibleIDs();var tracks=document.Layers.Where(l=>l.Gif is not null&&visible.Contains(l.ID)).ToArray();var schedule=Schedule(tracks.Select(l=>l.Gif!));
         // Q16-HDRI native frames use substantially more memory than their encoded GIF representation.
         using var budget=MemoryBudget.Current.Reserve(checked((long)options.Width*options.Height*schedule.Count*32));
-        using var view=document.Clone();using var collection=new MagickImageCollection();SKBitmap? preview=null;
+        using var view=document.Clone();using var collection=new MagickImageCollection();using var readers=new GifDecodeSession();SKBitmap? preview=null;
         try
         {
             foreach(var frame in schedule)
@@ -52,7 +52,7 @@ public static class GifExport
                 {
                     foreach(var track in tracks)
                     {
-                        var layer=view.Layers.Single(l=>l.ID==track.ID);var animation=track.Gif!;var index=FrameAt(animation,frame.Sample);layer.ShowGifFrame(index);if(!animation.Edited.ContainsKey(index))decoded.Add(layer.Asset!);
+                        var layer=view.Layers.Single(l=>l.ID==track.ID);var animation=track.Gif!;var index=FrameAt(animation,frame.Sample);layer.ShowGifFrame(index,readers.Decode(animation,index,layer.Name));if(!animation.Edited.ContainsKey(index))decoded.Add(layer.Asset!);
                     }
                     using var rendered=DocumentRenderer.Render(view);
                     using var resized=Bitmaps.Allocate(Bitmaps.ColorInfo(options.Width,options.Height));

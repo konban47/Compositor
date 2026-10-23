@@ -194,7 +194,7 @@ foreach ($license in @('PDFtoImage-LICENSE.txt','PDFium-build-LICENSE.txt','PDFi
     if (!(Test-Path -LiteralPath (Join-Path $repo "windows/licenses/$license"))) { throw "Missing PDF dependency license: $license" }
 }
 
-foreach ($guide in @('PAINTING-AND-GIF.md','UPDATES-1.5.6.0.md')) {
+foreach ($guide in @('PAINTING-AND-GIF.md','UPDATES-1.5.6.0.md','UPDATES-1.5.6.1.md')) {
     foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
         if (!(Read-Repo $path).Contains($guide)) { throw "$guide missing from $path" }
     }
@@ -219,3 +219,8 @@ foreach ($path in @('README.md','windows/README.md')) {
     }
 }
 Write-Output 'PASS: current download names, English overview and project-format links agree.'
+
+$paintingGuide = Read-Repo 'windows/PAINTING-AND-GIF.md'
+if ($paintingGuide.Contains('窄面板用分类下拉框') -or !$paintingGuide.Contains('底部笔触预览') -or !$paintingGuide.Contains('单调时钟')) { throw 'Brush layout or GIF playback guide is stale.' }
+if (!(Read-Repo 'windows/WINDOW-MENU.md').Contains('紧凑按钮样式不变')) { throw 'Floating caption exception is undocumented.' }
+Write-Output 'PASS: brush layout, playback timing and floating caption scope are documented.'

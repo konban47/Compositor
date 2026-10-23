@@ -230,6 +230,8 @@ public sealed partial class MainWindow
         if (group.Window is not null && Members(group).Count(p => p.Visible) == 1) { group.Window.Activate(); return; }
         if (Members(group).Count() > 1) { var separate = MakeDockGroup(Guid.NewGuid().ToString("N")); MovePanel(entry, separate); group = separate; }
         FloatGroup(group, at);
+        if (entry.Name == "Brush Settings" && group.Window is { } brushWindow)
+        { brushWindow.Width = 500; brushWindow.Height = 810; }
     }
     private static void SelectVisiblePanel(TabControl? host)
     { if (host?.SelectedItem is not TabItem { IsVisible: true } && host is not null) host.SelectedItem = host.Items.OfType<TabItem>().FirstOrDefault(t => t.IsVisible); }

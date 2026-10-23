@@ -14,7 +14,7 @@ public sealed partial class MainWindow
     {
         _brushSettingsEditor = new BrushSettingsEditor(() => _options.Brush, b => { _options.Brush = b; OptionsChanged(); }, () => _tool == Tool.MixerBrush,
             () => OpenBrushPicker(_brushSettingsEditor!), () => _ = SaveBrushPreset(), () => _ = ChooseBrushTexture()); body.Children.Add(_brushSettingsEditor);
-        _utilityRefresh["Brush Settings"] = () => _brushSettingsEditor.UpdatePreview(); Closed += (_, _) => _brushSettingsEditor.Dispose();
+        _utilityRefresh["Brush Settings"] = () => _brushSettingsEditor.Refresh(); Closed += (_, _) => _brushSettingsEditor.Dispose();
     }
     private async Task ChooseBrushTexture()
     {

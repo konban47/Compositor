@@ -23,22 +23,8 @@ public sealed class GifSource
     }
     public ImportedImage Decode(int index, string name, GifGeometry? geometry = null)
     {
-        if (index < 0 || index >= Delays.Count) throw new InvalidDataException("GIF frame is out of range.");
-        using var codec = SKCodec.Create(new SKMemoryStream(Data)); var pixels = Bitmaps.Allocate(Bitmaps.ColorInfo(Width, Height));
-        try
-        {
-            pixels.Erase(SKColors.Transparent);
-            if (codec.GetPixels(pixels.Info, pixels.GetPixels(), new SKCodecOptions(index)) != SKCodecResult.Success) throw new InvalidDataException("Could not decode GIF frame.");
-            if (geometry is not null)
-            {
-                var transformed = Bitmaps.Allocate(Bitmaps.ColorInfo(geometry.Width, geometry.Height));
-                try { using var canvas = new SKCanvas(transformed); canvas.Clear(SKColors.Transparent); canvas.SetMatrix(new SKMatrix((float)(geometry.A * geometry.Width / Width), (float)(geometry.C * geometry.Width / Height), (float)(geometry.Tx * geometry.Width), (float)(geometry.B * geometry.Height / Width), (float)(geometry.D * geometry.Height / Height), (float)(geometry.Ty * geometry.Height), 0, 0, 1)); using var image = SKImage.FromBitmap(pixels); canvas.DrawImage(image, 0, 0, new SKSamplingOptions(geometry.Sampling == LayerSampling.Nearest ? SKFilterMode.Nearest : SKFilterMode.Linear)); }
-                catch { transformed.Dispose(); throw; }
-                pixels.Dispose(); pixels = transformed;
-            }
-            return ImportedImage.Create(pixels, name);
-        }
-        catch { pixels.Dispose(); throw; }
+        using var reader = new GifFrameReader(this);
+        return reader.DecodeOnce(index, name, geometry);
     }
 }
 

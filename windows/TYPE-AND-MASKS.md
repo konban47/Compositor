@@ -1,6 +1,6 @@
 # 文字、蒙版与排版
 
-适用于 Windows **1.5.6.0 Preview**。
+适用于 Windows **1.5.6.1 Preview**。
 
 ## PSD 与文字编辑
 

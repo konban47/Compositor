@@ -1,6 +1,6 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "47cb96b83f73dbb8deda4c417e702c83b7107cab",
+  "commit": "64097c9379ea8128d65d13e817549e6bad3d603c",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
@@ -78,11 +78,11 @@
     },
     {
       "path": "Compositor/UI/GIFTimeline.swift",
-      "sha256": "1e47b70596c53386071650ef76b3a6e54492a45672fdca668e9ac77581785cb1"
+      "sha256": "7fd7dc1c36329b4b59e2317fa403ea4c6b9a59a314d5af29a7873e0f91023e96"
     },
     {
       "path": "Compositor/Document/GIFAnimation.swift",
-      "sha256": "8d7cd060e79c315ee40452083359e8c8b314e90d81174a05d7e0d61eb6e0cf2e"
+      "sha256": "6e1bfa03830c70221d24440bca2d51ad4fe718504ed6871d6e550861c0fd0e53"
     },
     {
       "path": "Compositor/Document/GIFFrameTiming.swift",
@@ -94,7 +94,7 @@
     },
     {
       "path": "Compositor/IO/GIFDecoder.swift",
-      "sha256": "181a5ceaad2e12e2c643076429b92111057a2f7aa40cff8de504e9d45e8af0f0"
+      "sha256": "edf44ab0d16ee8f55fd4fe4fb29cd96ff0e41c06de7885aeb10bfcceefa10d07"
     },
     {
       "path": "Compositor/IO/GIFExportSchedule.swift",
