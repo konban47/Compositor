@@ -37,9 +37,12 @@ public sealed partial class MainWindow
         Check(!Find<NumericUpDown>("brush-field-OpacityJitter-value").IsEffectivelyEnabled, "Category switch does not disable its parameters.");
         Find<Button>("brush-section-6").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
         Check(PaintingOptions.TransferEnabled, "Selecting a category did not enable it.");
-        SetTool(Tool.MixerBrush); editor.Refresh(); Pump();
+        SetTool(Tool.MixerBrush); Pump();
         Check(Find<StackPanel>("brush-transfer-WetJitter").IsEnabled && Find<StackPanel>("brush-transfer-MixJitter").IsEnabled, "Mixer controls did not refresh after changing tools.");
-        SetTool(Tool.Brush); ChangePainting(p => p with { OpacityJitter = 0, FlowJitter = 0 }); editor.Refresh();
+        SetTool(Tool.Brush); ChangePainting(p => p with { OpacityJitter = 0, FlowJitter = 0 }); Pump();
+        Check(!Find<StackPanel>("brush-transfer-WetJitter").IsEnabled && Find<NumericUpDown>("brush-field-OpacityJitter-value").Value == 0, "Options toolbar changes did not refresh the settings panel.");
+        editor.SelectSection(0); _options.Brush = _options.Brush with { Diameter = 67 }; OptionsChanged(); Pump();
+        Check(Find<NumericUpDown>("brush-field-Size-value").Value == 67, "Brush size is stale after changing toolbar options."); editor.SelectSection(6);
         foreach (var theme in new[] { 0, 1, 2, 3 })
         {
             EditorPreferences.Current.Theme = theme; ((DesktopApp)Application.Current!).RefreshAppearance(); editor.Refresh(); Pump();

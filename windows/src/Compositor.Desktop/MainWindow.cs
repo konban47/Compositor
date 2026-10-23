@@ -3560,6 +3560,7 @@ public sealed partial class MainWindow : Window
         { _optionsBar.Artboard.Width = (int)board.Transform.Width; _optionsBar.Artboard.Height = (int)board.Transform.Height; _optionsBar.Artboard.Background = board.ArtboardBackground; _optionsBar.RefreshArtboardOptions(); }
         _optionsBar.ShowZoom(_canvas.Zoom * 100);
         _optionsBar.IsVisible = _placementTab is null;
+        if (_dockPanels.GetValueOrDefault("Brush Settings")?.Visible == true) _brushSettingsEditor?.Refresh();
     }
 
     /// <summary>Puts the current brush, with the mode the tool in hand calls for, on the canvas. The rail's
