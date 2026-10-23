@@ -1,6 +1,6 @@
 # Windows 1.5.6.0 Preview
 
-2026-10-23。上游同步至 `47cb96b83f73dbb8deda4c417e702c83b7107cab`（v1.5.6）。本版为源码构建与 Actions 安装包，未创建新的 GitHub Release。
+2026-10-23。上游同步至 `47cb96b83f73dbb8deda4c417e702c83b7107cab`（v1.5.6）。[GitHub Release：windows-v1.5.6.0](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.6.0) 提供 x64 安装版、免安装版和 SHA256SUMS.txt；沿用 Preview 预发布标记。包内手册与发行标签源码一致。
 
 沿用 Skia、32 DIP 标题栏、同一实际快捷键归组、左侧工具栏取消滚动和既有 imagegen 图标。新增工具图标和笔尖由现有矢量／程序绘制实现，没有复制 Adobe 预设资产。
 
@@ -27,7 +27,7 @@ macOS Swift/AppKit/Metal/Sparkle 原文件随上游合并保留。本机没有 m
 
 ## 验证与文档
 
-新增 `--painting-checks`、`--gif-checks`，覆盖工具栏、13 类面板、画布操作、预设、撤销、动画播放隔离、项目重开与导出。核心测试新增 66 项画笔／图章／橡皮擦行为与 13 项 GIF 行为验证；完整核心测试 1,339 项全部通过，无跳过。本机 26 组英文／20 组中文界面回归通过；最终关键流程另行复核。两档低资源与原生软件绘制结果见 [兼容性记录](COMPATIBILITY.md)，性能门禁见 [性能记录](PERFORMANCE.md)。安装包和远端验证结果以本次提交对应的 Windows Actions 为准。
+新增 `--painting-checks`、`--gif-checks`，覆盖工具栏、13 类面板、画布操作、预设、撤销、动画播放隔离、项目重开与导出。核心测试新增 66 项画笔／图章／橡皮擦行为与 13 项 GIF 行为验证；完整核心测试 1,339 项全部通过，无跳过。本机 26 组英文／20 组中文界面回归通过；最终关键流程另行复核。两档低资源与原生软件绘制结果见 [兼容性记录](COMPATIBILITY.md)，性能门禁见 [性能记录](PERFORMANCE.md)。[功能提交 4f16a5d 的云端验证](https://github.com/konban47/Compositor/actions/runs/39944437463)已在 Windows Server 2022／2025 通过同样的 1,339 项核心测试、26 组英文／20 组中文界面回归、性能及 512 MiB／双核软件模式门禁。Release 说明链接发布提交的完整 Actions 结果与发行包、全新安装／卸载验收。
 
 [画笔与 GIF 操作手册](PAINTING-AND-GIF.md)、[项目格式](../docs/project-format.md#windows-extension-version-27)、两个 README、包内手册、上游来源清单、CI 与文档门禁同步更新。没有新增第三方依赖；GIF 编码复用已有 Magick.NET，解码复用 SkiaSharp。
 

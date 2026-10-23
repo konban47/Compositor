@@ -168,7 +168,7 @@ foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('performance-checks.ps1')) { throw 'Performance gates missing from CI.' }
 if (!$performance.Contains('COMPOSITOR_MEMORY_MB') -or !$performance.Contains('512 MiB')) { throw 'Runtime memory/format limits are undocumented.' }
 
-foreach ($guide in @('COMPATIBILITY.md','UPDATES-1.5.5.1.md')) {
+foreach ($guide in @('COMPATIBILITY.md',"UPDATES-$version.md")) {
     foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
         if (!(Read-Repo $path).Contains($guide)) { throw "$guide missing from $path" }
     }
@@ -181,7 +181,7 @@ if (!(Read-Repo 'README.md').Contains("v1–v$format") -or !(Read-Repo 'windows/
 foreach ($field in @('frameStyle','countGroups','author','secondX','secondY','filterLayerSettings','rgbSplitReach')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v26 field $field" }
 }
-foreach ($guide in @('UTILITY-RETOUCH.md','UPDATES-1.5.5.1.md')) {
+foreach ($guide in @('UTILITY-RETOUCH.md',"UPDATES-$version.md")) {
     foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
         if (!(Read-Repo $path).Contains($guide)) { throw "$guide missing from $path" }
     }
@@ -208,3 +208,14 @@ foreach ($path in @('.github/workflows/windows.yml','windows/scripts/compatibili
 }
 if ((Read-Repo 'windows/WINDOW-MENU.md').Contains('不提供视频轨道、关键帧或动画文件导出')) { throw 'Timeline capabilities are stale.' }
 if ((Read-Repo 'windows/PROFESSIONAL-TOOLS.md').Contains('不做笔触平滑')) { throw 'Pencil smoothing documentation is stale.' }
+
+$english = (Read-Repo 'windows/README.md').Split('## English')[1]
+if (!$english.Contains("Windows **$version Preview**") -or !$english.Contains($upstream.Substring(0,7))) { throw 'English overview version or upstream baseline is stale.' }
+foreach ($path in @('README.md','windows/README.md')) {
+    $body = Read-Repo $path
+    if (!$body.Contains("project-format.md#windows-extension-version-$format")) { throw "$path format link is stale." }
+    foreach ($match in [regex]::Matches($body, 'Compositor-Windows-([0-9.]+)-x64-(setup\.exe|portable\.zip)')) {
+        if ($match.Groups[1].Value -ne $version) { throw "$path installation instructions name an old package." }
+    }
+}
+Write-Output 'PASS: current download names, English overview and project-format links agree.'
