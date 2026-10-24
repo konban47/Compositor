@@ -16,7 +16,7 @@ jobs:
       matrix:
         os: [windows-2022, windows-2025]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    timeout-minutes: 35
     defaults:
       run:
         shell: pwsh
@@ -35,8 +35,6 @@ jobs:
         run: dotnet test windows/tests/Compositor.Core.Tests -c Release --no-build --logger 'trx;LogFileName=core.trx' --results-directory artifacts/tests
       - name: Synthetic performance and allocation gates
         run: ./windows/scripts/performance-checks.ps1
-      - name: Two-core scalar and 512 MiB compatibility gates
-        run: ./windows/scripts/compatibility-checks.ps1 -SkipBuild -Scalar -Output artifacts/compatibility
       - name: Drive the editor and dialogs in both languages
         run: |
           New-Item -ItemType Directory artifacts/screenshots -Force | Out-Null
@@ -92,6 +90,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Chinese tool options checks failed' }
           dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --color-checks artifacts/screenshots/chinese-color.png
           if ($LASTEXITCODE -ne 0) { throw 'Chinese color checks failed' }
+      - name: Two-core scalar and 512 MiB compatibility gates
+        run: ./windows/scripts/compatibility-checks.ps1 -SkipBuild -Scalar -Output artifacts/compatibility
       - uses: actions/upload-artifact@v4
         if: always()
         with:

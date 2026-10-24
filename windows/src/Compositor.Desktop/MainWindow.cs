@@ -2661,7 +2661,7 @@ public sealed partial class MainWindow : Window
             }
             if (_message.Length == 0) throw new InvalidOperationException($"{tool} left the status line empty");
             // The options bar shows the rows this tool can be told about, and nothing else.
-            if ((_optionsBar.Shows("brush") || _optionsBar.Shows("paintTip") || _optionsBar.Shows("selectionBrushTip") || _optionsBar.Shows("spotOptions") || _optionsBar.Shows("removeOptions") || _optionsBar.Shows("healingOptions")) != ToolCatalog.HasRoundCursor(tool))
+            if ((_optionsBar.Shows("brush") || _optionsBar.Shows("paintTip") || _optionsBar.Shows("localTip") || _optionsBar.Shows("selectionBrushTip") || _optionsBar.Shows("spotOptions") || _optionsBar.Shows("removeOptions") || _optionsBar.Shows("healingOptions")) != ToolCatalog.HasRoundCursor(tool))
             {
                 throw new InvalidOperationException($"{tool} got the brush rows wrong");
             }
