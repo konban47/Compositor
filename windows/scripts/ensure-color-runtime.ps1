@@ -1,5 +1,31 @@
 param([string]$Destination = (Join-Path $PSScriptRoot '../runtime/color'))
 $ErrorActionPreference = 'Stop'
+# Nested Windows PowerShell can inherit a PowerShell 7 module path on CI.
+# Use framework APIs for hashing/extraction rather than optional script modules.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+function ArchiveHash([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+    finally { $sha.Dispose(); $stream.Dispose() }
+}
+function ExtractArchive([string]$Path, [string]$DestinationPath) {
+    $root = [IO.Path]::GetFullPath($DestinationPath).TrimEnd('\') + '\'
+    $archive = [IO.Compression.ZipFile]::OpenRead($Path)
+    try {
+        foreach ($entry in $archive.Entries) {
+            $target = [IO.Path]::GetFullPath([IO.Path]::Combine($root, $entry.FullName))
+            if (!$target.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe runtime archive path.' }
+            if ($entry.FullName.EndsWith('/')) { [IO.Directory]::CreateDirectory($target) | Out-Null; continue }
+            [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target)) | Out-Null
+            $inputStream = $entry.Open()
+            try {
+                $outputStream = [IO.File]::Create($target)
+                try { $inputStream.CopyTo($outputStream) } finally { $outputStream.Dispose() }
+            } finally { $inputStream.Dispose() }
+        }
+    } finally { $archive.Dispose() }
+}
 $destinationPath = [IO.Path]::GetFullPath($Destination)
 $stamp = Join-Path $destinationPath 'compositor-runtime-2.4.2.txt'
 if (Test-Path -LiteralPath $stamp) { return }
@@ -13,11 +39,11 @@ $cache = Join-Path $PSScriptRoot '../runtime/downloads'
 New-Item -ItemType Directory -Path $cache -Force | Out-Null
 foreach ($download in $downloads) {
     $archive = Join-Path $cache $download[0]
-    if (!(Test-Path -LiteralPath $archive) -or (Get-FileHash -LiteralPath $archive).Hash -ne $download[2]) {
-        Invoke-WebRequest $download[1] -OutFile $archive
+    if (!(Test-Path -LiteralPath $archive) -or (ArchiveHash $archive) -ne $download[2]) {
+        Invoke-WebRequest $download[1] -OutFile $archive -UseBasicParsing -TimeoutSec 180
     }
-    if ((Get-FileHash -LiteralPath $archive).Hash -ne $download[2]) { throw "Color runtime checksum mismatch: $($download[0])" }
-    Expand-Archive -LiteralPath $archive -DestinationPath $destinationPath -Force
+    if ((ArchiveHash $archive) -ne $download[2]) { throw "Color runtime checksum mismatch: $($download[0])" }
+    ExtractArchive $archive $destinationPath
 }
 # Isolated embedded interpreter: neither user site-packages nor PATH are searched.
 [IO.File]::WriteAllText((Join-Path $destinationPath 'python312._pth'), "python312.zip`n.`n")
