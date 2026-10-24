@@ -146,7 +146,7 @@ public sealed partial class MainWindow
         document.Adopt(saved); ShowLayers(document);
         if (snapshot.Value.ActiveLayerID is { } id) SelectLayerRow(id);
         if (PropertyLayer?.Mask is null) _options.PaintOnMask = false;
-        Refresh();
+        Refresh(); RefreshOptionsBar();
     }
     private void MakeSnapshot()
     {

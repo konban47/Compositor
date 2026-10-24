@@ -110,6 +110,8 @@ public sealed partial class MainWindow
             var frame = ReferenceEquals(target, _open) && Selected is { } selectedFrame
                 ? target.Document?.Layers.FirstOrDefault(l => l.ID == selectedFrame && l.Container == LayerContainer.Frame && LayerProtection.CanMove(target.Document, l.ID)) : null;
             var fitting = target.Document is { } fit ? new SKSizeI(fit.Width, fit.Height) : (SKSizeI?)null;
+            var colorWarning = await Task.Run(() => ColorWorkflow.Warning(path, !newTab, EditorPreferences.Current.ColorSettings));
+            if (colorWarning is not null && !await ConfirmDialog.Ask(this, "Color Profile", Localize.Text(colorWarning), "Import", "Cancel")) return;
             var image = await Task.Run(() => ImageImporter.Decode(path, fitting));
             var openCameraRaw = false;
             if (ImageImporter.IsRaw(path))

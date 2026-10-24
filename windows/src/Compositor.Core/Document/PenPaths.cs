@@ -12,6 +12,7 @@ public sealed class PenToolSettings
     public bool AutoAddDelete = true, RubberBand, AlignEdges, Magnetic, Pressure;
     public double Stroke, CurveFit = 2, MagneticWidth = 10, MagneticContrast = 10, MagneticFrequency = 57;
     public int AlignmentTarget;
+    public bool AllLayers, ConstrainDragging, LinkDimensions;
 }
 
 /// <summary>Work paths use document coordinates and never contribute visible pixels.</summary>

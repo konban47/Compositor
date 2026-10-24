@@ -27,13 +27,13 @@ public static class CmykColor
     {
         if (!IsProfile(profile)) throw new InvalidDataException("Choose a CMYK ICC profile.");
         using var flat = DeepPixels.From(source); using (var canvas = new SKCanvas(flat)) using (var paint = new SKPaint { BlendMode = SKBlendMode.DstOver, Color = matte }) canvas.DrawPaint(paint);
-        var image = DeepImageCodec.Magick(flat); image.Alpha(AlphaOption.Remove); image.RenderingIntent = RenderingIntent.Relative;
-        image.TransformColorSpace(ColorProfiles.SRGB, new ColorProfile(profile)); return image;
+        using var image = DeepImageCodec.Magick(flat); image.Alpha(AlphaOption.Remove);
+        return ColorTransforms.Convert(image, ColorProfiles.SRGB.ToByteArray(), profile);
     }
     public static SKBitmap Proof(SKBitmap source, byte[] profile, bool proof = true, bool warning = false)
     {
-        using var image = Convert(source, profile, SKColors.White); image.TransformColorSpace(new ColorProfile(profile), ColorProfiles.SRGB);
-        using var deep = AdvancedEdit.Pixels(image); var simulated = DeepPixels.Preview(deep);
+        using var image = Convert(source, profile, SKColors.White); using var converted = ColorTransforms.Convert(image, profile, ColorProfiles.SRGB.ToByteArray());
+        using var deep = AdvancedEdit.Pixels(converted); var simulated = DeepPixels.Preview(deep);
         var src = source.GetPixelSpan(); var dst = simulated.GetPixelSpan();
         for (var y = 0; y < source.Height; y++) for (var x = 0; x < source.Width; x++)
         {

@@ -25,9 +25,16 @@ public sealed class LayerShapeStyle
 
     /// <summary>For a <see cref="ShapeKind.Path"/> shape: an SVG path normalized to the unit square.</summary>
     public string? Path { get; set; }
+    public bool? FillEnabled { get; set; }
+    public uint? StrokeColor { get; set; }
+    public double? StrokeWidth { get; set; }
+    public string? StrokePattern { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore] public bool HasPaintOptions => FillEnabled is not null || StrokeColor is not null || StrokeWidth is not null || StrokePattern is not null;
 
     public bool IsValid =>
-        (LineStyle is null or "Solid" or "Dotted" or "Dashed" or "Long Dash")
+        (StrokeWidth is null || double.IsFinite(StrokeWidth.Value) && StrokeWidth is >= 0 and <= 1000)
+        && (StrokePattern is null or "Solid" or "Dotted" or "Dashed" or "Long Dash")
+        && (LineStyle is null or "Solid" or "Dotted" or "Dashed" or "Long Dash")
         && (LineCap is null or "Square" or "Round")
         && (Kind == ShapeKind.Line || LineStyle is null && LineCap is null)
         && (LineWidth is null || double.IsFinite(LineWidth.Value) && LineWidth is > 0 and <= 1000)

@@ -12,6 +12,7 @@ public enum GradientShape
 
     /// <summary>The colour runs out from where the drag began, the end being on its rim.</summary>
     Radial,
+    Angle, Reflected, Diamond,
 }
 
 /// <summary>
@@ -112,7 +113,14 @@ public static class GradientEdits
         }
         // The point projected onto the run, so a colour band is square to it however the drag is angled.
         var along = ((point.X - start.X) * dx + (point.Y - start.Y) * dy) / lengthSquared;
-        return Math.Clamp(along, 0, 1);
+        var across = ((point.Y - start.Y) * dx - (point.X - start.X) * dy) / lengthSquared;
+        return shape switch
+        {
+            GradientShape.Angle => ((Math.Atan2(across, along) / (Math.PI * 2)) + 1) % 1,
+            GradientShape.Reflected => Math.Clamp(Math.Abs(along), 0, 1),
+            GradientShape.Diamond => Math.Clamp(Math.Abs(along) + Math.Abs(across), 0, 1),
+            _ => Math.Clamp(along, 0, 1),
+        };
     }
 
     /// <summary>The colour part of the way along: straight alpha, lerped so a faded end fades out.</summary>

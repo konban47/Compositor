@@ -191,6 +191,7 @@ public sealed class CanvasDocument : IDisposable
         MaskVectorPath = layer.Mask?.VectorPath,
         MaskVectorEvenOdd = layer.Mask is { VectorPath: not null, VectorEvenOdd: true } ? true : null,
         Shape = layer.LiveShape,
+        Gradient = layer.LiveGradient,
         Effects = layer.Effects,
         Blending = layer.Blending,
         Label = layer.Label == LayerLabel.None ? null : layer.Label,

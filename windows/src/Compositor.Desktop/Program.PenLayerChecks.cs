@@ -38,7 +38,7 @@ public sealed partial class MainWindow
             var at = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), owner)!.Value;
             owner.MouseDown(at, MouseButton.Left); owner.MouseUp(at, MouseButton.Left); Pump();
         }
-        Button Option(string title) => _optionsBar.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, title));
+        Button Option(string title) => _optionsBar.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, title) && b.IsEffectivelyVisible);
         void Save(Control control, string suffix)
         {
             Pump(); using var shot = new RenderTargetBitmap(new PixelSize(Math.Max(1, (int)control.Bounds.Width), Math.Max(1, (int)control.Bounds.Height)));

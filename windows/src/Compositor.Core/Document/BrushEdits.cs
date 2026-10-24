@@ -26,7 +26,7 @@ public enum BrushMode
     /// </summary>
     History,
     Pattern, ArtHistory, BackgroundErase, Sharpen, Dodge, Burn, Sponge,
-    HealingSample, ColorReplacement, Mixer,
+    HealingSample, ColorReplacement, Mixer, Smudge,
 }
 
 /// <summary>How Spot Healing works out what to put in the painted area.</summary>
@@ -101,7 +101,9 @@ public sealed record BrushSettings(
     [property: System.Text.Json.Serialization.JsonIgnore] SKMatrix? CloneMapping = null,
     [property: System.Text.Json.Serialization.JsonIgnore] SKPointI SampleOrigin = default,
     [property: System.Text.Json.Serialization.JsonIgnore] CanvasDocument? CloneDocument = null,
-    Guid? CloneLayerID = null, bool HealingContentAware = false, PaintBrushOptions? Painting = null)
+    Guid? CloneLayerID = null, bool HealingContentAware = false, PaintBrushOptions? Painting = null,
+    PaintBlend EffectBlend = PaintBlend.Normal, bool SampleAll = false, bool ProtectDetails = true,
+    bool ProtectTones = true, bool Vibrance = true, bool FingerPaint = false, bool PressureStrength = false)
 {
     public (double Scale, double Strength) Dynamics(double pressure)
     {
@@ -173,6 +175,8 @@ public static class BrushEdits
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { Asset: { } asset } layer) return false;
         if (layer.IsGroup) return false;
         if (settings.Mode is BrushMode.Clone or BrushMode.HealingSample && settings.CloneFrom is null && settings.CloneMapping is null && !settings.HealingPattern) return false;
+        if (settings.Painting is not null && settings.Mode is BrushMode.Blur or BrushMode.Sharpen or BrushMode.Smudge or BrushMode.Dodge or BrushMode.Burn or BrushMode.Sponge)
+            return TonalBrush.Paint(document, layer, points, settings);
         if (settings.Painting is not null && settings.Mode is BrushMode.Paint or BrushMode.ColorReplacement or BrushMode.Mixer or BrushMode.Clone or BrushMode.Pattern or BrushMode.History or BrushMode.ArtHistory or BrushMode.BackgroundErase)
             return PaintBrushEngine.Paint(document, layer, points, settings);
         var width = asset.Width;

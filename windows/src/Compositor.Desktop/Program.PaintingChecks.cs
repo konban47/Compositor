@@ -44,8 +44,8 @@ public sealed partial class MainWindow
         for(var i=0;i<BrushSettingsEditor.Sections.Length;i++){_brushSettingsEditor!.SelectSection(i);Pump();Check(_brushSettingsEditor.GetVisualDescendants().OfType<ToggleButton>().Any(b=>Equals(b.Tag,"brush-lock-"+i)),"Missing section lock");Save("Section"+i);}
         _brushSettingsEditor!.SelectSection(1);Pump();var enabled=_brushSettingsEditor.GetVisualDescendants().OfType<CheckBox>().Single(b=>Equals(b.Tag,"brush-enable-1"));enabled.IsChecked=true;Check(PaintingOptions.ShapeEnabled,"Dynamics checkbox did not update state");
         BrushLayoutSelfCheck(output);
-        var anchor=_optionsBar.GetVisualDescendants().OfType<Button>().Single(b=>Equals(b.Tag,"Brush Tip Presets"));OpenBrushPicker(anchor);Pump();Save("BrushPicker");
-        SetTool(Tool.PatternStamp);var pattern=_optionsBar.GetVisualDescendants().OfType<Button>().Single(b=>Equals(b.Tag,"Pattern Presets"));OpenPatternPicker(pattern);Pump();Save("Patterns");
+        var anchor=_optionsBar.GetVisualDescendants().OfType<Button>().Single(b=>Equals(b.Tag,"Brush Tip Presets") && b.IsEffectivelyVisible);OpenBrushPicker(anchor);Pump();Save("BrushPicker");
+        SetTool(Tool.PatternStamp);var pattern=_optionsBar.GetVisualDescendants().OfType<Button>().Single(b=>Equals(b.Tag,"Pattern Presets") && b.IsEffectivelyVisible);OpenPatternPicker(pattern);Pump();Save("Patterns");
         var presets=PatternLibrary.Defaults();ApplyPreset(presets[0]);Click(new(200,170));Click(new(200,170));Check(PropertyLayer!.Asset!.Image.GetPixel(200,170)!=SKColors.Blue,"Pattern did not paint");
         var stored=new EditorPreset(Guid.NewGuid(),"Dynamic eraser","Brush",Brush:new BrushSettings(Diameter:23,Painting:new(){Flow=.4,ArtStyle=8,EraseToHistory=true}),Tool:"Eraser",IncludeTool:true);var path=Path.ChangeExtension(output,"presets.json");EditorPresets.Save(path,[stored]);ApplyBrushPreset(EditorPresets.Load(path).Single());Check(_tool==Tool.Eraser&&PaintingOptions.EraseToHistory&&PaintingOptions.Flow==.4,"Preset lost tool or brush options");
         Save("Result");

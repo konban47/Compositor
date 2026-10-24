@@ -41,7 +41,7 @@ public sealed partial class MainWindow
             new Separator(), Group("Purge", Run("Clipboard", () => Purge("Clipboard")), Run("History", () => Purge("History")), Run("All", () => Purge("All")), Run("Video Cache", () => Purge("Video Cache"))),
             new Separator(), Run("PDF Presets…", PdfPresets), Group("Presets", Run("Preset Manager…", PresetManager), Run("Migrate Presets…", MigratePresets)),
             Run("Remote Connections…", RemoteConnections), new Separator(), Run("Color Settings…", ColorSettings, "Color Settings"), Run("OpenColorIO Settings…", OpenColorIoSettings),
-            Run("Assign Profile…", AssignColorProfile), Run("Convert to Profile…", ConvertColorProfile), new Separator(),
+            Run("Assign Profile…", AssignColorProfile), Run("Convert to Profile…", ConvertColorProfile), Run("OpenColorIO Conversion…", ConvertOpenColorIo), new Separator(),
             Run("_Keyboard Shortcuts…", KeyboardShortcuts, "Keyboard Shortcuts"), Run("Menus…", CustomizeMenus, "Menus"), Run("Customize Toolbar…", CustomizeToolbar), BuildPreferencesMenu());
         menu.PropertyChanged += (_, e) => { if (e.Property == MenuItem.IsSubMenuOpenProperty && menu.IsSubMenuOpen) RefreshEditAvailability(menu); };
         return menu;

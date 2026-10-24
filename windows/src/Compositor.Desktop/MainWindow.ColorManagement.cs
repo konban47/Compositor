@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Avalonia.Platform.Storage;
 using Compositor.Core.Document;
 using Compositor.Core.Format;
@@ -13,23 +12,25 @@ public sealed partial class MainWindow
 {
     private async Task ColorSettings()
     {
-        var form = new FormDialog("Color Settings", 560, 430);
-        form.Description("The editing space is sRGB. Assign Profile interprets the selected layer with a source ICC profile and converts it to sRGB. Convert to Profile exports a color-managed TIFF with an embedded ICC profile.");
-        form.Description("CMYK and Lab documents use RGB previews. Native channels are available through color-mode TIFF export. HDR processing uses extended sRGB; ICC conversion is intended for SDR images.");
-        form.Fields.Children.Add(FormDialog.ActionButton("Assign Profile…", async () => { form.Close(false); await AssignColorProfile(); }));
-        form.Fields.Children.Add(FormDialog.ActionButton("Convert to Profile…", async () => { form.Close(false); await ConvertColorProfile(); }));
-        await form.ShowDialog<bool>(this);
+        var dialog = new ColorSettingsDialog(EditorPreferences.Current.ColorSettings, settings => { ColorDefaults.Settings = settings; _canvas.ColorSettingsChanged(); });
+        if (!await dialog.ShowDialog<bool>(this)) return;
+        try { var preferences = EditorPreferences.Current.Copy(); preferences.ColorSettings = dialog.Draft; EditorPreferences.Commit(preferences); ApplyPreferences(); }
+        catch (Exception error) { ColorDefaults.Settings = EditorPreferences.Current.ColorSettings; _canvas.ColorSettingsChanged(); Say(error.Message); }
     }
-    private async Task<IColorProfile?> ChooseIcc(string title)
+    private async Task<byte[]?> ChooseIcc(string title, bool rgbOnly = false)
     {
-        var form = new FormDialog(title, 500, 330);
-        var profile = form.Choice("ICC Profile", ["sRGB IEC61966-2.1", "Adobe RGB (1998)", "Custom ICC Profile…"], 0);
+        var settings = EditorPreferences.Current.ColorSettings;
+        var catalog = new[] { "RGB", "GRAY", "CMYK" }.Where(m => !rgbOnly || m == "RGB").SelectMany(m => IccProfiles.Catalog(settings, m)).ToArray();
+        var form = new FormDialog(title, 640, 270);
+        var names = catalog.Select(p => p.Name).Append("Custom ICC Profile…").ToArray();
+        var profile = form.Choice("ICC Profile", names, Math.Max(0, Array.FindIndex(catalog, p => p.Name == settings.Rgb)));
+        form.Description("The selected color engine, rendering intent and black-point compensation are applied to this conversion.");
         if (!await form.ShowDialog<bool>(this)) return null;
-        if (profile.SelectedIndex < 2) return profile.SelectedIndex == 0 ? ColorProfiles.SRGB : ColorProfiles.AdobeRGB1998;
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = Localize.Text("ICC Profile"), FileTypeFilter = [new FilePickerFileType("ICC Profile") { Patterns = ["*.icc", "*.icm"] }] });
+        if (profile.SelectedIndex < catalog.Length) return catalog[profile.SelectedIndex].Bytes;
+        var files = await StorageProvider.OpenFilePickerAsync(new() { Title = Localize.Text("ICC Profile"), FileTypeFilter = [new("ICC Profile") { Patterns = ["*.icc", "*.icm"] }] });
         if (files.FirstOrDefault()?.TryGetLocalPath() is not { } path) return null;
         if (new FileInfo(path).Length > 4 * 1024 * 1024) throw new InvalidDataException("ICC profile is too large.");
-        return new ColorProfile(await File.ReadAllBytesAsync(path));
+        var bytes = await File.ReadAllBytesAsync(path); if (!IccProfiles.Valid(bytes) || rgbOnly && IccProfiles.Model(bytes) != "RGB") throw new InvalidDataException("Choose an ICC profile matching the layer's RGB channels."); return bytes;
     }
     private async Task AssignColorProfile()
     {
@@ -37,10 +38,10 @@ public sealed partial class MainWindow
         var revision = _history.CurrentRevision;
         try
         {
-            if (await ChooseIcc("Assign Source Profile to Layer") is not { } profile || !ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
-            using var converted = DeepImageCodec.Magick(asset.WorkingImage);
-            converted.TransformColorSpace(profile, ColorProfiles.SRGB);
-            using var pixels = AdvancedEdit.Pixels(converted);
+            if (await ChooseIcc("Assign Source Profile to Layer", true) is not { } profile || !ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
+            using var lease = asset.Retain(); using var original = DeepImageCodec.Magick(asset.WorkingImage);
+            using var converted = await Task.Run(() => ColorTransforms.Convert(original, profile, ColorProfiles.SRGB.ToByteArray())); using var pixels = AdvancedEdit.Pixels(converted);
+            if (!ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
             Edit("Assign Profile", () => ImageAdjustments.SetPixels(doc, layer, pixels, selection: false));
         }
         catch (Exception error) { Say(error.Message); }
@@ -51,49 +52,43 @@ public sealed partial class MainWindow
         try
         {
             if (await ChooseIcc("Convert and Export ICC TIFF") is not { } profile || !ReferenceEquals(doc, _document)) return;
-            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { SuggestedFileName = "color-managed.tif", DefaultExtension = "tif" });
+            var file = await StorageProvider.SaveFilePickerAsync(new() { SuggestedFileName = "color-managed.tif", DefaultExtension = "tif" });
             if (file?.TryGetLocalPath() is not { } path) return;
-            using var composite = DocumentRenderer.RenderDeep(doc); using var converted = DeepImageCodec.Magick(composite);
-            converted.TransformColorSpace(ColorProfiles.SRGB, profile); converted.Depth = 16;
-            converted.Density = new Density(doc.Resolution, doc.Resolution, DensityUnit.PixelsPerInch);
-            await WorkScheduler.Run(_ => { AtomicFile.Write(path, output => converted.Write(output, MagickFormat.Tiff)); return true; }); Say("Color-managed TIFF exported.");
+            using var snapshot = new DocumentLease(doc);
+            await WorkScheduler.Run(_ => { using var composite = DocumentRenderer.RenderDeep(snapshot.Document); using var original = DeepImageCodec.Magick(composite); using var converted = ColorTransforms.Convert(original, ColorProfiles.SRGB.ToByteArray(), profile); converted.Depth = (uint)Math.Max(16, doc.Image.Depth); if (converted.Depth == 32) converted.Settings.SetDefine(MagickFormat.Tiff, "floating-point", "true"); converted.Density = new Density(doc.Resolution, doc.Resolution, DensityUnit.PixelsPerInch); AtomicFile.Write(path, output => converted.Write(output, MagickFormat.Tiff)); return true; });
+            Say("Color-managed TIFF exported.");
         }
         catch (Exception error) { Say(error.Message); }
     }
     private async Task OpenColorIoSettings()
     {
-        var p = EditorPreferences.Current; var form = new FormDialog("OpenColorIO Settings", 640, 590);
-        form.Description("Choose an installed ocioconvert executable and a trusted OCIO configuration. Apply runs it locally on the selected layer. Choose an sRGB display output for the editor preview.");
-        var executable = form.Text("ocioconvert Executable", p.OcioExecutable); var config = form.Text("OCIO Configuration", p.OcioConfiguration);
-        var source = form.Text("Input Color Space", p.OcioSource); var destination = form.Text("Output Color Space", p.OcioDestination);
-        var apply = form.Check("Apply to Selected Layer", false);
-        form.Validate = () => apply.IsChecked == true && (!File.Exists(executable.Text) || !File.Exists(config.Text) || PropertyLayer?.Asset is null) ? "Choose an existing executable, configuration and pixel layer." : null;
-        if (!await form.ShowDialog<bool>(this)) return;
-        p.OcioExecutable = executable.Text ?? ""; p.OcioConfiguration = config.Text ?? ""; p.OcioSource = source.Text ?? ""; p.OcioDestination = destination.Text ?? "";
-        try { p.Save(); } catch (Exception error) { Say(error.Message); }
-        if (apply.IsChecked != true || _document is not { } doc || PropertyLayer is not { Asset: { } asset } layer || !LayerProtection.CanPaint(doc, layer.ID)) return;
-        var revision = _history.CurrentRevision;
-        var folder = Path.Combine(Path.GetTempPath(), "Compositor-OCIO-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(folder);
+        var dialog = new OpenColorIoDialog(EditorPreferences.Current.Ocio);
+        if (!await dialog.ShowDialog<bool>(this)) return;
+        try { var preferences = EditorPreferences.Current.Copy(); preferences.Ocio = dialog.Draft; EditorPreferences.Commit(preferences); ApplyPreferences(); }
+        catch (Exception error) { Say(error.Message); }
+    }
+    private async Task ConvertOpenColorIo()
+    {
+        if (_document is not { } doc || PropertyLayer is not { Asset: { } asset } layer || !LayerProtection.CanPaint(doc, layer.ID)) return;
+        var revision = _history.CurrentRevision; var settings = EditorPreferences.Current.Ocio;
+        if (!settings.Enabled) { await OpenColorIoSettings(); settings = EditorPreferences.Current.Ocio; if (!settings.Enabled) return; }
         try
         {
-            var input = Path.Combine(folder, "input.tif"); var output = Path.Combine(folder, "output.tif");
-            await File.WriteAllBytesAsync(input, DeepImageCodec.EncodeMode(asset.WorkingImage, new ImageSettings { Depth = 32 }, true, doc.Resolution));
-            var start = new ProcessStartInfo(Path.GetFullPath(p.OcioExecutable)) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = folder };
-            foreach (var argument in new[] { "--iconfig", Path.GetFullPath(p.OcioConfiguration), "--bitdepth", "float", input, p.OcioSource, output, p.OcioDestination }) start.ArgumentList.Add(argument);
-            using var process = Process.Start(start) ?? throw new IOException("Could not start OpenColorIO.");
-            // Drain output without retaining unbounded logs from external programs.
-            process.OutputDataReceived += (_, _) => { }; process.ErrorDataReceived += (_, _) => { }; process.BeginOutputReadLine(); process.BeginErrorReadLine();
-            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-            try { await process.WaitForExitAsync(timeout.Token); }
-            catch (OperationCanceledException) { process.Kill(true); throw new IOException("OpenColorIO timed out."); }
-            if (process.ExitCode != 0 || !File.Exists(output)) throw new IOException("OpenColorIO conversion failed. Check the configuration and color-space names.");
-            if (new FileInfo(output).Length > DocumentLimits.MaxAssetBytes) throw new IOException("OpenColorIO output is too large.");
-            using var result = DeepImageCodec.Decode(await File.ReadAllBytesAsync(output), "OpenColorIO");
+            var info = await Task.Run(() => OpenColorIo.Inspect(settings.EffectiveConfig));
+            var form = new FormDialog("OpenColorIO Conversion", 650, 360);
+            var names = info.Spaces.Select(s => s.Name).ToArray();
+            var source = form.Choice("Input Color Space", names, Math.Max(0, Array.IndexOf(names, info.Find(settings.WorkingSpace)?.Name)));
+            var target = form.Choice("Output Color Space", names, Math.Max(0, Array.IndexOf(names, info.EditorSpace)));
+            var export = form.Check("Export Float TIFF Instead of Applying", false);
+            form.Description("Applying interprets the layer's stored RGB values as the input space. Use sRGB as the output for normal editing. Export preserves the selected output space in a 32-bit floating-point TIFF.");
+            if (!await form.ShowDialog<bool>(this) || !ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
+            string? path = null; if (export.IsChecked == true) { var file = await StorageProvider.SaveFilePickerAsync(new() { SuggestedFileName = "ocio-output.tif", DefaultExtension = "tif" }); path = file?.TryGetLocalPath(); if (path is null) return; }
+            var sourceSpace = names[source.SelectedIndex]; var targetSpace = names[target.SelectedIndex];
+            using var lease = asset.Retain(); using var result = await Task.Run(() => OpenColorIo.Convert(asset.WorkingImage, settings.EffectiveConfig, sourceSpace, targetSpace));
+            if (path is not null) { using var image = DeepImageCodec.Magick(result); image.Depth = 32; image.Settings.SetDefine(MagickFormat.Tiff, "floating-point", "true"); image.SetAttribute("comment", "OpenColorIO: " + settings.EffectiveConfig + " | " + targetSpace); AtomicFile.Write(path, output => image.Write(output, MagickFormat.Tiff)); Say("Color-managed TIFF exported."); return; }
             if (!ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
-            if (result.Width != asset.Width || result.Height != asset.Height) throw new IOException("OpenColorIO changed the image dimensions.");
-            Edit("OpenColorIO", () => ImageAdjustments.SetPixels(doc, layer, result.WorkingImage));
+            Edit("OpenColorIO", () => { doc.Image = doc.Image with { Depth = 32, OcioConfiguration = settings.EffectiveConfig, OcioWorkingSpace = targetSpace }; return ImageAdjustments.SetPixels(doc, layer, result, selection: false); });
         }
         catch (Exception error) { Say(error.Message); }
-        finally { try { Directory.Delete(folder, true); } catch (IOException) { } }
     }
 }

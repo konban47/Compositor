@@ -170,7 +170,7 @@ internal sealed class PreferencesDialog : DialogWindow
         page.Choice("Guide Style", ["Solid", "Dashed", "Dotted"], p.GuideStyle, v => p.GuideStyle = v);
         page.Color("Grid Color", p.GridColor, v => p.GridColor = v);
         page.Color("Path and Control Color", p.PathColor, v => p.PathColor = v);
-        page.Number("Path and Control Width", p.PathWidth, 1, 3, v => p.PathWidth = (int)v);
+        page.Number("Path and Control Width", p.PathWidth, .25, 10, v => p.PathWidth = v);
         page.Check("Show Slice Numbers", p.ShowSliceNumbers, v => p.ShowSliceNumbers = v);
         Link(page, "Grid Settings…");
         page = Page("Plugins");

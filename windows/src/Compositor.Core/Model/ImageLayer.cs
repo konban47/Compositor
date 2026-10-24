@@ -72,6 +72,8 @@ public sealed class ImageLayer : IDisposable
     public LayerMask? Mask { get; set; }
     public Format.LayerAdjustment? Adjustment { get; set; }
     public LayerShape? Shape { get; set; }
+    public Document.LayerGradient? Gradient { get; set; }
+    public Document.LiveGradientSettings? LiveGradient => Gradient is { } g && Asset is { } a && ReferenceEquals(g.Image, a.Image) ? g.Settings : null;
     public Format.LayerEffects? Effects { get; set; }
     public LayerText? Text { get; set; }
     public Format.LayerBlending? Blending { get; set; }
@@ -118,6 +120,7 @@ public sealed class ImageLayer : IDisposable
             Mask = Mask?.Clone(),
             Adjustment = Adjustment,
             Shape = Shape,
+            Gradient = Gradient,
             Effects = Effects,
             Text = Text,
             Blending = Blending, Label = Label, Container = Container, ArtboardBackground = ArtboardBackground, FrameStyle = FrameStyle, SmartObject = SmartObject,
@@ -136,7 +139,7 @@ public sealed class ImageLayer : IDisposable
         && SameMask(Mask, other.Mask)
         && ReferenceEquals(Adjustment, other.Adjustment) && ReferenceEquals(Shape, other.Shape)
         && FrameStyle == other.FrameStyle && Label == other.Label && Container == other.Container && ArtboardBackground == other.ArtboardBackground && ReferenceEquals(Blending, other.Blending) && ReferenceEquals(SmartObject, other.SmartObject)
-        && ReferenceEquals(Effects, other.Effects) && ReferenceEquals(Text, other.Text);
+        && ReferenceEquals(Effects, other.Effects) && ReferenceEquals(Text, other.Text) && ReferenceEquals(Gradient, other.Gradient);
 
     private static bool SameMask(LayerMask? left, LayerMask? right) =>
         left is null ? right is null

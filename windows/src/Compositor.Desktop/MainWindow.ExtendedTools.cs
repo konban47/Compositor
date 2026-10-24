@@ -28,6 +28,8 @@ public sealed partial class MainWindow
         if (RemovePressed(at, modifiers)) return true;
         if (ArtboardPressed(at, modifiers)) return true;
         if (ProfessionalPressed(at, modifiers, clicks)) return true;
+        if (PathEditorPressed(at, modifiers)) return true;
+        if (_tool == Tool.AdjustmentBrush && _adjustmentObjectMode) { _adjustmentObjectMode = false; _ = ApplyAdjustmentObject(at); return true; }
         if (_tool is Tool.Bucket or Tool.MagicEraser) { PaintBucket(at, _tool == Tool.MagicEraser); return true; }
         if (ToolCatalog.IsPen(_tool)) return PenPressed(at, modifiers, clicks);
         if (_tool is Tool.AddAnchor or Tool.DeleteAnchor or Tool.ConvertAnchor && _pathNodes is { } path && _canvas.DocumentToPath is { } map)
@@ -61,6 +63,7 @@ public sealed partial class MainWindow
     }
     private void CanvasActionMoved(SKPoint at, KeyModifiers modifiers)
     {
+        if (PathEditorMoved(at, modifiers)) return;
         if (_placementTab is not null) { PlacementMoved(at, modifiers); return; }
         if (RemoveMoved(at)) return;
         if (ArtboardMoved(at, modifiers)) return;
@@ -75,6 +78,7 @@ public sealed partial class MainWindow
     }
     private void CanvasActionReleased()
     {
+        if (PathEditorReleased()) return;
         if (RemoveReleased()) return;
         if (ArtboardReleased()) return;
         if (ProfessionalReleased()) return;
@@ -104,6 +108,7 @@ public sealed partial class MainWindow
     { if (_pen is null) return false; ClearPenDraft(); return true; }
     private void DrawEditingOverlay(DrawingContext context, Func<SKPoint, Point> screen)
     {
+        DrawAdjustmentBrushOverlay(context, screen);
         DrawProfessionalOverlay(context, screen);
         DrawRemoveOverlay(context, screen);
         DrawCloneOverlay(context, screen);
@@ -165,29 +170,54 @@ public sealed partial class MainWindow
     }
     private void PaintBucket(SKPoint point, bool erase)
     {
-        if (EditActiveAlpha(erase ? "Magic Eraser" : "Paint Bucket", (target, channel) => BucketEdits.Apply(target, channel, point, _options.Wand with { Antialias = erase && _options.SelectionAntialiased }, BrushColour(), erase, _options.Brush.Opacity))) return;
+        if (EditActiveAlpha(erase ? "Magic Eraser" : "Paint Bucket", (target, channel) => BucketEdits.Apply(target, channel, point, _options.Wand with { Antialias = erase ? _options.SelectionAntialiased : _options.BucketAntialias }, BrushColour(), erase, _options.Brush.Opacity, false, _options.Brush.Pattern, PaintingOptions.Blend, _options.BucketPattern))) return;
         if (_document is not { } doc || Selected is not { } id || !LayerProtection.CanPaint(doc, id)) { Say("The layer is locked."); return; }
-        Edit(erase ? "Magic Eraser" : "Paint Bucket", () => BucketEdits.Apply(doc, id, point, _options.Wand with { Antialias = erase && _options.SelectionAntialiased }, BrushColour(), erase, _options.Brush.Opacity, _options.WandAllLayers));
+        if (!erase && _options.PaintOnMask) { Edit("Paint Bucket Mask", () => BucketEdits.ApplyMask(doc, id, point, _options.Wand with { Antialias=_options.BucketAntialias }, BrushColour(), _options.Brush.Opacity, _options.Brush.Pattern, PaintingOptions.Blend, _options.BucketPattern)); return; }
+        Edit(erase ? "Magic Eraser" : "Paint Bucket", () => BucketEdits.Apply(doc, id, point, _options.Wand with { Antialias = erase ? _options.SelectionAntialiased : _options.BucketAntialias }, BrushColour(), erase, _options.Brush.Opacity, _options.WandAllLayers, _options.Brush.Pattern, PaintingOptions.Blend, _options.BucketPattern));
+    }
+    private int _paintedAdjustmentKind = -1;
+    private Guid? AdjustmentTarget(CanvasDocument doc, Guid selected)
+    {
+        var wanted = AdjustmentBrushPresets.Create(_options.AdjustmentBrushKind);
+        var chosen = doc.Layers.FirstOrDefault(l => l.ID == selected && l.Adjustment is { } a && a.Kind == wanted.Kind && a.Extended?.Kind == wanted.Extended?.Kind);
+        if (chosen is not null) { _adjustmentBrushLayer = chosen.ID; _paintedAdjustmentKind = _options.AdjustmentBrushKind; }
+        var layer = doc.Layers.FirstOrDefault(l => l.ID == _adjustmentBrushLayer && l.Adjustment is not null);
+        if (_paintedAdjustmentKind != _options.AdjustmentBrushKind || layer is null || selected != layer.ID)
+        {
+            if (_options.AdjustmentSubtract) return null;
+            var settings = AdjustmentBrushPresets.Create(_options.AdjustmentBrushKind);
+            var id = LayerPlacement.AddAdjustment(doc, settings.Kind, selected);
+            layer = doc.Layers.FirstOrDefault(l => l.ID == id); if (layer is null) return null;
+            layer.Adjustment = settings; layer.Name = Localize.Text(ToolOptionsBar.AdjustmentNames[_options.AdjustmentBrushKind]);
+            var mask = Bitmaps.Allocate(Bitmaps.MaskInfo(doc.Width, doc.Height)); mask.Erase(SKColors.Black); layer.Mask = Compositor.Core.Model.LayerMask.AssetFrom(mask);
+            _adjustmentBrushLayer = layer.ID; _paintedAdjustmentKind = _options.AdjustmentBrushKind;
+        }
+        return layer.ID;
     }
     private void PaintAdjustment(IReadOnlyList<SKPoint> stroke)
     {
         if (_document is not { } doc || Selected is not { } selected || !LayerProtection.CanPaint(doc, selected)) return;
-        Guid? made = null;
+        Guid? target = null;
         Edit("Adjustment Brush", () =>
         {
-            var layer = doc.Layers.FirstOrDefault(l => l.ID == _adjustmentBrushLayer && l.Adjustment is not null);
-            if (layer is null)
-            {
-                made = LayerPlacement.AddAdjustment(doc, _adjustmentBrushKind == "Exposure" ? AdjustmentKind.Exposure : AdjustmentKind.HueSaturation, selected);
-                layer = doc.Layers.FirstOrDefault(l => l.ID == made); if (layer is null) return false;
-                var mask = Bitmaps.Allocate(Bitmaps.MaskInfo(doc.Width, doc.Height)); mask.Erase(SKColors.Black); layer.Mask = Compositor.Core.Model.LayerMask.AssetFrom(mask);
-            }
-            layer.Adjustment = _adjustmentBrushKind == "Exposure" ? new LayerAdjustment { Kind = AdjustmentKind.Exposure, ExposureSettings = new ExposureSettings { Exposure = _adjustmentAmount } }
-                : new LayerAdjustment { Kind = AdjustmentKind.HueSaturation, Saturation = Math.Clamp(_adjustmentAmount * 25, -100, 100) };
-            var value = _options.Erase ? 0 : 1;
-            return BrushEdits.PaintMask(doc, layer.ID, stroke, _options.Brush with { Red = value, Green = value, Blue = value, Erasing = false, Mode = BrushMode.Paint });
+            target = AdjustmentTarget(doc, selected); if (target is not { } id) return false;
+            var value = _options.AdjustmentSubtract ? 0 : 1;
+            return BrushEdits.PaintMask(doc, id, stroke, _options.Brush with { Red = value, Green = value, Blue = value, Erasing = false, Mode = BrushMode.Paint,
+                Pressures = _canvas.CompletedStrokePressures, Painting = PaintingOptions with { Samples = _canvas.CompletedPenSamples, Blend = PaintBlend.Normal, Symmetry = BrushSymmetry.Off } });
         });
-        if (made is { } newID) { _adjustmentBrushLayer = newID; Reselect(newID); }
+        if (target is { } newID) Reselect(newID);
+    }
+    private bool _adjustmentObjectMode;
+    private Task ApplyAdjustmentObject() { _adjustmentObjectMode = !_adjustmentObjectMode; Say(_adjustmentObjectMode ? "Click an object to apply the adjustment." : "Paint to apply the adjustment."); return Task.CompletedTask; }
+    private async Task ApplyAdjustmentObject(SKPoint at)
+    {
+        if (_document is not { } doc || Selected is not { } selected) return;
+        var revision = _history.CurrentRevision; var all = _options.WandAllLayers;
+        try { _options.WandAllLayers = true; await DetectSubject(false, at); } finally { _options.WandAllLayers = all; }
+        if (_document != doc || _history.CurrentRevision == revision) return;
+        Guid? target = null;
+        Edit("Apply Adjustment to Object", () => { target = AdjustmentTarget(doc, selected); return target is { } id && FillEdits.FillMask(doc, id, _options.AdjustmentSubtract ? (byte)0 : (byte)255); });
+        if (target is { } newID) Reselect(newID);
     }
     private async Task ChoosePattern()
     {

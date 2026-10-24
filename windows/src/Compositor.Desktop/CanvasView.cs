@@ -232,6 +232,8 @@ public sealed partial class CanvasView : Control
 
     /// <summary>When set, dragging paints a gradient between where it began and where it ended.</summary>
     public bool GradientEnabled { get; set; }
+    public (SKPoint Start, SKPoint End)? GradientGuide { get; set; }
+    private bool _gradientStartHandle;
 
     /// <summary>Handed the two ends of a gradient drag, in document pixels.</summary>
     public Action<SKPoint, SKPoint>? GradientFinished { get; set; }
@@ -489,6 +491,7 @@ public sealed partial class CanvasView : Control
             switch (e.Key)
             {
                 case Key.Escape:
+                    _toolZoomStart = null;
                     if (e.KeyModifiers.HasFlag(KeyModifiers.Control)) TextCancelled?.Invoke(); else TextCommitted?.Invoke();
                     e.Handled = true;
                     return;
@@ -730,6 +733,7 @@ public sealed partial class CanvasView : Control
         DrawFloating(context);
         }
         finally { _drawingScene = false; }
+        if (_toolZoomStart is { } zoomStart && _toolZoomMoved && !ScrubbyZoom) context.DrawRectangle(null, Skin.TransformPen, new Rect(zoomStart, _toolZoomLast));
         DrawSampleRing(context);
         DrawNavigator(context);
         DrawToolCursor(context);
@@ -901,11 +905,11 @@ public sealed partial class CanvasView : Control
     /// </summary>
     private void DrawGradient(DrawingContext context)
     {
-        if (!_gradientDrag) return;
+        if (!_gradientDrag && (!GradientEnabled || GradientGuide is null)) return;
         var under = new Pen(new SolidColorBrush(Color.FromArgb(0xB3, 0, 0, 0)), 3);
         var over = new Pen(Brushes.White, 1);
-        var from = ToScreen(_gradientStart);
-        var to = ToScreen(_gradientEnd);
+        var from = ToScreen(_gradientDrag ? _gradientStart : GradientGuide!.Value.Start);
+        var to = ToScreen(_gradientDrag ? _gradientEnd : GradientGuide!.Value.End);
         foreach (var pen in new[] { under, over })
         {
             context.DrawLine(pen, from, to);
@@ -1230,6 +1234,8 @@ public sealed partial class CanvasView : Control
 
     /// <summary>The nodes and handles of the vector outline being edited, as Photoshop's Path tool shows them.</summary>
     public bool SelectWholePath { get; set; }
+    public HashSet<int> SelectedPathComponents { get; } = [];
+    public HashSet<(int Subpath,int Node)> SelectedPathNodes { get; } = [];
     private SKPoint _wholePathOffset;
     private void DrawNodes(DrawingContext context)
     {
@@ -1242,7 +1248,7 @@ public sealed partial class CanvasView : Control
             for (var index = 0; index < contour.Count; index++)
             {
                 var anchor = ToScreen(map(contour[index].Point));
-                var isSelected = SelectedNode is ({ } chosenSub, { } chosen) && chosenSub == sub && chosen == index;
+                var isSelected = SelectWholePath ? SelectedPathComponents.Contains(sub) : SelectedPathNodes.Contains((sub,index)) || SelectedNode is ({ } chosenSub, { } chosen) && chosenSub == sub && chosen == index;
                 if (isSelected)
                 {
                     foreach (var handle in new[] { contour[index].In, contour[index].Out })
@@ -1572,6 +1578,12 @@ public sealed partial class CanvasView : Control
             GradientStarted?.Invoke();
             _gradientStart = ToDocument(e.GetPosition(this));
             _gradientEnd = _gradientStart;
+            _gradientStartHandle = false;
+            if (GradientGuide is { } gradientGuide)
+            {
+                if (ViewDistance(ToScreen(gradientGuide.Start), e.GetPosition(this)) < 12) { _gradientStart = gradientGuide.Start; _gradientEnd = gradientGuide.End; _gradientStartHandle = true; }
+                else if (ViewDistance(ToScreen(gradientGuide.End), e.GetPosition(this)) < 12) { _gradientStart = gradientGuide.Start; _gradientEnd = gradientGuide.End; }
+            }
             e.Pointer.Capture(this);
             e.Handled = true;
             return;
@@ -1596,16 +1608,27 @@ public sealed partial class CanvasView : Control
             if (SelectWholePath && DocumentToPath is { } unmap && editable.NodeCount > 0)
             {
                 var at = unmap(point);
-                using var outline = SKPath.ParseSvgPathData(editable.ToSvg());
-                if (outline?.Contains(at.X, at.Y) == true || NodeGrabAt(editable, place, point) is not null)
+                var hit = -1;
+                for (var i = editable.Subpaths.Count - 1; i >= 0; i--)
                 {
-                    _nodeGrab = (0, 0, false, false); _wholePathOffset = at - editable.Subpaths[0].Nodes[0].Point;
+                    var single = new PathNodes(); single.Subpaths.Add(editable.Subpaths[i]);
+                    using var outline = SKPath.ParseSvgPathData(single.ToSvg());
+                    if (outline?.Contains(at.X, at.Y) == true || Compositor.Core.Document.PathSegments.Find(single, place, point, (float)(8 / _zoom)) is not null) { hit = i; break; }
+                }
+                if (hit >= 0 && editable.Subpaths[hit].Nodes.Count > 0)
+                {
+                    if (!e.KeyModifiers.HasFlag(KeyModifiers.Shift) && !SelectedPathComponents.Contains(hit)) SelectedPathComponents.Clear();
+                    if (!SelectedPathComponents.Add(hit) && e.KeyModifiers.HasFlag(KeyModifiers.Shift)) SelectedPathComponents.Remove(hit);
+                    SelectedNode = (hit, 0); _nodeGrab = (hit, 0, false, false); _wholePathOffset = at - editable.Subpaths[hit].Nodes[0].Point;
                     _nodeDragging = true; NodeDragStarted?.Invoke(); e.Pointer.Capture(this);
                 }
+                else { SelectedPathComponents.Clear(); SelectedNode = null; }
             }
             else if (NodeGrabAt(editable, place, point) is { } grabbed)
             {
                 SelectedNode = (grabbed.Subpath, grabbed.Node);
+                if (!e.KeyModifiers.HasFlag(KeyModifiers.Shift) && !SelectedPathNodes.Contains((grabbed.Subpath, grabbed.Node))) SelectedPathNodes.Clear();
+                if (!SelectedPathNodes.Add((grabbed.Subpath, grabbed.Node)) && e.KeyModifiers.HasFlag(KeyModifiers.Shift)) SelectedPathNodes.Remove((grabbed.Subpath, grabbed.Node));
                 if (e.ClickCount > 1)
                 {
                     NodeEdited?.Invoke(grabbed.Subpath, grabbed.Node, true);
@@ -1709,6 +1732,7 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
+        _toolZoomStart = null;
         if (_customDragging) { _customDragging = false; CustomReleased?.Invoke(); }
         if (_painting) CancelPaintInput();
         _rotatingView = false;
@@ -1808,7 +1832,7 @@ public sealed partial class CanvasView : Control
         }
         if (_gradientDrag)
         {
-            _gradientEnd = ToDocument(now);
+            if (_gradientStartHandle) _gradientStart = ToDocument(now); else _gradientEnd = ToDocument(now);
             GradientChanged?.Invoke(_gradientStart, _gradientEnd);
             InvalidateVisual();
             base.OnPointerMoved(e);
@@ -1907,6 +1931,7 @@ public sealed partial class CanvasView : Control
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
+        if (ViewToolRelease(e)) return;
         if (_textDrag) { _textDrag = false; e.Pointer.Capture(null); e.Handled = true; return; }
         if (_customDragging) { _customDragging = false; CustomReleased?.Invoke(); e.Pointer.Capture(null); e.Handled = true; return; }
         if (_nodeDragging)

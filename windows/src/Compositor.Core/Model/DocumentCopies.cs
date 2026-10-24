@@ -17,6 +17,7 @@ public static class DocumentCopies
                 {
                     layer.Text = original.LiveText is { } text ? new LayerText(text, pixels.Image) : null;
                     layer.Shape = original.LiveShape is { } shape ? new LayerShape(shape, pixels.Image) : null;
+                    layer.Gradient = original.LiveGradient is { } gradient ? new Document.LayerGradient(gradient, pixels.Image) : null;
                 }
                 if (original.Mask is { } mask)
                 {

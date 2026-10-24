@@ -65,6 +65,27 @@ public static class ShapeEdits
         image.Erase(SKColors.Transparent);
         using var canvas = new SKCanvas(image);
         var bounds = SKRect.Create(0, 0, width, height);
+        if (style.HasPaintOptions)
+        {
+            using var builder = new SKPathBuilder();
+            if (style.Kind == ShapeKind.Path && style.Path is { } svg && SKPath.ParseSvgPathData(svg) is { } path) { using (path) { path.Transform(SKMatrix.CreateScale(width, height)); builder.AddPath(path); } }
+            else if (style.Kind == ShapeKind.Ellipse) builder.AddOval(bounds);
+            else if (style.Kind == ShapeKind.Line) { var a = End(style.Start, width, height, 0, 0); var b = End(style.End, width, height, width, height); builder.MoveTo(a); builder.LineTo(b); }
+            else { using var rectangle = SmoothCorners.Rectangle(bounds, style.CornerRadius, style.Smoothing == true); builder.AddPath(rectangle); }
+            using var outline = builder.Detach();
+            if (style.FillEnabled != false && style.Kind != ShapeKind.Line) { using var fill = new SKPaint { Color = colour, IsAntialias = true }; canvas.DrawPath(outline, fill); }
+            var thickness = (float)(style.StrokeWidth ?? style.LineWidth ?? 0);
+            if (thickness > 0)
+            {
+                using var stroke = new SKPaint { Color = new SKColor(style.StrokeColor ?? 0xff000000), Style = SKPaintStyle.Stroke, StrokeWidth = thickness, IsAntialias = true, StrokeJoin = SKStrokeJoin.Round, StrokeCap = style.StrokePattern == "Dotted" ? SKStrokeCap.Round : SKStrokeCap.Butt };
+                using var dash = style.StrokePattern switch { "Dotted" => SKPathEffect.CreateDash([thickness, thickness * 2], 0), "Dashed" => SKPathEffect.CreateDash([thickness * 4, thickness * 2], 0), "Long Dash" => SKPathEffect.CreateDash([thickness * 8, thickness * 3], 0), _ => null };
+                // Primitive shapes fill their entire asset. Keep their stroke inside that box;
+                // editable paths instead carry explicit padding around their centreline.
+                if (style.Kind is ShapeKind.Rectangle or ShapeKind.Ellipse) { canvas.ClipPath(outline, SKClipOperation.Intersect, true); stroke.StrokeWidth = thickness * 2; }
+                stroke.PathEffect = dash; canvas.DrawPath(outline, stroke);
+            }
+            return image;
+        }
         switch (style.Kind)
         {
             case ShapeKind.Line:
@@ -119,16 +140,17 @@ public static class ShapeEdits
         return image;
     }
 
-    public static bool SetPath(CanvasDocument document, Guid id, string svg)
+    public static bool SetPath(CanvasDocument document, Guid id, string svg, LayerShapeStyle? appearance = null)
     {
         var layer = document.Layers.FirstOrDefault(item => item.ID == id);
         if (layer?.LiveShape is not { } current || !LayerProtection.CanPaint(document, id) || !LayerProtection.CanMove(document, id)) return false;
+        if (appearance is not null) { if (!appearance.IsValid) return false; current = appearance; }
         using var path = SKPath.ParseSvgPathData(svg);
         if (path is null || path.IsEmpty) return false;
         var old = layer.Transform;
         var bounds = path.TightBounds;
-        if (current.LineWidth is > 0)
-            bounds.Inflate((float)(current.LineWidth.Value / (2 * old.Width)), (float)(current.LineWidth.Value / (2 * old.Height)));
+        if ((current.StrokeWidth ?? current.LineWidth) is > 0 and var strokeWidth)
+            bounds.Inflate((float)(strokeWidth / (2 * old.Width)), (float)(strokeWidth / (2 * old.Height)));
         if (bounds.Width <= 0 || bounds.Height <= 0) return false;
         var style = System.Text.Json.JsonSerializer.Deserialize<LayerShapeStyle>(System.Text.Json.JsonSerializer.Serialize(current))!;
         path.Transform(new SKMatrix(1 / bounds.Width, 0, -bounds.Left / bounds.Width, 0, 1 / bounds.Height, -bounds.Top / bounds.Height, 0, 0, 1));

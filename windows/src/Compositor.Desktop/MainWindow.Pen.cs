@@ -127,7 +127,7 @@ public sealed partial class MainWindow
     {
         if (_pen is { NodeCount: > 1 } draft) return draft.ToSvg();
         if (_document is not { } doc) return null;
-        if (_options.Pen.Output == PenOutput.Path && doc.WorkPath is { } work) return work;
+        if ((_editingWorkPath || ToolCatalog.IsPen(_tool) && _options.Pen.Output == PenOutput.Path) && doc.WorkPath is { } work) return work;
         if (PropertyLayer is { LiveShape: { } shape } layer)
         {
             using var path = ShapeOutline(layer, shape); path.Transform(BrushEdits.PixelToDocument(layer.Transform, 1, 1)); return path.ToSvgPathData();
@@ -145,6 +145,7 @@ public sealed partial class MainWindow
         if (shape.Path is { } svg && SKPath.ParseSvgPathData(svg) is { } path) return path;
         using var builder = new SKPathBuilder();
         if (shape.Kind == ShapeKind.Ellipse) builder.AddOval(SKRect.Create(1, 1));
+        else if (shape.Kind == ShapeKind.Line) { builder.MoveTo((float)(shape.Start?.X ?? 0), (float)(shape.Start?.Y ?? 0)); builder.LineTo((float)(shape.End?.X ?? 1), (float)(shape.End?.Y ?? 1)); }
         else { using var rectangle = SmoothCorners.Rectangle(SKRect.Create((float)layer.Transform.Width, (float)layer.Transform.Height), shape.CornerRadius, shape.Smoothing == true); rectangle.Transform(SKMatrix.CreateScale((float)(1 / layer.Transform.Width), (float)(1 / layer.Transform.Height))); builder.AddPath(rectangle); }
         return builder.Detach();
     }
@@ -237,6 +238,8 @@ public sealed partial class MainWindow
     {
         _penMenu?.Close(); _penFlyout?.Hide();
         var p = _options.Pen;
+        if (action == "Path Fill Color") { await PathColor(false); return; }
+        if (action == "Path Stroke Color") { await PathColor(true); return; }
         if (action == "Fill Color") { ChooseColour(true); return; }
         if (action == "Selection…")
         {
@@ -264,7 +267,7 @@ public sealed partial class MainWindow
         if (action == "Path Operations")
         {
             var menu = new ContextMenu(); var labels = new[] { "New Layer", "Combine Shapes", "Subtract Front Shape", "Intersect Shape Areas", "Exclude Overlapping Shapes" };
-            for (var i = 0; i < labels.Length; i++) { var op = (PathOperation)i; var item = new MenuItem { Header = Localize.Text(labels[i]), ToggleType = MenuItemToggleType.Radio, IsChecked = p.Operation == op }; item.Click += (_, _) => { p.Operation = op; OptionsChanged(); }; menu.Items.Add(item); }
+            for (var i = 0; i < labels.Length; i++) { var op = (PathOperation)i; var item = new MenuItem { Header = Localize.Text(labels[i]), ToggleType = MenuItemToggleType.Radio, IsChecked = p.Operation == op }; item.Click += (_, _) => { p.Operation = op; if (_tool is Tool.Path or Tool.PathSelection && op != PathOperation.New) ApplyPathOperation(op); OptionsChanged(); }; menu.Items.Add(item); }
             menu.Items.Add(new Separator()); var merge = new MenuItem { Header = Localize.Text("Merge Shape Components"), IsEnabled = CurrentPenSvg() is { } svg && PathNodes.Parse(svg)?.Subpaths.Count > 1 };
             merge.Click += (_, _) => EditPenComponents(nodes => { var merged = PenPaths.Merge(nodes.ToSvg()); return merged is null ? null : PathNodes.Parse(merged); }); menu.Items.Add(merge); _penMenu = menu; menu.Open(anchor); return;
         }
@@ -292,19 +295,20 @@ public sealed partial class MainWindow
         else if (action == "Path Options")
         {
             popup.Heading("Path Options");
-            var colors = new[] { "#1473E6", "#DF48A5", "#E85353", "#59B858", "#FFCF43", "#FFFFFF" };
-            var names = new[] { "Default Blue", "Magenta", "Red", "Green", "Yellow", "White" };
+            var colors = new[] { "#1473E6", "#3366FF", "#FF3344", "#33EE33", "#4933FF", "#FFFF33", "#FF33FF", "#33FFFF", "#E6E6E6", "#000000" };
+            var names = new[] { "Default", "Light Blue", "Light Red", "Green", "Medium Blue", "Yellow", "Magenta", "Cyan", "Light Gray", "Black" };
             var line = new Border { Height = EditorPreferences.Current.PathWidth, Background = new SolidColorBrush(Color.Parse(EditorPreferences.Current.PathColor)), Margin = new Thickness(3, 0), VerticalAlignment = VerticalAlignment.Center };
             var style = new Grid { ColumnDefinitions = new ColumnDefinitions("60,Auto,*"), RowDefinitions = new RowDefinitions("Auto,Auto"), ColumnSpacing = 8, RowSpacing = 5 };
             var preview = new Border { Width = 60, Height = 60, Background = Skin.SurfaceDarkBrush, BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(1), Child = line }; Grid.SetRowSpan(preview, 2); style.Children.Add(preview);
-            var thickness = new ComboBox { ItemsSource = Enumerable.Range(1, 3).Select(i => Localize.IsChinese ? $"{i} 像素" : $"{i} px").ToArray(), SelectedIndex = Math.Clamp(EditorPreferences.Current.PathWidth - 1, 0, 2), MinWidth = 105 };
+            var widths = new[] { .5, .75, 1, 2, 3 };
+            var thickness = new ComboBox { ItemsSource = new[] { Localize.Text("Other…") }.Concat(widths.Select(v => Localize.IsChinese ? $"{v:0.##} 像素" : $"{v:0.##} px")).ToArray(), SelectedIndex = Array.IndexOf(widths, EditorPreferences.Current.PathWidth) + 1, MinWidth = 105 };
             var color = new ComboBox { MinWidth = 105, ItemsSource = colors.Select((value, i) => new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, Children = { new Border { Width = 13, Height = 13, Background = new SolidColorBrush(Color.Parse(value)), VerticalAlignment = VerticalAlignment.Center }, new TextBlock { Text = Localize.Text(names[i]), Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center } } }).ToArray(), SelectedIndex = Math.Max(0, Array.IndexOf(colors, EditorPreferences.Current.PathColor)) };
             foreach (var (label, field, row) in new (string, Control, int)[] { ("Thickness:", thickness, 0), ("Color:", color, 1) })
             {
                 var text = new TextBlock { Text = Localize.Text(label), VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(text, 1); Grid.SetRow(text, row); style.Children.Add(text);
                 Grid.SetColumn(field, 2); Grid.SetRow(field, row); style.Children.Add(field);
             }
-            thickness.SelectionChanged += (_, _) => { if (thickness.SelectedIndex < 0) return; EditorPreferences.Current.PathWidth = thickness.SelectedIndex + 1; line.Height = EditorPreferences.Current.PathWidth; popup.Changed?.Invoke(); };
+            thickness.SelectionChanged += async (_, _) => { if (thickness.SelectedIndex < 0) return; if (thickness.SelectedIndex == 0) { var form = new FormDialog("Path Width", 390, 320); var value = form.Number("Thickness:", EditorPreferences.Current.PathWidth, .25, 10); if (await form.ShowDialog<bool>(this)) EditorPreferences.Current.PathWidth = (double)(value.Value ?? 1); } else EditorPreferences.Current.PathWidth = widths[thickness.SelectedIndex - 1]; line.Height = EditorPreferences.Current.PathWidth; popup.Changed?.Invoke(); };
             color.SelectionChanged += (_, _) => { if (color.SelectedIndex < 0) return; EditorPreferences.Current.PathColor = colors[color.SelectedIndex]; line.Background = new SolidColorBrush(Color.Parse(EditorPreferences.Current.PathColor)); popup.Changed?.Invoke(); };
             popup.Children.Add(style);
             if (_tool == Tool.FreeformPen)
@@ -316,7 +320,7 @@ public sealed partial class MainWindow
                 magnetic.Number("Frequency:", p.MagneticFrequency, 1, 100, v => p.MagneticFrequency = v); magnetic.Check("Pen Pressure", p.Pressure, v => p.Pressure = v); popup.Children.Add(magnetic);
                 var previous = popup.Changed; popup.Changed = () => { magnetic.IsEnabled = p.Magnetic; previous?.Invoke(); };
             }
-            else popup.Check("Rubber Band", p.RubberBand, v => p.RubberBand = v);
+            else if (ToolCatalog.IsPen(_tool)) popup.Check("Rubber Band", p.RubberBand, v => p.RubberBand = v);
         }
         else return;
         _penFlyout = popup.Show(anchor);
@@ -329,10 +333,11 @@ public sealed partial class MainWindow
         Edit("Edit Path Components", () =>
         {
             if (edit(nodes) is not { } result || result.ToSvg() == svg) return false;
-            if (_options.Pen.Output == PenOutput.Path) { _document!.WorkPath = result.ToSvg(); return true; }
-            if (PropertyLayer is not { LiveShape: not null } layer) return false;
-            using var path = SKPath.ParseSvgPathData(result.ToSvg()); if (path is null || !BrushEdits.PixelToDocument(layer.Transform, 1, 1).TryInvert(out var inverse)) return false;
-            path.Transform(inverse); return ShapeEdits.SetPath(_document!, layer.ID, path.ToSvgPathData());
+            if (_editingWorkPath) { _document!.WorkPath = result.ToSvg(); return true; }
+            if (PropertyLayer is not { } layer || layer.LiveShape is null && layer.Mask?.VectorPath is null) return false;
+            var map = layer.LiveShape is not null ? BrushEdits.PixelToDocument(layer.Transform, 1, 1) : BrushEdits.PixelToDocument(layer.MaskTransform, layer.Mask!.Asset.Width, layer.Mask.Asset.Height);
+            using var path = SKPath.ParseSvgPathData(result.ToSvg()); if (path is null || !map.TryInvert(out var inverse)) return false;
+            path.Transform(inverse); return layer.LiveShape is not null ? ShapeEdits.SetPath(_document!, layer.ID, path.ToSvgPathData()) : MaskProperties.SetVectorPath(_document!, layer.ID, path.ToSvgPathData());
         }); SyncPathNodes();
     }
 
@@ -342,15 +347,16 @@ public sealed partial class MainWindow
         {
             using var temporary = new CanvasDocument(Guid.NewGuid(), _document!.Width, _document.Height);
             var boxes = new List<SKRect>();
-            foreach (var contour in nodes.Subpaths)
+            var indices = _tool == Tool.PathSelection && _canvas.SelectedPathComponents.Count > 0 ? _canvas.SelectedPathComponents.Where(i => i >= 0 && i < nodes.Subpaths.Count).Order().ToArray() : Enumerable.Range(0,nodes.Subpaths.Count).ToArray();
+            foreach (var index in indices)
             {
-                var single = new PathNodes(); single.Subpaths.Add(contour); using var path = SKPath.ParseSvgPathData(single.ToSvg()); if (path is null) return null;
+                var contour=nodes.Subpaths[index]; var single = new PathNodes(); single.Subpaths.Add(contour); using var path = SKPath.ParseSvgPathData(single.ToSvg()); if (path is null) return null;
                 var b = path.TightBounds; boxes.Add(b);
                 var pixel = Bitmaps.Allocate(Bitmaps.ColorInfo(1, 1)); pixel.Erase(SKColors.Transparent);
                 temporary.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(pixel, "Path component"), new(b.Left, b.Top, Math.Max(.001, b.Width), Math.Max(.001, b.Height)), "Path component"));
             }
             if (!LayerAlignment.Apply(temporary, temporary.Layers.Select(l => l.ID).ToArray(), operation, _options.Pen.AlignmentTarget == 1 ? AlignmentTarget.Canvas : AlignmentTarget.SelectedLayers)) return null;
-            for (var i = 0; i < nodes.Subpaths.Count; i++) { var delta = new SKPoint((float)temporary.Layers[i].Transform.X - boxes[i].Left, (float)temporary.Layers[i].Transform.Y - boxes[i].Top); for (var j = 0; j < nodes.Subpaths[i].Nodes.Count; j++) nodes.MoveNode(i, j, delta); }
+            for (var i = 0; i < indices.Length; i++) { var delta = new SKPoint((float)temporary.Layers[i].Transform.X - boxes[i].Left, (float)temporary.Layers[i].Transform.Y - boxes[i].Top); for (var j = 0; j < nodes.Subpaths[indices[i]].Nodes.Count; j++) nodes.MoveNode(indices[i], j, delta); }
             return nodes;
         });
     }

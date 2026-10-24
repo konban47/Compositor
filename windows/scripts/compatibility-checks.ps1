@@ -62,7 +62,7 @@ try {
     Run-Check 'core-safety' $dotnetExe @('test', (Join-Path $repo 'windows/tests/Compositor.Core.Tests'), '-c', 'Release', '--no-build', '--filter', 'FullyQualifiedName~ViewportCacheTests|FullyQualifiedName~Upstream155Tests|FullyQualifiedName~AdvancedRepairTests|FullyQualifiedName~UtilityRetouchTests|FullyQualifiedName~PerformanceSafetyTests|FullyQualifiedName~PerformanceResourceTests|FullyQualifiedName~PaintBrushEngineTests|FullyQualifiedName~GifAnimationTests|FullyQualifiedName~GifPlaybackTests')
     foreach ($language in @('en','zh-CN')) {
         $env:COMPOSITOR_LANGUAGE = $language
-        foreach ($check in @('windows-checks','interaction-checks','pen-layer-checks','utility-retouch-checks','painting-checks','gif-checks')) {
+        foreach ($check in @('windows-checks','interaction-checks','pen-layer-checks','utility-retouch-checks','painting-checks','gif-checks','tool-options-checks','color-checks')) {
             $arguments = @("--$check", (Join-Path $out "$language-$check.png"))
             if ($App) { Run-Check "$language-$check" (Resolve-Path $App).Path $arguments }
             else { Run-Check "$language-$check" $dotnetExe (@($dll) + $arguments) }

@@ -13,6 +13,7 @@ public static class ImageModeEdits
     public static bool Convert(CanvasDocument document, ImageSettings settings, int colors = 256, bool dither = true, double threshold = .5)
     {
         if (!settings.IsValid || colors is < 2 or > 256 || threshold is < 0 or > 1) return false;
+        if (settings.Mode == ImageMode.CMYK && settings.CmykProfile is null) settings = settings with { CmykProfile = IccProfiles.Resolve(ColorDefaults.Settings.Cmyk).ToArray() };
         var replacements = new List<(ImageLayer Layer, ImportedImage Asset)>();
         var flatten = settings.Mode is ImageMode.Bitmap or ImageMode.Indexed or ImageMode.Duotone or ImageMode.Multichannel;
         if (flatten)
@@ -57,6 +58,7 @@ public static class ImageModeEdits
     {
         var deep = DeepPixels.From(source); var p = MemoryMarshal.Cast<byte, float>(deep.GetPixelSpan());
         var palette = settings.Palette?.Select(Color3.From).ToArray(); var ink = Color3.From(settings.Ink);
+        var spot = settings.Mode == ImageMode.Duotone ? IO.SpotTone.Curve(IO.ColorDefaults.Settings) : null;
         var error = dither && settings.Mode is ImageMode.Bitmap or ImageMode.Indexed ? new Color3[deep.Width + 2] : null;
         var nextError = error is null ? null : new Color3[deep.Width + 2];
         for (var y = 0; y < deep.Height; y++)
@@ -69,7 +71,7 @@ public static class ImageModeEdits
                 {
                     ImageMode.Grayscale => new(c.Luma, c.Luma, c.Luma),
                     ImageMode.Bitmap => c.Luma >= threshold ? new(1, 1, 1) : new(0, 0, 0),
-                    ImageMode.Duotone => Color3.Mix(ink, new(1, 1, 1), c.Luma),
+                    ImageMode.Duotone => Color3.Mix(ink, new(1, 1, 1), spot![(int)Math.Clamp(Math.Round(c.Luma * 255), 0, 255)]),
                     ImageMode.Indexed when palette is { Length: > 0 } => Closest(c, palette),
                     _ => c,
                 };

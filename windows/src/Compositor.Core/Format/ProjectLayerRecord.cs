@@ -36,6 +36,7 @@ public sealed class ProjectLayerRecord
 
     /// <summary>A shape layer's shape, drawn again when the layer is scaled.</summary>
     public LayerShapeStyle? Shape { get; set; }
+    public Document.LiveGradientSettings? Gradient { get; set; }
 
     /// <summary>The stroke and drop shadow drawn around the layer.</summary>
     public LayerEffects? Effects { get; set; }

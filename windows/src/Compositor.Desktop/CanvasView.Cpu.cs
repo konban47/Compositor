@@ -15,6 +15,11 @@ public sealed partial class CanvasView
     private CanvasDocument? _cpuTileDocument;
     private bool _cpuTileHadAlpha;
     private (bool Proof, bool Gamut, ColorChannels Channels, double Opacity) _cpuTileDisplay;
+    internal void ColorSettingsChanged()
+    {
+        _cpuVersion++; _cpuCancellation?.Cancel(); _cpuTiles?.Dispose(); _cpuTiles = null;
+        _compositeDirty = true; ReleaseDisplayScene(); InvalidateVisual();
+    }
     private int _cpuRequestedMaximum, _cpuRenderedMaximum;
     private int CpuMaximum => Math.Clamp((int)Math.Ceiling(Math.Max(Bounds.Width, Bounds.Height) * ((VisualRoot as Avalonia.Controls.TopLevel)?.RenderScaling ?? 1)), 256, 2048);
     internal long CpuCachedBytes => _cpuTiles?.RetainedBytes ?? 0;
@@ -59,6 +64,8 @@ public sealed partial class CanvasView
                     converted.GetPixelSpan().CopyTo(tile.GetPixelSpan());
                 }
                 ChannelEdits.View(tile, channels, alpha is null);
+                var colors = Compositor.Core.IO.ColorDefaults.Settings;
+                if (colors.DesaturateMonitor) Compositor.Core.Pixels.ColorControls.Desaturate(tile, colors.MonitorDesaturation / 100);
                 if (alpha is null) return;
                 for (var y = 0; y < tile.Height; y++) for (var x = 0; x < tile.Width; x++)
                 {

@@ -31,3 +31,4 @@ TestResults/
 
 # Local and CI verification output
 /artifacts/
+/windows/runtime/

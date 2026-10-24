@@ -37,6 +37,7 @@ public static class ProjectStore
         }
 
         var version = manifest.Version;
+        if (version < 28 && manifest.ImageSettings is { } color && (color.ColorProfile is not null || color.OcioConfiguration is not null)) throw new ProjectException(ProjectError.Invalid);
         if (manifest.WorkPath is { } workPath && (version < 24 || !Document.PenPaths.Valid(workPath))) throw new ProjectException(ProjectError.Invalid);
         if (version < 20 && manifest.Layers.Any(l => l.Label > LayerLabel.Gray)) throw new ProjectException(ProjectError.Invalid);
         if (manifest.ImageSettings is { } imageSettings && (version < 18 || !imageSettings.IsValid || version < 20 && imageSettings.CmykProfile is not null)
@@ -95,9 +96,10 @@ public static class ProjectStore
                     throw new ProjectException(ProjectError.Invalid);
                 }
             }
+            if (layer.Gradient is { } gradient && (version < 28 || !gradient.IsValid || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null || layer.Text is not null || layer.Shape is not null || layer.Gif is not null)) throw new ProjectException(ProjectError.Invalid);
             if (layer.Shape is { } shape)
             {
-                if (!shape.IsValid || (shape.LineStyle is not null || shape.LineCap is not null) && version < 15 || shape.Smoothing is not null && version < 14 || shape.Kind == Format.ShapeKind.Path && shape.LineWidth is not null && version < 16 || (shape.Kind == Format.ShapeKind.Path && version < 14)
+                if (!shape.IsValid || shape.HasPaintOptions && version < 28 || (shape.LineStyle is not null || shape.LineCap is not null) && version < 15 || shape.Smoothing is not null && version < 14 || shape.Kind == Format.ShapeKind.Path && shape.LineWidth is not null && version < 16 || (shape.Kind == Format.ShapeKind.Path && version < 14)
                     || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null)
                 {
                     throw new ProjectException(ProjectError.Invalid);
@@ -109,6 +111,7 @@ public static class ProjectStore
                 {
                     throw new ProjectException(ProjectError.Invalid);
                 }
+                if (adjustment.Extended?.Kind == Document.ImageAdjustmentKind.ClarityDehaze && version < 28) throw new ProjectException(ProjectError.Invalid);
                 if (adjustment.Extended is not null && version < 19) throw new ProjectException(ProjectError.Invalid);
                 if ((adjustment.NeedsVersion16 || adjustment.FilterLayerSettings is not null) && version < 16) throw new ProjectException(ProjectError.Invalid);
                 if (adjustment.NeedsVersion9 && version < 9) throw new ProjectException(ProjectError.Invalid);

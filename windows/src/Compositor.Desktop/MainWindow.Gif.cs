@@ -47,7 +47,7 @@ public sealed partial class MainWindow
                 previous?.Dispose();previous=null;preview.Source=null;
                 if(PropertyLayer is not {Asset:{ } asset} layer){Stop();return;}
                 var animation=layer.Gif;var frames=animation?.Frames;frame.Maximum=Math.Max(0,(frames?.Count??_document?.Layers.Count??1)-1);
-                if(animation is not null){var pos=frames!.ToList().FindIndex(f=>f.Index==layer.GifFrameIndex);frame.Value=Math.Max(0,pos);delay.Value=(decimal)animation.Delay(layer.GifFrameIndex);mode.SelectedIndex=animation.TimingMode=="Same for all"?1:0;label.Text=$"{pos+1} / {frames!.Count} — {layer.Name}";}
+                if(animation is not null){var pos=frames!.ToList().FindIndex(f=>f.Index==layer.GifFrameIndex);frame.Value=Math.Max(0,pos);delay.Value=(decimal)animation.Delay(layer.GifFrameIndex);var delays = frames!.Select(f => animation.Delay(f.Index) * 1000).ToArray(); var least = delays.Min(); var most = delays.Max(); mode.ItemsSource = new[]{Localize.Text("Frame delay") + (least == most ? $" ({least:0} ms)" : $" ({least:0}–{most:0} ms)"), Localize.Text("Same for all")};mode.SelectedIndex=animation.TimingMode=="Same for all"?1:0;label.Text=$"{pos+1} / {frames!.Count} — {layer.Name}";}
                 else {var index=Math.Clamp((int)frame.Value,0,_document!.Layers.Count-1);asset=_document.Layers[index].Asset??asset;label.Text=Localize.Text("Layer frame preview (5 fps). Document pixels stay unchanged.")+" "+(index+1)+" / "+_document.Layers.Count;}
                 _timelineFrame=(int)frame.Value;frame.IsEnabled=true;mode.IsEnabled=delay.IsEnabled=animation is not null;
                 previous=CanvasView.ToImage(asset.Image);preview.Source=previous;

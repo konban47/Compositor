@@ -76,7 +76,7 @@ public static class ImageImporter
             || extension.Equals(".tif", StringComparison.OrdinalIgnoreCase)
             || extension.Equals(".tiff", StringComparison.OrdinalIgnoreCase))
         {
-            try { return DeepImageCodec.Decode(Read(path), name, remainingPixels); }
+            try { return DeepImageCodec.Decode(Read(path), name, remainingPixels, manageColor: true); }
             catch (MagickException error) { throw new ImportException(ImportError.Unreadable, error.Message); }
         }
         if (extension.Equals(".psd", StringComparison.OrdinalIgnoreCase)
@@ -101,11 +101,9 @@ public static class ImageImporter
             var source = new GifSource(bytes); Check(source.Width, source.Height, remainingPixels);
             var first = source.Decode(0, name); first.Animation = new GifAnimation(source); return first;
         }
-        if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
-        {
-            try { if (PngCodec.ReadHeader(bytes).BitDepth == 16) return DeepImageCodec.Decode(bytes, name, remainingPixels); }
-            catch (ProjectException) { throw new ImportException(ImportError.Unreadable); }
-        }
+        if (SkiaReads.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        { try { return DeepImageCodec.Decode(bytes, name, remainingPixels, manageColor: true); } catch (MagickException error) { throw new ImportException(ImportError.Unreadable, error.Message); } }
+
         if (!TrySkia(bytes, name, remainingPixels, out var image))
         {
             throw SkiaReads.Contains(extension, StringComparer.OrdinalIgnoreCase)
@@ -139,7 +137,7 @@ public static class ImageImporter
         Check(width, height, remainingPixels);
         try
         {
-            return DeepImageCodec.Decode(Read(path), name, remainingPixels);
+            return DeepImageCodec.Decode(Read(path), name, remainingPixels, manageColor: true);
         }
         catch (MagickException error)
         {
@@ -339,7 +337,7 @@ public static class ImageImporter
     /// <summary>A canvas holding the image at its own size, as a new project starts.</summary>
     public static CanvasDocument NewDocument(ImportedImage image, double resolution = 72)
     {
-        var document = new CanvasDocument(Guid.NewGuid(), image.Width, image.Height, resolution) { Image = new Compositor.Core.Format.ImageSettings { Mode = image.ColorMode, Depth = image.BitDepth, CmykProfile = image.CmykProfile } };
+        var document = new CanvasDocument(Guid.NewGuid(), image.Width, image.Height, resolution) { Image = new Compositor.Core.Format.ImageSettings { Mode = image.ColorMode, Depth = image.BitDepth, CmykProfile = image.CmykProfile, ColorProfile = image.ColorProfile, OcioConfiguration = image.OcioConfiguration, OcioWorkingSpace = image.OcioWorkingSpace } };
         document.Layers.Add(Layer(image));
         return document;
     }

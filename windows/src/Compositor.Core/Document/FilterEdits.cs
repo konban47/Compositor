@@ -30,7 +30,7 @@ public enum FilterKind
     /// <summary>Radial distortion: either direction straightens a lens.</summary>
     LensCorrection,
     Scanlines,
-    ProgressiveBlur, RgbSplit,
+    ProgressiveBlur, RgbSplit, LensEffects,
 }
 
 /// <summary>
@@ -43,6 +43,7 @@ public enum FilterKind
 /// </summary>
 public sealed class FilterSettings
 {
+    public LensEffectSettings Lens { get; set; } = new();
     public double RgbSplitDistance { get; set; } = 10;
     public double RgbSplitBlur { get; set; }
     public double RgbSplitAngle { get; set; }
@@ -119,12 +120,13 @@ public sealed class FilterSettings
     /// </summary>
     public FilterSettings Copy()
     {
-        var copy = (FilterSettings)MemberwiseClone(); copy.Scanlines = Scanlines.Copy(); return copy;
+        var copy = (FilterSettings)MemberwiseClone(); copy.Scanlines = Scanlines.Copy(); copy.Lens = Lens with { }; return copy;
     }
 
     /// <summary>Whether the amounts this filter reads are ones it may use.</summary>
     public bool IsValid(FilterKind kind) => kind switch
     {
+        FilterKind.LensEffects => Lens.IsValid,
         FilterKind.RgbSplit => Within(RgbSplitDistance, 0, 200) && Within(RgbSplitBlur, 0, 400) && Within(RgbSplitAngle, -180, 180) && Within(RgbSplitReach, 1, 100000) && double.IsFinite(RgbSplitCenterX + RgbSplitCenterY),
         FilterKind.ProgressiveBlur => Within(ProgressiveFrom, 0, 250) && Within(ProgressiveTo, 0, 250) && new[] { ProgressiveStartX, ProgressiveStartY, ProgressiveEndX, ProgressiveEndY }.All(double.IsFinite),
         FilterKind.Scanlines => Scanlines.IsValid,
@@ -145,6 +147,7 @@ public sealed class FilterSettings
     /// <summary>Whether this filter would change anything at all.</summary>
     public bool DoesAnything(FilterKind kind) => kind switch
     {
+        FilterKind.LensEffects => Lens.DoesAnything,
         FilterKind.RgbSplit => RgbSplitDistance > 0 || RgbSplitBlur > 0,
         FilterKind.ProgressiveBlur => ProgressiveFrom > 0 || ProgressiveTo > 0,
         FilterKind.Scanlines => true,
@@ -195,6 +198,8 @@ public static class FilterEdits
     {
         if (!settings.IsValid(kind) || !settings.DoesAnything(kind)) return false;
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { } layer) return false;
+        if (kind == FilterKind.LensEffects && layer.Asset is { } lensSource)
+        { using var result = LensEffects.Apply(lensSource.WorkingImage, settings.Lens); return ImageAdjustments.SetPixels(document, layer, result); }
         if (kind == FilterKind.RgbSplit && layer.Asset is { } splitSource)
         {
             var margin = Margin(kind, settings); var oldMask = layer.MaskTransform;

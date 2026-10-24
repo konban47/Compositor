@@ -1,6 +1,6 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "64097c9379ea8128d65d13e817549e6bad3d603c",
+  "commit": "c9c7531c620d9880e5b015fbcc57518e81483bc8",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
@@ -78,7 +78,7 @@
     },
     {
       "path": "Compositor/UI/GIFTimeline.swift",
-      "sha256": "7fd7dc1c36329b4b59e2317fa403ea4c6b9a59a314d5af29a7873e0f91023e96"
+      "sha256": "1c966e78fac9a98c83951cc11271fb760fdf7b4d49938f24d53f747f38402904"
     },
     {
       "path": "Compositor/Document/GIFAnimation.swift",
@@ -103,6 +103,14 @@
     {
       "path": "Compositor/IO/GIFExporter.swift",
       "sha256": "0677d6f86fee070f2232348aba47f396f3f54d91afe9ca9bee8b20c49382e34d"
+    },
+    {
+      "path": "Compositor/Document/LensEffects.swift",
+      "sha256": "2ee3593e7d0acc0166bab8c2ee53d1f77bfce95cb3b9ba1c089434e747518694"
+    },
+    {
+      "path": "Compositor/Rendering/MetalBokeh.swift",
+      "sha256": "034a259b3d2726be684184df88635684ca5e992bd32f623184d0423dbe1474e5"
     }
   ],
   "directPorts": [

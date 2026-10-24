@@ -39,7 +39,7 @@ public static class SpectralDispersion
                 var weight = new Vector3(Smooth(-.3f, 1, t), 1 - Smooth(0, 1, Math.Abs(t)) + .05f, Smooth(-.3f, 1, -t));
                 for (var j = 0; j < m; j++)
                 {
-                    var u = m == 1 ? 0 : (j + jitter) / m; var q = at - spread * t - streak * u;
+                    var u = m == 1 ? 0 : (j + jitter) / m - .5f; var q = at - spread * t - streak * u;
                     if (canvasWidth > 0) { q.X = Math.Clamp(q.X + ox, .5f, canvasWidth - .5f) - ox; q.Y = Math.Clamp(q.Y + oy, .5f, canvasHeight - .5f) - oy; }
                     if (clampBounds is { } edge) { if ((sides & 1) != 0) q.X = Math.Max(q.X, edge.Left + .5f); if ((sides & 2) != 0) q.X = Math.Min(q.X, edge.Right - .5f); if ((sides & 4) != 0) q.Y = Math.Max(q.Y, edge.Top + .5f); if ((sides & 8) != 0) q.Y = Math.Min(q.Y, edge.Bottom - .5f); }
                     var c = Tap(source, width, height, stride, q.X - .5f, q.Y - .5f);

@@ -39,9 +39,21 @@ internal sealed class ToolOptions
 
     /// <summary>How the Gradient tool paints.</summary>
     public GradientShape Gradient = GradientShape.Linear;
-    public bool GradientToBackground;
+    public bool GradientToBackground = true;
     public bool GradientReversed;
+    public bool GradientClassic;
+    public bool GradientDither = true;
+    public GradientMethod GradientMethod = GradientMethod.Smooth;
+    public GradientStopValue[]? GradientStops;
     public (double Red, double Green, double Blue) GradientBackground = (1, 1, 1);
+    public bool BucketPattern;
+    public bool BucketAntialias = true;
+    public int AdjustmentBrushKind;
+    public bool AdjustmentSubtract, AdjustmentOverlay;
+    public bool ZoomOut, ZoomResize, ZoomAll;
+    public bool ZoomScrubby = true;
+    public bool PanAll, RotateAll;
+    public double ViewAngle;
 
     /// <summary>Which shape the Shape tool draws, and its two sizes.</summary>
     public ShapeKind Shape = ShapeKind.Rectangle;

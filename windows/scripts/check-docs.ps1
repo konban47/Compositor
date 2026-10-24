@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 function Read-Repo([string]$Path) { Get-Content -LiteralPath (Join-Path $repo $Path) -Raw -Encoding utf8 }
 [xml]$project = Read-Repo 'windows/src/Compositor.Desktop/Compositor.Desktop.csproj'
@@ -224,3 +224,24 @@ $paintingGuide = Read-Repo 'windows/PAINTING-AND-GIF.md'
 if ($paintingGuide.Contains('窄面板用分类下拉框') -or !$paintingGuide.Contains('底部笔触预览') -or !$paintingGuide.Contains('单调时钟')) { throw 'Brush layout or GIF playback guide is stale.' }
 if (!(Read-Repo 'windows/WINDOW-MENU.md').Contains('紧凑按钮样式不变')) { throw 'Floating caption exception is undocumented.' }
 Write-Output 'PASS: brush layout, playback timing and floating caption scope are documented.'
+
+foreach ($field in @('gradient','startX','endX','stops','fillEnabled','strokeColor','strokeWidth','strokePattern','ClarityDehaze')) {
+    if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v28 field: $field" }
+}
+foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
+    if (!(Read-Repo $path).Contains('TOOL-OPTIONS.md')) { throw "Tool options guide missing from $path" }
+}
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--tool-options-checks')) { throw 'Tool options UI checks missing from CI.' }
+Write-Output 'PASS: v28 and the 1.5.8 tool workflows are documented and packaged.'
+
+foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1','windows/EDIT-MENU.md','windows/UPDATES-1.5.8.0.md')) {
+    if (!(Read-Repo $path).Contains('COLOR-MANAGEMENT.md')) { throw "Color guide missing from $path" }
+}
+foreach ($field in @('colorProfile','ocioConfiguration','ocioWorkingSpace')) {
+    if (!$formatDoc.Contains('`' + $field + '`') -and !$formatDoc.Contains('.' + $field + '`')) { throw "Undocumented color field: $field" }
+}
+foreach ($path in @('.github/workflows/windows.yml','windows/scripts/compatibility-checks.ps1')) {
+    if (!(Read-Repo $path).Contains('color-checks')) { throw "Color regression missing from $path" }
+}
+if ((Read-Repo 'windows/EDIT-MENU.md').Contains('工具未随包安装')) { throw 'OCIO runtime documentation is stale.' }
+Write-Output 'PASS: color management guide, v28 metadata and bundled runtime checks agree.'

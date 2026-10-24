@@ -25,10 +25,29 @@ public sealed partial class MainWindow
     }
     private void OpenBrushPicker(Control anchor)
     {
-        var popup = new ToolSettingsPopup { MinWidth = 320, MaxWidth = 410, Changed = OptionsChanged };
-        popup.Children.Add(new BrushTipAngleControl(() => _options.Brush, b => { _options.Brush = b; OptionsChanged(); }));
-        popup.Number("Size", _options.Brush.Diameter, 1, 5000, n => _options.Brush = _options.Brush with { Diameter = n }, true);
-        popup.Number("Hardness %", _options.Brush.Hardness * 100, 0, 100, n => _options.Brush = _options.Brush with { Hardness = n / 100 }, true);
+        var popup = new ToolSettingsPopup { MinWidth = 380, MaxWidth = 430, Changed = OptionsChanged };
+        if (_tool is Tool.ColorReplacement or Tool.BackgroundEraser)
+        {
+            popup.Number("Size", _options.Brush.Diameter, 1, 5000, n => _options.Brush = _options.Brush with { Diameter = n }, true);
+            popup.Number("Hardness %", _options.Brush.Hardness * 100, 0, 100, n => _options.Brush = _options.Brush with { Hardness = n / 100 }, true);
+            popup.Children.Add(new BrushTipAngleControl(() => _options.Brush, b => { _options.Brush = b; OptionsChanged(); }));
+        }
+        else
+        {
+            var header = new Grid { ColumnDefinitions = new ColumnDefinitions("110,*"), ColumnSpacing = 16, Margin = new Thickness(0,0,0,10) };
+            header.Children.Add(new BrushTipAngleControl(() => _options.Brush, b => { _options.Brush = b; OptionsChanged(); }) { Width=104, Height=104, VerticalAlignment=VerticalAlignment.Top });
+            var numbers=new StackPanel { Spacing=4 }; Grid.SetColumn(numbers,1); header.Children.Add(numbers);
+            void Amount(string title,double value,double minimum,double maximum,Action<double> set)
+            {
+                var row=new Grid { ColumnDefinitions=new ColumnDefinitions("*,90") }; row.Children.Add(new TextBlock {Text=Localize.Text(title), VerticalAlignment=VerticalAlignment.Center});
+                var field=new NumericUpDown { Value=(decimal)value, Minimum=(decimal)minimum, Maximum=(decimal)maximum, ShowButtonSpinner=false, FormatString="0.##", Height=28 }; Grid.SetColumn(field,1); row.Children.Add(field); numbers.Children.Add(row);
+                var range=new Slider { Minimum=minimum, Maximum=maximum, Value=value, Height=22 }; numbers.Children.Add(range);
+                var loading=false; field.ValueChanged+=(_,_)=>{if(loading||field.Value is not {} v)return; loading=true;range.Value=(double)v;set((double)v);OptionsChanged();loading=false;};
+                range.ValueChanged+=(_,_)=>field.Value=(decimal)range.Value;
+            }
+            Amount("Size",_options.Brush.Diameter,1,5000,v=>_options.Brush=_options.Brush with {Diameter=v});
+            Amount("Hardness %",_options.Brush.Hardness*100,0,100,v=>_options.Brush=_options.Brush with {Hardness=v/100}); popup.Children.Add(header);
+        }
         if (_tool is Tool.ColorReplacement or Tool.BackgroundEraser)
         {
             popup.Number("Spacing %", _options.Brush.SpacingFraction > 0 ? _options.Brush.SpacingFraction * 100 : 25, 1, 1000, n => _options.Brush = _options.Brush with { SpacingFraction = n / 100 }, true);
@@ -40,25 +59,30 @@ public sealed partial class MainWindow
         else
         {
             var search = new TextBox { PlaceholderText = Localize.Text("Search Brushes"), Tag = "brush-search" }; popup.Children.Add(search);
-            var content = new StackPanel { Spacing = 4 }; var scroll = new ScrollViewer { Content = content, MaxHeight = 260 }; popup.Children.Add(scroll);
+            var content = new StackPanel { Spacing = 4 }; var scroll = new ScrollViewer { Content = content, MaxHeight = 380 }; popup.Children.Add(scroll);
             EditorPreset[] presets; try { presets = EditorPresets.Load(EditorPresets.DefaultPath).Where(p => p.Kind == "Brush").ToArray(); } catch (Exception error) { Say(error.Message); presets = []; }
             void Reload()
             {
                 content.Children.Clear(); var query = search.Text ?? "";
-                foreach (var (title, kinds) in new[] { ("General Brushes", new[] { 0, 1, 2, 7, 19, 22 }), ("Dry Media Brushes", new[] { 5, 6, 10, 12, 13, 16 }), ("Wet Media Brushes", new[] { 8, 9, 20, 23 }), ("Special Effects Brushes", new[] { 3, 4, 11, 14, 15, 17, 18, 21 }) })
+                foreach (var group in BrushPresetLibrary.All.Select((preset, index) => (preset, index)).GroupBy(p => p.preset.Category))
                 {
-                    var grid = new WrapPanel();
-                    foreach (var kind in kinds.Where(i => Localize.Text(BrushDabs.TipNames[i]).Contains(query, StringComparison.CurrentCultureIgnoreCase)))
+                    var grid = new WrapPanel { Tag = "brush-stroke-grid" };
+                    foreach (var (preset, index) in group.Where(p => Localize.Text(p.preset.Name).Contains(query, StringComparison.CurrentCultureIgnoreCase)))
                     {
-                        var b = new Button { Width = 40, Height = 40, Padding = new Thickness(3), Margin = new Thickness(2), Content = new ProceduralTipView(kind), Tag = "brush-picker-tip-" + kind }; ToolTip.SetTip(b, Localize.Text(BrushDabs.TipNames[kind]));
-                        b.Click += (_, _) => { _options.Brush = _options.Brush with { TipImage = null, Hardness = kind == 0 ? 0 : 1 }; ChangePainting(p => p with { Tip = kind }); }; grid.Children.Add(b);
+                        var card = new StackPanel { Spacing = 2 };
+                        card.Children.Add(new BrushStrokePreview(index) { Width = 160, Height = 45 });
+                        card.Children.Add(new TextBlock { Text = Localize.Text(preset.Name), FontSize = 11, TextWrapping = Avalonia.Media.TextWrapping.Wrap, MaxWidth = 160 });
+                        var button = new Button { Width = 174, MinHeight = 70, Padding = new Thickness(5), Margin = new Thickness(1), Content = card, Tag = "brush-picker-tip-" + index, VerticalContentAlignment = VerticalAlignment.Top };
+                        ToolTip.SetTip(button, Localize.Text(preset.Name));
+                        button.Click += (_, _) => ApplyBrushPreset(new EditorPreset(Guid.NewGuid(), preset.Name, "Brush", Brush: preset.Settings, CaptureSize: false, IncludeTool: true, IncludeColor: false)); grid.Children.Add(button);
                     }
-                    if (grid.Children.Count > 0) content.Children.Add(new Expander { Header = Localize.Text(title), IsExpanded = true, Content = grid, HorizontalAlignment = HorizontalAlignment.Stretch });
+                    if (grid.Children.Count > 0) content.Children.Add(new Expander { Header = Localize.Text(group.Key), IsExpanded = true, Content = grid, HorizontalAlignment = HorizontalAlignment.Stretch });
                 }
                 foreach (var preset in presets.Where(p => p.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase))) { var button = new Button { Content = preset.Name, Tag = "brush-user-preset", HorizontalAlignment = HorizontalAlignment.Stretch }; button.Click += (_, _) => { ApplyBrushPreset(preset); OptionsChanged(); }; content.Children.Add(button); }
             }
             search.TextChanged += (_, _) => Reload(); Reload();
-            var size = new Slider { Minimum = 28, Maximum = 72, Value = 40 }; ToolTip.SetTip(size, Localize.Text("Thumbnail Size")); size.ValueChanged += (_, _) => { foreach (var expander in content.Children.OfType<Expander>()) if (expander.Content is WrapPanel grid) foreach (var b in grid.Children) b.Width = b.Height = size.Value; }; popup.Children.Add(size);
+            var size = new Slider { Minimum = 140, Maximum = 174, Value = 174 }; ToolTip.SetTip(size, Localize.Text("Thumbnail Size"));
+            size.ValueChanged += (_, _) => { foreach (var expander in content.Children.OfType<Expander>()) if (expander.Content is WrapPanel grid) foreach (var button in grid.Children.OfType<Button>()) { button.Width = size.Value; if (button.Content is StackPanel card) { card.Children[0].Width = size.Value - 14; card.Children[1].MaxWidth = size.Value - 14; } } }; popup.Children.Add(size);
         }
         var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         var add = new Button { Content = "+", Tag = "new-brush-preset" }; add.Click += async (_, _) => await SaveBrushPreset(); footer.Children.Add(add);

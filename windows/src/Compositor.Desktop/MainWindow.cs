@@ -447,7 +447,9 @@ public sealed partial class MainWindow : Window
         Toggle("_Pixel Grid (800% and above)", _pixelGrid, _pixelGridShown, () => ShowPixelGrid());
         Toggle("S_nap", _snapping, _snappingOn, () => ShowSnapping());
         PushViewSwitches();
-        _canvas.ViewportChanged = UpdateRulers;
+        _canvas.ViewportChanged = ViewToolsChanged;
+        _optionsBar.ViewAngleRequested += n => _canvas.RotateViewTo(n);
+        InitializePathToolOptions(); Closed += (_,_) => _adjustmentOverlayImage?.Dispose();
         foreach (var (item, flag, label) in SnapRows())
         {
             // A tick box, so the four read as switches rather than as commands. They open where they were left,
@@ -532,6 +534,7 @@ public sealed partial class MainWindow : Window
                         Command("_Motion Blur…", () => _ = ApplyFilter(FilterKind.MotionBlur)),
                         Command("Add _Noise…", () => _ = ApplyFilter(FilterKind.AddNoise)),
                         Command("RGB Split…", () => _ = ApplyFilter(FilterKind.RgbSplit)),
+                        new MenuItem { Header = Localize.Text("Lens Effects"), ItemsSource = new[] { ("Anamorphic Flare…", LensEffect.AnamorphicFlare), ("Starburst…", LensEffect.Starburst), ("Mist…", LensEffect.Mist), ("Prism…", LensEffect.Prism), ("Bokeh…", LensEffect.Bokeh) }.Select(pair => Command(pair.Item1, () => _ = ApplyLensEffect(pair.Item2))).ToArray() },
                         Command("_Bloom / Glow…", () => _ = ApplyFilter(FilterKind.BloomGlow)),
                         Command("_Dither…", () => _ = DitherFilter()),
                         new Separator(),
@@ -924,6 +927,7 @@ public sealed partial class MainWindow : Window
     {
         // The Windows key is Windows', and a chord made with it is not one the table can hold.
         if (e.Handled || e.KeyModifiers.HasFlag(KeyModifiers.Meta)) return;
+        if (_adjustmentObjectMode && e.Key == Key.Escape) { _adjustmentObjectMode = false; Say("Paint to apply the adjustment."); e.Handled = true; return; }
         if (_artboardStart is not null && e.Key == Key.Escape) { _artboardStart = null; _artboardDraft = null; _canvas.CancelDraft(); _canvas.InvalidateOverlay(); e.Handled = true; return; }
         if (_cancelDockDrag is not null && e.Key == Key.Escape) { _cancelDockDrag(); e.Handled = true; return; }
         if (!Typing() && e.Key == Key.Escape && (_canvasOnly || _editingFullscreen)) { ExitScreenMode(); e.Handled = true; return; }
@@ -2923,6 +2927,9 @@ public sealed partial class MainWindow : Window
         }
         if (asked.Background != 0 && made.Layers.FirstOrDefault()?.Asset is { } background)
             background.Image.Erase(asked.Background == 1 ? SKColors.White : SKColors.Black);
+        var ocio = ColorDefaults.Ocio;
+        made.Image = made.Image with { ColorProfile = IccProfiles.Resolve(ColorDefaults.Settings.Rgb).ToArray(), Depth = ocio.Enabled && ocio.Depth != 0 ? ocio.Depth : 8,
+            OcioConfiguration = ocio.Enabled ? ocio.EffectiveConfig : null, OcioWorkingSpace = ocio.Enabled ? ocio.WorkingSpace : null };
         _open = TabForNew();
         _document = made;
         _projectPath = null;
@@ -3378,7 +3385,7 @@ public sealed partial class MainWindow : Window
         _stopGifPlayback?.Invoke();
         if (_tool != tool && !(_tool is Tool.Slice or Tool.SliceSelect && tool is Tool.Slice or Tool.SliceSelect))
         { _selectedMark = null; _optionsBar.ProfessionalReadout(""); }
-        if (_tool != tool) { CancelProfessionalDraft(); _canvas.CancelCropStraighten(); _artboardStart = null; _artboardDraft = null; }
+        if (_tool != tool) { _adjustmentObjectMode = false; CancelProfessionalDraft(); _canvas.CancelCropStraighten(); _artboardStart = null; _artboardDraft = null; }
         if (_pen is not null && !ToolCatalog.IsPen(tool)) FinishPen();
         if (_placementTab is not null && tool != Tool.Move && tool != Tool.Pan) FinishPlacement(true);
         if (_open.ActiveAlpha is not null && (tool is Tool.Move or Tool.Artboard or Tool.AdjustmentBrush || ToolCatalog.IsType(tool) || ToolCatalog.IsPen(tool) || ToolCatalog.IsPathEditor(tool) || ToolCatalog.IsShape(tool)))
@@ -3529,6 +3536,8 @@ public sealed partial class MainWindow : Window
     private void OptionsChanged()
     {
         ApplyUtilityOptions();
+        UpdateLiveGradient();
+        ApplyViewOptions();
         if (_preferencesReady) SavePreferenceChanges();
         if (_preferencesReady && (EditorPreferences.Current.BrushSmoothing != _options.Brush.Smoothing || EditorPreferences.Current.SampleRing != _options.ShowsSampleRing))
         {
@@ -3550,6 +3559,7 @@ public sealed partial class MainWindow : Window
     private void RefreshOptionsBar()
     {
         SyncUtilityOptions();
+        SyncGradientOptions();
         SyncSelectionOptions();
         var layer = Selected is { } id && _document is { } document
             ? document.Layers.FirstOrDefault(one => one.ID == id)
@@ -3567,6 +3577,7 @@ public sealed partial class MainWindow : Window
     /// foreground swatch is the same colour, so it is shown whenever the brush moves.</summary>
     private void PushBrush()
     {
+        ApplyViewOptions();
         _canvas.Brush = _options.Brush with
         {
             Hardness = _tool == Tool.Pencil || _tool == Tool.Eraser && PaintingOptions.EraserMode != 0 ? 1 : _options.Brush.Hardness,
@@ -3582,6 +3593,7 @@ public sealed partial class MainWindow : Window
                 Tool.Dodge => BrushMode.Dodge, Tool.Burn => BrushMode.Burn, Tool.Sponge => BrushMode.Sponge,
                 Tool.Clone => BrushMode.Clone,
                 Tool.Blur => BrushMode.Blur,
+                Tool.Smudge => BrushMode.Smudge,
                 Tool.Heal => BrushMode.Heal,
                 Tool.HistoryBrush => BrushMode.History,
                 Tool.Eraser when PaintingOptions.EraseToHistory => BrushMode.History,
@@ -3700,23 +3712,13 @@ public sealed partial class MainWindow : Window
     /// mask, at the brush's opacity, as one undo step.
     /// </summary>
     /// <summary>The gradient's line has been taken hold of: the canvas starts showing what it would do.</summary>
-    private void GradientStarted()
-    {
-        if (_document is not { } document || Selected is not { } id) return;
-        StartPreview(document, id);
-    }
+    private void GradientStarted() => BeginGradientDrag();
 
     /// <summary>
     /// The line has moved: the gradient is filled into the preview so the run of it can be seen before the
     /// mouse comes up. Nothing is committed until it does.
     /// </summary>
-    private void GradientChanged(SKPoint start, SKPoint end)
-    {
-        if (_document is not { } document || Selected is not { } id) return;
-        if (!GradientEdits.HasLine(start, end)) return;
-        var (mask, from, to, opacity, shape) = GradientPlan(document, id);
-        RequestPreview((target, layer) => GradientEdits.Fill(target, layer, mask, start, end, from, to, opacity, shape));
-    }
+    private void GradientChanged(SKPoint start, SKPoint end) => PreviewGradientDrag(start, end);
 
     /// <summary>
     /// What the gradient tool would do with the brush as it stands: which of the layer's two surfaces it fills,
@@ -3742,22 +3744,7 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>The gradient's line has been let go: the fill is made, as one undo step.</summary>
-    private void GradientFinished(SKPoint start, SKPoint end)
-    {
-        if (_document is not { } document || Selected is not { } id) return;
-        StopPreview();
-        if (!GradientEdits.HasLine(start, end))
-        {
-            Say("Drag the line the gradient should run along");
-            return;
-        }
-        var (mask, from, to, opacity, shape) = GradientPlan(document, id);
-        if (EditActiveAlpha("Gradient Channel", (target, channel) => GradientEdits.Fill(target, channel, false, start, end, from, to, opacity, shape))) return;
-        Edit(mask ? "Gradient Mask" : "Gradient",
-            () => GradientEdits.Fill(document, id, mask, start, end, from, to, opacity, shape));
-        Reselect(id);
-        Say($"Gradient over {Math.Sqrt(Math.Pow(end.X - start.X, 2) + Math.Pow(end.Y - start.Y, 2)):0} pixels");
-    }
+    private void GradientFinished(SKPoint start, SKPoint end) => FinishGradientDrag(start, end);
 
     /// <summary>The shapes the Shape tool draws, and the two numbers that shape them.</summary>
     private void BuildShapeKinds()
@@ -4021,6 +4008,9 @@ public sealed partial class MainWindow : Window
     /// One of the filters that are not Camera Raw. Its amounts are asked for, then it runs over the selected
     /// layer's own pixels, held to the selection, as one undo step.
     /// </summary>
+    private Task ApplyLensEffect(LensEffect effect)
+    { _filterAmounts.Lens.Effect = effect; return ApplyFilter(FilterKind.LensEffects); }
+
     private async Task ApplyFilter(FilterKind kind)
     {
         if (_document is not { } document || Selected is not { } id) return;
@@ -5726,7 +5716,7 @@ public sealed partial class MainWindow : Window
         if (BrushFor(stroke) is not { } settings) return;
         settings = settings with { Pressures = _canvas.CompletedStrokePressures };
         if (settings.Painting is { } paint) settings = settings with { Seed = (uint)Random.Shared.Next(1, int.MaxValue), Painting = paint with { Samples = _canvas.CompletedPenSamples, Reservoir = _mixerReservoir } };
-        if (EditActiveAlpha("Paint Channel", (target, channel) => _tool is Tool.Liquify or Tool.Smudge
+        if (EditActiveAlpha("Paint Channel", (target, channel) => _tool is Tool.Liquify
             ? WarpEdits.Warp(target, channel, stroke, Warp(_tool), settings)
             : BrushEdits.Paint(target, channel, stroke, settings))) return;
         if (_tool == Tool.AdjustmentBrush) { PaintAdjustment(stroke); return; }
@@ -5753,7 +5743,7 @@ public sealed partial class MainWindow : Window
                     stroke, settings with { Red = value, Green = value, Blue = value, Erasing = false });
             }
             // Liquify and Smudge work on pixels that are already there: a blank layer has nothing to push.
-            if (_tool is Tool.Liquify or Tool.Smudge)
+            if (_tool is Tool.Liquify)
             {
                 return WarpEdits.Warp(document, id, stroke, Warp(_tool), settings);
             }
@@ -5866,6 +5856,7 @@ public sealed partial class MainWindow : Window
             _canvas.PathEnabled = false; _canvas.PathNodes = null; _pathNodes = null; _pathLayerID = null;
             return;
         }
+        if (_pathLayerID != layer.ID) { _canvas.SelectedPathComponents.Clear(); _canvas.SelectedPathNodes.Clear(); }
         _pathNodes = nodes; _pathLayerID = layer.ID;
         _canvas.PathNodes = nodes; _canvas.PathEnabled = true; _canvas.SelectWholePath = _tool == Tool.PathSelection;
         var toDocument = _shapePath ? BrushEdits.PixelToDocument(layer.Transform, 1, 1)
@@ -5893,18 +5884,21 @@ public sealed partial class MainWindow : Window
     private void MovePathNode(int subpath, int node, bool handle, bool outgoing, SKPoint point)
     {
         if (_pathNodes is not { } nodes || subpath < 0 || subpath >= nodes.Subpaths.Count) return;
+        if (_options.Pen.AlignEdges && _canvas.PathToDocument is { } place && _canvas.DocumentToPath is { } unplace) { var at = place(point); point = unplace(new SKPoint(MathF.Round(at.X), MathF.Round(at.Y))); }
         if (_tool == Tool.PathSelection)
         {
             var current = nodes.Subpaths[subpath].Nodes[node].Point; var delta = point - current;
-            for (var s = 0; s < nodes.Subpaths.Count; s++)
-                for (var n = 0; n < nodes.Subpaths[s].Nodes.Count; n++) nodes.MoveNode(s, n, delta);
+            foreach (var s in _canvas.SelectedPathComponents.Count > 0 ? _canvas.SelectedPathComponents : new HashSet<int> { subpath })
+                if (s >= 0 && s < nodes.Subpaths.Count) for (var n = 0; n < nodes.Subpaths[s].Nodes.Count; n++) nodes.MoveNode(s, n, delta);
         }
         else if (handle) nodes.MoveHandle(subpath, node, outgoing, point);
         else
         {
             if (node < 0 || node >= nodes.Subpaths[subpath].Nodes.Count) return;
             var current = nodes.Subpaths[subpath].Nodes[node].Point;
-            nodes.MoveNode(subpath, node, new SKPoint(point.X - current.X, point.Y - current.Y));
+            var delta = new SKPoint(point.X - current.X, point.Y - current.Y);
+            foreach (var selected in _canvas.SelectedPathNodes.Count > 0 ? _canvas.SelectedPathNodes : new HashSet<(int Subpath, int Node)> { (subpath,node) })
+                if (selected.Subpath>=0 && selected.Subpath<nodes.Subpaths.Count && selected.Node>=0 && selected.Node<nodes.Subpaths[selected.Subpath].Nodes.Count) nodes.MoveNode(selected.Subpath,selected.Node,delta);
             if (_tool == Tool.CurvaturePen)
             {
                 var contour = nodes.Subpaths[subpath];

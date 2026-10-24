@@ -80,10 +80,10 @@ public static class LayerProtection
                 layer.ParentID = old.ParentID;
             }
             if (old.SmartObject is not null && layer.SmartObject is not null && operation != "Update Smart Object")
-            { layer.Asset = old.Asset; layer.Shape = old.Shape; layer.Text = old.Text; }
+            { layer.Asset = old.Asset; layer.Shape = old.Shape; layer.Text = old.Text; layer.Gradient = old.Gradient; }
             if (protection.HasFlag(LayerLocks.Pixels))
             {
-                layer.Asset = old.Asset; layer.Shape = old.Shape; layer.Text = old.Text;
+                layer.Asset = old.Asset; layer.Shape = old.Shape; layer.Text = old.Text; layer.Gradient = old.Gradient;
                 layer.Adjustment = old.Adjustment; layer.Effects = old.Effects; layer.Mask = old.Mask;
             }
             else if (!ReferenceEquals(old.Asset, layer.Asset) && layer.Asset is not null

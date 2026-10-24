@@ -1,6 +1,6 @@
 # 画笔、图章、橡皮擦与 GIF
 
-**1.5.6.1 Preview** · 2026-10-23
+**1.5.8.0 Preview** · 2026-10-23
 
 ## 笔尖与设置
 
@@ -10,7 +10,7 @@
 
 “+”保存命名预设，可选择捕获大小、包含工具设置和包含颜色。未捕获大小／颜色时，应用预设保留当前值；不包含工具设置时保留当前工具及其流量等工具栏参数。预设管理器可重命名、删除、导入／导出 Compositor JSON。暂不读取 Adobe ABR/PAT 文件。
 
-1.5.6.1 自动界面回归中的实际渲染：[深色主题](design/brush-settings/transfer-dark.png) · [浅色主题](design/brush-settings/transfer-light.png)。截图中的标题按钮继续使用浮窗原有样式。
+1.5.8.0 自动界面回归中的实际渲染：[深色主题](design/brush-settings/transfer-dark.png) · [浅色主题](design/brush-settings/transfer-light.png)。截图中的标题按钮继续使用浮窗原有样式。
 
 ## 各工具
 
@@ -43,3 +43,7 @@
 本版同步 [上游 v1.5.6 后续 GIF 修复](https://github.com/robbietilton/Compositor/commit/64097c9379ea8128d65d13e817549e6bad3d603c)。算法与 UI 针对 Windows 实现；未宣称 Photoshop 专有笔刷逐像素等同。
 
 动画图层支持图像大小和非破坏性图层变换。会单独改变帧像素网格的破坏性变换（如透视裁剪）目前明确拒绝并回滚，避免生成无法重新打开的动画项目。
+
+## 1.5.8.0 选项栏更新
+
+渐变、油漆桶、局部修饰、调整画笔、视图及路径选项的当前行为见[填充、修饰与视图工具](TOOL-OPTIONS.md)。画笔预设采用四组双列原创笔触卡片；浮窗标题按钮保持原样。

@@ -28,6 +28,7 @@ public static class DeepAdjustments
         var data = MemoryMarshal.Cast<byte, float>(image.GetPixelSpan());
         if (settings.Extended is { } extended)
         {
+            if (extended.Kind == ImageAdjustmentKind.ClarityDehaze) { ClarityPixels.Apply(image, extended); return; }
             for (var y = 0; y < image.Height; y++) for (var x = 0; x < image.Width; x++)
             {
                 var at = y * image.RowBytes / 4 + x * 4;

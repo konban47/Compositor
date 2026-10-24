@@ -90,6 +90,7 @@ public sealed partial class MainWindow
             switch (kind)
             {
                 case ImageAdjustmentKind.BrightnessContrast: Number("Brightness", -150, 150); Number("Contrast", -100, 100); break;
+                case ImageAdjustmentKind.ClarityDehaze: Number("Clarity", -100, 100, 25); Number("Dehaze", -100, 100, 15); break;
                 case ImageAdjustmentKind.Vibrance: Number("Vibrance", -100, 100); Number("Saturation", -100, 100); break;
                 case ImageAdjustmentKind.PhotoFilter:
                     Number("Density", 0, 100, 25); ColorInput(dialog, "Filter Color", settings.Color, c => settings.Color = c);

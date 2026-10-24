@@ -1,23 +1,23 @@
 # Compositor for Windows — 简体中文 / English
 
-2026-10-23：当前源码为 **1.5.6.1 Preview**，已合并上游 1.5.6 / `64097c9`。画笔设置改为固定分类、分组参数与底部笔触预览；统一主窗口和普通对话框的矩形标题按钮、主题悬停与红色关闭悬停，浮窗按钮保持原样。同步上游 GIF 解码复用与按保存时长播放的修复。[本次更新与移植边界](UPDATES-1.5.6.1.md) · [画笔与 GIF 手册](PAINTING-AND-GIF.md) · [性能记录](PERFORMANCE.md) · [Windows 10 验收方案](COMPATIBILITY.md)。
+2026-10-24：当前版本为 **1.5.8.0 Preview**，参考源码同步到上游 **1.5.8 / c9c7531**。新增渐变、油漆桶、局部修饰、调整画笔、缩放、抓手、旋转视图、路径与直接选择的完整选项栏及双列画笔预设。新增颜色设置、独立 ACE 兼容引擎与随包 OpenColorIO，移除 Creative Cloud 同步。浮窗按钮保持原样。[本次更新](UPDATES-1.5.8.0.md) · [填充、修饰与视图工具手册](TOOL-OPTIONS.md) · [颜色管理手册](COLOR-MANAGEMENT.md) · [性能记录](PERFORMANCE.md) · [兼容性方案](COMPATIBILITY.md)。
 
-[下载 1.5.6.1 Preview](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.6.1)：安装版 `Compositor-Windows-1.5.6.1-x64-setup.exe`、免安装版 `Compositor-Windows-1.5.6.1-x64-portable.zip` 和 `SHA256SUMS.txt`。发行包包含本版手册；[1.5.6.0 历史更新](UPDATES-1.5.6.0.md)及下方旧版本测试数字保留历史含义。
+[下载 1.5.8.0 Preview](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.8.0)：安装版 `Compositor-Windows-1.5.8.0-x64-setup.exe`、免安装版 `Compositor-Windows-1.5.8.0-x64-portable.zip` 和 `SHA256SUMS.txt`。发行包包含本版手册；[1.5.6.0 历史更新](UPDATES-1.5.6.0.md)及下方旧版本测试数字保留历史含义。
 
 窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](WINDOW-MENU.md)。
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 源码版本为 **1.5.6.1 Preview**。
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 源码版本为 **1.5.8.0 Preview**。
 
 现有界面包含 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](design/panel-icons/README.md)。
 
-[下载 Windows 发行包](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.6.1) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
+[下载 Windows 发行包](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.8.0) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
 
 2026-10-15 合并上游 1.5.3（`365b5745eda537f984f3d5bed1e53c361dbc9c91`）。1.5.3.0 新增选区／裁剪／切片选项、平滑圆角及窗口细节修复；操作与边界见 [SELECTION-CROP-SLICE.md](SELECTION-CROP-SLICE.md)，上游对应见 [UPDATES-1.5.3.0.md](UPDATES-1.5.3.0.md)。PSD、文字与蒙版操作仍见 [TYPE-AND-MASKS.md](TYPE-AND-MASKS.md)。
 
 ## 使用
 
 - 目标平台：Windows 11、Windows 10 22H2（待实机验收），**x64**。安装器历史最低门槛仍为 1809，不能据此推断框架支持或通过测试；详细支持矩阵见 [COMPATIBILITY.md](COMPATIBILITY.md)。不提供 32 位或原生 ARM64 包。
-- 安装版：运行 `Compositor-Windows-1.5.6.1-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
+- 安装版：运行 `Compositor-Windows-1.5.8.0-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
 - 免安装版：解压整个 `*-portable.zip`，运行文件夹中的 `Compositor.exe`。自带 .NET 运行时，无需安装 .NET SDK。若系统缺少 Visual C++ 2015–2022 x64 运行库，先运行随包提供的 `redist/vc_redist.x64.exe`。
 - 程序与安装包目前未做商业代码签名。只从本仓库下载；`SHA256SUMS.txt` 可用于校验文件完整性。
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
@@ -96,7 +96,7 @@
 
 - 属性面板使用统一背景；不透明度手柄完整且居中。工具栏底部按钮居中，三点仅打开“自定义工具栏”。前／背景色、交换／默认色按上游布局，标签页使用胶囊比例并移除右侧重复新建按钮。
 - 上游四个自绘图标直接移植；颜色与标签组件按 Swift 源码移植布局。Apple SF Symbols／系统字体无 Windows 资源，采用矢量对应图形与系统无衬线字体回退。内置 imagegen 生成新增图标设计参考，最终为清晰矢量；工具未提供实际模型版本。
-- 按所附截图重整“编辑”菜单，补充选择性粘贴、填充／描边、文字查找替换／Windows 拼写、再次变换、操控变形、内容识别缩放、对齐／混合、预设、菜单、首选项、ICC 和外部 OCIO 接口。图像菜单保留上一版的模式、调整、计算、变量和分析。
+- 按所附截图重整“编辑”菜单，补充选择性粘贴、填充／描边、文字查找替换／Windows 拼写、再次变换、操控变形、内容识别缩放、对齐／混合、预设、菜单、首选项、ICC 和随包 OpenColorIO 接口。图像菜单保留上一版的模式、调整、计算、变量和分析。
 - 合并上游至 **f5ae5ba**：EXR／Radiance HDR 导入、HDR 调整保留高光、EXR 导出、HDR 转 16 位、16-Bit 标识、标签栏拖放新建画布按图层尺寸、JPEG／PNG 优先导出。保存仍为 v18 深度资源，读取 macOS v13 EXR。
 - **1085 项核心测试、16 组英文与 10 组中文界面检查**；CI 检查文档、图标来源和包内说明。
 - [编辑菜单及功能边界](EDIT-MENU.md) · [图像与属性](IMAGE-WORKSPACE.md) · [插件 API](PLUGINS.md) · [本版更新与上游对应](UPDATES-1.4.10.1.md)。以下版本段落为历史记录。
@@ -174,11 +174,11 @@
 
 ### 项目兼容性
 
-当前读取版本 1–27（限已实现字段），包含上游 v17 GIF 图层；动画项目保存为 Windows 扩展 v27。新版图框、计数组、注释作者/双臂标尺及滤镜调整使用 Windows 扩展 v26；线条样式与端点使用 Windows 扩展 v25；工作路径使用 Windows 扩展 v24；平滑圆角和扩展切片属性使用 Windows 扩展 v23；非白色或透明画板背景使用 Windows 扩展 v22；画板参考线归属使用 Windows 扩展 v21；字符范围样式、文字几何、矢量孔洞规则、额外标签色和 ICC 配置使用 Windows 扩展 v20；新增八类可编辑调整层使用 Windows 扩展 v19；图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，上游 macOS 1.5.6 支持 v1–v17，但不支持 Windows v13–v27 扩展序列；Windows 已支持上游 v16 的三种滤镜调整层（当前为 8 位 CPU 合成），不能仅修改版本号强行降级；交付合成结果可导出 PNG。详细字段见 [项目格式 v27](../docs/project-format.md#windows-extension-version-27)。
+当前读取版本 1–28（限已实现字段），包含上游 v17 GIF 图层；可编辑渐变、路径外观、清晰度和颜色管理元数据使用 v28；仅含动画等旧字段的项目保存为 Windows 扩展 v27。新版图框、计数组、注释作者/双臂标尺及滤镜调整使用 Windows 扩展 v26；线条样式与端点使用 Windows 扩展 v25；工作路径使用 Windows 扩展 v24；平滑圆角和扩展切片属性使用 Windows 扩展 v23；非白色或透明画板背景使用 Windows 扩展 v22；画板参考线归属使用 Windows 扩展 v21；字符范围样式、文字几何、矢量孔洞规则、额外标签色和 ICC 配置使用 Windows 扩展 v20；新增八类可编辑调整层使用 Windows 扩展 v19；图像模式、位深、32 位浮点资源、变量／数据组、测量记录及新版文字布局使用 Windows 扩展 v18；标注使用 v17，直排和开放路径使用 v16。新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 Windows 扩展 v15；高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，以及任意轮廓形状使用 Windows 扩展 v14；非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式使用 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时写入 v12；其余保存为 v11。旧于相应特性的 Windows 版本会拒绝更高版本，上游 macOS 1.5.8 支持 v1–v17，但不支持 Windows v13–v28 扩展序列；Windows 已支持上游 v16 的三种滤镜调整层（当前为 8 位 CPU 合成），不能仅修改版本号强行降级；交付合成结果可导出 PNG。详细字段见 [项目格式 v28](../docs/project-format.md#windows-extension-version-28)。
 
 ## 功能与迁移范围
 
-保留 `.comp` 格式版本 1–11 的读写并增加 Windows 扩展 v12–v27、图层与组、24 种混合模式、蒙版和剪贴蒙版、调整图层、图层样式、选区、绘画/仿制/修复/涂抹/液化、可编辑文字和形状、裁剪/变换、参考线、色阶/曲线/色相饱和度、Camera Raw 调整、仿色、内容识别填充、导出以及撤销/重做。
+保留 `.comp` 格式版本 1–11 的读写并增加 Windows 扩展 v12–v28、图层与组、24 种混合模式、蒙版和剪贴蒙版、调整图层、图层样式、选区、绘画/仿制/修复/涂抹/液化、可编辑文字和形状、裁剪/变换、参考线、色阶/曲线/色相饱和度、Camera Raw 调整、仿色、内容识别填充、导出以及撤销/重做。
 
 在已有 MIT Windows 移植基础上增加：
 
@@ -192,7 +192,7 @@
 
 ## 已知差异和验收边界
 
-- 编辑菜单的本地算法、原生 Windows 拼写字典、ICC 转换范围及外部 OCIO／图像生成服务依赖详见 [EDIT-MENU.md](EDIT-MENU.md)。不实现 Adobe 远程连接协议、ABR／PAT／CSH／PDF joboptions、暂存盘、通知中心或技术预览引擎；相关无运行时入口置灰。
+- 编辑菜单的本地算法、原生 Windows 拼写字典、ICC 转换范围及图像生成服务依赖见 [EDIT-MENU.md](EDIT-MENU.md)，独立 ACE 兼容 CMM 和随包 OCIO 见 [COLOR-MANAGEMENT.md](COLOR-MANAGEMENT.md)。不实现 Adobe 远程连接协议、ABR／PAT／CSH／PDF joboptions、暂存盘、通知中心或技术预览引擎；相关无运行时入口置灰。
 
 这是可运行的 Windows 移植版，不承诺和 macOS 或 Photoshop 的每个像素、窗口行为或性能完全一致：
 
@@ -226,22 +226,26 @@ dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --windo
 
 Inno Setup 不在默认位置时，增加 `-InnoCompiler "C:\path\to\ISCC.exe"`。
 
-构建脚本会从微软官网下载签名有效的 C++ 运行库，**不会在构建机安装它**。GitHub Actions 使用 Inno Setup 构建安装包，并在临时 runner 上验证安装／卸载。首次发布时因 Fork 工作流被停用而使用本机验证；2026-10-17 已恢复 Actions，补充验证结果见[更新记录](UPDATES-1.5.3.1.md)。
+首次构建还会下载并校验固定版本的 Python/OpenColorIO/NumPy，详见 [颜色管理](COLOR-MANAGEMENT.md)。构建脚本会从微软官网下载签名有效的 C++ 运行库，**不会在构建机安装它**。GitHub Actions 使用 Inno Setup 构建安装包，并在临时 runner 上验证安装／卸载。首次发布时因 Fork 工作流被停用而使用本机验证；2026-10-17 已恢复 Actions，补充验证结果见[更新记录](UPDATES-1.5.3.1.md)。
 
-核心测试当前为 **1221 项**（默认 1220 项通过、1 项大画布测试明确跳过；本次另行启用并验证大画布用例）；还提供 `--clicks`、`--tabs`、`--tools`、`--shortcuts`、`--camera-raw`、`--dialogs`、`--windows-checks`、`--interaction-checks`、`--panel-checks`、`--inspector-checks`、`--workspace-checks` 窗口测试，每项参数后跟截图路径。旧窗口断言用 `COMPOSITOR_LANGUAGE=en`；新增测试覆盖 en 和 zh-CN。测试设置目录应与个人配置分开。`windows/scripts/check-docs.ps1` 检查应用／安装包／文档版本、格式字段及当前功能说明，CI 在构建前执行以减少文档漂移。
+核心与界面回归的本版结果见 [更新说明](UPDATES-1.5.8.0.md)及 Release 的对应提交 Actions 链接。`--interaction-checks`、`--windows-checks`、`--tool-options-checks` 和 `--color-checks` 等参数后跟截图路径，支持隔离的 `COMPOSITOR_SETTINGS_DIR` 和 en/zh-CN 两种语言。`windows/scripts/check-docs.ps1` 检查应用／安装包／文档版本、格式字段及当前功能说明，CI 在构建前执行以减少文档漂移。
 
 CLI 位于包内 `cli/Compositor.Cli.exe`，运行 `--help` 查看命令。
 
 ## English
 
-An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, reference sources updated through upstream macOS 1.5.6 and commit 64097c9; Windows feature parity is tracked individually in [UPDATES-1.5.6.1.md](UPDATES-1.5.6.1.md), with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
+An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, reference sources updated through upstream macOS 1.5.8 and commit c9c7531; Windows feature parity is tracked individually in [UPDATES-1.5.8.0.md](UPDATES-1.5.8.0.md), with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 
-Windows **1.5.6.1 Preview** is available as an installer and portable archive in [GitHub Releases](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.6.1), with SHA-256 checksums. This release refines the brush-settings layout, adds theme-aware rectangular caption buttons to document windows and dialogs while retaining floating-panel buttons, and ports cached GIF decoding with saved playback timing. Validation and remaining upstream differences are tracked in [the update notes](UPDATES-1.5.6.1.md). Windows Server CI does not certify manual Windows 10 testing, physical pen pressure, or administrator upgrade behavior. Skia GPU display, CPU reference compositing and U²-NetP replace Apple-specific implementations; PSD import retains reported limitations and PSD export is unavailable.
+Windows **1.5.8.0 Preview** is available as an installer and portable archive in [GitHub Releases](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.8.0), with SHA-256 checksums. This release adds editable gradients, pattern fills, local retouch and adjustment brushes, view and path tool options, two-column brush cards, and CPU lens effects based on upstream 1.5.8. Color settings now include an independently implemented ACE-compatible ICC engine, Microsoft ICM and Little CMS; bundled OpenColorIO 2.4.2 handles scene/HDR transforms. This is not Adobe's proprietary ACE binary or a bit-exact clone. Creative Cloud synchronization is absent. See [color management](COLOR-MANAGEMENT.md). Floating-panel caption buttons retain their established style. Validation and remaining upstream differences are tracked in [the update notes](UPDATES-1.5.8.0.md). Windows Server CI does not certify manual Windows 10 testing, physical pen pressure, or administrator upgrade behavior. Skia GPU display, CPU reference compositing and U²-NetP replace Apple-specific implementations; PSD import retains reported limitations and PSD export is unavailable.
 
-Packaged-app regressions and fresh install/uninstall checks run on temporary Windows Server 2025 runners. The release page links the checks for the exact packaged commit. Local Release validation passed 1,345 core tests with no skips; CI runs the full 26 English / 20 Chinese UI suites on Windows Server 2022 and 2025.
+Packaged-app regressions and fresh install/uninstall checks run on temporary Windows Server 2025 runners. The release page links the checks for the exact packaged commit. Core tests, English/Chinese UI suites, scalar-memory gates and packaged-app checks run on Windows Server 2022 and 2025; exact results belong to the release commit.
 
 The repository includes reproducible build/package scripts, core tests and headless UI checks. Windows updates use `windows-v*` releases in this fork, never the upstream macOS DMG feed.
 
 图 1–24 的图框、吸管、标注、移除、修复画笔、仿制源、修补、内容识别移动及红眼操作见 [辅助与修饰工具](UTILITY-RETOUCH.md)。
+
+历史记录：[1.5.6.1 更新](UPDATES-1.5.6.1.md)。
+
+相关手册：[画笔与 GIF](PAINTING-AND-GIF.md) · [工具与修饰](UTILITY-RETOUCH.md)。

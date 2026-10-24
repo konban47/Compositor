@@ -12,7 +12,7 @@ using SkiaSharp;
 namespace Compositor.Desktop;
 public sealed partial class MainWindow
 {
-    private bool PaintingTool => _tool is Tool.Brush or Tool.Pencil or Tool.ColorReplacement or Tool.MixerBrush or Tool.Clone or Tool.PatternStamp or Tool.HistoryBrush or Tool.ArtHistory or Tool.Eraser or Tool.BackgroundEraser;
+    private bool PaintingTool => _tool is Tool.Brush or Tool.Pencil or Tool.ColorReplacement or Tool.MixerBrush or Tool.Clone or Tool.PatternStamp or Tool.HistoryBrush or Tool.ArtHistory or Tool.Eraser or Tool.BackgroundEraser or Tool.Blur or Tool.Sharpen or Tool.Smudge or Tool.Dodge or Tool.Burn or Tool.Sponge or Tool.AdjustmentBrush;
     private PaintBrushOptions PaintingOptions => _options.Brush.Painting ?? new();
     private MixerReservoir _mixerReservoir = new(SKColors.Black, 1);
     private void ChangePainting(Func<PaintBrushOptions, PaintBrushOptions> change)
@@ -53,6 +53,11 @@ public sealed partial class MainWindow
     {
         try
         {
+            if (action == "Gradient Presets") { OpenGradientPicker(anchor); return; }
+            if (action == "Gradient Editor") { await EditGradientStops(); return; }
+            if (HandleViewAction(action)) return;
+            if (action == "Adjustment Settings") { await EditAdjustment(); return; }
+            if (action == "Apply Adjustment to Object") { await ApplyAdjustmentObject(); return; }
             if (action == "Pattern Presets") { OpenPatternPicker(anchor); return; }
             if (action == "Clone Source") { OpenUtilityPanel("Clone Source"); return; }
             if (action == "History Brush Source") { await SetHistoryBrushSource(); return; }
@@ -68,6 +73,7 @@ public sealed partial class MainWindow
             void Slider(string title, double value, Action<double> set) => popup.Number(title, value, 0, 100, set, true);
             switch (action)
             {
+                case "Retouch Strength Slider": Slider("Strength:", _options.Brush.Strength * 100, n => _options.Brush = _options.Brush with { Strength = n / 100 }); break;
                 case "Magic Tolerance Slider": popup.Number("Tolerance:", _options.Wand.Tolerance, 0, 255, n => _options.Wand = _options.Wand with { Tolerance = (int)n }, true); break;
                 case "Art Tolerance Slider": Slider("Tolerance:", PaintingOptions.ArtTolerance * 100, n => ChangePainting(p => p with { ArtTolerance = n / 100 })); break;
                 case "Paint Opacity Slider": Slider("Opacity:", _options.Brush.Opacity * 100, n => _options.Brush = _options.Brush with { Opacity = n / 100 }); break;

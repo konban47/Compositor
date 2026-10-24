@@ -1,6 +1,6 @@
 # 编辑菜单与首选项
 
-适用于 Windows **1.5.6.1 Preview**。本次截图展示的是 Photoshop 的“编辑”菜单；原有“图像”菜单保留在 [图像与属性手册](IMAGE-WORKSPACE.md)。以下说明实际行为及平台边界。
+适用于 Windows **1.5.8.0 Preview**。本次截图展示的是 Photoshop 的“编辑”菜单；原有“图像”菜单保留在 [图像与属性手册](IMAGE-WORKSPACE.md)。以下说明实际行为及平台边界。
 
 ## 历史与粘贴
 
@@ -41,9 +41,10 @@ PDF 预设入口设置扁平单页 PDF 的默认分辨率及 JPEG 质量，不�
 
 ## ICC、OpenColorIO 与 HDR
 
-编辑工作空间仍是 sRGB／扩展 sRGB。“指定配置文件”按所选源 ICC 解释当前图层的数值，再转到 sRGB，烘焙到图层并可撤销；并非文档级无损配置文件指派。“转换为配置文件”将合成结果转换并导出嵌入 ICC 的 16 位 TIFF。内置 sRGB 和 Adobe RGB，也可加载 ICC／ICM。ICC 功能面向 SDR；没有 CMYK 原生工作通道或印刷软打样。
+编辑工作空间仍是 sRGB／扩展 sRGB。颜色设置采用工作空间、策略、转换和高级控制布局，支持 ICC 载入/存储、自定灰度/网点曲线、预览取消与持久保存。默认使用独立 ACE 兼容 CMM，另可选 Little CMS 和 Microsoft ICM；不宣称复刻 Adobe 专有算法的逐位结果。Creative Cloud 同步已移除。
 
-OpenColorIO 接口由用户选择已安装的 `ocioconvert`、配置文件、输入／输出色彩空间。勾选应用后使用本地浮点 TIFF 中间文件调用转换器，验证输出尺寸后写回所选层；失败或取消不修改图层。工具未随包安装，配置决定实际变换；应选择适合 sRGB 预览的输出。文档不会自动记录或重新执行外部 OCIO 配置。
+“指定配置文件”按源 ICC 解释图层数值，转换到 sRGB，可撤销；“转换为配置文件”导出嵌入 ICC 的 16/32 位 TIFF。静态图像导入、文档输出配置、CMYK 校样和常规导出已接入颜色方案。OpenColorIO 2.4.2 随包提供，设置窗口读取实际配置、角色和颜色空间；EXR/HDR 默认空间导入及显式浮点转换均使用真实 OCIO 处理器。配置/空间和 ICC 输出信息按需写入 v28，重开项目不重复转换。具体格式覆盖、精度和功能边界见 [颜色管理手册](COLOR-MANAGEMENT.md)。
+
 
 EXR／Radiance HDR 导入和 EXR 导出保留支持路径中的高光；HDR 转 16 位会裁切并量化。JPEG／PNG 为常用格式，PDF／TIFF／EXR 在“更多”中。复杂图层效果和网格变形的精度边界见 [图像手册](IMAGE-WORKSPACE.md)。
 

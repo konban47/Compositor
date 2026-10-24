@@ -121,7 +121,7 @@ public static partial class DocumentRenderer
                 }
             }
             if (blending is null || blending.IsDefault)
-            { Composite(target, content, bounds, layer.BlendMode, opacity); return; }
+            { Composite(target, content, bounds, layer.BlendMode, opacity, layer.LiveText is not null); return; }
             using var under = Copy(target.Bitmap);
             if (blending.Ranges.Any(r => !r.Source.IsDefault || !r.Underlying.IsDefault))
             {
@@ -139,7 +139,7 @@ public static partial class DocumentRenderer
                     for (var c = 0; c < 4; c++) source[at + c] = (byte)Math.Round(source[at + c] * coverage);
                 }
             }
-            Composite(target, content, bounds, layer.BlendMode, opacity);
+            Composite(target, content, bounds, layer.BlendMode, opacity, layer.LiveText is not null);
             if (blending.Red && blending.Green && blending.Blue) return;
             var previous = under.GetPixelSpan(); var result = target.Bitmap.GetPixelSpan();
             for (var y = 0; y < target.Bitmap.Height; y++)

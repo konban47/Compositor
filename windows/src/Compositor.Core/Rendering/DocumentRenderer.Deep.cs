@@ -55,6 +55,9 @@ public static partial class DocumentRenderer
                 }
                 continue;
             }
+            var settings = IO.ColorDefaults.Settings;
+            if (layer.BlendMode == LayerBlendMode.Normal && (settings.BlendRgbGamma || layer.LiveText is not null && settings.BlendTextGamma))
+            { ColorControls.Composite(raster, output, 0, 0, opacity, layer.LiveText is not null && settings.BlendTextGamma ? settings.TextGamma : settings.RgbGamma); continue; }
             using var canvas = new SKCanvas(output); using var brush = new SKPaint { ColorF = new SKColorF(1, 1, 1, (float)opacity), BlendMode = BlendModes.Skia(BlendModes.From(layer.BlendMode))!.Value };
             canvas.DrawBitmap(raster, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest), brush);
         }

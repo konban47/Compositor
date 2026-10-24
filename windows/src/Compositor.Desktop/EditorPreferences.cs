@@ -36,6 +36,8 @@ internal sealed class EditorPreferences
     public string OcioConfiguration { get; set; } = "";
     public string OcioSource { get; set; } = "srgb_texture";
     public string OcioDestination { get; set; } = "srgb_texture";
+    public ColorManagementSettings ColorSettings { get; set; } = new();
+    public OcioSettings Ocio { get; set; } = new();
     public HashSet<string> HiddenMenus { get; set; } = [];
     public string Language { get; set; } = "";
     public bool LockWorkspace { get; set; }
@@ -61,7 +63,7 @@ internal sealed class EditorPreferences
     public string GuideColor { get; set; } = "#00FFFF";
     public string GridColor { get; set; } = "#B3B3B3";
     public string PathColor { get; set; } = "#1473E6";
-    public int PathWidth { get; set; } = 1;
+    public double PathWidth { get; set; } = 1;
     public bool AntialiasOverlays { get; set; } = true;
     public bool UseGpu { get; set; } = true;
     public bool AcceleratedCanvas { get; set; } = true;
@@ -94,6 +96,8 @@ internal sealed class EditorPreferences
     internal static void Commit(EditorPreferences draft) { draft.Normalize(); draft.Save(); Current = draft.Copy(); }
     internal void Normalize()
     {
+        if (ColorSettings?.IsValid != true) ColorSettings = new();
+        if (Ocio?.IsValid != true) Ocio = new();
         CropPresets = (CropPresets ?? []).Where(p => p is not null && !string.IsNullOrWhiteSpace(p.Name) && p.Name.Length <= 200 && p.Mode is >= 0 and <= 1 && double.IsFinite(p.Width) && p.Width is >= 0 and <= 30000 && double.IsFinite(p.Height) && p.Height is >= 0 and <= 30000 && double.IsFinite(p.Resolution) && p.Resolution is >= 0 and <= 9600).Take(200).ToList();
         CropPresets = (CropPresets ?? []).Where(p => p is not null && !string.IsNullOrWhiteSpace(p.Name) && p.Name.Length <= 200 && p.Mode is >= 0 and <= 1 && double.IsFinite(p.Width) && p.Width is >= 0 and <= 30000 && double.IsFinite(p.Height) && p.Height is >= 0 and <= 30000 && double.IsFinite(p.Resolution) && p.Resolution is >= 0 and <= 9600).Take(200).ToList();
         HistorySteps = Math.Clamp(HistorySteps, 1, 1000); HistoryMB = Math.Clamp(HistoryMB, 16, 1536);
@@ -103,7 +107,7 @@ internal sealed class EditorPreferences
         DefaultFontSize = Finite(DefaultFontSize, 1, 1000, 48); NewResolution = Finite(NewResolution, 1, 9600, 72);
         DefaultFont = string.IsNullOrWhiteSpace(DefaultFont) ? "Arial" : DefaultFont[..Math.Min(200, DefaultFont.Length)];
         GuideStyle = Math.Clamp(GuideStyle, 0, 2); Theme = Math.Clamp(Theme, 0, 3); UiFontSize = Math.Clamp(UiFontSize, 10, 18);
-        BrushOutlineWidth = Math.Clamp(BrushOutlineWidth, 1, 3); PathWidth = Math.Clamp(PathWidth, 1, 3);
+        BrushOutlineWidth = Math.Clamp(BrushOutlineWidth, 1, 3); PathWidth = double.IsFinite(PathWidth) ? Math.Clamp(PathWidth, .25, 10) : 1;
         CheckerSize = Math.Clamp(CheckerSize, 2, 32); GpuCacheMB = Math.Clamp(GpuCacheMB, 128, 2048);
         RecentFiles = Math.Clamp(RecentFiles, 0, 100); RecoveryMinutes = Math.Clamp(RecoveryMinutes, 1, 60);
         CheckerLight = Color(CheckerLight, "#454545"); CheckerDark = Color(CheckerDark, "#383838");
@@ -130,7 +134,7 @@ internal sealed class EditorPreferences
     {
         try
         {
-            if (!File.Exists(PathName) || new FileInfo(PathName).Length > 1024 * 1024) return new();
+            if (!File.Exists(PathName) || new FileInfo(PathName).Length > 32 * 1024 * 1024) return new();
             var json = File.ReadAllText(PathName); var p = JsonSerializer.Deserialize<EditorPreferences>(json) ?? new();
             using var fields = JsonDocument.Parse(json);
             if (!fields.RootElement.TryGetProperty(nameof(PasteboardPreset), out _) && p.Pasteboard != "#282828") { p.PasteboardPreset = "Custom"; p.CustomPasteboard = p.Pasteboard; }

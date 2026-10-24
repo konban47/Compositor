@@ -657,8 +657,11 @@ public static partial class DocumentRenderer
         }
 
         /// <summary>Places a rendered layer on the target: Skia draws the sixteen modes it has, the rest are done by hand.</summary>
-        private static void Composite(Target target, SKBitmap content, SKRectI bounds, LayerBlendMode mode, double opacity)
+        private static void Composite(Target target, SKBitmap content, SKRectI bounds, LayerBlendMode mode, double opacity, bool text = false)
         {
+            var settings = IO.ColorDefaults.Settings;
+            if (mode == LayerBlendMode.Normal && (settings.BlendRgbGamma || text && settings.BlendTextGamma))
+            { ColorControls.Composite(content, target.Bitmap, bounds.Left - target.Origin.X, bounds.Top - target.Origin.Y, opacity, text && settings.BlendTextGamma ? settings.TextGamma : settings.RgbGamma); return; }
             if (opacity < 1) ScaleChannels(content, opacity);
             var composite = BlendModes.From(mode);
             if (BlendModes.Skia(composite) is { } native)

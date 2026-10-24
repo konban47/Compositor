@@ -45,6 +45,7 @@ public sealed class DisplaySceneCache : IDisposable
 
     public DisplayScene? Build(CanvasDocument document)
     {
+        if (IO.ColorDefaults.Settings.BlendRgbGamma || IO.ColorDefaults.Settings.BlendTextGamma && document.Layers.Any(l => l.LiveText is not null)) { Dispose(); return null; }
         if (!Supports(document)) { Dispose(); return null; }
         var used = new HashSet<ImportedImage>();
         SKImage Image(ImportedImage asset)

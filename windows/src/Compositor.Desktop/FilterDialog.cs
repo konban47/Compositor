@@ -23,6 +23,7 @@ internal sealed class FilterDialog : DialogWindow
 
     private readonly List<(Slider Slider, Action<FilterSettings, double> Set)> _rows = [];
     private readonly List<double> _fallbacks = [];
+    private readonly List<(ComboBox Box, int Fallback, Action<FilterSettings,int> Set)> _choices = [];
     private readonly List<(CheckBox Box, Action<FilterSettings, bool> Set, bool Fallback)> _checks = [];
     /// <summary>The colours the panel offers as swatches, and what they started as for Reset.</summary>
     private readonly List<(ColorSwatch Swatch, Action<FilterSettings, (double Red, double Green, double Blue)> Set,
@@ -40,6 +41,7 @@ internal sealed class FilterDialog : DialogWindow
         Title = Localize.Text(kind switch
         {
             FilterKind.RgbSplit => "RGB Split",
+            FilterKind.LensEffects => start.Lens.Effect switch { LensEffect.AnamorphicFlare => "Anamorphic Flare", LensEffect.Starburst => "Starburst", LensEffect.Mist => "Mist", LensEffect.Prism => "Prism", _ => "Bokeh" },
             FilterKind.ProgressiveBlur => "Progressive Blur",
             FilterKind.Scanlines => "Scanlines",
             FilterKind.GaussianBlur => "Gaussian Blur",
@@ -59,6 +61,38 @@ internal sealed class FilterDialog : DialogWindow
         var group = new StackPanel { Margin = new Thickness(16), Spacing = 4 };
         switch (kind)
         {
+            case FilterKind.LensEffects:
+                Height = 620;
+                switch (start.Lens.Effect)
+                {
+                    case LensEffect.AnamorphicFlare:
+                        Add(group, "Threshold", 50, 100, start.Lens.Threshold, 90, (s,v) => s.Lens.Threshold=v);
+                        Add(group, "Amount", 0, 100, start.Lens.FlareAmount, 50, (s,v) => s.Lens.FlareAmount=v);
+                        Add(group, "Length (%)", 1, 100, start.Lens.FlareLength, 60, (s,v) => s.Lens.FlareLength=v);
+                        Add(group, "Blue", 0, 100, start.Lens.FlareBlue, 80, (s,v) => s.Lens.FlareBlue=v); break;
+                    case LensEffect.Starburst:
+                        Add(group, "Threshold", 50, 100, start.Lens.Threshold, 90, (s,v) => s.Lens.Threshold=v);
+                        Add(group, "Amount", 0, 100, start.Lens.StarAmount, 50, (s,v) => s.Lens.StarAmount=v);
+                        Add(group, "Length (%)", 2, 40, start.Lens.StarLength, 12, (s,v) => s.Lens.StarLength=v);
+                        Choice(group, "Points", ["4", "6", "8", "12", "14"], Array.IndexOf(new[]{4,6,8,12,14}, start.Lens.StarPoints), 1, (s,v) => s.Lens.StarPoints=new[]{4,6,8,12,14}[v]);
+                        Add(group, "Angle, degrees", -180, 180, start.Lens.StarAngle, 15, (s,v) => s.Lens.StarAngle=v); break;
+                    case LensEffect.Mist:
+                        Add(group, "Strength", 0, 100, start.Lens.MistStrength, 50, (s,v) => s.Lens.MistStrength=v);
+                        Add(group, "Size", 0, 100, start.Lens.MistSize, 30, (s,v) => s.Lens.MistSize=v); break;
+                    case LensEffect.Prism:
+                        Add(group, "Amount", 0, 100, start.Lens.PrismAmount, 80, (s,v) => s.Lens.PrismAmount=v);
+                        Add(group, "Copies", 1, 8, start.Lens.PrismCopies, 5, (s,v) => s.Lens.PrismCopies=(int)Math.Round(v), "0");
+                        Add(group, "Offset (%)", 0, 50, start.Lens.PrismOffset, 6, (s,v) => s.Lens.PrismOffset=v);
+                        Add(group, "Angle, degrees", -180, 180, start.Lens.PrismAngle, 180, (s,v) => s.Lens.PrismAngle=v);
+                        Check(group, "Both Ways", start.Lens.PrismBothWays, (s,v) => s.Lens.PrismBothWays=v);
+                        Add(group, "Blur", 0, 100, start.Lens.PrismBlur, 0, (s,v) => s.Lens.PrismBlur=v); break;
+                    case LensEffect.Bokeh:
+                        Add(group, "Size (%)", .5, 6, start.Lens.BokehRadius, 2, (s,v) => s.Lens.BokehRadius=v);
+                        Add(group, "Brightness", 0, 100, start.Lens.BokehBrightness, 50, (s,v) => s.Lens.BokehBrightness=v);
+                        Add(group, "Ring", 0, 100, start.Lens.BokehRing, 100, (s,v) => s.Lens.BokehRing=v);
+                        Choice(group, "Aperture", ["Round", "Hexagon", "Oval", "Cat's Eye"], (int)start.Lens.BokehShape, 0, (s,v) => s.Lens.BokehShape=(BokehShape)v); break;
+                }
+                break;
             case FilterKind.RgbSplit:
                 Height = 650;
                 Add(group, "Distance, pixels", 0, 200, start.RgbSplitDistance, 10, (s, v) => s.RgbSplitDistance = v);
@@ -269,10 +303,17 @@ internal sealed class FilterDialog : DialogWindow
     }
 
     /// <summary>Back to the filter's own defaults, which for a vignette is not zero.</summary>
+    private void Choice(StackPanel group, string label, string[] values, int value, int fallback, Action<FilterSettings,int> set)
+    {
+        group.Children.Add(new TextBlock { Text=Localize.Text(label) });
+        var box=new ComboBox { ItemsSource=values.Select(Localize.Text).ToArray(), SelectedIndex=value, HorizontalAlignment=HorizontalAlignment.Stretch };
+        group.Children.Add(box); _choices.Add((box,fallback,set)); box.SelectionChanged+=(_,_)=>Preview?.Invoke(_preview.IsChecked==true ? Current() : null);
+    }
     private void Restore()
     {
         for (var i = 0; i < _rows.Count; i++) _rows[i].Slider.Value = _fallbacks[i];
         foreach (var (box, _, fallback) in _checks) box.IsChecked = fallback;
+        foreach(var (box, fallback, _) in _choices) box.SelectedIndex=fallback;
         foreach (var (swatch, set, fallback) in _swatches)
         {
             swatch.Colour = fallback;
@@ -284,7 +325,8 @@ internal sealed class FilterDialog : DialogWindow
     /// them to see what its own clicks did.</summary>
     internal FilterSettings Current()
     {
-        var settings = _amounts;
+        var settings = _amounts.Copy();
+        foreach(var (box, _, set) in _choices) if(box.SelectedIndex>=0) set(settings,box.SelectedIndex);
         foreach (var (slider, set) in _rows) set(settings, slider.Value);
         foreach (var (box, set, _) in _checks) set(settings, box.IsChecked == true);
         foreach (var (swatch, set, _) in _swatches) set(settings, swatch.Colour);

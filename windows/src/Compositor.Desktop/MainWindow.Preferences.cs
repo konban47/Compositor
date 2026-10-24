@@ -36,6 +36,7 @@ public sealed partial class MainWindow
     private void ApplyPreferences()
     {
         var p = EditorPreferences.Current;
+        ColorDefaults.Settings = p.ColorSettings; ColorDefaults.Ocio = p.Ocio; _canvas.ColorSettingsChanged();
         if (Avalonia.Application.Current is DesktopApp app) app.RefreshAppearance();
         foreach (var visual in Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(this)) visual.InvalidateVisual();
         foreach (var tab in _tabs) { tab.History.Configure(p.HistorySteps, p.HistoryMB * 1024 * 1024, tab.Document); tab.History.AllowNonLinear = p.NonLinearHistory; }

@@ -5,7 +5,19 @@ namespace Compositor.Core.Document;
 
 public static class BucketEdits
 {
-    public static bool Apply(CanvasDocument document, Guid layerID, SKPoint point, WandOptions options, SKColor color, bool erase, double opacity = 1, bool allLayers = false)
+    public static bool ApplyMask(CanvasDocument document, Guid layerID, SKPoint point, WandOptions options, SKColor color, double opacity, SKBitmap? pattern, PaintBlend blend, bool patterned)
+    {
+        if (!LayerProtection.CanPaint(document, layerID) || document.Layers.FirstOrDefault(l => l.ID == layerID) is not { Mask: { } mask } layer) return false;
+        using var target = document.Clone(); var current = target.Layers.First(l => l.ID == layerID);
+        var pixels = Bitmaps.Allocate(Bitmaps.ColorInfo(mask.Asset.Width, mask.Asset.Height));
+        using (var canvas = new SKCanvas(pixels)) canvas.DrawBitmap(mask.Asset.Image, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest));
+        current.Asset = ImportedImage.Create(pixels, "Mask"); current.Transform = layer.MaskTransform; current.Mask = null; current.Adjustment = null; current.IsGroup = false;
+        if (!Apply(target, layerID, point, options, color, false, opacity, false, pattern, blend, patterned)) return false;
+        var output = Bitmaps.Allocate(Bitmaps.MaskInfo(mask.Asset.Width, mask.Asset.Height));
+        using (var canvas = new SKCanvas(output)) { canvas.Clear(SKColors.Black); canvas.DrawBitmap(current.Asset!.Image, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest)); }
+        layer.Mask = mask.Replacing(ImportedImage.Create(output, mask.Asset.Name)); return true;
+    }
+    public static bool Apply(CanvasDocument document, Guid layerID, SKPoint point, WandOptions options, SKColor color, bool erase, double opacity = 1, bool allLayers = false, SKBitmap? pattern = null, PaintBlend blend = PaintBlend.Normal, bool patterned = false)
     {
         if (!LayerProtection.CanPaint(document, layerID) || opacity <= 0) return false;
         BrushEdits.EnsurePixels(document, layerID);
@@ -31,7 +43,18 @@ public static class BucketEdits
             buffer[y * coverage.RowBytes + x] = (byte)Math.Round(edge * matched[y * matches.RowBytes + x] * (existing is null ? 1 : old[y * existing.RowBytes + x] / 255.0) * Math.Clamp(opacity, 0, 1));
         }
         var saved = document.Selection;
-        try { document.Selection = DocumentSelection.FromCoverage(coverage); return erase ? FillEdits.Clear(document, layerID) : FillEdits.Fill(document, layerID, color); }
+        try
+        {
+            document.Selection = DocumentSelection.FromCoverage(coverage);
+            if (erase) return FillEdits.Clear(document, layerID);
+            var layer = document.Layers.First(l => l.ID == layerID);
+            return DeepPaint.Paint(document, layer, at =>
+            {
+                var c = color;
+                if (patterned) { var x = (int)Math.Floor(at.X); var y = (int)Math.Floor(at.Y); c = pattern is null ? ((x / 8 + y / 8) % 2 == 0 ? SKColors.Black : SKColors.White) : pattern.GetPixel((x % pattern.Width + pattern.Width) % pattern.Width, (y % pattern.Height + pattern.Height) % pattern.Height); }
+                return new SKColorF(c.Red / 255f, c.Green / 255f, c.Blue / 255f, c.Alpha / 255f);
+            }, 1, false, blend);
+        }
         finally { document.Selection = saved; }
     }
 }

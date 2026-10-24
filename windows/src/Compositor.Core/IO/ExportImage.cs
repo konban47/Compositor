@@ -45,8 +45,13 @@ public static class ExportImage
         using var image = SKImage.FromBitmap(pixels);
         if (options.CmykProfile is not null) bytes = CmykColor.Encode(pixels, options);
         else if (options.Format == ExportFormat.Exr) bytes = DeepImageCodec.EncodeExr(pixels);
-        else if (options.Format == ExportFormat.Tiff || options.Format == ExportFormat.Png && (document.Image.Depth > 8 || document.Image.Mode != Compositor.Core.Format.ImageMode.RGB || original.ColorType == SKColorType.RgbaF32))
+        else if (options.Format == ExportFormat.Tiff || options.Format == ExportFormat.Png && (document.Image.ColorProfile is not null || document.Image.Depth > 8 || document.Image.Mode != Compositor.Core.Format.ImageMode.RGB || original.ColorType == SKColorType.RgbaF32))
             bytes = DeepImageCodec.EncodeMode(pixels, document.Image with { Mode = options.NativeColorMode && options.Format == ExportFormat.Tiff ? document.Image.Mode : Compositor.Core.Format.ImageMode.RGB, Depth = Math.Max(document.Image.Depth, document.Layers.Select(l => l.Asset?.BitDepth ?? 8).DefaultIfEmpty(8).Max()) }, options.Format == ExportFormat.Tiff, options.Resolution);
+        else if (options.Format == ExportFormat.Jpeg && document.Image.ColorProfile is { } profile && IccProfiles.Model(profile) == "RGB")
+        {
+            using var raw = DeepImageCodec.Magick(pixels); using var converted = ColorTransforms.Convert(raw, ImageMagick.ColorProfiles.SRGB.ToByteArray(), profile); converted.Depth = 8; converted.Quality = (uint)options.Quality;
+            converted.Density = new ImageMagick.Density(options.Resolution, options.Resolution, ImageMagick.DensityUnit.PixelsPerInch); bytes = converted.ToByteArray(ImageMagick.MagickFormat.Jpeg);
+        }
         else if (options.Format == ExportFormat.Pdf)
         {
             using var stream = new MemoryStream();

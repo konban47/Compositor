@@ -46,6 +46,7 @@ public static class AdjustmentOperators
             case AdjustmentKind.ProgressiveBlur: case AdjustmentKind.BloomGlow: case AdjustmentKind.RgbSplit:
                 FilterLayerOperators.Apply(adjustment, rgba, width, height, stride, originX, originY, canvasWidth, canvasHeight); break;
             case AdjustmentKind.Extended when adjustment.Extended is { } extended:
+                if (extended.Kind == Document.ImageAdjustmentKind.ClarityDehaze) { ClarityPixels.Apply(rgba, width, height, stride, extended); break; }
                 for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
                 {
                     var at = y * stride + x * 4; var alpha = rgba[at + 3]; if (alpha == 0) continue;

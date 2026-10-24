@@ -299,6 +299,7 @@ public sealed class LayerAdjustment
     /// </summary>
     public int SamplingMargin => Kind switch
     {
+        AdjustmentKind.Extended when Extended?.Kind == Document.ImageAdjustmentKind.ClarityDehaze => 26,
         AdjustmentKind.ProgressiveBlur => (int)Math.Ceiling(Math.Max(FilterLayer.ProgressiveFrom, FilterLayer.ProgressiveTo) * 3 + 2),
         AdjustmentKind.BloomGlow => (int)Math.Ceiling(FilterLayer.BloomRadius * 3 + 2),
         AdjustmentKind.RgbSplit => (int)Math.Ceiling((FilterLayer.RgbSplitDistance + FilterLayer.RgbSplitBlur) * (FilterLayer.RgbSplitRadial ? 2 : 1) + 2),
@@ -321,7 +322,7 @@ public sealed class LayerAdjustment
                   && double.IsFinite(Lightness) && Math.Abs(Lightness) <= 100)) return false;
 
             if (Kind == AdjustmentKind.Extended && (Extended is null || !Extended.IsValid
-                || Extended.Kind is not (Document.ImageAdjustmentKind.BrightnessContrast or Document.ImageAdjustmentKind.Vibrance
+                || Extended.Kind is not (Document.ImageAdjustmentKind.ClarityDehaze or Document.ImageAdjustmentKind.BrightnessContrast or Document.ImageAdjustmentKind.Vibrance
                     or Document.ImageAdjustmentKind.PhotoFilter or Document.ImageAdjustmentKind.ChannelMixer or Document.ImageAdjustmentKind.ColorLookup
                     or Document.ImageAdjustmentKind.Posterize or Document.ImageAdjustmentKind.Threshold or Document.ImageAdjustmentKind.SelectiveColor))) return false;
             if (Kind != AdjustmentKind.Extended && Extended is not null) return false;

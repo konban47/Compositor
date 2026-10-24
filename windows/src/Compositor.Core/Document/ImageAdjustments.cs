@@ -8,7 +8,7 @@ namespace Compositor.Core.Document;
 public enum ImageAdjustmentKind
 {
     BrightnessContrast, Vibrance, PhotoFilter, ChannelMixer, ColorLookup, Posterize, Threshold,
-    SelectiveColor, ShadowsHighlights, HdrToning, Desaturate, MatchColor, ReplaceColor, Equalize,
+    SelectiveColor, ShadowsHighlights, HdrToning, Desaturate, MatchColor, ReplaceColor, Equalize, ClarityDehaze,
 }
 
 public sealed class ImageAdjustmentSettings
@@ -147,6 +147,8 @@ public static class ImageAdjustments
         var gray = new Color3(c.Luma, c.Luma, c.Luma); Color3 result = c;
         switch (s.Kind)
         {
+            case ImageAdjustmentKind.ClarityDehaze:
+                var haze = V("Dehaze", 15) / 100; result = (c - new Color3(.12, .12, .12) * haze) * (1 / Math.Max(.1, 1 - .55 * haze)); break;
             case ImageAdjustmentKind.BrightnessContrast:
                 var contrast = Math.Pow(2, V("Contrast") / 100); result = (c - new Color3(.5, .5, .5)) * contrast + new Color3(.5, .5, .5) + new Color3(1, 1, 1) * (V("Brightness") / 150); break;
             case ImageAdjustmentKind.Vibrance:

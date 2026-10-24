@@ -1,4 +1,4 @@
-# Compositor project format, macOS versions 1–17 and Windows extensions 12–27
+# Compositor project format, macOS versions 1–17 and Windows extensions 12–28
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
@@ -303,3 +303,16 @@ Windows 1.5.6.0 writes version 27 when a document contains an animated GIF layer
 - Reject invalid paths, duplicate identities, missing source frames, removed-frame references, invalid geometry and nonfinite timing. Source bytes, decoded surfaces and edited-frame pixels remain subject to document/process memory budgets. Atomic staging covers GIF sources and frame PNGs together with the existing manifest assets.
 
 Brush settings and tool presets are stored separately in the user's settings directory, not in `.comp` pixels. Brush presets may carry `Brush`, `CaptureSize`, `IncludeTool`, `IncludeColor` and `Tool`, with the serializable `Painting` object containing dynamics, texture, dual-tip, transfer, pose, symmetry and tool options. Runtime pen samples, native bitmaps and mixer reservoirs are excluded. Presets use Compositor JSON; Adobe ABR/PAT interchange is not implemented.
+
+## Windows extension version 28
+
+Windows 1.5.8.0 writes v28 only when one of these features is used. It continues to read versions 1–28, including upstream v15, v16 and v17. Older Windows/macOS builds do not read the v28 extension.
+
+- A layer's `gradient` stores `startX`, `startY`, `endX`, `endY` in layer pixel coordinates and a `paint` object. `paint` contains `shape` (Linear, Radial, Angle, Reflected, Diamond), `method` (Perceptual, Linear, Classic, Smooth, Stripes), `reverse`, `dither`, and 2–64 sorted `stops`, each containing `position` (0–1) and `color` (unsigned packed ARGB). The cached PNG/deep asset remains the rendering representation; raster edits invalidate live gradient identity. Gradient layers cannot simultaneously be groups, adjustments, live text, live shapes or GIFs.
+- Shape styles may include nullable `fillEnabled`, `strokeColor` (packed ARGB), `strokeWidth` (0–1000 pixels; zero disables it) and `strokePattern` (Solid, Dotted, Dashed, Long Dash). Missing fields retain legacy shape rendering.
+- Extended adjustments accept `ClarityDehaze`, whose Values dictionary contains `Clarity` and `Dehaze` percentages. The clarity operator samples a halo of 26 pixels; render regions include that margin.
+
+- `imageSettings.colorProfile` stores optional base64 RGB/GRAY ICC bytes (132 bytes–4 MiB, valid declared size and `acsp` header). It describes managed output; cached layer pixels remain normalized sRGB/extended sRGB. CMYK output continues using the existing `cmykProfile` field.
+- `imageSettings.ocioConfiguration` and `ocioWorkingSpace` are an optional pair of nonempty strings, shorter than 32768 and 1024 characters respectively. They record the selected config URI/path and space. They never cause stored project pixels to be transformed again on loading; external config/LUT files are not embedded. Application color-engine/policy preferences remain separate from the document.
+
+These fields are rejected when declared in a manifest older than v28. Brush, tool and view preferences are application settings, not project fields. Gradient preset exchange uses a separate JSON library with stable IDs, names, categories and the same stop representation.
