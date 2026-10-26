@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 function Read-Repo([string]$Path) { Get-Content -LiteralPath (Join-Path $repo $Path) -Raw -Encoding utf8 }
 [xml]$project = Read-Repo 'windows/src/Compositor.Desktop/Compositor.Desktop.csproj'
@@ -107,7 +107,7 @@ if (!(Read-Repo 'windows/TYPE-AND-MASKS.md').Contains("**$version Preview**")) {
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--type-mask-checks')) { throw 'Type/mask UI checks missing from CI.' }
 $windowGuide = Read-Repo 'windows/WINDOW-MENU.md'
 if (!$windowGuide.Contains("**$version Preview**")) { throw 'Window guide is stale.' }
-foreach ($feature in @('工作区','参考线','Ctrl+Esc','Skia','ATN','5 fps')) { if (!$windowGuide.Contains($feature)) { throw "Window guide missing $feature." } }
+foreach ($feature in @('工作区','参考线','Ctrl+Esc','Skia','ATN','关键帧')) { if (!$windowGuide.Contains($feature)) { throw "Window guide missing $feature." } }
 if (!$formatDoc.Contains('`artboardID`')) { throw 'Artboard guide ownership is undocumented.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--docking-checks')) { throw 'Docking checks missing from CI.' }
 if (!(Read-Repo 'windows/scripts/package.ps1').Contains('WINDOW-MENU.md')) { throw 'Window guide missing from package.' }
@@ -245,3 +245,11 @@ foreach ($path in @('.github/workflows/windows.yml','windows/scripts/compatibili
 }
 if ((Read-Repo 'windows/EDIT-MENU.md').Contains('工具未随包安装')) { throw 'OCIO runtime documentation is stale.' }
 Write-Output 'PASS: color management guide, v28 metadata and bundled runtime checks agree.'
+
+foreach ($field in @('layerComps','timeline','imageSettings.profileEncoding','contourSamples','fractionalWidths','hyphenMinimum')) {
+    if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v29 field $field" }
+}
+foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
+    if (!(Read-Repo $path).Contains('TIMELINE-AND-PRESETS.md')) { throw "Timeline/preset guide missing from $path" }
+}
+if (!(Read-Repo '.github/workflows/windows.yml').Contains('--asset-workflow-checks')) { throw 'Asset workflow checks missing from CI.' }

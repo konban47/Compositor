@@ -57,6 +57,10 @@ public enum AdjustmentKind
     [JsonStringEnumMemberName("Progressive Blur")] ProgressiveBlur,
     [JsonStringEnumMemberName("Bloom / Glow")] BloomGlow,
     [JsonStringEnumMemberName("RGB Split")] RgbSplit,
+    Vignette,
+    [JsonStringEnumMemberName("Lens Effects")] LensEffects,
+    [JsonStringEnumMemberName("Tonal Contrast")] TonalContrast,
+    Sharpen,
 }
 
 public enum LevelsChannel

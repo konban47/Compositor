@@ -230,6 +230,9 @@ public sealed partial class MainWindow
         if (group.Window is not null && Members(group).Count(p => p.Visible) == 1) { group.Window.Activate(); return; }
         if (Members(group).Count() > 1) { var separate = MakeDockGroup(Guid.NewGuid().ToString("N")); MovePanel(entry, separate); group = separate; }
         FloatGroup(group, at);
+        if (entry.Name == "Timeline" && group.Window is { } timelineWindow) { timelineWindow.Width = 1160; timelineWindow.Height = 540; }
+        if (entry.Name is "Character" or "Paragraph" && group.Window is { } typeWindow) { typeWindow.Width = 350; typeWindow.Height = entry.Name == "Character" ? 480 : 450; }
+        if (entry.Name == "Layer Comps" && group.Window is { } compWindow) { compWindow.Width = 400; compWindow.Height = 300; }
         if (entry.Name == "Brush Settings" && group.Window is { } brushWindow)
         { brushWindow.Width = 500; brushWindow.Height = 810; }
     }
@@ -259,6 +262,7 @@ public sealed partial class MainWindow
     }
     private void HidePanel(DockPanelEntry entry)
     {
+        if (entry.Name == "Timeline") _stopDocumentTimeline?.Invoke();
         entry.Visible = false;
         if (entry.Slot is not null) { entry.ToolWindow?.Close(); entry.Slot.IsVisible = false; return; }
         entry.Tab!.IsVisible = false; SelectVisiblePanel(entry.Host);

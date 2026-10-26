@@ -19,7 +19,6 @@ public sealed partial class MainWindow
         var content = new StackPanel { Spacing = 4 }; popup.Children.Add(new ScrollViewer { Content = content, MaxHeight = 300 });
         List<EditorPreset> presets;
         try { presets = EditorPresets.Load(EditorPresets.DefaultPath).ToList(); } catch (Exception error) { Say(error.Message); return; }
-        if (!presets.Any(p => p.Kind == "Pattern")) presets.AddRange(PatternLibrary.Defaults());
         var previews = new List<SKBitmap>();
         void Reload()
         {

@@ -546,6 +546,7 @@ public sealed partial class CanvasView : Control
     /// being touched. The owner must clear this before disposing it.
     /// </summary>
     public CanvasDocument? PreviewDocument { get; set; }
+    internal double PreviewResolutionScale { get; set; } = 1;
 
     public double Zoom => _zoom;
 

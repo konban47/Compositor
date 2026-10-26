@@ -64,21 +64,21 @@ public sealed partial class MainWindow
             void Reload()
             {
                 content.Children.Clear(); var query = search.Text ?? "";
-                foreach (var group in BrushPresetLibrary.All.Select((preset, index) => (preset, index)).GroupBy(p => p.preset.Category))
+                foreach (var group in presets.GroupBy(p => BrushPresetLibrary.All.FirstOrDefault(b => b.Name == p.Name)?.Category ?? "Custom Brushes"))
                 {
                     var grid = new WrapPanel { Tag = "brush-stroke-grid" };
-                    foreach (var (preset, index) in group.Where(p => Localize.Text(p.preset.Name).Contains(query, StringComparison.CurrentCultureIgnoreCase)))
+                    foreach (var preset in group.Where(p => Localize.Text(p.Name).Contains(query, StringComparison.CurrentCultureIgnoreCase)))
                     {
                         var card = new StackPanel { Spacing = 2 };
-                        card.Children.Add(new BrushStrokePreview(index) { Width = 160, Height = 45 });
+                        card.Children.Add(new PresetThumbnail(PresetCatalog.Item(preset)) { Width = 160, Height = 45 });
                         card.Children.Add(new TextBlock { Text = Localize.Text(preset.Name), FontSize = 11, TextWrapping = Avalonia.Media.TextWrapping.Wrap, MaxWidth = 160 });
-                        var button = new Button { Width = 174, MinHeight = 70, Padding = new Thickness(5), Margin = new Thickness(1), Content = card, Tag = "brush-picker-tip-" + index, VerticalContentAlignment = VerticalAlignment.Top };
+                        var builtin = BrushPresetLibrary.All.ToList().FindIndex(b => b.Name == preset.Name);
+                        var button = new Button { Width = 174, MinHeight = 70, Padding = new Thickness(5), Margin = new Thickness(1), Content = card, Tag = builtin >= 0 ? "brush-picker-tip-" + builtin : "brush-user-preset", VerticalContentAlignment = VerticalAlignment.Top };
                         ToolTip.SetTip(button, Localize.Text(preset.Name));
-                        button.Click += (_, _) => ApplyBrushPreset(new EditorPreset(Guid.NewGuid(), preset.Name, "Brush", Brush: preset.Settings, CaptureSize: false, IncludeTool: true, IncludeColor: false)); grid.Children.Add(button);
+                        button.Click += (_, _) => ApplyBrushPreset(preset); grid.Children.Add(button);
                     }
                     if (grid.Children.Count > 0) content.Children.Add(new Expander { Header = Localize.Text(group.Key), IsExpanded = true, Content = grid, HorizontalAlignment = HorizontalAlignment.Stretch });
                 }
-                foreach (var preset in presets.Where(p => p.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase))) { var button = new Button { Content = preset.Name, Tag = "brush-user-preset", HorizontalAlignment = HorizontalAlignment.Stretch }; button.Click += (_, _) => { ApplyBrushPreset(preset); OptionsChanged(); }; content.Children.Add(button); }
             }
             search.TextChanged += (_, _) => Reload(); Reload();
             var size = new Slider { Minimum = 140, Maximum = 174, Value = 174 }; ToolTip.SetTip(size, Localize.Text("Thumbnail Size"));

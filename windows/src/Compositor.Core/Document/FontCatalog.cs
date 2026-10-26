@@ -28,4 +28,19 @@ public static class FontCatalog
     public static SKTypeface Resolve(string name) => Names.Value.TryGetValue(name, out var face)
         ? SKTypeface.FromFamilyName(face.Family, face.Style) : SKTypeface.FromFamilyName(name) ?? SKTypeface.Default;
     public static string Family(string name) => Names.Value.TryGetValue(name, out var face) ? face.Family : name;
+
+    public sealed record FontFace(string Name, string Style, int Weight, int Width, bool Italic);
+    public static IReadOnlyList<FontFace> Styles(string name)
+    {
+        var family = Family(name); using var styles = SKFontManager.Default.GetFontStyles(family);
+        var result = new List<FontFace>();
+        for (var i = 0; i < styles.Count; i++)
+        {
+            using var face = styles.CreateTypeface(i); if (face is null) continue;
+            var style = face.FontStyle; var label = styles.GetStyleName(i);
+            result.Add(new(face.PostScriptName ?? family, string.IsNullOrWhiteSpace(label) ? "Regular" : label,
+                style.Weight, style.Width, style.Slant != SKFontStyleSlant.Upright));
+        }
+        return result.Count == 0 ? [new(name, "Regular", 400, 5, false)] : result;
+    }
 }

@@ -92,6 +92,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Chinese color checks failed' }
       - name: Two-core scalar and 512 MiB compatibility gates
         run: ./windows/scripts/compatibility-checks.ps1 -SkipBuild -Scalar -Output artifacts/compatibility
+      - name: Asset panels and timeline interactions
+        run: |
+          foreach ($language in @('en','zh-CN')) {
+            $env:COMPOSITOR_LANGUAGE = $language
+            $env:COMPOSITOR_SETTINGS_DIR = Join-Path $env:RUNNER_TEMP ("asset-workflows-" + $language)
+            dotnet windows/src/Compositor.Desktop/bin/Release/net10.0/Compositor.dll --asset-workflow-checks "artifacts/screenshots/assets-$language.png"
+            if ($LASTEXITCODE -ne 0) { throw 'Asset workflow checks failed' }
+          }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -152,7 +160,7 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "Published pen/layer checks failed: $($process.ExitCode)" }
           $process = Start-Process -FilePath $app -ArgumentList @('--utility-retouch-checks', "$env:RUNNER_TEMP/published-utility-retouch.png") -WindowStyle Hidden -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Published utility/retouch checks failed: $($process.ExitCode)" }
-          foreach ($check in @('painting-checks','gif-checks','tool-options-checks','color-checks')) {
+          foreach ($check in @('painting-checks','gif-checks','tool-options-checks','color-checks','asset-workflow-checks')) {
             $process = Start-Process -FilePath $app -ArgumentList @("--$check", "$env:RUNNER_TEMP/published-$check.png") -WindowStyle Hidden -Wait -PassThru
             if ($process.ExitCode -ne 0) { throw "Published $check failed: $($process.ExitCode)" }
           }

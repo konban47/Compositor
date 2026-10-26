@@ -24,6 +24,7 @@ public sealed class DisplaySceneCache : IDisposable
     private readonly Dictionary<ImportedImage, SKImage> _images = [];
     public static bool Supports(CanvasDocument document)
     {
+        if (document.Image.ProfileEncoding is not null) return false;
         var byId = document.Layers.ToDictionary(l => l.ID);
         bool Visible(ImageLayer layer)
         {

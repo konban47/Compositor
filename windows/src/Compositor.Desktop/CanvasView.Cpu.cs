@@ -21,7 +21,7 @@ public sealed partial class CanvasView
         _compositeDirty = true; ReleaseDisplayScene(); InvalidateVisual();
     }
     private int _cpuRequestedMaximum, _cpuRenderedMaximum;
-    private int CpuMaximum => Math.Clamp((int)Math.Ceiling(Math.Max(Bounds.Width, Bounds.Height) * ((VisualRoot as Avalonia.Controls.TopLevel)?.RenderScaling ?? 1)), 256, 2048);
+    private int CpuMaximum => (int)Math.Max(1, (PreviewDocument is null ? 1 : PreviewResolutionScale) * Math.Clamp((int)Math.Ceiling(Math.Max(Bounds.Width, Bounds.Height) * ((VisualRoot as Avalonia.Controls.TopLevel)?.RenderScaling ?? 1)), 256, 2048));
     internal long CpuCachedBytes => _cpuTiles?.RetainedBytes ?? 0;
     internal long CpuTileHits => _cpuTiles?.Hits ?? 0;
     internal long CpuTilesRendered => _cpuTiles?.RenderedTiles ?? 0;

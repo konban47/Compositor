@@ -41,7 +41,7 @@ internal sealed class FilterDialog : DialogWindow
         Title = Localize.Text(kind switch
         {
             FilterKind.RgbSplit => "RGB Split",
-            FilterKind.LensEffects => start.Lens.Effect switch { LensEffect.AnamorphicFlare => "Anamorphic Flare", LensEffect.Starburst => "Starburst", LensEffect.Mist => "Mist", LensEffect.Prism => "Prism", _ => "Bokeh" },
+            FilterKind.LensEffects => "Lens Effects",
             FilterKind.ProgressiveBlur => "Progressive Blur",
             FilterKind.Scanlines => "Scanlines",
             FilterKind.GaussianBlur => "Gaussian Blur",
@@ -49,6 +49,7 @@ internal sealed class FilterDialog : DialogWindow
             FilterKind.BloomGlow => "Bloom / Glow",
             FilterKind.AddNoise => "Add Noise",
             FilterKind.Vignette => "Vignette",
+            FilterKind.Sharpen => "Sharpen",
             FilterKind.TonalContrast => "Tonal Contrast",
             _ => "Lens Correction",
         });
@@ -63,34 +64,44 @@ internal sealed class FilterDialog : DialogWindow
         {
             case FilterKind.LensEffects:
                 Height = 620;
-                switch (start.Lens.Effect)
+                var lensGroups = new Dictionary<LensEffect, StackPanel>();
+                Choice(group, "Lens Effect", ["Anamorphic Flare", "Starburst", "Mist", "Prism", "Bokeh"], (int)start.Lens.Effect, 0, (s, v) => {
+                    s.Lens.Effect = (LensEffect)v;
+                    foreach (var pair in lensGroups) pair.Value.IsVisible = (int)pair.Key == v;
+                });
+                foreach (var effect in Enum.GetValues<LensEffect>())
+                {
+                    var lensGroup = new StackPanel { Spacing = 4, IsVisible = effect == start.Lens.Effect };
+                    lensGroups.Add(effect, lensGroup); group.Children.Add(lensGroup);
+                switch (effect)
                 {
                     case LensEffect.AnamorphicFlare:
-                        Add(group, "Threshold", 50, 100, start.Lens.Threshold, 90, (s,v) => s.Lens.Threshold=v);
-                        Add(group, "Amount", 0, 100, start.Lens.FlareAmount, 50, (s,v) => s.Lens.FlareAmount=v);
-                        Add(group, "Length (%)", 1, 100, start.Lens.FlareLength, 60, (s,v) => s.Lens.FlareLength=v);
-                        Add(group, "Blue", 0, 100, start.Lens.FlareBlue, 80, (s,v) => s.Lens.FlareBlue=v); break;
+                        Add(lensGroup, "Threshold", 50, 100, start.Lens.Threshold, 90, (s,v) => s.Lens.Threshold=v);
+                        Add(lensGroup, "Amount", 0, 100, start.Lens.FlareAmount, 50, (s,v) => s.Lens.FlareAmount=v);
+                        Add(lensGroup, "Length (%)", 1, 100, start.Lens.FlareLength, 60, (s,v) => s.Lens.FlareLength=v);
+                        Add(lensGroup, "Blue", 0, 100, start.Lens.FlareBlue, 80, (s,v) => s.Lens.FlareBlue=v); break;
                     case LensEffect.Starburst:
-                        Add(group, "Threshold", 50, 100, start.Lens.Threshold, 90, (s,v) => s.Lens.Threshold=v);
-                        Add(group, "Amount", 0, 100, start.Lens.StarAmount, 50, (s,v) => s.Lens.StarAmount=v);
-                        Add(group, "Length (%)", 2, 40, start.Lens.StarLength, 12, (s,v) => s.Lens.StarLength=v);
-                        Choice(group, "Points", ["4", "6", "8", "12", "14"], Array.IndexOf(new[]{4,6,8,12,14}, start.Lens.StarPoints), 1, (s,v) => s.Lens.StarPoints=new[]{4,6,8,12,14}[v]);
-                        Add(group, "Angle, degrees", -180, 180, start.Lens.StarAngle, 15, (s,v) => s.Lens.StarAngle=v); break;
+                        Add(lensGroup, "Threshold", 50, 100, start.Lens.Threshold, 90, (s,v) => s.Lens.Threshold=v);
+                        Add(lensGroup, "Amount", 0, 100, start.Lens.StarAmount, 50, (s,v) => s.Lens.StarAmount=v);
+                        Add(lensGroup, "Length (%)", 2, 40, start.Lens.StarLength, 12, (s,v) => s.Lens.StarLength=v);
+                        Choice(lensGroup, "Points", ["4", "6", "8", "12", "14"], Array.IndexOf(new[]{4,6,8,12,14}, start.Lens.StarPoints), 1, (s,v) => s.Lens.StarPoints=new[]{4,6,8,12,14}[v]);
+                        Add(lensGroup, "Angle, degrees", -180, 180, start.Lens.StarAngle, 15, (s,v) => s.Lens.StarAngle=v); break;
                     case LensEffect.Mist:
-                        Add(group, "Strength", 0, 100, start.Lens.MistStrength, 50, (s,v) => s.Lens.MistStrength=v);
-                        Add(group, "Size", 0, 100, start.Lens.MistSize, 30, (s,v) => s.Lens.MistSize=v); break;
+                        Add(lensGroup, "Strength", 0, 100, start.Lens.MistStrength, 50, (s,v) => s.Lens.MistStrength=v);
+                        Add(lensGroup, "Size", 0, 100, start.Lens.MistSize, 30, (s,v) => s.Lens.MistSize=v); break;
                     case LensEffect.Prism:
-                        Add(group, "Amount", 0, 100, start.Lens.PrismAmount, 80, (s,v) => s.Lens.PrismAmount=v);
-                        Add(group, "Copies", 1, 8, start.Lens.PrismCopies, 5, (s,v) => s.Lens.PrismCopies=(int)Math.Round(v), "0");
-                        Add(group, "Offset (%)", 0, 50, start.Lens.PrismOffset, 6, (s,v) => s.Lens.PrismOffset=v);
-                        Add(group, "Angle, degrees", -180, 180, start.Lens.PrismAngle, 180, (s,v) => s.Lens.PrismAngle=v);
-                        Check(group, "Both Ways", start.Lens.PrismBothWays, (s,v) => s.Lens.PrismBothWays=v);
-                        Add(group, "Blur", 0, 100, start.Lens.PrismBlur, 0, (s,v) => s.Lens.PrismBlur=v); break;
+                        Add(lensGroup, "Amount", 0, 100, start.Lens.PrismAmount, 80, (s,v) => s.Lens.PrismAmount=v);
+                        Add(lensGroup, "Copies", 1, 8, start.Lens.PrismCopies, 5, (s,v) => s.Lens.PrismCopies=(int)Math.Round(v), "0");
+                        Add(lensGroup, "Offset (%)", 0, 50, start.Lens.PrismOffset, 6, (s,v) => s.Lens.PrismOffset=v);
+                        Add(lensGroup, "Angle, degrees", -180, 180, start.Lens.PrismAngle, 180, (s,v) => s.Lens.PrismAngle=v);
+                        Check(lensGroup, "Both Ways", start.Lens.PrismBothWays, (s,v) => s.Lens.PrismBothWays=v);
+                        Add(lensGroup, "Blur", 0, 100, start.Lens.PrismBlur, 0, (s,v) => s.Lens.PrismBlur=v); break;
                     case LensEffect.Bokeh:
-                        Add(group, "Size (%)", .5, 6, start.Lens.BokehRadius, 2, (s,v) => s.Lens.BokehRadius=v);
-                        Add(group, "Brightness", 0, 100, start.Lens.BokehBrightness, 50, (s,v) => s.Lens.BokehBrightness=v);
-                        Add(group, "Ring", 0, 100, start.Lens.BokehRing, 100, (s,v) => s.Lens.BokehRing=v);
-                        Choice(group, "Aperture", ["Round", "Hexagon", "Oval", "Cat's Eye"], (int)start.Lens.BokehShape, 0, (s,v) => s.Lens.BokehShape=(BokehShape)v); break;
+                        Add(lensGroup, "Size (%)", .5, 6, start.Lens.BokehRadius, 2, (s,v) => s.Lens.BokehRadius=v);
+                        Add(lensGroup, "Brightness", 0, 100, start.Lens.BokehBrightness, 50, (s,v) => s.Lens.BokehBrightness=v);
+                        Add(lensGroup, "Ring", 0, 100, start.Lens.BokehRing, 100, (s,v) => s.Lens.BokehRing=v);
+                        Choice(lensGroup, "Aperture", ["Round", "Hexagon", "Oval", "Cat's Eye"], (int)start.Lens.BokehShape, 0, (s,v) => s.Lens.BokehShape=(BokehShape)v); break;
+                }
                 }
                 break;
             case FilterKind.RgbSplit:
@@ -133,6 +144,10 @@ internal sealed class FilterDialog : DialogWindow
                     (s, c) => { s.Scanlines.DarkRed = c.Red; s.Scanlines.DarkGreen = c.Green; s.Scanlines.DarkBlue = c.Blue; }, "Dark Color", "Choose the screen color");
                 Swatch(group, "Light Color", (start.Scanlines.LightRed, start.Scanlines.LightGreen, start.Scanlines.LightBlue), (1, 1, 1),
                     (s, c) => { s.Scanlines.LightRed = c.Red; s.Scanlines.LightGreen = c.Green; s.Scanlines.LightBlue = c.Blue; }, "Light Color", "Choose the line color");
+                break;
+            case FilterKind.Sharpen:
+                Add(group, "Amount, %", 0, 500, start.SharpenAmount, defaults.SharpenAmount, (s, v) => s.SharpenAmount = v);
+                Add(group, "Radius, pixels", .1, 100, start.SharpenRadius, defaults.SharpenRadius, (s, v) => s.SharpenRadius = v);
                 break;
             case FilterKind.GaussianBlur:
                 Add(group, "Radius, pixels", 0.1, 250, start.BlurRadius, defaults.BlurRadius, (s, v) => s.BlurRadius = v);

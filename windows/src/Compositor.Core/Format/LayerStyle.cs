@@ -35,6 +35,7 @@ public sealed class StyleEffect
     public double Noise { get; set; }
     public StyleContour Contour { get; set; }
     public bool ContourEnabled { get; set; }
+    public double[]? ContourSamples { get; set; }
     public bool Invert { get; set; }
     public bool CenterSource { get; set; }
     public StrokePosition Position { get; set; }
@@ -59,7 +60,7 @@ public sealed class StyleEffect
     public LayerBlendMode ShadowMode { get; set; } = LayerBlendMode.Multiply;
 
     [JsonIgnore] public bool IsValid => Enum.IsDefined(Kind) && Enum.IsDefined(BlendMode)
-        && Enum.IsDefined(Contour) && Enum.IsDefined(Position) && Enum.IsDefined(Gradient) && Enum.IsDefined(Pattern)
+        && (ContourSamples is null || IO.ContourLibrary.Valid(ContourSamples)) && Enum.IsDefined(Contour) && Enum.IsDefined(Position) && Enum.IsDefined(Gradient) && Enum.IsDefined(Pattern)
         && Enum.IsDefined(Bevel) && Enum.IsDefined(HighlightMode) && Enum.IsDefined(ShadowMode)
         && In(Opacity, 0, 1) && Color.IsValid(Red, Green, Blue) && Color.IsValid(Red2, Green2, Blue2)
         && In(Size, 0, 500) && In(Distance, 0, 5000) && In(Angle, -360, 360)

@@ -30,7 +30,7 @@ public enum FilterKind
     /// <summary>Radial distortion: either direction straightens a lens.</summary>
     LensCorrection,
     Scanlines,
-    ProgressiveBlur, RgbSplit, LensEffects,
+    ProgressiveBlur, RgbSplit, LensEffects, Sharpen,
 }
 
 /// <summary>
@@ -43,6 +43,8 @@ public enum FilterKind
 /// </summary>
 public sealed class FilterSettings
 {
+    public double SharpenAmount { get; set; } = 100;
+    public double SharpenRadius { get; set; } = 1;
     public LensEffectSettings Lens { get; set; } = new();
     public double RgbSplitDistance { get; set; } = 10;
     public double RgbSplitBlur { get; set; }
@@ -126,6 +128,7 @@ public sealed class FilterSettings
     /// <summary>Whether the amounts this filter reads are ones it may use.</summary>
     public bool IsValid(FilterKind kind) => kind switch
     {
+        FilterKind.Sharpen => Within(SharpenAmount, 0, 500) && Within(SharpenRadius, .1, 100),
         FilterKind.LensEffects => Lens.IsValid,
         FilterKind.RgbSplit => Within(RgbSplitDistance, 0, 200) && Within(RgbSplitBlur, 0, 400) && Within(RgbSplitAngle, -180, 180) && Within(RgbSplitReach, 1, 100000) && double.IsFinite(RgbSplitCenterX + RgbSplitCenterY),
         FilterKind.ProgressiveBlur => Within(ProgressiveFrom, 0, 250) && Within(ProgressiveTo, 0, 250) && new[] { ProgressiveStartX, ProgressiveStartY, ProgressiveEndX, ProgressiveEndY }.All(double.IsFinite),
@@ -147,6 +150,7 @@ public sealed class FilterSettings
     /// <summary>Whether this filter would change anything at all.</summary>
     public bool DoesAnything(FilterKind kind) => kind switch
     {
+        FilterKind.Sharpen => SharpenAmount > 0,
         FilterKind.LensEffects => Lens.DoesAnything,
         FilterKind.RgbSplit => RgbSplitDistance > 0 || RgbSplitBlur > 0,
         FilterKind.ProgressiveBlur => ProgressiveFrom > 0 || ProgressiveTo > 0,
@@ -236,6 +240,9 @@ public static class FilterEdits
         var stride = work.RowBytes;
         switch (kind)
         {
+            case FilterKind.Sharpen:
+                SharpenPixels.Apply(work, settings.SharpenAmount, settings.SharpenRadius);
+                break;
             case FilterKind.Scanlines:
                 ScanlinePixels.Apply(pixels, width, height, stride, settings.Scanlines);
                 break;

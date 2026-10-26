@@ -246,8 +246,20 @@ internal sealed class LayerStyleDialog : DialogWindow
             if (e.TextureEnabled) { PatternOptions(e); Number("Texture Depth (%)", e.TextureDepth, -1000, 1000, v => e.TextureDepth = v); }
         }
         if (e.Kind is not (StyleEffectKind.ColorOverlay or StyleEffectKind.GradientOverlay or StyleEffectKind.PatternOverlay or StyleEffectKind.Stroke))
-        { Check("Contour", e.ContourEnabled, v => e.ContourEnabled = v); Choice("Contour", e.Contour, v => e.Contour = v); }
+        { Check("Contour", e.ContourEnabled, v => e.ContourEnabled = v); ContourOptions(e); }
         _options.Children.Add(ActionButton("Reset Effect", () => { var copy = StyleEffect.Default(e.Kind); Draft.Effects!.Items![Draft.Effects.Items.IndexOf(e)] = copy; _selected = copy; Rebuild(); Schedule(); }));
+    }
+    private void ContourOptions(StyleEffect effect)
+    {
+        IReadOnlyList<EditorPreset> contours;
+        try { contours = ContourLibrary.Load(); } catch (Exception error) { _error.Text = error.Message; contours = []; }
+        var choice = new ComboBox { Tag = "style-contour-preset", ItemsSource = contours.Select(p => Localize.Text(p.Name)).Append(Localize.Text("Custom")).ToArray() };
+        var selected = contours.ToList().FindIndex(p => effect.ContourSamples is { } samples && p.Contour!.SequenceEqual(samples));
+        choice.SelectedIndex = selected >= 0 ? selected : contours.Count;
+        choice.SelectionChanged += (_, _) => { if (choice.SelectedIndex < 0 || choice.SelectedIndex >= contours.Count) return; effect.ContourSamples = contours[choice.SelectedIndex].Contour!.ToArray(); effect.ContourEnabled = true; Schedule(); };
+        _options.Children.Add(choice);
+        Choice("Contour", effect.Contour, value => { effect.Contour = value; effect.ContourSamples = null; Rebuild(); });
+        _options.Children.Add(ActionButton("Preset Manager…", async () => { await new PresetManagerDialog("Contour").ShowDialog(this); Rebuild(); }));
     }
     private void PatternOptions(StyleEffect e)
     {

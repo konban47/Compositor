@@ -6,7 +6,7 @@ namespace Compositor.Core.Format;
 public sealed class ProjectManifest
 {
     /// <summary>The format version new saves write.</summary>
-    public const int Current = 28;
+    public const int Current = 29;
 
     /// <summary>Every version <c>Load</c> accepts.</summary>
     public const int SupportedLower = 1;
@@ -34,6 +34,8 @@ public sealed class ProjectManifest
     public List<CountGroup>? CountGroups { get; set; }
     public string? WorkPath { get; set; }
     public List<ProjectChannelRecord>? Channels { get; set; }
+    public List<Document.LayerComp>? LayerComps { get; set; }
+    public Document.DocumentTimeline? Timeline { get; set; }
     public ImageSettings? ImageSettings { get; set; }
     public List<ImageVariable>? Variables { get; set; }
     public List<ImageDataSet>? DataSets { get; set; }

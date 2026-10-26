@@ -528,6 +528,7 @@ public sealed partial class MainWindow : Window
                         Command("_Remove Background", () => _ = DetectSubject(true), "Remove Background"),
                         Command("_Camera Raw Filter…", CameraRawFilter),
                         new Separator(),
+                        Command("Sharpen…", () => _ = ApplyFilter(FilterKind.Sharpen)),
                         Command("_Gaussian Blur…", () => _ = ApplyFilter(FilterKind.GaussianBlur)),
                         Command("Progressive Blur…", () => _ = ApplyFilter(FilterKind.ProgressiveBlur)),
                         Command("Scanlines…", () => _ = ApplyFilter(FilterKind.Scanlines)),
@@ -2980,7 +2981,7 @@ public sealed partial class MainWindow : Window
     /// <summary>One edit, wrapped in the history so it undoes in a single step. False when it changed nothing.</summary>
     private bool Edit(string name, Func<bool> change)
     {
-        _stopGifPlayback?.Invoke();
+        _stopGifPlayback?.Invoke(); _stopDocumentTimeline?.Invoke();
         if (_document is not { } document) return false;
         _history.Begin(name, document, Selected);
         var revision = _history.CurrentRevision;
@@ -3020,12 +3021,14 @@ public sealed partial class MainWindow : Window
 
     private void Undo()
     {
+        _stopDocumentTimeline?.Invoke();
         if (_document is not { } document || _history.Undo() is not { } snapshot || snapshot.Document is null) return;
         _chosenSnapshot = null; RestoreHistory(snapshot);
     }
 
     private void Redo()
     {
+        _stopDocumentTimeline?.Invoke();
         if (_document is not { } document || _history.Redo() is not { } snapshot || snapshot.Document is null) return;
         _chosenSnapshot = null; RestoreHistory(snapshot);
     }
@@ -3382,7 +3385,7 @@ public sealed partial class MainWindow : Window
 
     private void SetTool(Tool tool)
     {
-        _stopGifPlayback?.Invoke();
+        _stopGifPlayback?.Invoke(); _stopDocumentTimeline?.Invoke();
         if (_tool != tool && !(_tool is Tool.Slice or Tool.SliceSelect && tool is Tool.Slice or Tool.SliceSelect))
         { _selectedMark = null; _optionsBar.ProfessionalReadout(""); }
         if (_tool != tool) { _adjustmentObjectMode = false; CancelProfessionalDraft(); _canvas.CancelCropStraighten(); _artboardStart = null; _artboardDraft = null; }
@@ -3565,6 +3568,7 @@ public sealed partial class MainWindow : Window
             ? document.Layers.FirstOrDefault(one => one.ID == id)
             : null;
         _optionsBar.Show(_tool, _document is not null, layer?.Mask is not null);
+        RefreshTypography();
         _optionsBar.ShowTransformVisibility(_transformShown);
         if (_tool == Tool.Artboard && SelectedArtboard is { } board)
         { _optionsBar.Artboard.Width = (int)board.Transform.Width; _optionsBar.Artboard.Height = (int)board.Transform.Height; _optionsBar.Artboard.Background = board.ArtboardBackground; _optionsBar.RefreshArtboardOptions(); }
@@ -4183,7 +4187,7 @@ public sealed partial class MainWindow : Window
     {
         if (_document is not { } document || Selected is not { } id) return;
         if (LayerAdjustmentEdits.Settings(document, id) is not { } settings) return;
-        if (settings.NeedsVersion16) { await EditFilterLayer(id, settings); return; }
+        if (settings.IsFilterLayer) { await EditFilterLayer(id, settings); return; }
         if (settings.Extended is { } extended) { await ExtendedImageAdjustment(extended.Kind, adjustmentLayer: true, editingLayer: id); return; }
         StartPreview(document, id);
         var asked = await AdjustmentDialog.Ask(this, settings,
@@ -5125,7 +5129,7 @@ public sealed partial class MainWindow : Window
     private static readonly (string Label, double? Ratio)[] CropRatios =
     [
         ("Free", null), ("Original", -1), ("1:1", 1), ("4:3", 4.0 / 3), ("3:4", 3.0 / 4),
-        ("16:9", 16.0 / 9), ("9:16", 9.0 / 16),
+        ("2.39:1", 2.39), ("16:9", 16.0 / 9), ("9:16", 9.0 / 16),
     ];
 
     /// <summary>The ratios the Crop tool offers, as the Mac build's ratio menu does.</summary>
@@ -5242,16 +5246,11 @@ public sealed partial class MainWindow : Window
         }
         else
         {
-            _text = TextSession.New(new LayerTextStyle
-            {
-                Vertical = _tool is Tool.VerticalType or Tool.VerticalTypeMask ? true : null,
-                Content = EditorPreferences.Current.PlaceholderText ? Localize.Text("Your text") : "",
-                FontName = EditorPreferences.Current.DefaultFont,
-                FontSize = EditorPreferences.Current.DefaultFontSize,
-                Red = _options.Brush.Red,
-                Green = _options.Brush.Green,
-                Blue = _options.Brush.Blue,
-            }, origin);
+            var initial = TextEdits.Copy(TypeDefaults);
+            initial.Vertical = _tool is Tool.VerticalType or Tool.VerticalTypeMask ? true : null;
+            initial.Content = EditorPreferences.Current.PlaceholderText ? Localize.Text("Your text") : "";
+            initial.StyleRuns = null; initial.ColorRuns = null; initial.FontRuns = null;
+            _text = TextSession.New(initial, origin);
             _history.Begin("Type", document, Selected);
         }
         _canvas.BeginText();
@@ -5293,7 +5292,7 @@ public sealed partial class MainWindow : Window
     private void MovedTextCaret(TextSession.TextMove move, bool extend = false)
     {
         if (_text is not { } session) return;
-        if (session.MoveCaret(move, extend)) ShowTextCaret();
+        if (session.MoveCaret(move, extend)) { ShowTextCaret(); RefreshTypography(); RefreshTypePanels(); }
     }
 
     /// <summary>Puts the caret where the text ends and keeps the panel on the layer being typed on.</summary>

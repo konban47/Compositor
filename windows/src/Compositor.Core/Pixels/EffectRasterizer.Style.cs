@@ -101,7 +101,7 @@ public static partial class EffectRasterizer
                 default: shape.CopyTo(work, 0); break;
             }
             if (e.ContourEnabled && e.Kind != StyleEffectKind.BevelEmboss)
-                for (var i = 0; i < count; i++) if (work[i] > 0) work[i] = (float)Contour(e.Contour, work[i]);
+                for (var i = 0; i < count; i++) if (work[i] > 0) work[i] = (float)(e.ContourSamples is { } samples ? IO.ContourLibrary.Evaluate(samples, work[i]) : Contour(e.Contour, work[i]));
             Paint(e, work, e.BlendMode, e.Opacity);
         }
         void SpreadShape(StyleEffect e, bool smallest)
@@ -135,7 +135,7 @@ public static partial class EffectRasterizer
                 if (e.Technique > 0) slope = Math.Sign(slope) * Math.Pow(Math.Abs(slope), e.Technique == 1 ? 0.45 : 0.75);
                 if (e.TextureEnabled && shape[i] > 0) slope += Pattern(e, x - inset, y - inset, texture) * e.TextureDepth / 200 * shape[i];
                 var amount = Math.Clamp(Math.Abs(slope), 0, 1);
-                if (e.ContourEnabled) amount = Contour(e.Contour, amount);
+                if (e.ContourEnabled) amount = e.ContourSamples is { } samples ? IO.ContourLibrary.Evaluate(samples, amount) : Contour(e.Contour, amount);
                 if (slope > 0) highlights[i] = (float)(amount * coverage); else shadows[i] = (float)(amount * coverage);
             }
             Paint(e, highlights, e.HighlightMode, e.HighlightOpacity * e.Opacity, second: true);

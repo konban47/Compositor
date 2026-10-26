@@ -17,6 +17,7 @@ namespace Compositor.Desktop;
 internal abstract class DialogWindow : Window
 {
     private bool _captionAdded;
+    protected virtual bool FullCaption => false;
     protected DialogWindow()
     {
         Localize.Prepare(this);
@@ -37,7 +38,7 @@ internal abstract class DialogWindow : Window
             // Window.Height previously described the client area below the system caption.
             if (SizeToContent is SizeToContent.Manual or SizeToContent.Width && double.IsFinite(Height)) Height += WindowChrome.Height;
             if (MinHeight > 0) MinHeight += WindowChrome.Height;
-            Content = null; Content = WindowChrome.Dialog(this, content);
+            Content = null; Content = WindowChrome.Dialog(this, content, FullCaption);
         }
         WindowChrome.ApplyNative(this);
         base.OnOpened(e);

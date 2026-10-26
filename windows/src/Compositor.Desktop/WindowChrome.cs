@@ -60,11 +60,11 @@ internal static class WindowChrome
         };
     }
     private static void ToggleMaximize(Window window) => window.WindowState = window.WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-    internal static Control Dialog(Window window, Control content)
+    internal static Control Dialog(Window window, Control content, bool full = false)
     {
         var root = new DockPanel();
         var bar = new DockPanel { Height = Height, Background = Skin.ChromeBrush, Tag = "dialog-title-chrome" };
-        var controls = Buttons(window, false); DockPanel.SetDock(controls, Dock.Right); bar.Children.Add(controls);
+        var controls = Buttons(window, full); DockPanel.SetDock(controls, Dock.Right); bar.Children.Add(controls);
         var title = new TextBlock { Text = window.Title, FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         window.PropertyChanged += (_, e) => { if (e.Property == Window.TitleProperty) title.Text = window.Title; };
         var grip = new Border { Background = Brushes.Transparent, Child = title }; DragRegion(window, grip); bar.Children.Add(grip);

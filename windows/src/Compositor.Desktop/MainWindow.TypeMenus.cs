@@ -10,9 +10,26 @@ namespace Compositor.Desktop;
 
 public sealed partial class MainWindow
 {
-    private LayerTextStyle? CurrentType => _text?.Style ?? PropertyLayer?.LiveText;
+    private LayerTextStyle? CurrentType
+    {
+        get
+        {
+            if (_text is not { } session) return PropertyLayer?.LiveText;
+            var result = TextEdits.Copy(session.Style);
+            CopyTypeStyle(TextRanges.At(session.Style, Math.Min(session.SelectionStart, Math.Max(0, session.Content.Length - 1))), result, false);
+            return result;
+        }
+    }
+    private LayerTextStyle TypeDefaults => EditorPreferences.Current.DefaultTypeStyle ?? new() { FontName = EditorPreferences.Current.DefaultFont, FontSize = EditorPreferences.Current.DefaultFontSize };
     private void ChangeType(Action<LayerTextStyle> change, bool paragraph = false)
     {
+        if (_text is null && PropertyLayer?.LiveText is null)
+        {
+            var defaults = TextRanges.Flat(TypeDefaults); change(defaults);
+            if (!defaults.IsValid) return;
+            EditorPreferences.Current.DefaultTypeStyle = defaults; EditorPreferences.Current.DefaultFont = defaults.FontName;
+            EditorPreferences.Current.DefaultFontSize = defaults.FontSize; SavePreferenceChanges(); RefreshTypography(); return;
+        }
         if (_document is not { } doc) return;
         if (_text is { } session)
         {

@@ -13,7 +13,7 @@ public static class ColorTransforms
     {
         settings ??= ColorDefaults.Settings;
         if (!IccProfiles.Valid(source) || !IccProfiles.Valid(destination)) throw new InvalidDataException("Invalid ICC profile.");
-        if (source.AsSpan().SequenceEqual(destination)) { var copy = (MagickImage)input.Clone(); copy.SetProfile(new ColorProfile(destination)); return copy; }
+        if (source.AsSpan().SequenceEqual(destination)) { var copy = (MagickImage)input.Clone(); copy.RemoveProfile("icc"); copy.RemoveProfile("icm"); copy.SetProfile(new ColorProfile(destination)); return copy; }
         if (settings.CompensateSceneProfiles && IsSceneProfile(source) != IsSceneProfile(destination))
         {
             var plain = settings with { CompensateSceneProfiles = false }; var srgb = ColorProfiles.SRGB.ToByteArray();
@@ -28,6 +28,7 @@ public static class ColorTransforms
         {
             result.RenderingIntent = settings.Intent switch { ColorIntent.Saturation => RenderingIntent.Saturation, ColorIntent.Relative => RenderingIntent.Relative, ColorIntent.Absolute => RenderingIntent.Absolute, _ => RenderingIntent.Perceptual };
             result.BlackPointCompensation = settings.BlackPointCompensation;
+            result.RemoveProfile("icc"); result.RemoveProfile("icm");
             result.TransformColorSpace(new ColorProfile(source), new ColorProfile(destination)); return result;
         }
         catch { result.Dispose(); throw; }

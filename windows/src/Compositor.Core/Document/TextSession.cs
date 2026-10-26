@@ -50,8 +50,8 @@ public sealed class TextSession
     {
         var previous = _style;
         _style = SelectionLength > 0 && !wholeLayer ? TextRanges.Apply(_style, SelectionStart, SelectionLength, change) : TextEdits.Copy(_style);
-        if (SelectionLength == 0 || wholeLayer) { change(_style); _style.StyleRuns = _style.StyleRuns?.Select(r => { var value = TextRanges.Flat(r.Style); change(value); return new LayerTextStyleRun { Location = r.Location, Length = r.Length, Style = value }; }).ToList(); }
-        if (_style.IsValid && Draw(document)) return true;
+        if (SelectionLength == 0 || wholeLayer) { change(_style); if (!wholeLayer) _style.StyleRuns = _style.StyleRuns?.Select(r => { var value = TextRanges.Flat(r.Style); change(value); return new LayerTextStyleRun { Location = r.Location, Length = r.Length, Style = value }; }).ToList(); }
+        if (_style.IsValid && Draw(document)) { AnchorIndex = Math.Min(AnchorIndex, Content.Length); CaretIndex = Math.Min(CaretIndex, Content.Length); return true; }
         _style = previous; return false;
     }
 

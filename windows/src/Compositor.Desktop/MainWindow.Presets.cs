@@ -53,26 +53,7 @@ public sealed partial class MainWindow
     }
     private async Task PresetManager()
     {
-        try
-        {
-            var presets = EditorPresets.Load(EditorPresets.DefaultPath).ToList();
-            var form = new FormDialog("Preset Manager", 620, 560);
-            var list = new ListBox { Height = 280 }; form.Fields.Children.Add(list);
-            void Reload() { list.ItemsSource = presets.Select(p => Localize.Text(p.Kind) + " — " + p.Name).ToArray(); if (presets.Count > 0) list.SelectedIndex = 0; }
-            Reload();
-            var rename = form.Text("Name", "");
-            list.SelectionChanged += (_, _) => { if (list.SelectedIndex >= 0) rename.Text = presets[list.SelectedIndex].Name; };
-            form.Fields.Children.Add(FormDialog.ActionButton("Rename", () => { var i = list.SelectedIndex; if (i < 0 || string.IsNullOrWhiteSpace(rename.Text) || rename.Text.Length > 200) return; presets[i] = presets[i] with { Name = rename.Text.Trim() }; Reload(); }));
-            form.Fields.Children.Add(FormDialog.ActionButton("Delete", () => { if (list.SelectedIndex < 0) return; presets.RemoveAt(list.SelectedIndex); Reload(); }));
-            form.Fields.Children.Add(FormDialog.ActionButton("Export Presets…", async () =>
-            {
-                var file = await form.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { SuggestedFileName = "Compositor-presets.json", DefaultExtension = "json" });
-                if (file?.TryGetLocalPath() is { } path) try { EditorPresets.Save(path, presets); } catch (Exception error) { Say(error.Message); }
-            }));
-            if (!await form.ShowDialog<bool>(this)) return;
-            EditorPresets.Save(EditorPresets.DefaultPath, presets);
-            if (list.SelectedIndex >= 0 && list.SelectedIndex < presets.Count) ApplyPreset(presets[list.SelectedIndex]);
-        }
+        try { await new PresetManagerDialog().ShowDialog(this); RefreshUtilityPanels(); Refresh(); }
         catch (Exception error) { Say(error.Message); }
     }
     private async Task MigratePresets()

@@ -34,7 +34,7 @@ public sealed partial class MainWindow
                 BuildBrushSettingsPanel(body); body.Children.Clear(); tab.Content = _brushSettingsEditor;
                 RegisterPanel(name, _inspectorTabs, tab);
             }
-            else { RegisterPanel(name, _inspectorTabs, tab); BuildUtilityPanel(name, body); }
+            else { RegisterPanel(name, _inspectorTabs, tab); BuildUtilityPanel(name, body); if (name == "Timeline") FloatPanel(_dockPanels[name]); }
         }
         ShowDockPanel(name); RefreshUtilityPanels();
     }
@@ -101,7 +101,7 @@ public sealed partial class MainWindow
             {
                 var list = new ListBox { MinHeight = 90, MaxHeight = 280 }; body.Children.Add(list); EditorPreset[] presets = [];
                 void Reload() { presets = EditorPresets.Load(EditorPresets.DefaultPath).Where(p => name is "Libraries" or "Tool Presets" || p.Kind == (name == "Brushes" ? "Brush" : "Pattern")).ToArray(); list.ItemsSource = presets.Select(p => p.Name).ToArray(); }
-                Reload(); list.DoubleTapped += (_, _) => { if (list.SelectedIndex is var i && i >= 0 && i < presets.Length) ApplyPreset(presets[i]); };
+                _utilityRefresh[name] = Reload; Reload(); list.DoubleTapped += (_, _) => { if (list.SelectedIndex is var i && i >= 0 && i < presets.Length) ApplyPreset(presets[i]); };
                 Button("Apply Preset", () => { if (list.SelectedIndex is var i && i >= 0 && i < presets.Length) ApplyPreset(presets[i]); });
                 Button("Preset Manager…", async () => { await PresetManager(); Reload(); }); Button("Import Presets…", async () => { await MigratePresets(); Reload(); });
                 Button("Define Preset…", async () => { await DefinePreset(name is "Patterns" or "Materials" ? "Pattern" : "Brush"); Reload(); });
@@ -116,25 +116,13 @@ public sealed partial class MainWindow
                 Button("Path to Selection", () => PathToSelection());
                 Button("Delete Work Path", () => { CancelPen(); Edit("Delete Work Path", () => { if (_document?.WorkPath is null) return false; _document.WorkPath = null; return true; }); });
                 Button("Create Work Path", CreateTypePath); Button("Define Shape Preset…", () => _ = DefinePreset("Shape")); break;
-            case "Notes":
-            {
-                var list = new ListBox { MinHeight = 80 }; body.Children.Add(list); Guid[] ids = [];
-                _utilityRefresh[name] = () => { var notes = _document?.Marks.Where(m => m.Kind == MarkKind.Note).ToArray() ?? []; ids = notes.Select(n => n.ID).ToArray(); list.ItemsSource = notes.Select(n => string.IsNullOrEmpty(n.Name) ? n.Text : n.Name).ToArray(); };
-                void Select() { if (list.SelectedIndex is var i && i >= 0 && i < ids.Length) _selectedMark = ids[i]; }
-                Button("Note tool", () => SetTool(Tool.Note)); Button("Edit Note…", () => { Select(); _ = EditAnnotation(); }); Button("Delete Note", () => { Select(); DeleteToolAnnotation(); RefreshUtilityPanels(); }); break;
-            }
+            case "Notes": BuildNotesPanel(body); break;
             case "Measurement Log":
                 Button("Record Measurements", RecordMeasurements); Button("Measurement Log…", () => _ = MeasurementLog()); Button("Ruler tool", () => SetTool(Tool.Ruler)); break;
             case "Info":
                 var info = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12 }; body.Children.Add(info);
                 _utilityRefresh[name] = () => info.Text = _document is { } doc ? $"{_open.Name}\n{doc.Width} × {doc.Height} px\n{Localize.Text("Layers")}: {doc.Layers.Count}\n{Localize.Text("Zoom")}: {_canvas.Viewport.Zoom:P0}\n{Localize.Text("Selected Layer")}: {PropertyLayer?.Name ?? "—"}" : Localize.Text("No document"); break;
-            case "Layer Comps":
-                Hint("Layer comps use session history snapshots, including pixels and layer properties.");
-                var snapshots = new ListBox { MinHeight = 80 }; body.Children.Add(snapshots);
-                _utilityRefresh[name] = () => snapshots.ItemsSource = _history.Snapshots.Select(s => s.Name).ToArray();
-                Button("Create Snapshot", () => { MakeSnapshot(); RefreshUtilityPanels(); });
-                Button("Apply Snapshot", () => { if (snapshots.SelectedIndex is var i && i >= 0 && i < _history.Snapshots.Count) { var saved = _history.Snapshots[i].State.Document; if (saved is not null) Edit("Apply Snapshot", () => { _document!.Adopt(saved); return true; }); } });
-                Button("Delete Snapshot", () => { if (snapshots.SelectedIndex is var i && i >= 0 && i < _history.Snapshots.Count) { _history.DeleteSnapshot(_history.Snapshots[i].ID); RefreshUtilityPanels(); } }); break;
+            case "Layer Comps": BuildLayerCompsPanel(body); break;
             case "Timeline": BuildLayerTimeline(body); break;
             case "Actions": BuildActionsPanel(body); break;
         }
@@ -156,5 +144,5 @@ public sealed partial class MainWindow
         body.Children.Add(PropertyAction("Delete Action", () => { if (saved.SelectedItem is string key) { EditorPreferences.Current.Actions.Remove(key); SavePreferenceChanges(); saved.ItemsSource = EditorPreferences.Current.Actions.Keys.ToArray(); } }));
     }
 
-    private void BuildLayerTimeline(StackPanel body) => BuildGifTimeline(body);
+    private void BuildLayerTimeline(StackPanel body) => BuildDocumentTimeline(body);
 }

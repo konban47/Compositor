@@ -1,6 +1,6 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "c9c7531c620d9880e5b015fbcc57518e81483bc8",
+  "commit": "2d75d9172835e1dd6111cb2b659958ec33fa5abf",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
@@ -14,7 +14,7 @@
     },
     {
       "path": "Compositor/UI/LassoControls.swift",
-      "sha256": "ab6a5b292e8cae3cb8f62db4ae9771aa86d06d688e3fb9ac227f3643c5fddb35"
+      "sha256": "47ce531c074eb188ab75fcdfed0f71cfd025936a0b6acf74700497fca3b01c35"
     },
     {
       "path": "Compositor/ContentView.swift",
@@ -22,11 +22,11 @@
     },
     {
       "path": "Compositor/UI/ToolHeaderStyle.swift",
-      "sha256": "ae1124efd7e787bcda7b847f01758bd43612d676988b92574452b7c60053dc7a"
+      "sha256": "f13d009fcbdd4dd59fc35876c28686fe82ebbf218372b40b42070c8a138cbf91"
     },
     {
       "path": "Compositor/Document/EditorSession.swift",
-      "sha256": "75066ca7e1e506afa80abb075d6f22d9adf910df721e66a146f8f25f0bdd69b3"
+      "sha256": "92de34600d293a34daa2d74e4b4ea7a1531c688898d2f32fe9018081b5af3eec"
     },
     {
       "path": "Compositor/UI/ColorPaletteControls.swift",
@@ -62,7 +62,7 @@
     },
     {
       "path": "Compositor/UI/ShapeControls.swift",
-      "sha256": "5818254cb60fd30a95e518ce1b8c3c32bbb924d18f24fb634a765ced3f2204fd"
+      "sha256": "544dbb3b51e6e3564ea482d993bc2e007c2a89c758263f2a79fc5cdb6d0ee253"
     },
     {
       "path": "Compositor/UI/NativeLayerList.swift",
@@ -106,11 +106,11 @@
     },
     {
       "path": "Compositor/Document/LensEffects.swift",
-      "sha256": "2ee3593e7d0acc0166bab8c2ee53d1f77bfce95cb3b9ba1c089434e747518694"
+      "sha256": "77f8dd1685ee3f730abe207c288cd831ceb628f11285f40e31c5fcc5b57cdc2e"
     },
     {
       "path": "Compositor/Rendering/MetalBokeh.swift",
-      "sha256": "034a259b3d2726be684184df88635684ca5e992bd32f623184d0423dbe1474e5"
+      "sha256": "7a319ffeaa59294c8fe47063c7ac408fa796cb912ce76d613a8918cb3e826787"
     }
   ],
   "directPorts": [

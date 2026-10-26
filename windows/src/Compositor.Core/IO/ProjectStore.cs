@@ -37,6 +37,10 @@ public static class ProjectStore
         }
 
         var version = manifest.Version;
+        if (manifest.LayerComps is { } comps && (version < 29 || comps.Count > 1000 || comps.Any(c => c is null || !c.IsValid)
+            || comps.Select(c => c.ID).Distinct().Count() != comps.Count)) throw new ProjectException(ProjectError.Invalid);
+        if (manifest.Timeline is { } timeline && (version < 29 || !timeline.IsValid)) throw new ProjectException(ProjectError.Invalid);
+        if (version < 29 && manifest.ImageSettings?.ProfileEncoding is not null) throw new ProjectException(ProjectError.Invalid);
         if (version < 28 && manifest.ImageSettings is { } color && (color.ColorProfile is not null || color.OcioConfiguration is not null)) throw new ProjectException(ProjectError.Invalid);
         if (manifest.WorkPath is { } workPath && (version < 24 || !Document.PenPaths.Valid(workPath))) throw new ProjectException(ProjectError.Invalid);
         if (version < 20 && manifest.Layers.Any(l => l.Label > LayerLabel.Gray)) throw new ProjectException(ProjectError.Invalid);
@@ -68,6 +72,7 @@ public static class ProjectStore
         }
         foreach (var layer in manifest.Layers)
         {
+            if (version < 29 && (layer.Effects?.Items?.Any(e => e.ContourSamples is not null) == true || layer.Text?.Layout?.HasExtendedLayout == true || layer.Text?.StyleRuns?.Any(r => r.Style.Layout?.HasExtendedLayout == true) == true)) throw new ProjectException(ProjectError.Invalid);
             if (layer.Gif is { } gif && (version < 17 || !gif.IsValid(layer.ID) || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null || layer.Text is not null || layer.Shape is not null || layer.SmartObjectFile is not null)) throw new ProjectException(ProjectError.Invalid);
             if (layer.FloatImageFile is not null && (version < 18 || layer.ImageFile is null || layer.ImageFile.EndsWith(".exr", StringComparison.OrdinalIgnoreCase) || layer.FloatImageFile != Model.FloatPixels.FileName(layer.ID)))
                 throw new ProjectException(ProjectError.Invalid);
@@ -114,6 +119,7 @@ public static class ProjectStore
                 if (adjustment.Extended?.Kind == Document.ImageAdjustmentKind.ClarityDehaze && version < 28) throw new ProjectException(ProjectError.Invalid);
                 if (adjustment.Extended is not null && version < 19) throw new ProjectException(ProjectError.Invalid);
                 if ((adjustment.NeedsVersion16 || adjustment.FilterLayerSettings is not null) && version < 16) throw new ProjectException(ProjectError.Invalid);
+                if (adjustment.NeedsVersion29 && version < 29 && !(version == 18 && adjustment.Kind != AdjustmentKind.Sharpen || version == 19)) throw new ProjectException(ProjectError.Invalid);
                 if (adjustment.NeedsVersion9 && version < 9) throw new ProjectException(ProjectError.Invalid);
             }
             if (!LayerMask.FromRecord(layer).IsValid(version, layer.IsGroup == true, layer.ID))

@@ -248,6 +248,8 @@ public sealed class LayerAdjustment
     public FilterLayerSettings? FilterLayerSettings { get; set; }
     [JsonIgnore] public FilterLayerSettings FilterLayer => FilterLayerSettings ?? new();
     [JsonIgnore] public bool NeedsVersion16 => Kind is AdjustmentKind.ProgressiveBlur or AdjustmentKind.BloomGlow or AdjustmentKind.RgbSplit;
+    [JsonIgnore] public bool NeedsVersion29 => Kind is AdjustmentKind.Vignette or AdjustmentKind.LensEffects or AdjustmentKind.TonalContrast or AdjustmentKind.Sharpen;
+    [JsonIgnore] public bool IsFilterLayer => NeedsVersion16 || NeedsVersion29;
     public Document.ImageAdjustmentSettings? Extended { get; set; }
     public AdjustmentKind Kind { get; set; }
     public double Hue { get; set; }
@@ -299,6 +301,8 @@ public sealed class LayerAdjustment
     /// </summary>
     public int SamplingMargin => Kind switch
     {
+        AdjustmentKind.Sharpen => (int)Math.Ceiling(FilterLayer.SharpenRadius * 3 + 2),
+        AdjustmentKind.TonalContrast => (int)Math.Ceiling(FilterLayer.TonalRadius * 3 + 2),
         AdjustmentKind.Extended when Extended?.Kind == Document.ImageAdjustmentKind.ClarityDehaze => 26,
         AdjustmentKind.ProgressiveBlur => (int)Math.Ceiling(Math.Max(FilterLayer.ProgressiveFrom, FilterLayer.ProgressiveTo) * 3 + 2),
         AdjustmentKind.BloomGlow => (int)Math.Ceiling(FilterLayer.BloomRadius * 3 + 2),

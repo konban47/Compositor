@@ -250,10 +250,10 @@ public class ManifestFormatTests : ProjectTestBase
         string[] kinds =
         [
             "Hue/Saturation", "Levels", "Curves", "Exposure", "Gradient Map", "Grain", "Add Noise", "Gaussian Blur",
-            "Motion Blur", "Invert", "Black & White", "Color Balance", "Extended", "Progressive Blur", "Bloom / Glow", "RGB Split",
+            "Motion Blur", "Invert", "Black & White", "Color Balance", "Extended", "Progressive Blur", "Bloom / Glow", "RGB Split", "Vignette", "Lens Effects", "Tonal Contrast", "Sharpen",
         ];
         var adjustmentKinds = Enum.GetValues<AdjustmentKind>();
-        Assert.Equal(16, adjustmentKinds.Length);
+        Assert.Equal(20, adjustmentKinds.Length);
         Assert.Equal(kinds, adjustmentKinds.Select(RawEnum));
 
         Assert.Equal(["Nearest", "Smooth", "High quality"], Enum.GetValues<LayerSampling>().Select(RawEnum));

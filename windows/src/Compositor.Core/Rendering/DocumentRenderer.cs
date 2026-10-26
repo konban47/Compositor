@@ -74,6 +74,7 @@ public static partial class DocumentRenderer
             {
                 if (document.Image.Background is { } fill) result.Erase((SKColor)fill);
                 new Renderer(document, result, region).Draw();
+                IO.ProfileAssignment.ApplyDisplay(result, document.Image);
                 return result;
             }
             catch { result.Dispose(); throw; }
@@ -90,6 +91,7 @@ public static partial class DocumentRenderer
                 SKRect.Create(wanted.Left - grown.Left, wanted.Top - grown.Top, wanted.Width, wanted.Height),
                 SKRect.Create(wanted.Left - region.Left, wanted.Top - region.Top, wanted.Width, wanted.Height),
                 OneToOne, paint);
+            surface.Flush(); IO.ProfileAssignment.ApplyDisplay(result, document.Image);
             return result;
         }
         catch { result.Dispose(); throw; }
@@ -105,6 +107,8 @@ public static partial class DocumentRenderer
         foreach (var layer in document.Layers)
         {
             if (!layer.IsVisible) continue;
+            // Lens effects sample highlights across the entire frame, including sources outside a tile.
+            if (layer.Adjustment?.Kind == AdjustmentKind.LensEffects) return Math.Max(document.Width, document.Height);
             if (layer.Adjustment is { Kind: AdjustmentKind.RgbSplit } split && split.FilterLayer is { RgbSplitRadial: true } f)
             {
                 var center = f.RgbSplitCenter ?? new JsonPoint(document.Width / 2d, document.Height / 2d);

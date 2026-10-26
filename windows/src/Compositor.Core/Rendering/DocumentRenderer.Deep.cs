@@ -61,6 +61,7 @@ public static partial class DocumentRenderer
             using var canvas = new SKCanvas(output); using var brush = new SKPaint { ColorF = new SKColorF(1, 1, 1, (float)opacity), BlendMode = BlendModes.Skia(BlendModes.From(layer.BlendMode))!.Value };
             canvas.DrawBitmap(raster, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest), brush);
         }
-        return DeepPixels.From(output);
+        var result = DeepPixels.From(output);
+        try { IO.ProfileAssignment.ApplyDisplay(result, document.Image); return result; } catch { result.Dispose(); throw; }
     }
 }

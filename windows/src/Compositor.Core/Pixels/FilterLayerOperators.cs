@@ -13,7 +13,24 @@ internal static class FilterLayerOperators
         var settings = f.Local(width, height, ox, oy);
         using var image = Bitmaps.Allocate(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
         for (var y = 0; y < height; y++) rgba.Slice(y * stride, width * 4).CopyTo(image.GetPixelSpan().Slice(y * image.RowBytes, width * 4));
-        if (adjustment.Kind == AdjustmentKind.BloomGlow)
+        if (adjustment.Kind == AdjustmentKind.Sharpen)
+            SharpenPixels.Apply(image, f.SharpenAmount, f.SharpenRadius);
+        else if (adjustment.Kind == AdjustmentKind.Vignette)
+            AdjustPixels.ColoredVignette(image.GetPixelSpan(), width, height, image.RowBytes, -ox, -oy, canvasWidth, canvasHeight, false,
+                f.VignetteAmount, f.VignetteMidpoint, f.VignetteRoundness, f.VignetteFeather, f.VignetteHighlights, f.VignetteRed, f.VignetteGreen, f.VignetteBlue);
+        else if (adjustment.Kind == AdjustmentKind.TonalContrast)
+        {
+            using var blurred = image.Copy();
+            GaussianBlur.Clamped(blurred.GetPixelSpan(), width, height, 4, blurred.RowBytes, f.TonalRadius);
+            AdjustPixels.TonalContrast(image.GetPixelSpan(), blurred.GetPixelSpan(), width, height, image.RowBytes, blurred.RowBytes,
+                f.TonalAmount, f.TonalShadows, f.TonalMidtones, f.TonalHighlights);
+        }
+        else if (adjustment.Kind == AdjustmentKind.LensEffects)
+        {
+            using var filtered = LensEffects.Apply(image, f.Lens);
+            using var canvas = new SKCanvas(image); canvas.Clear(SKColors.Transparent); canvas.DrawBitmap(filtered, new SKPoint(), new SKSamplingOptions(SKFilterMode.Nearest)); canvas.Flush();
+        }
+        else if (adjustment.Kind == AdjustmentKind.BloomGlow)
         {
             using var glow = image.Copy(); BloomPixels.Lift(glow.GetPixelSpan(), glow.GetPixelSpan(), width, height, glow.RowBytes, f.BloomAmount / 50);
             GaussianBlur.ZeroPadded(glow.GetPixelSpan(), width, height, 4, glow.RowBytes, f.BloomRadius);

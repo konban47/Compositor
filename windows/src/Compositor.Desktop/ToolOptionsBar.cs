@@ -84,6 +84,8 @@ internal sealed partial class ToolOptionsBar : Border
 
     /// <summary>The Type tool's text is to be edited.</summary>
     public event Action? TextAsked;
+    private readonly ContentControl _typeControls = new();
+    internal void SetTypeControls(Control control) => _typeControls.Content = control;
 
     public ToolOptionsBar(ToolOptions options)
     {
@@ -537,7 +539,7 @@ internal sealed partial class ToolOptionsBar : Border
         Cell("crop", _cropCancel);
         Cell("transform", _flipH);
         Cell("transform", _flipV);
-        Cell("type", _editText);
+        Cell("type", _typeControls);
         Cell("history", _historySource);
         Cell("path", _pathHint);
         Cell("zoom", _zoom);

@@ -34,17 +34,24 @@ public sealed partial class MainWindow
     }
     private async Task AssignColorProfile()
     {
-        if (_document is not { } doc || PropertyLayer is not { Asset: { } asset } layer || !LayerProtection.CanPaint(doc, layer.ID)) return;
+        CommitText(); _stopGifPlayback?.Invoke();
+        if (_document is not { } doc) return;
+        if (doc.Image.Mode is not (ImageMode.RGB or ImageMode.CMYK or ImageMode.Grayscale)) { Say("Assign Profile requires an RGB, CMYK or grayscale document."); return; }
         var revision = _history.CurrentRevision;
+        using var preview = doc.Clone();
         try
         {
-            if (await ChooseIcc("Assign Source Profile to Layer", true) is not { } profile || !ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
-            using var lease = asset.Retain(); using var original = DeepImageCodec.Magick(asset.WorkingImage);
-            using var converted = await Task.Run(() => ColorTransforms.Convert(original, profile, ColorProfiles.SRGB.ToByteArray())); using var pixels = AdvancedEdit.Pixels(converted);
-            if (!ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
-            Edit("Assign Profile", () => ImageAdjustments.SetPixels(doc, layer, pixels, selection: false));
+            var dialog = new AssignProfileDialog(doc.Image, EditorPreferences.Current.ColorSettings, value =>
+            {
+                if (!ReferenceEquals(doc, _document)) return;
+                if (value is not null) preview.Image = value;
+                _canvas.PreviewDocument = value is null ? null : preview; _canvas.ColorSettingsChanged();
+            });
+            if (!await dialog.ShowDialog<bool>(this) || !ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
+            Edit("Assign Profile", () => { if (doc.Image == dialog.Draft) return false; doc.Image = dialog.Draft; return true; });
         }
         catch (Exception error) { Say(error.Message); }
+        finally { if (ReferenceEquals(_canvas.PreviewDocument, preview)) _canvas.PreviewDocument = null; _canvas.ColorSettingsChanged(); }
     }
     private async Task ConvertColorProfile()
     {

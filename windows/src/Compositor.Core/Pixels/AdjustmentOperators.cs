@@ -44,6 +44,7 @@ public static class AdjustmentOperators
         switch (adjustment.Kind)
         {
             case AdjustmentKind.ProgressiveBlur: case AdjustmentKind.BloomGlow: case AdjustmentKind.RgbSplit:
+            case AdjustmentKind.Vignette: case AdjustmentKind.LensEffects: case AdjustmentKind.TonalContrast: case AdjustmentKind.Sharpen:
                 FilterLayerOperators.Apply(adjustment, rgba, width, height, stride, originX, originY, canvasWidth, canvasHeight); break;
             case AdjustmentKind.Extended when adjustment.Extended is { } extended:
                 if (extended.Kind == Document.ImageAdjustmentKind.ClarityDehaze) { ClarityPixels.Apply(rgba, width, height, stride, extended); break; }

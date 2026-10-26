@@ -29,7 +29,7 @@ public sealed partial class CanvasView
     {
         if (!_sceneDirty && ReferenceEquals(document, _sceneDocument)) return;
         _displayScene?.Dispose(); _displayScene = null;
-        if (!ProofColors && !GamutWarning && !Compositor.Core.IO.ColorDefaults.Settings.DesaturateMonitor && EditorPreferences.Current.AcceleratedCanvas && DisplayChannels == ColorChannels.RGB && AlphaDisplay is null)
+        if ((PreviewDocument is null || PreviewResolutionScale == 1) && !ProofColors && !GamutWarning && !Compositor.Core.IO.ColorDefaults.Settings.DesaturateMonitor && EditorPreferences.Current.AcceleratedCanvas && DisplayChannels == ColorChannels.RGB && AlphaDisplay is null)
             _displayScene = _sceneCache.Build(document);
         _sceneDocument = document; _sceneDirty = false; SceneBuildCount++;
     }

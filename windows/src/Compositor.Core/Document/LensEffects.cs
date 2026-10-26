@@ -4,8 +4,8 @@ using SkiaSharp;
 
 namespace Compositor.Core.Document;
 
-public enum LensEffect { AnamorphicFlare, Starburst, Mist, Prism, Bokeh }
-public enum BokehShape { Round, Hexagon, Oval, CatsEye }
+public enum LensEffect { [System.Text.Json.Serialization.JsonStringEnumMemberName("Anamorphic Flare")] AnamorphicFlare, Starburst, Mist, Prism, Bokeh }
+public enum BokehShape { Round, Hexagon, Oval, [System.Text.Json.Serialization.JsonStringEnumMemberName("Cat's Eye")] CatsEye }
 public sealed record LensEffectSettings
 {
     public LensEffect Effect { get; set; }

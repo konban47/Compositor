@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Compositor.Core.Document;
 using Compositor.Core.Format;
 using SkiaSharp;
@@ -13,8 +14,8 @@ namespace Compositor.Desktop;
 public sealed partial class MainWindow
 {
     private readonly Dictionary<string, StackPanel> _typePanels = [];
-    private StackPanel? _propertyDestination;
-    private HashSet<string>? _propertySectionFilter;
+    private StackPanel? _propertyDestination = null;
+    private HashSet<string>? _propertySectionFilter = null;
     private void OpenTypePanel(string name)
     {
         var tab = _dockPanels.GetValueOrDefault(name)?.Tab;
@@ -26,16 +27,19 @@ public sealed partial class MainWindow
         }
         ShowDockPanel(name); RefreshTypePanels();
     }
+    private readonly Dictionary<string, string> _typePanelKeys = [];
     private void RefreshTypePanels()
     {
         foreach (var (name, body) in _typePanels)
         {
+            if (body.GetVisualDescendants().Any(c => c is Control { IsFocused: true } && c is not Button)) continue;
+            var key = TypographyKey(CurrentType ?? TypeDefaults) + "/" + TypeResolution;
+            if (name is "Character" or "Paragraph" && _typePanelKeys.GetValueOrDefault(name) == key) continue;
+            _typePanelKeys[name] = key;
             body.Children.Clear();
             if (name == "Glyphs") { BuildGlyphPanel(body); continue; }
             if (name.EndsWith("Styles")) { BuildTypeStyles(body, name == "Paragraph Styles"); continue; }
-            if (PropertyLayer is not { LiveText: { } text } layer) { body.Children.Add(PropertyLabel("Select a type layer to edit its properties.")); continue; }
-            _propertyDestination = body; _propertySectionFilter = name == "Character" ? ["Character", "Type Options", "East Asian Features", "Middle Eastern Features"] : ["Paragraph", "Bullets and Numbering"];
-            try { BuildTextProperties(layer.ID, text); } finally { _propertyDestination = null; _propertySectionFilter = null; }
+            BuildCompactTypePanel(body, CurrentType ?? TypeDefaults, name == "Paragraph");
         }
     }
     private void BuildGlyphPanel(StackPanel body)
@@ -87,10 +91,10 @@ public sealed partial class MainWindow
         if (paragraph)
         {
             target.Alignment = source.Alignment; target.Leading = source.Leading;
-            target.Layout = b with { LeftIndent = a.LeftIndent, RightIndent = a.RightIndent, FirstLineIndent = a.FirstLineIndent, SpaceBefore = a.SpaceBefore, SpaceAfter = a.SpaceAfter, Justification = a.Justification, Kinsoku = a.Kinsoku, BottomLeading = a.BottomLeading }; return;
+            target.Layout = b with { LeftIndent = a.LeftIndent, RightIndent = a.RightIndent, FirstLineIndent = a.FirstLineIndent, SpaceBefore = a.SpaceBefore, SpaceAfter = a.SpaceAfter, Justification = a.Justification, Kinsoku = a.Kinsoku, BottomLeading = a.BottomLeading, KinsokuMode = a.KinsokuMode, Mojikumi = a.Mojikumi, Hyphenate = a.Hyphenate, HyphenMinimum = a.HyphenMinimum, HangingPunctuation = a.HangingPunctuation, MultiLineComposer = a.MultiLineComposer, WordSpacing = a.WordSpacing, LetterSpacing = a.LetterSpacing }; return;
         }
         foreach (var property in typeof(LayerTextStyle).GetProperties().Where(p => p.CanWrite && p.Name is not ("Content" or "StyleRuns" or "ColorRuns" or "FontRuns" or "BoxSize" or "Alignment" or "Layout" or "Vertical" or "Dynamic" or "Geometry"))) property.SetValue(target, property.GetValue(source));
-        target.Layout = b with { HorizontalScale = a.HorizontalScale, VerticalScale = a.VerticalScale, BaselineShift = a.BaselineShift, Smoothing = a.Smoothing, Tsume = a.Tsume };
+        target.Layout = b with { HorizontalScale = a.HorizontalScale, VerticalScale = a.VerticalScale, BaselineShift = a.BaselineShift, Smoothing = a.Smoothing, Tsume = a.Tsume, CharacterAlignment = a.CharacterAlignment, NoBreak = a.NoBreak, FractionalWidths = a.FractionalWidths, TateChuYoko = a.TateChuYoko };
         target.FontRuns = null; target.ColorRuns = null;
     }
     private void SaveDefaultType()

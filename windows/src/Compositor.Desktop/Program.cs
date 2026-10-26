@@ -21,6 +21,7 @@ internal static partial class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args is ["--asset-workflow-checks", var assetWorkflowOutput]) return AssetWorkflowChecks(assetWorkflowOutput);
         if (args is ["--gif-checks", var gifOutput]) return GifChecks(gifOutput);
         if (args is ["--tool-options-checks", var toolOptionsOutput]) return ToolOptions158Checks(toolOptionsOutput);
         if (args is ["--color-checks", var colorOutput]) return ColorChecks(colorOutput);

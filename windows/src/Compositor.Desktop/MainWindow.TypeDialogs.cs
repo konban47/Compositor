@@ -20,7 +20,8 @@ public sealed partial class MainWindow
     }
     private async Task WarpType()
     {
-        CommitText(); if (_document is not { } doc || PropertyLayer is not { LiveText: { } source } layer) return;
+        if (_document is not { } doc || PropertyLayer is not { LiveText: { } layerStyle } layer) return;
+        var session = _text; var source = session?.Style ?? layerStyle;
         var revision = _history.CurrentRevision; var options = source.Geometry ?? new(TextGeometryShape.Arch);
         var form = new FormDialog("Warp Text", 470, 470);
         var shape = form.Choice("Style", Enum.GetNames<TextGeometryShape>(), (int)options.Shape);
@@ -36,7 +37,7 @@ public sealed partial class MainWindow
             if (form.PreviewEnabled) { preview?.Show((target, id) => TextEdits.SetStyle(target, id, Read())); _canvas.PreviewDocument = preview?.Document; }
             _canvas.InvalidateVisual();
         };
-        try { if (await form.ShowDialog<bool>(this) && ReferenceEquals(doc, _document) && revision == _history.CurrentRevision) Edit("Warp Text", () => TextEdits.SetStyle(doc, layer.ID, Read())); }
+        try { if (await form.ShowDialog<bool>(this) && ReferenceEquals(doc, _document) && session == _text && revision == _history.CurrentRevision) { var next = Read(); ChangeType(s => { s.Geometry = next.Geometry; s.BoxSize = next.BoxSize; }, true); } }
         finally { _canvas.PreviewDocument = null; _canvas.InvalidateVisual(); }
     }
     private async Task MatchFont()

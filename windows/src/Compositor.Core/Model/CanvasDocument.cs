@@ -23,6 +23,8 @@ public sealed class CanvasDocument : IDisposable
     public int Height { get; set; }
     public double Resolution { get; set; } = 72;
     public ImageSettings Image { get; set; } = new();
+    public List<Document.LayerComp> LayerComps { get; } = [];
+    public Document.DocumentTimeline? Timeline { get; set; }
     public List<ImageVariable> Variables { get; } = [];
     public List<ImageDataSet> DataSets { get; } = [];
     public MeasurementScale MeasurementScale { get; set; } = new();
@@ -110,6 +112,7 @@ public sealed class CanvasDocument : IDisposable
         if (ID != other.ID || Width != other.Width || Height != other.Height || Resolution != other.Resolution
             || Layers.Count != other.Layers.Count || Guides.Count != other.Guides.Count || !Channels.SequenceEqual(other.Channels)
             || !CountGroups.SequenceEqual(other.CountGroups) || !Marks.SequenceEqual(other.Marks) || !Selection.Matches(other.Selection) || WorkPath != other.WorkPath
+            || !LayerComps.SequenceEqual(other.LayerComps) || Timeline != other.Timeline
             || Image != other.Image || MeasurementScale != other.MeasurementScale || !Variables.SequenceEqual(other.Variables)
             || !DataSets.SequenceEqual(other.DataSets) || !Measurements.SequenceEqual(other.Measurements)
             || !MeasurementFields.SequenceEqual(other.MeasurementFields)) return false;
@@ -206,6 +209,7 @@ public sealed class CanvasDocument : IDisposable
     public void CopyImageMetadataTo(CanvasDocument copy)
     {
         copy.CountGroups.Clear(); copy.CountGroups.AddRange(CountGroups);
+        copy.LayerComps.Clear(); copy.LayerComps.AddRange(LayerComps); copy.Timeline = Timeline;
         copy.Image = Image; copy.MeasurementScale = MeasurementScale; copy.MeasurementFields = MeasurementFields.ToArray();
         copy.Variables.Clear(); copy.Variables.AddRange(Variables);
         copy.DataSets.Clear(); copy.DataSets.AddRange(DataSets);

@@ -373,6 +373,12 @@ public static partial class TextEdits
                     BuildPlain(content, from, to, style, fonts, colours, y, linePieces, lineStops);
 
                 var width = linePieces.Count == 0 ? 0 : linePieces[^1].X + linePieces[^1].Width;
+                if (options.Hyphenate && to < start + length && to > from && char.IsLetter(content[to - 1]) && char.IsLetter(content[to]) && !IsCjk(content.Substring(to - 1, 1)))
+                {
+                    var dashStyle = TextRanges.At(style, to - 1); var face = fonts[to - 1]; var dashWidth = (float)Advance("-", face, dashStyle, 1);
+                    linePieces.Add(new Piece("-", face, colours[to - 1], width, y, (float)(dashStyle.FontSize / style.FontSize), 0, dashWidth, false, null, null, Style: dashStyle)); width += dashWidth;
+                }
+                if (options.HangingPunctuation && to > from && NoLineStart(content[to - 1])) width -= (float)(Advance(content[(to - 1)..to], fonts[to - 1], TextRanges.At(style, to - 1), 1) * .5);
                 var alignment = style.Alignment;
                 if (options.Justification != TextJustification.None && double.IsFinite(available))
                 {
@@ -449,6 +455,7 @@ public static partial class TextEdits
             var sx = (runStyle.Layout?.HorizontalScale ?? 100) / (style.Layout?.HorizontalScale ?? 100);
             var sy = (runStyle.Layout?.VerticalScale ?? 100) / (style.Layout?.VerticalScale ?? 100);
             shift -= (float)((runStyle.Layout?.BaselineShift ?? 0) - (style.Layout?.BaselineShift ?? 0));
+            shift += AlignmentShift(runStyle, style);
             var width = (float)(Advance(text, typeface, runStyle, scale) * sx);
             pieces.Add(new Piece(text, typeface, colours[index], (float)x, y + shift, (float)(scale * sy * runStyle.FontSize / style.FontSize), shift, width, false, null, null, Horizontal: (float)(sx / sy), Style: runStyle));
             stops.Add(new Stop(index, (float)x, y));
@@ -494,7 +501,7 @@ public static partial class TextEdits
             var colour = colours[starts[cursor]];
             var runStyle = TextRanges.At(style, starts[cursor]);
             var scale = DisplayScale(runStyle, content, starts[cursor]);
-            var shift = DisplayShift(runStyle) - (float)((runStyle.Layout?.BaselineShift ?? 0) - (style.Layout?.BaselineShift ?? 0));
+            var shift = DisplayShift(runStyle) - (float)((runStyle.Layout?.BaselineShift ?? 0) - (style.Layout?.BaselineShift ?? 0)) + AlignmentShift(runStyle, style);
             var text = new StringBuilder();
             var start = cursor;
             while (cursor < count && !removed[cursor] && levels[cursor] == level
@@ -524,12 +531,19 @@ public static partial class TextEdits
             var sy = (float)((run.Style.Layout?.VerticalScale ?? 100) / (style.Layout?.VerticalScale ?? 100));
             var positions = run.Shaped.Positions.Select(p => new SKPoint(p.X * sx, p.Y * sy)).ToArray();
             var tracking = (float)run.Style.Tracking;
-            if (tracking != 0)
+            var extra = 0f;
+            for (var at = 0; at < positions.Length; at++)
             {
-                for (var at = 0; at < positions.Length; at++)
-                    positions[at] = new SKPoint(positions[at].X + tracking * at, positions[at].Y);
+                var cluster = (int)(run.Shaped.Clusters?.ElementAtOrDefault(at) ?? (uint)Math.Min(at, run.Text.Length - 1));
+                cluster = Math.Clamp(cluster, 0, Math.Max(0, run.Text.Length - 1));
+                var element = System.Globalization.StringInfo.GetNextTextElement(run.Text, cluster);
+                var advance = run.Shaped.Advances?.ElementAtOrDefault(at) ?? 0;
+                positions[at] = new SKPoint(positions[at].X + extra, positions[at].Y);
+                if (run.Style.Layout?.FractionalWidths == false) positions[at] = new SKPoint(MathF.Round(positions[at].X), positions[at].Y);
+                if (advance > 0 && (at + 1 == positions.Length || run.Shaped.Clusters is not { } clusterIds || clusterIds[at + 1] != clusterIds[at]))
+                    extra += (float)(AdjustAdvance(element, advance, run.Style) - advance) * sx;
             }
-            var width = run.Shaped.Width * sx + tracking * Math.Max(0, positions.Length - 1);
+            var width = run.Shaped.Width * sx + extra - tracking * sx;
             pieces.Add(new Piece(run.Text, run.Typeface, run.Colour, (float)x, y + run.Shift, (float)(run.Scale * sy * run.Style.FontSize / style.FontSize), run.Shift,
                 width, true, run.Shaped.Glyphs, positions, Horizontal: sx / sy, Style: run.Style));
             var boundaries = StringInfo.ParseCombiningCharacters(run.Text).Append(run.Text.Length).ToArray();
@@ -634,7 +648,7 @@ public static partial class TextEdits
     private static double Advance(string text, SKTypeface typeface, LayerTextStyle style, float scale)
     {
         using var font = new SKFont(typeface, (float)(style.FontSize * scale)) { Embolden = style.Bold == true, SkewX = style.Italic == true ? -.25f : 0 };
-        return font.MeasureText(text) + style.Tracking - (IsCjk(text) ? style.FontSize * (style.Layout?.Tsume ?? 0) / 100 : 0);
+        return AdjustAdvance(text, font.MeasureText(text), style);
     }
 
     /// <summary>The lines of the content, as (start, length) into it. A break is a newline, in any of its forms.</summary>
@@ -661,10 +675,16 @@ public static partial class TextEdits
     private static IEnumerable<(int From, int To)> Wrap(string content, int start, int length,
         LayerTextStyle style, List<SKTypeface> fonts, List<SKColor> colours, double limit)
     {
-        if (double.IsPositiveInfinity(limit) || length == 0)
+        if (double.IsPositiveInfinity(limit) || length == 0 || style.Layout?.NoBreak == true)
         {
             yield return (start, start + length);
             yield break;
+        }
+        if (style.Layout?.MultiLineComposer == true)
+        {
+            var total = Width(content, start, start + length, style, fonts);
+            var rows = Math.Max(1, Math.Ceiling(total / limit));
+            if (rows > 1) limit = Math.Min(limit, total / rows * 1.08);
         }
         var from = start;
         var at = start;
@@ -683,11 +703,20 @@ public static partial class TextEdits
                     if (IsCjk(next) || char.IsWhiteSpace(next[0])) break;
                     tokenEnd += count;
                 }
+            if (TextRanges.At(style, at).Layout?.NoBreak == true)
+                while (tokenEnd < end && TextRanges.At(style, tokenEnd).Layout?.NoBreak == true) { NextElement(content, tokenEnd, end, out var step); tokenEnd += step; }
             var tokenWidth = Width(content, at, tokenEnd, style, fonts);
+            if (width + tokenWidth > limit && style.Layout is { Hyphenate: true } hyphen && tokenEnd - at >= hyphen.HyphenMinimum && TextRanges.At(style, at).Layout?.NoBreak != true && !IsCjk(text))
+            {
+                var cut = at; var fit = width;
+                var dash = Advance("-", fonts[at], TextRanges.At(style, at), 1);
+                while (cut < tokenEnd - 2) { NextElement(content, cut, tokenEnd, out var step); var nextWidth = Width(content, cut, cut + step, style, fonts); if (fit + nextWidth + dash > limit) break; fit += nextWidth; cut += step; }
+                if (cut >= at + 2) { yield return (from, cut); from = at = cut; width = 0; continue; }
+            }
             if (width + tokenWidth > limit && at > from)
             {
                 var breakAt = at;
-                while (style.Layout?.Kinsoku != false && breakAt < end && NoLineStart(content[breakAt]))
+                while (style.Layout?.Kinsoku != false && breakAt < end && (NoLineStart(content[breakAt]) || style.Layout?.KinsokuMode == 2 && "ぁぃぅぇぉっゃゅょァィゥェォッャュョヮヵヶ".Contains(content[breakAt])))
                 {
                     NextElement(content, breakAt, end, out var step);
                     breakAt += step;

@@ -58,7 +58,7 @@ public sealed partial class MainWindow
                 else if (title.StartsWith("Split Warp") || title == "Remove Warp Split") item.IsEnabled = _placeMode == "Warp" && _placeMesh is not null;
                 else if (title is "Auto-Align Layers…" or "Auto-Blend Layers…") item.IsEnabled = SelectedLayers.Count >= 2;
                 else if (title is "Check Spelling…" or "Find and Replace Text…") item.IsEnabled = _document?.Layers.Exists(l => l.LiveText is not null) == true;
-                else if (title is "Fade…" or "Cu_t" or "_Copy" or "Copy _Merged" or "Clear" or "Fill…" or "Stroke…" or "Content-Aware Scale…" or "Puppet Warp" or "Perspective Warp" or "Free Transform" or "Rotate Object" or "Assign Profile…") item.IsEnabled = PropertyLayer is not null;
+                else if (title is "Fade…" or "Cu_t" or "_Copy" or "Copy _Merged" or "Clear" or "Fill…" or "Stroke…" or "Content-Aware Scale…" or "Puppet Warp" or "Perspective Warp" or "Free Transform" or "Rotate Object") item.IsEnabled = PropertyLayer is not null;
                 else if (title is "Generative Fill…" or "Paste Into" or "Paste Outside" or "Sky Replacement…") item.IsEnabled = _document?.Selection.Path is not null && _document.Selection.IsEmpty == false;
             }
             foreach (var child in item.Items.OfType<MenuItem>()) Visit(child);
