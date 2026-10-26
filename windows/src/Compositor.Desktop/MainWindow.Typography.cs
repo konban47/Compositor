@@ -74,7 +74,7 @@ public sealed partial class MainWindow
     private Control TypeNumber(string tag, string label, double value, double min, double max, Action<double> change, double[]? presets = null, string suffix = "", bool auto = false)
     {
         var number = new NumericUpDown { Tag = tag, Minimum = (decimal)min, Maximum = (decimal)max, Value = (decimal)Math.Clamp(value, min, max), Increment = 1,
-            ShowButtonSpinner = false, FormatString = "0.##", MinHeight = 25, Height = 25, Padding = new Thickness(3, 0), FontSize = 12 };
+            ShowButtonSpinner = false, FormatString = auto ? "0.##;-0.##;'" + Localize.Text("Auto") + "'" : "0.##", MinHeight = 25, Height = 25, Padding = new Thickness(3, 0), FontSize = 12 };
         ToolTip.SetTip(number, Localize.Text(label)); number.ValueChanged += (_, _) => { if (number.Value is { } n && Math.Abs((double)n - value) > .00001) { value = (double)n; change(value); } };
         var grid = new Grid { ColumnDefinitions = new("*,22") }; grid.Children.Add(number);
         var drop = TypeButton("⌄", label, () => { }); drop.Width = 22; drop.MinWidth = 0; drop.Height = 25;
@@ -109,9 +109,11 @@ public sealed partial class MainWindow
         for (var i = 0; i < (justify ? 7 : 3); i++)
         {
             var index = i; var title = new[] { "Align Left", "Align Center", "Align Right", "Justify Last Left", "Justify Last Center", "Justify Last Right", "Justify All" }[i];
-            row.Children.Add(PropertyToggle(i < 3 ? "paragraph-" + i : "justify-" + (i - 2), title,
+            var button = PropertyToggle(i < 3 ? "paragraph-" + i : "justify-" + (i - 2), title,
                 i < 3 ? layout.Justification == TextJustification.None && (int)text.Alignment == i : (int)layout.Justification == i - 2,
-                _ => ChangeType(s => { s.Alignment = (TypeAlignment)Math.Min(index, 2); s.Layout = (s.Layout ?? new()) with { Justification = index < 3 ? TextJustification.None : (TextJustification)(index - 2) }; }, true)));
+                _ => ChangeType(s => { s.Alignment = (TypeAlignment)Math.Min(index, 2); s.Layout = (s.Layout ?? new()) with { Justification = index < 3 ? TextJustification.None : (TextJustification)(index - 2) }; }, true));
+            if (text.Vertical == true && button.Content is Control glyph) { glyph.RenderTransform = new RotateTransform(90); glyph.RenderTransformOrigin = RelativePoint.Center; }
+            row.Children.Add(button);
         }
         return row;
     }
