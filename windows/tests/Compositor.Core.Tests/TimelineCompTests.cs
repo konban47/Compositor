@@ -48,6 +48,18 @@ public sealed class TimelineCompTests
         using var doc=Document();doc.Layers[0].IsVisible=false;var t=TimelineEdits.Create(doc,TimelineMode.Frames);var video=TimelineEdits.ConvertToVideo(t);doc.Layers[0].IsVisible=true;
         TimelineEdits.Evaluate(doc,video,0);Assert.False(doc.Layers[0].IsVisible);
     }
+    [Fact] public void FrameRoundtripPreservesLinkedMediaClockAndRejectsOversizedClipExpansion()
+    {
+        using var doc=Document();
+        var source=new TimelineClip{LayerID=doc.Layers[0].ID,Duration=1,SourceStart=3,Speed=2,SourceFile=Path.Combine(Path.GetTempPath(),"linked.mp4")};
+        var timeline=new DocumentTimeline{FrameRate=10,WorkEnd=1,Clips=[source]};
+        var frames=TimelineEdits.ConvertToFrames(doc,timeline);var video=TimelineEdits.ConvertToVideo(frames);
+        Assert.True(video.IsValid);Assert.Equal(source.SourceFile,video.Clips[5].SourceFile);Assert.Equal(4,video.Clips[5].SourceStart,6);Assert.Equal(2,video.Clips[5].Speed);
+        var first=frames.Frames[0].State.Layers[0];var state=frames.Frames[0].State with{Layers=[first,first with{LayerID=Guid.NewGuid()},first with{LayerID=Guid.NewGuid()}]};
+        var tooMany=frames with{Frames=System.Collections.Immutable.ImmutableArray.CreateRange(Enumerable.Range(0,4000).Select(_=>frames.Frames[0] with{ID=Guid.NewGuid(),State=state}))};
+        Assert.True(tooMany.IsValid);
+        Assert.Throws<InvalidOperationException>(()=>TimelineEdits.ConvertToVideo(tooMany));
+    }
     [Fact] public void FrameConversionPreservesFillBlendAndOnionPreviewDoesNotAlterExport()
     {
         using var doc=Document();var layer=doc.Layers[0];layer.FillOpacity=.4;layer.BlendMode=LayerBlendMode.Screen;

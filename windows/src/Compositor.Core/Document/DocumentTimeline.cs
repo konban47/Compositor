@@ -176,10 +176,19 @@ public static class TimelineEdits
     public static DocumentTimeline ConvertToVideo(DocumentTimeline timeline)
     {
         if (timeline.Mode == TimelineMode.Video) return timeline;
+        if (timeline.Frames.Sum(frame => (long)frame.State.Layers.Length) > 10000)
+            throw new InvalidOperationException("The converted timeline would exceed 10000 clips.");
         var clips = ImmutableArray.CreateBuilder<TimelineClip>(); var start = 0d;
         foreach (var frame in timeline.Frames)
         {
-            foreach (var state in frame.State.Layers) clips.Add(new() { LayerID = state.LayerID, State = state, Visibility = state.Visible, Start = start, Duration = frame.Duration, Keys = [new(0, state.Transform, state.Visible ? state.Opacity : 0, KeyInterpolation.Hold)] });
+            foreach (var state in frame.State.Layers)
+            {
+                // Frame conversion stores property snapshots, while pixels remain linked to their media clock.
+                var source = timeline.Clips.LastOrDefault(c => c.LayerID == state.LayerID && start >= c.Start && start < c.End);
+                clips.Add(new() { LayerID = state.LayerID, State = state, Visibility = state.Visible, Start = start, Duration = frame.Duration,
+                    SourceFile = source?.SourceFile, SourceStart = source is null ? start : source.SourceStart + (start - source.Start) * source.Speed,
+                    Speed = source?.Speed ?? 1, Keys = [new(0, state.Transform, state.Visible ? state.Opacity : 0, KeyInterpolation.Hold)] });
+            }
             start += frame.Duration;
         }
         return timeline with { Mode = TimelineMode.Video, Clips = clips.ToImmutable(), WorkStart = 0, WorkEnd = Math.Max(.01, start) };
