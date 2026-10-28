@@ -46,6 +46,11 @@ public sealed class DesktopApp : Application
                     catch (Exception error) { Console.Error.WriteLine(error); desktop.Shutdown(1); }
                     return;
                 }
+                if (desktop.Args is ["--batch-recipe", var recipe, .. var inputs])
+                {
+                    await window.RunBatchRecipe(recipe, inputs);
+                    return;
+                }
                 foreach (var path in desktop.Args ?? []) await window.OpenPath(path);
             };
         }

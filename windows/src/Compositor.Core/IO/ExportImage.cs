@@ -6,13 +6,15 @@ namespace Compositor.Core.IO;
 
 public enum ExportFormat { Png, Jpeg, Pdf, Tiff, Exr, Gif }
 public sealed record ExportOptions(ExportFormat Format, int Width, int Height, int Quality = 90,
-    bool Transparency = true, SKColor? Background = null, double Resolution = 72, byte[]? CmykProfile = null, bool NativeColorMode = false)
+    bool Transparency = true, SKColor? Background = null, double Resolution = 72, byte[]? CmykProfile = null, bool NativeColorMode = false,
+    MetadataPolicy Metadata = MetadataPolicy.None)
 {
     public string Extension => Format switch { ExportFormat.Jpeg => "jpg", ExportFormat.Pdf => "pdf", ExportFormat.Tiff => "tif", ExportFormat.Exr => "exr", ExportFormat.Gif => "gif", _ => "png" };
     public bool IsValid => (CmykProfile is null || CmykColor.IsProfile(CmykProfile) && Format is ExportFormat.Jpeg or ExportFormat.Tiff or ExportFormat.Pdf) && Enum.IsDefined(Format) && Width > 0 && Height > 0
         && Width <= DocumentLimits.MaxSide && Height <= DocumentLimits.MaxSide
         && (long)Width * Height <= DocumentLimits.MaxSurfacePixels && Quality is >= 1 and <= 100
-        && double.IsFinite(Resolution) && Resolution is >= 1 and <= 9600;
+        && double.IsFinite(Resolution) && Resolution is >= 1 and <= 9600 && Enum.IsDefined(Metadata)
+        && (Metadata == MetadataPolicy.None || Format is ExportFormat.Png or ExportFormat.Jpeg or ExportFormat.Tiff or ExportFormat.Gif);
 }
 
 public sealed class ExportResult(byte[] bytes, SKBitmap preview) : IDisposable
@@ -70,6 +72,7 @@ public static class ExportImage
                 ?? throw new IOException("The image encoder failed.");
             bytes = data.ToArray();
         }
+        bytes = ImageMetadata.AddToEncoded(bytes, options.Format, document.Metadata, options.Metadata);
         // JPEG preview includes actual compression artifacts. PDF is a single flattened image page.
         using var decoded = options.CmykProfile is not null ? CmykColor.Proof(pixels, options.CmykProfile) : options.Format == ExportFormat.Jpeg ? SKBitmap.Decode(bytes) : null;
         var source = decoded ?? pixels;

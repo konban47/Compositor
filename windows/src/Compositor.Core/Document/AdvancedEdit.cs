@@ -29,8 +29,12 @@ public static class AdvancedEdit
 
     // Translation registration by normalized luminance correlation. Downsampling bounds the search cost;
     // alpha is excluded, so transparent borders cannot pull a photograph into the wrong position.
-    public static SKPoint AlignTranslation(SKBitmap reference, SKBitmap moving, int maxShift)
+    public static SKPoint AlignTranslation(SKBitmap reference, SKBitmap moving, int maxShift, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (reference.Width != moving.Width || reference.Height != moving.Height) throw new ArgumentException("Alignment requires equally sized canvases.");
+        if (maxShift < 0) throw new ArgumentOutOfRangeException(nameof(maxShift));
+        if (maxShift == 0) return SKPoint.Empty;
         var scale = Math.Min(1, 160.0 / Math.Max(reference.Width, reference.Height));
         var w = Math.Max(1, (int)Math.Round(reference.Width * scale)); var h = Math.Max(1, (int)Math.Round(reference.Height * scale));
         using var a = reference.Resize(Bitmaps.ColorInfo(w, h), new SKSamplingOptions(SKFilterMode.Linear))!;
@@ -38,6 +42,7 @@ public static class AdvancedEdit
         var limit = Math.Clamp((int)Math.Round(maxShift * scale), 1, 48); var best = double.NegativeInfinity; var bestX = 0; var bestY = 0;
         for (var dy = -limit; dy <= limit; dy++) for (var dx = -limit; dx <= limit; dx++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             double sumA = 0, sumB = 0, squareA = 0, squareB = 0, product = 0; var count = 0;
             for (var y = Math.Max(0, dy); y < Math.Min(h, h + dy); y += 2)
                 for (var x = Math.Max(0, dx); x < Math.Min(w, w + dx); x += 2)

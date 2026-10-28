@@ -23,6 +23,7 @@ public sealed class CanvasDocument : IDisposable
     public int Height { get; set; }
     public double Resolution { get; set; } = 72;
     public ImageSettings Image { get; set; } = new();
+    public DocumentMetadata Metadata { get; set; } = new();
     public List<Document.LayerComp> LayerComps { get; } = [];
     public Document.DocumentTimeline? Timeline { get; set; }
     public List<ImageVariable> Variables { get; } = [];
@@ -113,7 +114,7 @@ public sealed class CanvasDocument : IDisposable
             || Layers.Count != other.Layers.Count || Guides.Count != other.Guides.Count || !Channels.SequenceEqual(other.Channels)
             || !CountGroups.SequenceEqual(other.CountGroups) || !Marks.SequenceEqual(other.Marks) || !Selection.Matches(other.Selection) || WorkPath != other.WorkPath
             || !LayerComps.SequenceEqual(other.LayerComps) || Timeline != other.Timeline
-            || Image != other.Image || MeasurementScale != other.MeasurementScale || !Variables.SequenceEqual(other.Variables)
+            || Image != other.Image || Metadata != other.Metadata || MeasurementScale != other.MeasurementScale || !Variables.SequenceEqual(other.Variables)
             || !DataSets.SequenceEqual(other.DataSets) || !Measurements.SequenceEqual(other.Measurements)
             || !MeasurementFields.SequenceEqual(other.MeasurementFields)) return false;
         for (var index = 0; index < Layers.Count; index++)
@@ -210,7 +211,7 @@ public sealed class CanvasDocument : IDisposable
     {
         copy.CountGroups.Clear(); copy.CountGroups.AddRange(CountGroups);
         copy.LayerComps.Clear(); copy.LayerComps.AddRange(LayerComps); copy.Timeline = Timeline;
-        copy.Image = Image; copy.MeasurementScale = MeasurementScale; copy.MeasurementFields = MeasurementFields.ToArray();
+        copy.Image = Image; copy.Metadata = Metadata; copy.MeasurementScale = MeasurementScale; copy.MeasurementFields = MeasurementFields.ToArray();
         copy.Variables.Clear(); copy.Variables.AddRange(Variables);
         copy.DataSets.Clear(); copy.DataSets.AddRange(DataSets);
         copy.Measurements.Clear(); copy.Measurements.AddRange(Measurements);

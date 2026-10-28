@@ -40,6 +40,7 @@ public static class ProjectStore
         if (manifest.LayerComps is { } comps && (version < 29 || comps.Count > 1000 || comps.Any(c => c is null || !c.IsValid)
             || comps.Select(c => c.ID).Distinct().Count() != comps.Count)) throw new ProjectException(ProjectError.Invalid);
         if (manifest.Timeline is { } timeline && (version < 29 || !timeline.IsValid)) throw new ProjectException(ProjectError.Invalid);
+        if (manifest.Metadata is { } metadata && (version < 31 || !metadata.IsValid)) throw new ProjectException(ProjectError.Invalid);
         if (version < 29 && manifest.ImageSettings?.ProfileEncoding is not null) throw new ProjectException(ProjectError.Invalid);
         if (version < 28 && manifest.ImageSettings is { } color && (color.ColorProfile is not null || color.OcioConfiguration is not null)) throw new ProjectException(ProjectError.Invalid);
         if (manifest.WorkPath is { } workPath && (version < 24 || !Document.PenPaths.Valid(workPath))) throw new ProjectException(ProjectError.Invalid);
@@ -116,6 +117,7 @@ public static class ProjectStore
                 {
                     throw new ProjectException(ProjectError.Invalid);
                 }
+                if (adjustment.NeedsVersion30 && version < 30 && version != 19) throw new ProjectException(ProjectError.Invalid);
                 if (adjustment.Extended?.Kind == Document.ImageAdjustmentKind.ClarityDehaze && version < 28) throw new ProjectException(ProjectError.Invalid);
                 if (adjustment.Extended is not null && version < 19) throw new ProjectException(ProjectError.Invalid);
                 if ((adjustment.NeedsVersion16 || adjustment.FilterLayerSettings is not null) && version < 16) throw new ProjectException(ProjectError.Invalid);

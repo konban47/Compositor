@@ -1,4 +1,4 @@
-# 颜色管理 · Windows **1.5.10.0 Preview**
+# 颜色管理 · Windows **1.5.12.0 Preview**
 
 “编辑 → 颜色设置”采用工作空间、色彩管理方案、转换选项、高级控制和底部说明的布局。“编辑 → OpenColorIO 设置”采用启用、根配置文件夹、默认配置、默认设置的布局。界面使用项目字体、控件和主题；浮窗按钮保持原样。没有 Creative Cloud 同步、账号或网络上传功能。
 
@@ -41,6 +41,6 @@ ICC 输出字节、OCIO 配置/空间作为文档 v28 元数据保存；图层�
 
 参考：[ICC 规范](https://archive.color.org/specification/ICC.1-2022-05.pdf)、[ICC 黑场补偿](https://www.color.org/WP40-Black_Point_Compensation_2010-07-27.pdf)、[Windows ICM](https://learn.microsoft.com/en-us/windows/win32/api/icm/nf-icm-createmultiprofiletransform)、[OpenColorIO 处理器](https://opencolorio.readthedocs.io/en/v2.4.2/api/processors.html)、[Adobe 颜色转换选项](https://helpx.adobe.com/photoshop/desktop/adjust-color/color-effects-techniques/color-conversion-and-advanced-color-controls.html)。
 
-## 指定配置文件（1.5.10.0）
+## 指定配置文件（1.5.12.0）
 
 窗口提供“不对此文档应用色彩管理”“工作中的 RGB/灰度/CMYK”“配置文件”三种选择，预览可开关；取消恢复原解释，确定产生可撤销操作。配置文件列表按文档颜色模型过滤，工作空间读取颜色设置。指定时保留图层像素，以 `profileEncoding` 记录之前编码，再按新 ICC 解释最终合成结果；保存重开不会重复改写像素。该路径不等同于在 Adobe 原生通道空间重新执行每层混合。转换为配置文件仍是单独的输出转换功能。Creative Cloud 同步入口与状态均不提供。

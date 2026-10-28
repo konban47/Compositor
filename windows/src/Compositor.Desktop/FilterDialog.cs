@@ -95,7 +95,8 @@ internal sealed class FilterDialog : DialogWindow
                         Add(lensGroup, "Offset (%)", 0, 50, start.Lens.PrismOffset, 6, (s,v) => s.Lens.PrismOffset=v);
                         Add(lensGroup, "Angle, degrees", -180, 180, start.Lens.PrismAngle, 180, (s,v) => s.Lens.PrismAngle=v);
                         Check(lensGroup, "Both Ways", start.Lens.PrismBothWays, (s,v) => s.Lens.PrismBothWays=v);
-                        Add(lensGroup, "Blur", 0, 100, start.Lens.PrismBlur, 0, (s,v) => s.Lens.PrismBlur=v); break;
+                        Add(lensGroup, "Blur", 0, 100, start.Lens.PrismBlur, 0, (s,v) => s.Lens.PrismBlur=v);
+                        Add(lensGroup, "Fringe", 0, 100, start.Lens.PrismFringe, 30, (s,v) => s.Lens.PrismFringe=v); break;
                     case LensEffect.Bokeh:
                         Add(lensGroup, "Size (%)", .5, 6, start.Lens.BokehRadius, 2, (s,v) => s.Lens.BokehRadius=v);
                         Add(lensGroup, "Brightness", 0, 100, start.Lens.BokehBrightness, 50, (s,v) => s.Lens.BokehBrightness=v);

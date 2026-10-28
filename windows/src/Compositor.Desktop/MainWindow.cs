@@ -493,28 +493,7 @@ public sealed partial class MainWindow : Window
         {
             Items =
             {
-                new MenuItem
-                {
-                    Header = Localize.Text("_File"),
-                    Items =
-                    {
-                        Command("_New Project…", () => _ = NewProject(), "New Project"),
-                        Command("_Open project folder…", OpenProject, "Open Project"),
-                        _recentMenu,
-                        Command("_Import image…", () => _ = ImportImage()),
-                        Command("Import Folder as Layers…", () => _ = ImportImageFolder()),
-                        Command("_Save", Save, "Save"),
-                        Command("Save _As…", SaveAs, "Save As"),
-                        new Separator(),
-                        Command("_Export PNG…", ExportPng, "Export PNG"),
-                        Command("Export As…", () => _ = ExportAs(), "Export As"),
-                        Command("Channel Pack…", () => _ = ExportChannelPack()),
-                        Command("Export _JPEG…", () => _ = ExportJpeg(), "Export JPEG"),
-                        new Separator(),
-                        Command("_Close Tab", () => _ = CloseTab(_open), "Close Tab"),
-                        Command("E_xit", Close),
-                    },
-                },
+                BuildFileMenu(),
                 BuildEditMenu(),
                 BuildLayerMenu(),
                 BuildImageMenu(),
@@ -5113,7 +5092,7 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            await OpenAsync(path);
+            await OpenPath(path);
         }
         catch (Exception error)
         {

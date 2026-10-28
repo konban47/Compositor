@@ -25,11 +25,12 @@ public sealed record LensEffectSettings
     public double PrismAngle { get; set; } = 180;
     public bool PrismBothWays { get; set; }
     public double PrismBlur { get; set; }
+    public double PrismFringe { get; set; } = 30;
     public double BokehRadius { get; set; } = 2;
     public double BokehBrightness { get; set; } = 50;
     public double BokehRing { get; set; } = 100;
     public BokehShape BokehShape { get; set; }
-    public bool IsValid => Enum.IsDefined(Effect) && Enum.IsDefined(BokehShape) && new[] { Threshold, FlareAmount, FlareLength, FlareBlue, StarAmount, StarLength, MistStrength, MistSize, PrismAmount, PrismBlur, BokehBrightness, BokehRing }.All(v => double.IsFinite(v) && v >= 0 && v <= 100)
+    public bool IsValid => Enum.IsDefined(Effect) && Enum.IsDefined(BokehShape) && new[] { Threshold, FlareAmount, FlareLength, FlareBlue, StarAmount, StarLength, MistStrength, MistSize, PrismAmount, PrismBlur, PrismFringe, BokehBrightness, BokehRing }.All(v => double.IsFinite(v) && v >= 0 && v <= 100)
         && Threshold >= 50 && FlareLength >= 1 && StarLength is >= 2 and <= 40 && new[] { 4, 6, 8, 12, 14 }.Contains(StarPoints)
         && double.IsFinite(StarAngle) && Math.Abs(StarAngle) <= 180 && double.IsFinite(PrismAngle) && Math.Abs(PrismAngle) <= 180
         && PrismCopies is >= 1 and <= 8 && double.IsFinite(PrismOffset) && PrismOffset is >= 0 and <= 50 && double.IsFinite(BokehRadius) && BokehRadius is >= .5 and <= 6;
@@ -106,7 +107,7 @@ public static class LensEffects
                     var data = s.PrismBlur > 0 ? Blur(light, w, h, size * s.PrismBlur / 10000 * copy) : light; var fade = Math.Pow(.78, copy - 1) * s.PrismAmount / 100;
                     for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) for (var c = 0; c < 3; c++)
                     {
-                        var at = (y * w + x) * 4 + c; var shift = size * (s.PrismOffset / 100 * copy + (.003 - .003 * c));
+                        var at = (y * w + x) * 4 + c; var shift = size * (s.PrismOffset / 100 * copy + ((1 - c) * s.PrismFringe / 10000));
                         for (var way = 1; way >= (s.PrismBothWays ? -1 : 1); way -= 2) result[at] = Math.Max(result[at], (float)(Sample(data, w, h, x - way * shift * Math.Cos(theta), y + way * shift * Math.Sin(theta), c, false) * fade));
                     }
                 }

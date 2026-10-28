@@ -84,7 +84,7 @@ public sealed partial class MainWindow
     /// <summary>The file picker, command line and shell integration use the same import path.</summary>
     internal Task OpenPath(string path, bool newTab = true) => OpenPath(path, newTab, null);
 
-    private async Task OpenPath(string path, bool newTab, Tab? importTarget)
+    private async Task OpenPath(string path, bool newTab, Tab? importTarget, bool forceSmartObject = false)
     {
         try
         {
@@ -102,6 +102,7 @@ public sealed partial class MainWindow
                     string.Join(Environment.NewLine, notes.Select(note => $"{note.Layer}: {Localize.Text(note.What)}")), "Import", "Cancel"))
                 { foreach (var item in imports) item.Import.Snapshot().Dispose(); return; }
                 foreach (var item in imports) { AdoptImported(item.Import.Snapshot().ToDocument(), "Import Photoshop"); _open.CustomName = item.Name; }
+                NoteRecent(path);
                 RefreshTabs(); Say($"Imported {Path.GetFileName(path)}: {imports.Count} document(s).");
                 return;
             }
@@ -122,7 +123,14 @@ public sealed partial class MainWindow
             }
             if (newTab || target.Document is null)
             {
-                AdoptImported(ImageImporter.NewDocument(image), "Import Image");
+                var imported = ImageImporter.NewDocument(image);
+                try
+                {
+                    if (forceSmartObject) LayerWorkflow.ConvertToSmartObject(imported, imported.Layers.Select(layer => layer.ID).ToArray());
+                }
+                catch { imported.Dispose(); throw; }
+                AdoptImported(imported, forceSmartObject ? "Open as Smart Object" : "Import Image");
+                NoteRecent(path);
                 if (openCameraRaw && Selected is { } id) QueueImportedCameraRaw(_open, id);
                 return;
             }
@@ -132,7 +140,6 @@ public sealed partial class MainWindow
             if (pixels + (long)image.Width * image.Height > DocumentLimits.DocumentPixelBudget)
             { image.Dispose(); throw new ImportException(ImportError.TooLarge); }
             var origin = new SKPoint((document.Width - image.Width) / 2f, (document.Height - image.Height) / 2f);
-            target.History.Begin("Import Image", document, null);
             var placement = new LayerTransform(origin.X, origin.Y, image.Width, image.Height);
             if (frame is not null && document.Layers.Contains(frame))
             {
@@ -146,14 +153,50 @@ public sealed partial class MainWindow
                 placement = new LayerTransform((document.Width - image.Width * scale) / 2, (document.Height - image.Height * scale) / 2, image.Width * scale, image.Height * scale);
             }
             var placed = new ImageLayer(Guid.NewGuid(), image, placement, image.Name) { ParentID = frame?.ID };
-            document.Layers.Add(placed);
-            if (EditorPreferences.Current.SmartOnPlace) LayerWorkflow.ConvertToSmartObject(document, [placed.ID]);
-            target.History.End(document, document.Layers[^1].ID);
+            using var before = document.Clone();
+            target.History.Begin("Import Image", document, null);
+            Guid importedID;
+            try
+            {
+                document.Layers.Add(placed);
+                importedID = forceSmartObject || EditorPreferences.Current.SmartOnPlace
+                    ? LayerWorkflow.ConvertToSmartObject(document, [placed.ID]) ?? throw new InvalidOperationException("Could not create smart object.")
+                    : placed.ID;
+            }
+            catch
+            {
+                document.Adopt(before);
+                target.History.End(document, null);
+                if (ReferenceEquals(target, _open)) Refresh();
+                throw;
+            }
+            target.History.End(document, importedID);
             if (ReferenceEquals(target, _open)) { Reselect(document.Layers[^1].ID); Refresh(); }
             RefreshTabs();
-            if (openCameraRaw) QueueImportedCameraRaw(target, placed.ID);
+            NoteRecent(path);
+            if (openCameraRaw) QueueImportedCameraRaw(target, importedID);
         }
         catch (Exception error) { Say($"Could not open {Path.GetFileName(path)}: {error.Message}"); }
+    }
+
+    private async Task OpenSmartImage(bool place)
+    {
+        FinishPlacement(true); FinishPen(); CommitText();
+        var target = _open;
+        try
+        {
+            var picked = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = Localize.Text(place ? "Place Embedded…" : "Open as Smart Object…"),
+                AllowMultiple = false,
+                FileTypeFilter = [new FilePickerFileType(Localize.Text("Images"))
+                { Patterns = [.. ImageImporter.Extensions.Select(extension => "*" + extension)] }],
+            });
+            if (picked.Count == 0 || picked[0].TryGetLocalPath() is not { } path) return;
+            if (place && !_tabs.Contains(target)) return;
+            await OpenPath(path, !place, place ? target : null, true);
+        }
+        catch (Exception error) { Say(error.Message); }
     }
 
     private void AdoptImported(CanvasDocument document, string name)

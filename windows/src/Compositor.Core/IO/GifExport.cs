@@ -62,7 +62,8 @@ public static class GifExport
                 }
                 finally{foreach(var image in decoded)image.Dispose();}
             }
-            using var stream=new MemoryStream();collection.Write(stream,MagickFormat.Gif);return new ExportResult(stream.ToArray(),preview!);
+            using var stream=new MemoryStream();collection.Write(stream,MagickFormat.Gif);
+            return new ExportResult(ImageMetadata.AddToEncoded(stream.ToArray(),ExportFormat.Gif,document.Metadata,options.Metadata),preview!);
         }
         catch{preview?.Dispose();throw;}
     }

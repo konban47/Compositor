@@ -13,6 +13,7 @@ namespace Compositor.Desktop;
 internal sealed class ExportAsDialog : DialogWindow
 {
     private readonly CanvasDocument _document;
+    private readonly DocumentLease _lease;
     private readonly ComboBox _format = new()
     {
         ItemsSource = new[] { "PNG", "JPEG", "PDF", "TIFF", "EXR", "GIF" },
@@ -55,6 +56,7 @@ internal sealed class ExportAsDialog : DialogWindow
         VerticalContentAlignment = VerticalAlignment.Center,
     };
     private readonly ComboBox _colorSpace = new() { ItemsSource = new[] { "RGB", "CMYK", Localize.Text("Document Mode (TIFF)") }, SelectedIndex = 0, Height = 24, Width = 170 };
+    private readonly ComboBox _metadata = new() { ItemsSource = new[] { "None", "Copyright", "Copyright and Contact", "All Except Camera Information", "All" }.Select(Localize.Text).ToArray(), SelectedIndex = 2, Height = 24, Width = 170 };
     private readonly Image _preview = new() { Stretch = Stretch.Uniform, Margin = new Thickness(12) };
     private readonly TextBlock _size = new() { TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Skin.SecondaryBrush };
     private readonly Button _export = new()
@@ -81,7 +83,8 @@ internal sealed class ExportAsDialog : DialogWindow
 
     internal ExportAsDialog(CanvasDocument document, ExportFormat format = ExportFormat.Png)
     {
-        _document = document.Clone();
+        _lease = new DocumentLease(document);
+        _document = _lease.Document;
         Title = Localize.Text("Export As"); Width = 860; Height = 610; MinWidth = 660; MinHeight = 540;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _width.Value = document.Width; _height.Value = document.Height; _format.SelectedIndex = (int)format;
@@ -101,6 +104,7 @@ internal sealed class ExportAsDialog : DialogWindow
         var formatMenu = new Menu { Width = 170, Height = 30, Background = Skin.SurfaceControlBrush }; formatMenu.Items.Add(currentFormat);
         Add("Format", formatMenu); Add("Color Space", _colorSpace); Add("Width, pixels", _width); Add("Height, pixels", _height);
         controls.Children.Add(_linked); Add("Quality", _quality); controls.Children.Add(_transparent); Add("Background", _background);
+        Add("Metadata", _metadata);
         controls.Children.Add(_size);
         if (document.Image.Depth > 8)
             controls.Children.Add(new TextBlock { Text = Localize.Text(Compositor.Core.Rendering.DocumentRenderer.SupportsDeepComposite(document)
@@ -129,11 +133,12 @@ internal sealed class ExportAsDialog : DialogWindow
         _width.ValueChanged += (_, _) => DimensionChanged(true);
         _height.ValueChanged += (_, _) => DimensionChanged(false);
         _colorSpace.SelectionChanged += (_, _) => Queue();
+        _metadata.SelectionChanged += (_, _) => Queue();
         _format.SelectionChanged += (_, _) => Queue(); _quality.ValueChanged += (_, _) => Queue();
         _transparent.IsCheckedChanged += (_, _) => Queue(); _background.SelectionChanged += (_, _) => Queue();
         _timer.Tick += async (_, _) => { _timer.Stop(); await RenderPreview(); };
         Opened += (_, _) => Queue();
-        Closed += (_, _) => { _closed = true; _revision++; _timer.Stop(); _bitmap?.Dispose(); _encoded?.Dispose(); _document.Dispose(); };
+        Closed += (_, _) => { _closed = true; _revision++; _timer.Stop(); _bitmap?.Dispose(); _encoded?.Dispose(); if (!_rendering) _lease.Dispose(); };
     }
 
     private static NumericUpDown Dimension() => new()
@@ -152,7 +157,7 @@ internal sealed class ExportAsDialog : DialogWindow
         VerticalContentAlignment = VerticalAlignment.Center,
     };
     private ExportOptions Options() => new((ExportFormat)_format.SelectedIndex, (int)(_width.Value ?? 1), (int)(_height.Value ?? 1),
-        (int)(_quality.Value ?? 90), _transparent.IsChecked == true, _background.SelectedIndex == 1 ? SKColors.Black : SKColors.White, _format.SelectedIndex == 2 ? EditorPreferences.Current.PdfResolution : _document.Resolution, _colorSpace.SelectedIndex == 1 && _format.SelectedIndex is 1 or 2 or 3 ? _document.Image.CmykProfile ?? CmykColor.DefaultProfile : null, _colorSpace.SelectedIndex == 2 && _format.SelectedIndex == 3);
+        (int)(_quality.Value ?? 90), _transparent.IsChecked == true, _background.SelectedIndex == 1 ? SKColors.Black : SKColors.White, _format.SelectedIndex == 2 ? EditorPreferences.Current.PdfResolution : _document.Resolution, _colorSpace.SelectedIndex == 1 && _format.SelectedIndex is 1 or 2 or 3 ? _document.Image.CmykProfile ?? CmykColor.DefaultProfile : null, _colorSpace.SelectedIndex == 2 && _format.SelectedIndex == 3, _format.SelectedIndex is 2 or 4 ? MetadataPolicy.None : (MetadataPolicy)_metadata.SelectedIndex);
     private void DimensionChanged(bool width)
     {
         if (_changing) return;
@@ -171,6 +176,7 @@ internal sealed class ExportAsDialog : DialogWindow
         _revision++; _export.IsEnabled = false; _quality.IsEnabled = _format.SelectedIndex == 1;
         _transparent.IsEnabled = _colorSpace.SelectedIndex == 0 && _format.SelectedIndex is 0 or 3 or 4 or 5;
         _background.IsEnabled = _format.SelectedIndex is not (0 or 3 or 4) || _transparent.IsChecked != true;
+        _metadata.IsEnabled = _format.SelectedIndex is not (2 or 4);
         _size.Text = Localize.Text("Rendering preview…"); _timer.Stop(); _timer.Start();
     }
     private bool _rendering;
@@ -186,7 +192,7 @@ internal sealed class ExportAsDialog : DialogWindow
             _preview.Source = _bitmap; _size.Text = Localize.Format($"File size: {encoded.Bytes.Length / 1024.0:0.0} KB"); _export.IsEnabled = true;
         }
         catch (Exception error) { if (!_closed && revision == _revision) _size.Text = Localize.Text(error.Message); }
-        finally { _rendering = false; if (!_closed && revision != _revision) { _timer.Stop(); _timer.Start(); } }
+        finally { _rendering = false; if (_closed) _lease.Dispose(); else if (revision != _revision) { _timer.Stop(); _timer.Start(); } }
     }
     internal static async Task<(ExportOptions Options, byte[] Bytes)?> Ask(Window owner, CanvasDocument document, ExportFormat format)
     {

@@ -248,6 +248,7 @@ public sealed class LayerAdjustment
     public FilterLayerSettings? FilterLayerSettings { get; set; }
     [JsonIgnore] public FilterLayerSettings FilterLayer => FilterLayerSettings ?? new();
     [JsonIgnore] public bool NeedsVersion16 => Kind is AdjustmentKind.ProgressiveBlur or AdjustmentKind.BloomGlow or AdjustmentKind.RgbSplit;
+    [JsonIgnore] public bool NeedsVersion30 => Kind == AdjustmentKind.LensEffects && FilterLayerSettings?.Lens.PrismFringe is not null and not 30;
     [JsonIgnore] public bool NeedsVersion29 => Kind is AdjustmentKind.Vignette or AdjustmentKind.LensEffects or AdjustmentKind.TonalContrast or AdjustmentKind.Sharpen;
     [JsonIgnore] public bool IsFilterLayer => NeedsVersion16 || NeedsVersion29;
     public Document.ImageAdjustmentSettings? Extended { get; set; }

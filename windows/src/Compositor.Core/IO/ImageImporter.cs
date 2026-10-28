@@ -64,6 +64,13 @@ public static class ImageImporter
 
     public static ImportedImage Decode(string path, SKSizeI? fitting, int remainingPixels)
     {
+        var image = DecodeCore(path, fitting, remainingPixels);
+        image.Metadata = ImageMetadata.Read(path);
+        return image;
+    }
+
+    private static ImportedImage DecodeCore(string path, SKSizeI? fitting, int remainingPixels)
+    {
         var name = Path.GetFileNameWithoutExtension(path);
         var extension = Path.GetExtension(path);
         if (extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase)) return PdfImporter.Page(path, 0);
@@ -337,7 +344,7 @@ public static class ImageImporter
     /// <summary>A canvas holding the image at its own size, as a new project starts.</summary>
     public static CanvasDocument NewDocument(ImportedImage image, double resolution = 72)
     {
-        var document = new CanvasDocument(Guid.NewGuid(), image.Width, image.Height, resolution) { Image = new Compositor.Core.Format.ImageSettings { Mode = image.ColorMode, Depth = image.BitDepth, CmykProfile = image.CmykProfile, ColorProfile = image.ColorProfile, OcioConfiguration = image.OcioConfiguration, OcioWorkingSpace = image.OcioWorkingSpace } };
+        var document = new CanvasDocument(Guid.NewGuid(), image.Width, image.Height, resolution) { Metadata = image.Metadata, Image = new Compositor.Core.Format.ImageSettings { Mode = image.ColorMode, Depth = image.BitDepth, CmykProfile = image.CmykProfile, ColorProfile = image.ColorProfile, OcioConfiguration = image.OcioConfiguration, OcioWorkingSpace = image.OcioWorkingSpace } };
         document.Layers.Add(Layer(image));
         return document;
     }

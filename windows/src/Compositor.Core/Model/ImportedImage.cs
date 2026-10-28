@@ -25,6 +25,7 @@ public sealed class ImportedImage : IDisposable
     public SKBitmap Thumbnail { get; private set; }
     public string Name { get; private set; }
     public Compositor.Core.Format.ImageMode ColorMode { get; set; } = Compositor.Core.Format.ImageMode.RGB;
+    public Compositor.Core.Format.DocumentMetadata Metadata { get; set; } = new();
     public SKBitmap? Deep { get; private init; }
     public byte[]? CmykProfile { get; set; }
     public byte[]? ColorProfile { get; set; }
