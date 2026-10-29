@@ -24,9 +24,17 @@
 - 验证：本机 Release 构建零警告／错误，Core 1536 通过、1 默认跳过；中英文 file-workflow／interaction／windows 检查通过。新增检查包含 .comp／manifest 单次打开、失败／置入不触发、打开为图层撤销重做、独立事件排队、递归抑制、并发保存与窗口关闭派发。空／非空管理器界面截图已核对；完整原始截图验收仍未完成。
 - 本版仍不提供 JS/JSX 解释器、打印事件、Web／图层导出事件。后续优先完善这些接线，再推进下列待办；不要重复覆盖已验证的本地修改。
 
+## 进行中：导出事件接线与 PDF 演示文稿属性（2026-10-29，Claude，未验证／未推送）
+
+- 基线 `windows-port@a2e2ffdc920124ffae6368fa0a844fa9a9809b35`（1.5.12.2 Preview）。云端实现，云端无 .NET/NuGet，**尚未编译、未运行测试**。
+- 导出事件：`WebExportDialog`／`LayerExportDialog` 新增 `CompletedExports`；Web、图层／图层复合（文件与 PDF）、通道打包、渲染视频成功后派发“导出文档”。Web 与图层对话框在关闭后派发一次，避免脚本提示压在模态对话框下。该路径暂无自动化检查（需要文件选择器）。
+- PDF 演示文稿：`PdfPresentationOptions` 扩展（存储为演示文稿、自动换片秒数、循环、过渡、题注字段，旧 `FileNames` 兼容）；`PdfSlideshow` 以增量更新为每页写 `/Dur`、`/Trans`，目录写 `/PageMode /FullScreen`，循环写 Acrobat `app.fs` 脚本；对话框按截图分为输出选项（存储为、背景、字体大小、包含）与演示文稿选项（换片间隔、循环、过渡效果）。
+- 验收入口：`PdfSlideshowTests`（无演示属性、/Dur 与 /Trans 计数、PDFium 仍识别页数、循环脚本、随机过渡可重复、非法秒数不写文件、题注字段）；`--file-workflow-checks` 中 `PdfPresentationSelfCheck`。
+- 待本机：build `-warnaserror`、Core 测试、中英文 file-workflow 检查与截图比对；用 Acrobat 实测全屏、换片、过渡与循环。
+
 ## 尚未完成
 
-JS/JSX 解释器（脚本事件管理器的外部脚本）；链接智能对象／依赖打包与 Bridge；Photomerge、HDR Pro、完整镜头配置数据库；PSD 写入；Web HTML 切片与动画输出；PDF 幻灯片播放属性；组蒙版／组效果、GIF 效果烘焙；Adobe/PDF/FDF 注释格式；Rim Light 上游移植。
+JS/JSX 解释器（脚本事件管理器的外部脚本）；链接智能对象／依赖打包与 Bridge；Photomerge、HDR Pro、完整镜头配置数据库；PSD 写入；Web HTML 切片与动画输出；PDF 注释（演示文稿“注释”选项）；组蒙版／组效果、GIF 效果烘焙；Adobe/PDF/FDF 注释格式；Rim Light 上游移植。
 
 画笔、图章、橡皮擦、渐变、修饰、视图、路径、文字／字符／段落、图层复合、时间轴、颜色／OCIO、预设和其余文件功能已有历史实现，仍需按原始截图逐项检查及联动验收。对应 `TOOL-OPTIONS.md`、`PAINTING-AND-GIF.md`、`TYPE-AND-MASKS.md`、`TIMELINE-AND-PRESETS.md`、`COLOR-MANAGEMENT.md`、`FILE-WORKFLOWS.md` 的边界；不能仅凭编译或本轮测试标记全部完成。
 

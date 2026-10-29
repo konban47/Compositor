@@ -59,7 +59,23 @@ internal sealed class AutomationDialog : DialogWindow
     private readonly ComboBox _order = Choice(["Across First", "Down First"], 0, "Thumbnail order");
     private readonly ComboBox _statistic = Choice(["Mean", "Sum", "Minimum", "Maximum", "Median", "Variance", "Standard Deviation", "Skewness", "Kurtosis", "Range", "Entropy"], 0, "Stack mode");
     private readonly ComboBox _background = Choice(["White", "Gray", "Black"], 0, "PDF background");
-    private readonly CheckBox _fileNames = Check("File Names", false);
+    private readonly CheckBox _fileNames = Check("File Name", false);
+    private readonly RadioButton _multiPage = new() { GroupName = "pdf-save-as", Content = Localize.Text("Multi-Page Document"), IsChecked = true, Tag = "pdf-multi-page" };
+    private readonly RadioButton _presentation = new() { GroupName = "pdf-save-as", Content = Localize.Text("Presentation"), Tag = "pdf-presentation" };
+    private static readonly int[] PdfFontSizes = [6, 8, 10, 12, 14, 16];
+    private readonly ComboBox _pdfFontSize = Choice(PdfFontSizes.Select(size => size.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray(), 3, "PDF font size");
+    private readonly CheckBox _pdfExtension = Check("Extension", false);
+    private readonly CheckBox _pdfTitle = Check("Title", false);
+    private readonly CheckBox _pdfDescription = Check("Description", false);
+    private readonly CheckBox _pdfAuthor = Check("Author", false);
+    private readonly CheckBox _pdfCopyright = Check("Copyright", false);
+    private readonly CheckBox _pdfExif = Check("EXIF Info", false);
+    private readonly CheckBox _pdfNotes = Check("Annotations", false);
+    private readonly CheckBox _advance = Check("Advance Every", true);
+    private readonly NumericUpDown _advanceSeconds = Number(5, PdfSlideshow.MinimumSeconds, PdfSlideshow.MaximumSeconds, "Advance seconds");
+    private readonly CheckBox _loop = Check("Loop after Last Page", false);
+    private readonly ComboBox _transition = Choice(Enum.GetValues<PdfTransition>().Select(PdfSlideshow.TransitionName).ToArray(), 0, "PDF transition");
+    private Control? _presentationOptions;
     private int _previousUnits = 1;
     private int _previousResolutionUnits;
     private static readonly ImageMode[] ContactModes = [ImageMode.Grayscale, ImageMode.RGB, ImageMode.CMYK, ImageMode.Lab];
@@ -92,10 +108,15 @@ internal sealed class AutomationDialog : DialogWindow
         {
             var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 16 };
             columns.Children.Add(Group("Source Files", sourcePanel));
-            var pdf = new StackPanel { Spacing = 12 };
-            pdf.Children.Add(Label("Multi-Page Document"));
-            pdf.Children.Add(Row("Background", _background)); pdf.Children.Add(Row("Font Size", _fontSize)); pdf.Children.Add(_fileNames);
-            var options = Group("Output Options", pdf); Grid.SetColumn(options, 1); columns.Children.Add(options); _body.Children.Add(columns);
+            var right = new StackPanel { Spacing = 14 }; Grid.SetColumn(right, 1); columns.Children.Add(right);
+            right.Children.Add(Group("Output Options", PdfOutputPanel()));
+            right.Children.Add(_presentationOptions = Group("Presentation Options", PdfPresentationPanel()));
+            _body.Children.Add(columns);
+            _multiPage.IsCheckedChanged += (_, _) => UpdatePdfOptions();
+            _presentation.IsCheckedChanged += (_, _) => UpdatePdfOptions();
+            _fileNames.IsCheckedChanged += (_, _) => UpdatePdfOptions();
+            _advance.IsCheckedChanged += (_, _) => UpdatePdfOptions();
+            UpdatePdfOptions();
         }
         else
         {
@@ -112,6 +133,61 @@ internal sealed class AutomationDialog : DialogWindow
         KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) { Cancel(); e.Handled = true; } };
         Closing += (_, e) => { if (_running) { e.Cancel = true; Cancel(); } };
         Content = root; UpdateAvailability();
+    }
+
+    /// <summary>Save As, background, font size and the caption fields, laid out as in the reference dialog.</summary>
+    private Control PdfOutputPanel()
+    {
+        var panel = new StackPanel { Spacing = 10 };
+        var saveAs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 18 };
+        saveAs.Children.Add(new TextBlock { Text = Localize.Text("Save As") + ":", VerticalAlignment = VerticalAlignment.Center }); saveAs.Children.Add(_multiPage); saveAs.Children.Add(_presentation);
+        panel.Children.Add(saveAs);
+        var look = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 16 };
+        look.Children.Add(Row("Background", _background));
+        var size = Row("Font Size", _pdfFontSize); Grid.SetColumn(size, 1); look.Children.Add(size);
+        panel.Children.Add(look);
+        _pdfNotes.IsEnabled = false;
+        ToolTip.SetTip(_pdfNotes, Localize.Text("PDF annotations are not written in this version."));
+        var include = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto"), ColumnSpacing = 14, RowSpacing = 8 };
+        include.Children.Add(new TextBlock { Text = Localize.Text("Include") + ":", VerticalAlignment = VerticalAlignment.Center });
+        CheckBox[] fields = [_fileNames, _pdfExtension, _pdfTitle, _pdfDescription, _pdfAuthor, _pdfCopyright, _pdfExif, _pdfNotes];
+        for (var index = 0; index < fields.Length; index++)
+        {
+            Grid.SetRow(fields[index], index / 2); Grid.SetColumn(fields[index], 1 + index % 2); include.Children.Add(fields[index]);
+        }
+        panel.Children.Add(include);
+        return panel;
+    }
+
+    private Control PdfPresentationPanel()
+    {
+        var panel = new StackPanel { Spacing = 10 };
+        var advance = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        _advanceSeconds.Width = 70;
+        advance.Children.Add(_advance); advance.Children.Add(_advanceSeconds); advance.Children.Add(Label("Seconds"));
+        panel.Children.Add(advance); panel.Children.Add(_loop); panel.Children.Add(Row("Transition", _transition));
+        return panel;
+    }
+
+    private void UpdatePdfOptions()
+    {
+        var presentation = _presentation.IsChecked == true;
+        if (_presentationOptions is not null) _presentationOptions.IsEnabled = presentation;
+        _advanceSeconds.IsEnabled = presentation && _advance.IsChecked == true;
+        _pdfExtension.IsEnabled = _fileNames.IsChecked == true;
+        if (_fileNames.IsChecked != true) _pdfExtension.IsChecked = false;
+    }
+
+    internal PdfPresentationOptions PdfOptions()
+    {
+        var captions = PdfCaption.None;
+        foreach (var (check, flag) in new[] { (_fileNames, PdfCaption.FileName), (_pdfExtension, PdfCaption.Extension), (_pdfTitle, PdfCaption.Title),
+            (_pdfDescription, PdfCaption.Description), (_pdfAuthor, PdfCaption.Author), (_pdfCopyright, PdfCaption.Copyright), (_pdfExif, PdfCaption.Exif) })
+            if (check.IsChecked == true && check.IsEnabled) captions |= flag;
+        return new PdfPresentationOptions(_background.SelectedIndex switch { 1 => SKColors.Gray, 2 => SKColors.Black, _ => SKColors.White },
+            PdfFontSizes[Math.Clamp(_pdfFontSize.SelectedIndex, 0, PdfFontSizes.Length - 1)], false,
+            _presentation.IsChecked == true, _advance.IsChecked == true, Value(_advanceSeconds), _loop.IsChecked == true,
+            (PdfTransition)Math.Max(0, _transition.SelectedIndex), captions);
     }
 
     private StackPanel SourcesPanel()
@@ -270,7 +346,7 @@ internal sealed class AutomationDialog : DialogWindow
             _cancellation = new CancellationTokenSource(); _running = true; _body.IsEnabled = false; UpdateAvailability();
             _status.Text = Localize.Text("Processing… Press Esc to cancel.");
             var job = new AutomationJob(_kind, _sources.ToArray(), ContactOptions(), (StackStatistic)_statistic.SelectedIndex,
-                new PdfPresentationOptions(_background.SelectedIndex switch { 1 => SKColors.Gray, 2 => SKColors.Black, _ => SKColors.White }, Value(_fontSize), _fileNames.IsChecked == true), path,
+                PdfOptions(), path,
                 _autoAlign.IsChecked == true, _createSmartObject.IsChecked == true);
             await _run(job, _cancellation.Token);
             _running = false; Close(true);
@@ -309,6 +385,26 @@ internal sealed class AutomationDialog : DialogWindow
         _units.SelectedIndex = (int)o.DisplayUnit; _resolutionUnits.SelectedIndex = o.ResolutionPerCentimeter ? 1 : 0;
     }
     internal static double Value(NumericUpDown control) => (double)(control.Value ?? 0);
+    internal void PdfPresentationSelfCheck(Action pump)
+    {
+        static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+        pump();
+        Check(_presentationOptions?.IsEnabled == false && !_pdfExtension.IsEnabled && !_pdfNotes.IsEnabled, "PDF presentation controls are enabled for a multi-page document.");
+        Check(PdfOptions() is { Presentation: false, FontSize: 12, Captions: PdfCaption.None }, "PDF defaults are wrong.");
+        _presentation.IsChecked = true; _fileNames.IsChecked = true; pump();
+        Check(_presentationOptions?.IsEnabled == true && _pdfExtension.IsEnabled && _advanceSeconds.IsEnabled, "Presentation controls did not follow Save As.");
+        _pdfExtension.IsChecked = true; _pdfAuthor.IsChecked = true; _advanceSeconds.Value = 7; _loop.IsChecked = true;
+        _transition.SelectedIndex = (int)PdfTransition.Dissolve; _pdfFontSize.SelectedIndex = 5; _background.SelectedIndex = 2; pump();
+        Check(PdfOptions() == new PdfPresentationOptions(SKColors.Black, 16, false, true, true, 7, true, PdfTransition.Dissolve,
+            PdfCaption.FileName | PdfCaption.Extension | PdfCaption.Author), "PDF presentation options did not reach the writer.");
+        _advance.IsChecked = false; _fileNames.IsChecked = false; pump();
+        Check(!_advanceSeconds.IsEnabled && !_pdfExtension.IsEnabled && PdfOptions() is { AutoAdvance: false, Captions: PdfCaption.Author },
+            "Unchecking advance or file name left dependent options active.");
+        _multiPage.IsChecked = true; pump();
+        Check(_presentationOptions?.IsEnabled == false && !PdfOptions().Presentation, "Multi-page mode kept presentation settings active.");
+        Console.WriteLine("PASS: PDF Presentation save-as, captions, advance, loop and transition options.");
+    }
+
     internal void ContactSheetSelfCheck(Action pump)
     {
         static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

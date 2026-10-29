@@ -63,6 +63,7 @@ public sealed partial class MainWindow
     private async Task RenderTimeline()
     {
         _stopDocumentTimeline?.Invoke();if(_document is not {Timeline:{ } timeline} doc)return;
+        var exporting=_open;var rendered=false;
         var form=new TimelineExportDialog(doc,timeline,_open.Name);
         if(!await form.ShowDialog<bool>(this)||doc!=_document)return;
         var path=form.Destination;
@@ -72,8 +73,10 @@ public sealed partial class MainWindow
         using var cancellation=new CancellationTokenSource();using var lease=new DocumentLease(doc);
         var progress=new ProgressBar{Minimum=0,Maximum=1,Height=14,Margin=new Thickness(20)};var status=new TextBlock{Text=Localize.Text("Rendering Video…"),Margin=new Thickness(20,8)};var cancel=FormDialog.ActionButton("Cancel",cancellation.Cancel);var dialog=new TimelineProgressDialog{Title=Localize.Text("Render Video"),Width=430,Height=185,WindowStartupLocation=WindowStartupLocation.CenterOwner,Content=new StackPanel{Children={status,progress,cancel}}};
         dialog.Closing+=(_,_)=>cancellation.Cancel();dialog.Show(this);
-        try{if(!form.ColorManaged)lease.Document.Image=lease.Document.Image with{ProfileEncoding=null};await Task.Run(()=>TimelineMedia.Export(lease.Document,timeline,path,form.OutputWidth,form.OutputHeight,form.Rate,first,last,form.Quality,form.IncludeAudio,p=>Dispatcher.UIThread.Post(()=>{progress.Value=p;status.Text=$"{Localize.Text("Rendering Video…")} {p:P0}";}),cancellation.Token));Say("Video rendered.");}
+        try{if(!form.ColorManaged)lease.Document.Image=lease.Document.Image with{ProfileEncoding=null};await Task.Run(()=>TimelineMedia.Export(lease.Document,timeline,path,form.OutputWidth,form.OutputHeight,form.Rate,first,last,form.Quality,form.IncludeAudio,p=>Dispatcher.UIThread.Post(()=>{progress.Value=p;status.Text=$"{Localize.Text("Rendering Video…")} {p:P0}";}),cancellation.Token));Say("Video rendered.");rendered=true;}
         catch(OperationCanceledException){Say("Video rendering canceled.");}catch(Exception error){Say(error.Message);}finally{dialog.Close();}
+        // After the progress window has gone, so an event script's notice is not hidden behind it.
+        if(rendered)await RaiseScriptEvent(ScriptEvent.ExportDocument,exporting);
     }
 }
 

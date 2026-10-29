@@ -49,6 +49,9 @@ internal sealed partial class WebExportDialog : DialogWindow
     private Point? _pan;
     private Vector _panOffset;
 
+    /// <summary>Files written while the dialog was open; the editor raises the Export Document script event once if any were.</summary>
+    internal int CompletedExports { get; private set; }
+
     internal WebExportDialog(CanvasDocument document)
     {
         _lease = new DocumentLease(document);
@@ -335,6 +338,7 @@ internal sealed partial class WebExportDialog : DialogWindow
             if (_closed || file?.TryGetLocalPath() is not { } path) return;
             _saving = true; _save.IsEnabled = false;
             await Task.Run(() => AtomicFile.WriteBytes(path, bytes)); _status.Text = Localize.Text("Export complete.");
+            CompletedExports++;
         }
         catch (Exception error) { _status.Text = Localize.Text(error.Message); }
         finally { _saving = false; _save.IsEnabled = !_closed && revision == _revision && _results.Length > 0 && !_rendering; }

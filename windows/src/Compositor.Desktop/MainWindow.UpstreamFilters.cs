@@ -27,6 +27,7 @@ public sealed partial class MainWindow
     private async Task ExportChannelPack()
     {
         if (_document is not { } doc) return;
+        var exporting = _open;
         var form = new FormDialog("Channel Pack", 450, 460);
         var sources = new[] { PackedChannelSource.Black, PackedChannelSource.White }.Concat(doc.Layers.Select(l => new PackedChannelSource(l.ID))).ToArray();
         var names = new[] { Localize.Text("Black"), Localize.Text("White") }.Concat(doc.Layers.Select(l => l.Name)).ToArray();
@@ -43,6 +44,7 @@ public sealed partial class MainWindow
             await WorkScheduler.Run(_ => { using var pixels = ChannelPacking.Pack(lease.Document, chosen, (int)(width.Value ?? 1), (int)(height.Value ?? 1)); AtomicFile.Write(path, stream => PngCodec.Encode(pixels, stream)); return true; }, CancellationToken.None);
             Say("Channel pack exported.");
         }
-        catch (Exception error) { Say("Could not export channel pack: " + error.Message); }
+        catch (Exception error) { Say("Could not export channel pack: " + error.Message); return; }
+        await RaiseScriptEvent(ScriptEvent.ExportDocument, exporting);
     }
 }

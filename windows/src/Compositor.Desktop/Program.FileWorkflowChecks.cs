@@ -49,6 +49,7 @@ internal static partial class Program
                 var dialog = new AutomationDialog(kind, sources, (_, _) => Task.CompletedTask);
                 _ = dialog.ShowDialog(owner);
                 if (kind == AutomationKind.ContactSheet) dialog.ContactSheetSelfCheck(Pump);
+                if (kind == AutomationKind.PdfPresentation) dialog.PdfPresentationSelfCheck(Pump);
                 Capture(dialog, kind.ToString()); dialog.Close();
             }
             foreach (var processor in new[] { false, true })

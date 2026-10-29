@@ -15,7 +15,19 @@ public sealed record ContactSheetOptions(int Width = 2400, int Height = 3000, do
     bool RotateToFit = false, bool Captions = true, string FontFamily = "Arial", double FontSize = 12, bool Flatten = true,
     ImageMode Mode = ImageMode.RGB, int Depth = 8, string? ColorProfile = null, bool GroupByFolder = false,
     bool AutoSpacing = false, ContactSheetUnit DisplayUnit = ContactSheetUnit.Pixels, bool ResolutionPerCentimeter = false);
-public sealed record PdfPresentationOptions(SKColor Background, double FontSize = 12, bool FileNames = false);
+/// <summary>What is written under each PDF page, in this order.</summary>
+[Flags]
+public enum PdfCaption { None = 0, FileName = 1, Extension = 2, Title = 4, Description = 8, Author = 16, Copyright = 32, Exif = 64 }
+/// <summary>
+/// <paramref name="FileNames"/> is the earlier single switch and still means file name with extension. Presentation
+/// properties apply only when <paramref name="Presentation"/> is set; see <see cref="PdfSlideshow"/>.
+/// </summary>
+public sealed record PdfPresentationOptions(SKColor Background, double FontSize = 12, bool FileNames = false,
+    bool Presentation = false, bool AutoAdvance = true, double AdvanceSeconds = 5, bool Loop = false,
+    PdfTransition Transition = PdfTransition.None, PdfCaption Captions = PdfCaption.None)
+{
+    public PdfCaption EffectiveCaptions => Captions | (FileNames ? PdfCaption.FileName | PdfCaption.Extension : PdfCaption.None);
+}
 
 /// <summary>Shared, UI-independent file workflows. Callers retain open documents for the duration of a job.</summary>
 public static class FileAutomation
@@ -306,24 +318,55 @@ public static class FileAutomation
     {
         RequireSources(sources, 1);
         if (!double.IsFinite(options.FontSize) || options.FontSize is < 1 or > 300) throw new ArgumentException("Invalid caption size.");
-        AtomicFile.Write(path, stream =>
+        if (options.Captions < PdfCaption.None || options.Captions > (PdfCaption)127) throw new ArgumentException("Invalid caption fields.");
+        if (options.Presentation) PdfSlideshow.Validate(options);
+        // The pages are drawn first; presentation timing and transitions are an update appended to that file.
+        using var rendered = new MemoryStream();
+        using (var pdf = SKDocument.CreatePdf(rendered))
         {
-            using var pdf = SKDocument.CreatePdf(stream);
             using var font = new SKFont(SKTypeface.Default, (float)options.FontSize);
             using var paint = new SKPaint { Color = options.Background == SKColors.Black ? SKColors.White : SKColors.Black, IsAntialias = true };
+            var lineHeight = (float)options.FontSize * 1.4f;
             foreach (var source in sources)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 using var image = RenderSource(source);
+                var lines = PdfCaptionLines(source, options.EffectiveCaptions);
                 float scale = Math.Min(1, 14400f / Math.Max(image.Width, image.Height));
-                float width = image.Width * scale, height = image.Height * scale, caption = options.FileNames ? (float)options.FontSize * 2 : 0;
+                float width = image.Width * scale, height = image.Height * scale;
+                var caption = lines.Count == 0 ? 0 : lines.Count * lineHeight + (float)options.FontSize * .6f;
                 var canvas = pdf.BeginPage(width, height + caption); canvas.Clear(options.Background);
                 canvas.DrawBitmap(image, new SKRect(0, 0, width, height), new SKSamplingOptions(SKFilterMode.Linear));
-                if (options.FileNames) canvas.DrawText(source.Name, width / 2, height + (float)options.FontSize, SKTextAlign.Center, font, paint);
+                for (var line = 0; line < lines.Count; line++)
+                    canvas.DrawText(lines[line], width / 2, height + (float)options.FontSize + line * lineHeight, SKTextAlign.Center, font, paint);
                 pdf.EndPage();
             }
             pdf.Close();
-        }, cancellationToken);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        var bytes = PdfSlideshow.Apply(rendered.ToArray(), options);
+        AtomicFile.WriteBytes(path, bytes, cancellationToken);
+    }
+
+    /// <summary>The caption lines for one page: name, then the File Info fields asked for that have a value.</summary>
+    public static IReadOnlyList<string> PdfCaptionLines(AutomationSource source, PdfCaption captions)
+    {
+        var lines = new List<string>();
+        if (captions == PdfCaption.None) return lines;
+        if (captions.HasFlag(PdfCaption.FileName))
+            lines.Add(captions.HasFlag(PdfCaption.Extension) ? source.Name : System.IO.Path.GetFileNameWithoutExtension(source.Name));
+        if ((captions & ~(PdfCaption.FileName | PdfCaption.Extension)) != PdfCaption.None)
+        {
+            var metadata = source.Document?.Metadata ?? (source.Path is { Length: > 0 } file ? ImageMetadata.Read(file) : new DocumentMetadata());
+            void Add(PdfCaption flag, string value) { if (captions.HasFlag(flag) && !string.IsNullOrWhiteSpace(value)) lines.Add(value.Trim()); }
+            Add(PdfCaption.Title, metadata.Title);
+            Add(PdfCaption.Description, metadata.Description);
+            Add(PdfCaption.Author, metadata.Author);
+            Add(PdfCaption.Copyright, metadata.Copyright);
+            Add(PdfCaption.Exif, string.Join("  ", new[] { metadata.CameraMake, metadata.CameraModel, metadata.DateTaken }.Where(v => !string.IsNullOrWhiteSpace(v))));
+        }
+        // One page caption line stays readable; a long description is shortened rather than drawn off the page.
+        return lines.Select(line => line.Replace('\r', ' ').Replace('\n', ' ')).Select(line => line.Length > 300 ? line[..300] + "…" : line).ToArray();
     }
 
     private static void RequireSources(IReadOnlyList<AutomationSource> sources, int minimum)

@@ -22,6 +22,9 @@ internal sealed class LayerExportDialog : DialogWindow
         public override string ToString() => Value.Name;
     }
 
+    /// <summary>Completed runs; a canceled run keeps its finished files but is not counted as an export.</summary>
+    internal int CompletedExports { get; private set; }
+
     public LayerExportDialog(CanvasDocument document, LayerExportKind kind)
     {
         Title = Localize.Text(kind == LayerExportKind.Layers ? "Export Layers to Files" : kind == LayerExportKind.LayerCompsPdf ? "Export Layer Comps to PDF" : "Export Layer Comps to Files");
@@ -91,6 +94,7 @@ internal sealed class LayerExportDialog : DialogWindow
                 var progress = new Progress<BatchProgress>(p => status.Text = $"{p.Completed}/{p.Total} — {p.Name}");
                 var files = await WorkScheduler.Run(token => LayerExport.Run(document, options, ids, progress, token), cancellation.Token);
                 status.Text = Localize.Text("Export complete.") + $" ({files.Count})";
+                if (files.Count > 0) CompletedExports++;
             }
             catch (OperationCanceledException) { status.Text = Localize.Text("Cancelled. Completed files were kept."); }
             catch (Exception error) { status.Text = error.Message; }
