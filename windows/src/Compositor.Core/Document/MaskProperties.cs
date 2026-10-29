@@ -183,13 +183,37 @@ public static class MaskProperties
         if (!LayerWorkflow.Editable(document, [id])) return false;
         // A disabled mask contributes nothing to the visible image.
         if (!mask.IsEnabled) { layer.Mask = null; return true; }
-        using var image = DeepPixels.From(asset.WorkingImage);
-        using var coverage = Coverage(mask, layer.MaskTransform, layer.Transform, image.Width, image.Height);
-        var rgba = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(image.GetPixelSpan());
-        for (var y = 0; y < image.Height; y++) for (var x = 0; x < image.Width; x++)
-            rgba[y * image.RowBytes / 4 + x * 4 + 3] *= coverage.GetPixel(x, y).Red / 255f;
-        layer.Asset = asset.Deep is null ? ImportedImage.Create(DeepPixels.Preview(image), layer.Name)
-            : ImportedImage.CreateDeep(image.Copy(), layer.Name, asset.BitDepth);
+        using var coverage = Coverage(mask, layer.MaskTransform, layer.Transform, asset.Width, asset.Height);
+        ImportedImage Bake(ImportedImage source)
+        {
+            using var image = DeepPixels.From(source.WorkingImage);
+            var rgba = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(image.GetPixelSpan());
+            for (var y = 0; y < image.Height; y++) for (var x = 0; x < image.Width; x++)
+                rgba[y * image.RowBytes / 4 + x * 4 + 3] *= coverage.GetPixel(x, y).Red / 255f;
+            return source.Deep is null ? ImportedImage.Create(DeepPixels.Preview(image), layer.Name)
+                : ImportedImage.CreateDeep(image.Copy(), layer.Name, source.BitDepth);
+        }
+        if (layer.Gif is { } gif)
+        {
+            var pixels = (long)asset.Width * asset.Height * gif.Frames.Count;
+            if (pixels > DocumentLimits.DocumentPixelBudget) throw new IO.ImportException(IO.ImportError.TooLarge);
+            MemoryBudget.Current.Check(checked(pixels * 36));
+            var edited = gif.Edited.ToBuilder(); var created = new List<ImportedImage>();
+            try
+            {
+                foreach (var frame in gif.Frames)
+                {
+                    var decoded = gif.Decode(frame.Index, layer.Name);
+                    try { var baked = Bake(decoded); created.Add(baked); edited[frame.Index] = baked; }
+                    finally { if (!gif.Edited.ContainsKey(frame.Index)) decoded.Dispose(); }
+                }
+                var selected = layer.GifFrameIndex;
+                layer.Gif = gif with { Edited = edited.ToImmutable(), SelectedFrameIndex = selected };
+                layer.ShowGifFrame(selected, edited[selected]);
+            }
+            catch { foreach (var image in created) image.Dispose(); throw; }
+        }
+        else layer.Asset = Bake(asset);
         layer.Mask = null; layer.Text = null; layer.Shape = null; layer.SmartObject = null; return true;
     }
 }

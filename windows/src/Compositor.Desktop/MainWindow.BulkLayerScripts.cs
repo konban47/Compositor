@@ -28,5 +28,7 @@ public partial class MainWindow
     {
         FinishPlacement(true); FinishPen(); CommitText();
         RasterizeSelected("Effects", true);
+        if (_document?.Layers.Any(layer => layer.Gif is not null && layer.Effects is not null) == true)
+            Say("Animated layer effects were preserved. Baking animation effects is not supported yet.");
     }
 }

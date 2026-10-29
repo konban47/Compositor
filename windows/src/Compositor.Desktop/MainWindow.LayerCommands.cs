@@ -142,6 +142,9 @@ public sealed partial class MainWindow
             {
                 if (kind == "Type" && layer.LiveText is null || kind == "Shape" && layer.LiveShape is null || kind == "Smart" && layer.SmartObject is null
                     || kind == "Effects" && layer.Effects is null) continue;
+                // Effects apply to the whole animation. Baking only its display frame would
+                // remove the effect from every other frame and may also change the frame grid.
+                if (layer.Gif is not null && layer.Effects is not null && kind is "Effects" or "Layer" or "All") continue;
                 if (kind is "Effects" or "Layer" or "All" && layer.Effects is not null)
                 {
                     using var isolated = LayerWorkflow.Subset(doc, [layer.ID]); isolated.Image = isolated.Image with { Background = null };

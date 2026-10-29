@@ -3786,5 +3786,6 @@
   "An animation frame may not exceed 600 seconds.": "单个动画帧的时长不得超过 600 秒。",
   "The file has no video stream.": "文件中没有视频流。",
   "Group Images by Folder": "按文件夹编组图像",
-  "The color profile does not match the contact sheet mode.": "颜色配置文件与联系表的颜色模式不匹配。"
+  "The color profile does not match the contact sheet mode.": "颜色配置文件与联系表的颜色模式不匹配。",
+  "Animated layer effects were preserved. Baking animation effects is not supported yet.": "已保留动画图层效果；目前尚不支持动画效果烘焙。"
 }

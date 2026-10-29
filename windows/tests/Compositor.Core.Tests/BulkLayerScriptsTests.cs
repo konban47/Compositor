@@ -63,5 +63,24 @@ public sealed class BulkLayerScriptsTests : ProjectTestBase
         Assert.Same(original, layer.Asset);
     }
 
+    [Fact]
+    public void ApplyingMaskBakesEveryGifFrameAndPreservesTimingAndSelection()
+    {
+        var source = new GifSource(GifAnimationTests.Sample());
+        var image = source.Decode(0, "Animation"); image.Animation = new GifAnimation(source);
+        using var document = Compositor.Core.IO.ImageImporter.NewDocument(image);
+        var layer = Assert.Single(document.Layers); layer.ShowGifFrame(1);
+        var delays = layer.Gif!.Frames.Select(frame => layer.Gif.Delay(frame.Index)).ToArray();
+        layer.Mask = new LayerMask(MaskAsset(12, 10, 128));
+        Assert.True(MaskProperties.Apply(document, layer.ID));
+        Assert.Null(layer.Mask); Assert.Equal(1, layer.GifFrameIndex);
+        Assert.Equal(delays, layer.Gif!.Frames.Select(frame => layer.Gif.Delay(frame.Index)));
+        foreach (var frame in layer.Gif.Frames)
+        {
+            layer.ShowGifFrame(frame.Index);
+            Assert.InRange(layer.Asset!.Image.GetPixel(4, 4).Alpha, (byte)127, (byte)129);
+        }
+    }
+
     private static ImageLayer Layer(SKColor color) => new(Guid.NewGuid(), Asset(2, 2, color), new LayerTransform(0, 0, 2, 2), "Layer");
 }

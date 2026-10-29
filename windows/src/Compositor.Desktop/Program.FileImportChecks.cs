@@ -60,6 +60,15 @@ public partial class MainWindow
         Check(VideoFrameImport.Times(new(64, 32, 1, false), options()).Length == 4, "Frame interval did not affect the import plan.");
         capture(form, "video-import"); form.Close(false);
         Check(_document.Layers.Count == 2, "Canceling the import form changed the document.");
+        var gifSource = new GifSource(Convert.FromBase64String("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"));
+        var gifLayer = new ImageLayer(Guid.NewGuid(), gifSource.Decode(0, "Animation"), new(0, 0, 1, 1), "Animation")
+        {
+            Gif = new GifAnimation(gifSource), Effects = new LayerEffects { Items = [StyleEffect.Default(StyleEffectKind.ColorOverlay)] }
+        };
+        var liveEffects = gifLayer.Effects; _document.Layers.Add(gifLayer);
+        Click("Flatten All Layer Effects");
+        Check(ReferenceEquals(liveEffects, gifLayer.Effects) && gifLayer.Gif.Edited.Count == 0,
+            "Baking animation effects modified only the currently displayed GIF frame.");
         Console.WriteLine("PASS: Scripts dispatch/undo/redo, effect opacity, import menu, video sampling form and cancellation.");
     }
 }
