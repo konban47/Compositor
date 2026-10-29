@@ -180,6 +180,9 @@ public static class MaskProperties
     public static bool Apply(CanvasDocument document, Guid id)
     {
         if (document.Layers.FirstOrDefault(layer => layer.ID == id) is not { Asset: { } asset, Mask: { } mask, IsGroup: false } layer) return false;
+        if (!LayerWorkflow.Editable(document, [id])) return false;
+        // A disabled mask contributes nothing to the visible image.
+        if (!mask.IsEnabled) { layer.Mask = null; return true; }
         using var image = DeepPixels.From(asset.WorkingImage);
         using var coverage = Coverage(mask, layer.MaskTransform, layer.Transform, image.Width, image.Height);
         var rgba = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(image.GetPixelSpan());

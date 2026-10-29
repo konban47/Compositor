@@ -141,10 +141,24 @@ public static class LayerWorkflow
         foreach (var layer in document.Layers)
         {
             if (!Editable(document, [layer.ID])) continue;
-            var empty = layer.Asset is { } asset && layer.Effects is null && layer.Adjustment is null && layer.SmartObject is null
+            var empty = layer.Asset is { } asset && layer.Gif is null && layer.Effects is null && layer.Adjustment is null && layer.SmartObject is null
                 && !HasPixels(asset.Image);
             if (kind == "Hidden" ? !layer.IsVisible : kind == "Groups" ? layer.IsGroup && layer.Container == LayerContainer.Group && document.Descendants(layer.ID).Count == 0
                 : !layer.IsGroup && empty) removed.UnionWith(Members(document, [layer.ID]));
+        }
+        // An empty clipping base still controls the appearance of its dependants.
+        // Keep the entire source chain of every surviving layer.
+        if (kind != "Hidden" && kind != "Groups")
+        {
+            var byId = document.Layers.ToDictionary(layer => layer.ID);
+            var needed = new Stack<Guid>(document.Layers.Where(layer => !removed.Contains(layer.ID)).Select(layer => layer.ID));
+            var visited = new HashSet<Guid>();
+            while (needed.TryPop(out var id))
+                if (visited.Add(id) && byId.TryGetValue(id, out var layer) && layer.MaskSourceID is { } source)
+                {
+                    removed.Remove(source);
+                    needed.Push(source);
+                }
         }
         document.Layers.RemoveAll(l => removed.Contains(l.ID));
         foreach (var layer in document.Layers) if (layer.MaskSourceID is { } clip && removed.Contains(clip)) layer.MaskSourceID = null;

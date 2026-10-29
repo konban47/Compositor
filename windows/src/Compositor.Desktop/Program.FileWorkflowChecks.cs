@@ -47,7 +47,9 @@ internal static partial class Program
             foreach (var kind in Enum.GetValues<AutomationKind>())
             {
                 var dialog = new AutomationDialog(kind, sources, (_, _) => Task.CompletedTask);
-                _ = dialog.ShowDialog(owner); Capture(dialog, kind.ToString()); dialog.Close();
+                _ = dialog.ShowDialog(owner);
+                if (kind == AutomationKind.ContactSheet) dialog.ContactSheetSelfCheck(Pump);
+                Capture(dialog, kind.ToString()); dialog.Close();
             }
             foreach (var processor in new[] { false, true })
             {
@@ -56,6 +58,7 @@ internal static partial class Program
             }
             var layers = new LayerExportDialog(document, LayerExportKind.Layers);
             _ = layers.ShowDialog(owner); Capture(layers, "layers"); layers.Close();
+            owner.FileImportSelfCheck(Pump, Capture);
             Console.WriteLine("PASS: Web preview encoding, four-up, palette, linked sizing, stale previews, cancellation and file workflow layouts.");
             return 0;
         }

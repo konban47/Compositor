@@ -132,9 +132,9 @@ public sealed partial class MainWindow
             layer.Mask = null; return false;
         }); Reselect(layer.ID);
     }
-    private void RasterizeSelected(string kind)
+    private void RasterizeSelected(string kind, bool allLayers = false)
     {
-        if (_document is not { } doc) return; var ids = kind == "All" ? doc.Layers.Select(l => l.ID).ToArray() : SelectedLayers.ToArray();
+        if (_document is not { } doc) return; var ids = kind == "All" || allLayers ? doc.Layers.Select(l => l.ID).ToArray() : SelectedLayers.ToArray();
         Edit("Rasterize Layer", () =>
         {
             var changed = false;
@@ -145,7 +145,7 @@ public sealed partial class MainWindow
                 if (kind is "Effects" or "Layer" or "All" && layer.Effects is not null)
                 {
                     using var isolated = LayerWorkflow.Subset(doc, [layer.ID]); isolated.Image = isolated.Image with { Background = null };
-                    var copied = isolated.Layers[0]; copied.Opacity = 1; copied.BlendMode = LayerBlendMode.Normal;
+                    var copied = isolated.Layers[0]; copied.IsVisible = true; copied.Opacity = 1; copied.BlendMode = LayerBlendMode.Normal;
                     if (doc.Layers.Where(l => l.ID != layer.ID).Sum(l => (long)(l.Asset?.Width ?? 0) * (l.Asset?.Height ?? 0)) + (long)doc.Width * doc.Height > DocumentLimits.DocumentPixelBudget) continue;
                     var rendered = DocumentRenderer.Render(isolated); layer.Asset = ImportedImage.Create(rendered, layer.Name);
                     layer.Transform = new LayerTransform(0, 0, doc.Width, doc.Height); layer.Effects = null; layer.Mask = null; layer.FillOpacity = 1;

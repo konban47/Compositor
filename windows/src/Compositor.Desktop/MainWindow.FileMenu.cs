@@ -41,6 +41,7 @@ public partial class MainWindow
                     Command("Export Layer Comps to Files…", () => _ = ExportLayers(LayerExportKind.LayerComps)),
                     Command("Export Layer Comps to PDF…", () => _ = ExportLayers(LayerExportKind.LayerCompsPdf)),
                     Command("Render Video…", () => _ = RenderTimeline()),
+                    Command("Export Notes…", () => _ = ExportDocumentNotes()),
                 },
             },
             new Separator(),
@@ -68,8 +69,26 @@ public partial class MainWindow
                 Items =
                 {
                     Command("Image Processor…", () => _ = ShowBatch(true)),
+                    new Separator(),
+                    Command("Delete All Empty Layers", DeleteAllEmptyLayers),
+                    new Separator(),
+                    Command("Flatten All Masks", FlattenAllMasks),
+                    Command("Flatten All Layer Effects", FlattenAllLayerEffects),
+                    new Separator(),
                     Command("Load Files into Stack…", () => _ = ShowAutomation(AutomationKind.LoadLayers)),
                     Command("Image Statistics…", () => _ = ShowAutomation(AutomationKind.Statistics)),
+                    Command("Load Multiple DICOM Files…", () => _ = ImportDicomFiles()),
+                },
+            },
+            new MenuItem
+            {
+                Header = Localize.Text("Import"),
+                Items =
+                {
+                    Command("Variable Data Sets…", () => _ = ImageDataSets(false)),
+                    Command("Video Frames to Layers…", () => _ = ImportVideoFrames()),
+                    Command("Import Notes…", () => _ = ImportDocumentNotes()),
+                    Command("WIA Support…", () => _ = ImportWia()),
                 },
             },
             new Separator(),

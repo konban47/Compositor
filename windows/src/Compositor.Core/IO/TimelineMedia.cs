@@ -9,7 +9,10 @@ using SkiaSharp;
 
 namespace Compositor.Core.IO;
 
-public sealed record TimelineMediaInfo(int Width, int Height, double Duration, bool Audio);
+public sealed record TimelineMediaInfo(int Width, int Height, double Duration, bool Audio, double FrameRate = 30)
+{
+    public TimelineMediaInfo(int width, int height, double duration, bool audio) : this(width, height, duration, audio, 30) { }
+}
 
 /// <summary>Optional FFmpeg bridge. Files are local linked media; no shell or network inputs are accepted.</summary>
 public static class TimelineMedia
@@ -28,17 +31,30 @@ public static class TimelineMedia
         return Path.GetFullPath(file);
     }
     private static void Kill(Process process){try{if(!process.HasExited)process.Kill(true);}catch(InvalidOperationException){} }
-    public static TimelineMediaInfo Inspect(string path)
+    public static TimelineMediaInfo Inspect(string path) => Inspect(path, default);
+
+    public static TimelineMediaInfo Inspect(string path, CancellationToken cancellation)
     {
         using var process=Start("ffprobe",["-v","error","-protocol_whitelist","file,pipe","-show_streams","-show_format","-of","json",Local(path)]);
+        using var cancel=cancellation.Register(()=>Kill(process));
         var output=process.StandardOutput.ReadToEndAsync();var error=process.StandardError.ReadToEndAsync();
         if(!process.WaitForExit(20000)){Kill(process);throw new IOException("Media inspection timed out.");}
+        cancellation.ThrowIfCancellationRequested();
         if(process.ExitCode!=0)throw new IOException(error.GetAwaiter().GetResult());
         using var json=JsonDocument.Parse(output.GetAwaiter().GetResult());var streams=json.RootElement.GetProperty("streams").EnumerateArray().ToArray();var video=streams.FirstOrDefault(s=>s.GetProperty("codec_type").GetString()=="video");
         var width=video.ValueKind==JsonValueKind.Undefined?0:video.GetProperty("width").GetInt32();var height=video.ValueKind==JsonValueKind.Undefined?0:video.GetProperty("height").GetInt32();
         var duration=double.Parse(json.RootElement.GetProperty("format").GetProperty("duration").GetString()!,CultureInfo.InvariantCulture);
         if(!double.IsFinite(duration)||duration<=0||duration>DocumentTimeline.MaxDuration||width>16384||height>16384)throw new InvalidDataException("Unsupported media dimensions or duration.");
-        return new(width,height,duration,streams.Any(s=>s.GetProperty("codec_type").GetString()=="audio"));
+        var rate = 30d;
+        if (video.ValueKind != JsonValueKind.Undefined && video.TryGetProperty("avg_frame_rate", out var rateValue))
+        {
+            var parts = rateValue.GetString()?.Split('/');
+            if (parts is { Length: 2 } && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var numerator)
+                && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var denominator)
+                && denominator > 0 && double.IsFinite(numerator / denominator) && numerator / denominator is >= 1 and <= 120)
+                rate = numerator / denominator;
+        }
+        return new(width,height,duration,streams.Any(s=>s.GetProperty("codec_type").GetString()=="audio"),rate);
     }
     public static SKBitmap VideoFrame(string path,double seconds,int maxSize=2048,CancellationToken cancellation=default)
     {

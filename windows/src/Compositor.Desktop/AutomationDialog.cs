@@ -3,6 +3,8 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using Compositor.Core.IO;
+using FontCatalog = Compositor.Core.Document.FontCatalog;
+using Compositor.Core.Format;
 using SkiaSharp;
 using System.Text.Json;
 
@@ -35,21 +37,32 @@ internal sealed class AutomationDialog : DialogWindow
     private readonly NumericUpDown _width = Number(20.32, .01, 30000, "Document width");
     private readonly NumericUpDown _height = Number(25.4, .01, 30000, "Document height");
     private readonly NumericUpDown _resolution = Number(300, 1, 9600, "Resolution");
+    private readonly ComboBox _resolutionUnits = Choice(["Pixels/Inch", "Pixels/Centimeter"], 0, "Resolution units");
+    private readonly ComboBox _mode = Choice(["Grayscale", "RGB Color", "CMYK Color", "Lab Color"], 1, "Contact color mode");
+    private readonly ComboBox _depth = Choice(["8 Bits/Channel", "16 Bits/Channel"], 0, "Contact bit depth");
+    private readonly ComboBox _profile = new() { MinHeight = 30, HorizontalAlignment = HorizontalAlignment.Stretch, Tag = "Contact color profile" };
+    private readonly CheckBox _groupFolders = Check("Group Images by Folder", false);
     private readonly NumericUpDown _columns = Number(5, 1, 100, "Columns");
     private readonly NumericUpDown _rows = Number(6, 1, 100, "Rows");
     private readonly NumericUpDown _horizontal = Number(10, 0, 30000, "Horizontal spacing");
     private readonly NumericUpDown _vertical = Number(10, 0, 30000, "Vertical spacing");
+    private readonly TextBlock _verticalUnit = Label("cm");
+    private readonly TextBlock _horizontalUnit = Label("cm");
     private readonly CheckBox _automatic = Check("Use Auto-Spacing", true);
     private readonly CheckBox _flatten = Check("Flatten All Layers", true);
     private readonly CheckBox _rotate = Check("Rotate for Best Fit", false);
     private readonly CheckBox _captions = Check("Use Filename as Caption", true);
-    private readonly TextBox _font = new() { Text = "Arial", MinWidth = 160, Tag = "Caption font" };
+    private readonly ComboBox _font = new() { MinHeight = 30, HorizontalAlignment = HorizontalAlignment.Stretch, Tag = "Caption font" };
+    private readonly ComboBox _fontStyle = new() { MinHeight = 30, HorizontalAlignment = HorizontalAlignment.Stretch, Tag = "Caption font style" };
+    private IReadOnlyList<FontCatalog.FontFace> _captionFaces = [];
     private readonly NumericUpDown _fontSize = Number(12, 1, 300, "Caption size");
     private readonly ComboBox _order = Choice(["Across First", "Down First"], 0, "Thumbnail order");
     private readonly ComboBox _statistic = Choice(["Mean", "Sum", "Minimum", "Maximum", "Median", "Variance", "Standard Deviation", "Skewness", "Kurtosis", "Range", "Entropy"], 0, "Stack mode");
     private readonly ComboBox _background = Choice(["White", "Gray", "Black"], 0, "PDF background");
     private readonly CheckBox _fileNames = Check("File Names", false);
     private int _previousUnits = 1;
+    private int _previousResolutionUnits;
+    private static readonly ImageMode[] ContactModes = [ImageMode.Grayscale, ImageMode.RGB, ImageMode.CMYK, ImageMode.Lab];
 
     internal AutomationDialog(AutomationKind kind, IReadOnlyList<AutomationSource> open, Func<AutomationJob, CancellationToken, Task> run)
     {
@@ -70,7 +83,7 @@ internal sealed class AutomationDialog : DialogWindow
             actions.Children.Add(new Border { Height = 16 });
             actions.Children.Add(FormDialog.ActionButton("Load…", () => _ = LoadSettings()));
             actions.Children.Add(FormDialog.ActionButton("Save…", () => _ = SaveSettings()));
-            actions.Children.Add(FormDialog.ActionButton("Reset…", () => ApplySettings(new ContactSheetOptions())));
+            actions.Children.Add(FormDialog.ActionButton("Reset…", () => ApplySettings(new ContactSheetOptions(AutoSpacing: true, DisplayUnit: ContactSheetUnit.Centimeters))));
         }
         actions.Children.Add(_status);
         if (kind == AutomationKind.Statistics) _body.Children.Add(Row("Stack Mode", _statistic));
@@ -119,6 +132,7 @@ internal sealed class AutomationDialog : DialogWindow
         { if (_list.SelectedItem is SourceRow selected) { _sources.Insert(_sources.IndexOf(selected.Source) + 1, selected.Source); RefreshSources(); } }));
         buttons.Children.Add(FormDialog.ActionButton("Sort by Name", () => { _sources.Sort((a, b) => StringComparer.CurrentCultureIgnoreCase.Compare(a.Name, b.Name)); RefreshSources(); }));
         panel.Children.Add(grid); panel.Children.Add(_recursive);
+        if (_kind == AutomationKind.ContactSheet) panel.Children.Add(_groupFolders);
         if (_kind is AutomationKind.LoadLayers or AutomationKind.Statistics)
         {
             ToolTip.SetTip(_autoAlign, Localize.Text("Aligns translation. Image statistics uses the common overlapping area."));
@@ -130,28 +144,77 @@ internal sealed class AutomationDialog : DialogWindow
 
     private void BuildContactSettings()
     {
+        _sourceType.SelectedIndex = 1; _recursive.IsChecked = true;
         var document = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 20 };
         var left = new StackPanel { Spacing = 10 }; var right = new StackPanel { Spacing = 10 }; Grid.SetColumn(right, 1);
-        left.Children.Add(Row("Units", _units)); left.Children.Add(Row("Width", _width)); left.Children.Add(Row("Height", _height)); left.Children.Add(Row("Resolution (ppi)", _resolution));
-        right.Children.Add(_flatten); right.Children.Add(Label("RGB Color · 8 Bits/Channel"));
+        left.Children.Add(Row("Units", _units)); left.Children.Add(Row("Width", _width)); left.Children.Add(Row("Height", _height));
+        var resolution = new Grid { ColumnDefinitions = new("*,*"), ColumnSpacing = 6 };
+        resolution.Children.Add(_resolution); Grid.SetColumn(_resolutionUnits, 1); resolution.Children.Add(_resolutionUnits);
+        left.Children.Add(Row("Resolution", resolution)); left.Children.Add(Row("Color Profile", _profile));
+        right.Children.Add(_flatten); right.Children.Add(Row("Mode", _mode)); right.Children.Add(Row("Bit Depth", _depth));
         document.Children.Add(left); document.Children.Add(right); _body.Children.Add(Group("Document", document));
         var thumbnails = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 20 };
         var a = new StackPanel { Spacing = 10 }; var b = new StackPanel { Spacing = 10 }; Grid.SetColumn(b, 1);
         a.Children.Add(Row("Place", _order)); a.Children.Add(Row("Columns", _columns)); a.Children.Add(Row("Rows", _rows)); a.Children.Add(_rotate);
-        b.Children.Add(_automatic); b.Children.Add(Row("Vertical (px)", _vertical)); b.Children.Add(Row("Horizontal (px)", _horizontal));
+        Grid SpacingInput(NumericUpDown value, TextBlock unit)
+        {
+            var input = new Grid { ColumnDefinitions = new("*,Auto"), ColumnSpacing = 6 };
+            input.Children.Add(value); Grid.SetColumn(unit, 1); input.Children.Add(unit); return input;
+        }
+        _horizontal.Value /= (decimal)UnitFactor(_units.SelectedIndex); _vertical.Value /= (decimal)UnitFactor(_units.SelectedIndex);
+        b.Children.Add(_automatic); b.Children.Add(Row("Vertical", SpacingInput(_vertical, _verticalUnit))); b.Children.Add(Row("Horizontal", SpacingInput(_horizontal, _horizontalUnit)));
         thumbnails.Children.Add(a); thumbnails.Children.Add(b); _body.Children.Add(Group("Thumbnails", thumbnails));
-        var caption = new StackPanel { Spacing = 10 }; caption.Children.Add(_captions); caption.Children.Add(Row("Font", _font)); caption.Children.Add(Row("Size (pt)", _fontSize));
-        _body.Children.Add(Group("Caption", caption));
+        _font.ItemsSource = FontCatalog.Families;
+        _font.SelectionChanged += (_, _) => RefreshCaptionStyles();
+        _font.SelectedItem = FontCatalog.Families.FirstOrDefault(name => name == "Arial") ?? FontCatalog.Families.FirstOrDefault();
+        var caption = new Grid { ColumnDefinitions = new("Auto,2*,1.5*,70,Auto"), ColumnSpacing = 8 };
+        _captions.Content = Label("Font");
+        Control[] captionControls = [_captions, _font, _fontStyle, _fontSize, Label("pt")];
+        for (var index = 0; index < captionControls.Length; index++) { Grid.SetColumn(captionControls[index], index); caption.Children.Add(captionControls[index]); }
+        _body.Children.Add(Group("Use Filename as Caption", caption));
         _automatic.IsCheckedChanged += (_, _) => { _horizontal.IsEnabled = _vertical.IsEnabled = _automatic.IsChecked != true; };
         _horizontal.IsEnabled = _vertical.IsEnabled = false;
-        _captions.IsCheckedChanged += (_, _) => { _font.IsEnabled = _fontSize.IsEnabled = _captions.IsChecked == true; };
+        _captions.IsCheckedChanged += (_, _) => { _font.IsEnabled = _fontStyle.IsEnabled = _fontSize.IsEnabled = _captions.IsChecked == true; };
+        _mode.SelectionChanged += (_, _) => RefreshContactProfiles(); RefreshContactProfiles();
+        _resolutionUnits.SelectionChanged += (_, _) =>
+        {
+            var next = _resolutionUnits.SelectedIndex;
+            if (next < 0 || next == _previousResolutionUnits) return;
+            var ppi = Value(_resolution) * (_previousResolutionUnits == 1 ? 2.54 : 1);
+            var factor = next == 1 ? 2.54 : 1;
+            _resolution.Minimum = (decimal)(1 / factor); _resolution.Maximum = (decimal)(9600 / factor);
+            _resolution.Value = (decimal)(ppi / factor); _previousResolutionUnits = next;
+        };
         _units.SelectionChanged += (_, _) =>
         {
             var next = _units.SelectedIndex; if (next < 0 || next == _previousUnits) return;
             double oldFactor = UnitFactor(_previousUnits), newFactor = UnitFactor(next);
             _width.Value = (decimal)Math.Clamp(Value(_width) * oldFactor / newFactor, .01, 30000);
-            _height.Value = (decimal)Math.Clamp(Value(_height) * oldFactor / newFactor, .01, 30000); _previousUnits = next;
+            _height.Value = (decimal)Math.Clamp(Value(_height) * oldFactor / newFactor, .01, 30000);
+            _horizontal.Value = (decimal)Math.Clamp(Value(_horizontal) * oldFactor / newFactor, 0, 30000);
+            _vertical.Value = (decimal)Math.Clamp(Value(_vertical) * oldFactor / newFactor, 0, 30000);
+            _verticalUnit.Text = _horizontalUnit.Text = next == 0 ? "in" : next == 1 ? "cm" : "px";
+            _previousUnits = next;
         };
+    }
+
+    private void RefreshCaptionStyles(string? selectedFace = null)
+    {
+        _captionFaces = FontCatalog.Styles(_font.SelectedItem as string ?? "Arial");
+        _fontStyle.ItemsSource = _captionFaces.Select(face => face.Style).ToArray();
+        var selected = _captionFaces.ToList().FindIndex(face => selectedFace is null ? face.Weight == 400 && face.Width == 5 && !face.Italic : face.Name == selectedFace);
+        _fontStyle.SelectedIndex = Math.Max(0, selected);
+    }
+
+    private void RefreshContactProfiles(string? selected = null)
+    {
+        var mode = ContactModes[Math.Clamp(_mode.SelectedIndex, 0, ContactModes.Length - 1)];
+        _profile.IsEnabled = mode != ImageMode.Lab;
+        if (mode == ImageMode.Lab) { _profile.ItemsSource = new[] { "Lab D50" }; _profile.SelectedIndex = 0; return; }
+        var profiles = IccProfiles.Catalog(ColorDefaults.Settings, mode == ImageMode.CMYK ? "CMYK" : mode == ImageMode.Grayscale ? "GRAY" : "RGB")
+            .Select(entry => entry.Name).ToArray();
+        _profile.ItemsSource = profiles;
+        _profile.SelectedItem = profiles.FirstOrDefault(name => name == (selected ?? ColorDefaults.Settings.ProfileName(mode))) ?? profiles.FirstOrDefault();
     }
 
     private async Task Browse()
@@ -179,14 +242,18 @@ internal sealed class AutomationDialog : DialogWindow
     private sealed record SourceRow(AutomationSource Source) { public override string ToString() => Source.Name; }
     private void RefreshSources() { _list.ItemsSource = _sources.Select(s => new SourceRow(s)).ToArray(); UpdateAvailability(); }
     private void UpdateAvailability() => _execute.IsEnabled = !_running && _sources.Count >= (_kind == AutomationKind.Statistics ? 2 : 1);
-    private double UnitFactor(int index) => index switch { 0 => Value(_resolution), 1 => Value(_resolution) / 2.54, _ => 1 };
+    private double ResolutionPpi => Math.Round(Value(_resolution) * (_resolutionUnits.SelectedIndex == 1 ? 2.54 : 1), 8);
+    private double UnitFactor(int index) => index switch { 0 => ResolutionPpi, 1 => ResolutionPpi / 2.54, _ => 1 };
     private ContactSheetOptions ContactOptions()
     {
         int width = (int)Math.Round(Value(_width) * UnitFactor(_units.SelectedIndex)), height = (int)Math.Round(Value(_height) * UnitFactor(_units.SelectedIndex));
-        int gap = _automatic.IsChecked == true ? Math.Max(1, (int)Math.Round(Value(_resolution) / 30)) : -1;
-        return new ContactSheetOptions(width, height, Value(_resolution), (int)Value(_columns), (int)Value(_rows), _order.SelectedIndex == 1,
-            gap >= 0 ? gap : (int)Value(_horizontal), gap >= 0 ? gap : (int)Value(_vertical), _rotate.IsChecked == true,
-            _captions.IsChecked == true, _font.Text ?? "Arial", Value(_fontSize), _flatten.IsChecked == true);
+        int gap = _automatic.IsChecked == true ? Math.Max(1, (int)Math.Round(ResolutionPpi / 30)) : -1;
+        return new ContactSheetOptions(width, height, ResolutionPpi, (int)Value(_columns), (int)Value(_rows), _order.SelectedIndex == 1,
+            gap >= 0 ? gap : (int)Math.Round(Value(_horizontal) * UnitFactor(_units.SelectedIndex)), gap >= 0 ? gap : (int)Math.Round(Value(_vertical) * UnitFactor(_units.SelectedIndex)), _rotate.IsChecked == true,
+            _captions.IsChecked == true, _captionFaces.ElementAtOrDefault(_fontStyle.SelectedIndex)?.Name ?? _font.SelectedItem as string ?? "Arial",
+            Value(_fontSize), _flatten.IsChecked == true, ContactModes[Math.Clamp(_mode.SelectedIndex, 0, ContactModes.Length - 1)],
+            _depth.SelectedIndex == 1 ? 16 : 8, _mode.SelectedIndex == 3 ? null : _profile.SelectedItem as string, _groupFolders.IsChecked == true,
+            _automatic.IsChecked == true, (ContactSheetUnit)_units.SelectedIndex, _resolutionUnits.SelectedIndex == 1);
     }
     private async Task Execute()
     {
@@ -233,12 +300,38 @@ internal sealed class AutomationDialog : DialogWindow
     }
     private void ApplySettings(ContactSheetOptions o)
     {
-        _units.SelectedIndex = 2; _width.Value = o.Width; _height.Value = o.Height; _resolution.Value = (decimal)o.Resolution;
+        _resolutionUnits.SelectedIndex = 0; _units.SelectedIndex = 2; _width.Value = o.Width; _height.Value = o.Height; _resolution.Value = (decimal)o.Resolution;
         _columns.Value = o.Columns; _rows.Value = o.Rows; _horizontal.Value = o.HorizontalSpacing; _vertical.Value = o.VerticalSpacing;
-        _automatic.IsChecked = false; _order.SelectedIndex = o.DownFirst ? 1 : 0; _rotate.IsChecked = o.RotateToFit;
-        _captions.IsChecked = o.Captions; _font.Text = o.FontFamily; _fontSize.Value = (decimal)o.FontSize; _flatten.IsChecked = o.Flatten;
+        _automatic.IsChecked = o.AutoSpacing; _order.SelectedIndex = o.DownFirst ? 1 : 0; _rotate.IsChecked = o.RotateToFit;
+        _captions.IsChecked = o.Captions; _font.SelectedItem = FontCatalog.Family(o.FontFamily); RefreshCaptionStyles(o.FontFamily);
+        _fontSize.Value = (decimal)o.FontSize; _flatten.IsChecked = o.Flatten; _groupFolders.IsChecked = o.GroupByFolder;
+        _mode.SelectedIndex = Array.IndexOf(ContactModes, o.Mode); _depth.SelectedIndex = o.Depth == 16 ? 1 : 0; RefreshContactProfiles(o.ColorProfile);
+        _units.SelectedIndex = (int)o.DisplayUnit; _resolutionUnits.SelectedIndex = o.ResolutionPerCentimeter ? 1 : 0;
     }
     internal static double Value(NumericUpDown control) => (double)(control.Value ?? 0);
+    internal void ContactSheetSelfCheck(Action pump)
+    {
+        static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+        var initial = ContactOptions();
+        _automatic.IsChecked = false;
+        var gap = ContactOptions().HorizontalSpacing;
+        _resolutionUnits.SelectedIndex = 1; _units.SelectedIndex = 2; pump();
+        var converted = ContactOptions();
+        Check(converted.Width == initial.Width && converted.Height == initial.Height && Math.Abs(converted.Resolution - initial.Resolution) < .001,
+            "Contact sheet unit conversion changed output dimensions or resolution.");
+        Check(converted.HorizontalSpacing == gap, "Changing document units changed thumbnail spacing.");
+        _mode.SelectedIndex = 2; _depth.SelectedIndex = 1; _groupFolders.IsChecked = true; pump();
+        Check(ContactOptions().Mode == ImageMode.CMYK && ContactOptions().Depth == 16 && _profile.SelectedItem is string,
+            "CMYK profile and depth controls did not reach contact sheet options.");
+        if (_captionFaces.Count > 1) _fontStyle.SelectedIndex = 1;
+        var saved = JsonSerializer.Deserialize<ContactSheetOptions>(JsonSerializer.Serialize(ContactOptions()))!;
+        ApplySettings(new ContactSheetOptions()); ApplySettings(saved); pump();
+        Check(ContactOptions() == saved, "Contact sheet settings did not restore mode, profile, font style or folder grouping. Expected " + JsonSerializer.Serialize(saved) + " Actual " + JsonSerializer.Serialize(ContactOptions()));
+        _mode.SelectedIndex = 3; pump();
+        Check(!_profile.IsEnabled && ContactOptions().ColorProfile is null, "Lab incorrectly retained an RGB/CMYK profile.");
+        ApplySettings(new ContactSheetOptions(AutoSpacing: true, DisplayUnit: ContactSheetUnit.Centimeters)); pump();
+        Console.WriteLine("PASS: Contact sheet color/depth/profile, font style, physical units, spacing and settings round-trip.");
+    }
     internal static NumericUpDown Number(double value, double min, double max, string tag) => new() { Value = (decimal)value, Minimum = (decimal)min, Maximum = (decimal)max, Increment = 1, FormatString = "0.###", ShowButtonSpinner = false, MinHeight = 30, Tag = tag };
     internal static ComboBox Choice(string[] items, int selected, string tag) => new() { ItemsSource = items.Select(Localize.Text).ToArray(), SelectedIndex = selected, HorizontalAlignment = HorizontalAlignment.Stretch, MinHeight = 30, Tag = tag };
     internal static CheckBox Check(string text, bool value) => new() { Content = Label(text), IsChecked = value, Tag = text };

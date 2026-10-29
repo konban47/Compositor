@@ -1,15 +1,20 @@
 using Compositor.Core.Model;
 using Compositor.Core.Document;
 using Compositor.Core.Rendering;
+using Compositor.Core.Format;
 using SkiaSharp;
+using LayerTransform = Compositor.Core.Model.LayerTransform;
 
 namespace Compositor.Core.IO;
 
 public sealed record AutomationSource(string Name, string? Path = null, CanvasDocument? Document = null);
 public enum StackStatistic { Mean, Sum, Minimum, Maximum, Median, Variance, StandardDeviation, Skewness, Kurtosis, Range, Entropy }
+public enum ContactSheetUnit { Inches, Centimeters, Pixels }
 public sealed record ContactSheetOptions(int Width = 2400, int Height = 3000, double Resolution = 300,
     int Columns = 5, int Rows = 6, bool DownFirst = false, int HorizontalSpacing = 10, int VerticalSpacing = 10,
-    bool RotateToFit = false, bool Captions = true, string FontFamily = "Arial", double FontSize = 12, bool Flatten = true);
+    bool RotateToFit = false, bool Captions = true, string FontFamily = "Arial", double FontSize = 12, bool Flatten = true,
+    ImageMode Mode = ImageMode.RGB, int Depth = 8, string? ColorProfile = null, bool GroupByFolder = false,
+    bool AutoSpacing = false, ContactSheetUnit DisplayUnit = ContactSheetUnit.Pixels, bool ResolutionPerCentimeter = false);
 public sealed record PdfPresentationOptions(SKColor Background, double FontSize = 12, bool FileNames = false);
 
 /// <summary>Shared, UI-independent file workflows. Callers retain open documents for the duration of a job.</summary>
@@ -24,12 +29,14 @@ public static class FileAutomation
             .OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    public static SKBitmap RenderSource(AutomationSource source)
+    public static SKBitmap RenderSource(AutomationSource source) => RenderSource(source, false);
+
+    public static SKBitmap RenderSource(AutomationSource source, bool deep)
     {
-        if (source.Document is { } document) return DocumentRenderer.Render(document);
+        if (source.Document is { } document) return deep ? DocumentRenderer.RenderDeep(document) : DocumentRenderer.Render(document);
         if (string.IsNullOrWhiteSpace(source.Path)) throw new ArgumentException("Select a source file.");
         using var opened = ImageImporter.NewDocument(ImageImporter.Decode(source.Path));
-        return DocumentRenderer.Render(opened);
+        return deep ? DocumentRenderer.RenderDeep(opened) : DocumentRenderer.Render(opened);
     }
 
     public static (int Width, int Height) Fit(int width, int height, int maximumWidth, int maximumHeight, bool noEnlarge)
@@ -104,18 +111,40 @@ public static class FileAutomation
         CancellationToken cancellationToken = default)
     {
         RequireSources(sources, 1); CheckSize(options.Width, options.Height);
+        if (options.AutoSpacing)
+        {
+            if (!double.IsFinite(options.Resolution) || options.Resolution is < 1 or > 9600) throw new ArgumentException("Invalid contact sheet settings.");
+            var gap = Math.Max(1, (int)Math.Round(options.Resolution / 30));
+            options = options with { HorizontalSpacing = gap, VerticalSpacing = gap };
+        }
         if (options.Columns is < 1 or > 100 || options.Rows is < 1 or > 100 || options.HorizontalSpacing < 0 || options.VerticalSpacing < 0
-            || !double.IsFinite(options.Resolution) || options.Resolution is < 1 or > 9600 || !double.IsFinite(options.FontSize) || options.FontSize is < 1 or > 300)
+            || !double.IsFinite(options.Resolution) || options.Resolution is < 1 or > 9600 || !double.IsFinite(options.FontSize) || options.FontSize is < 1 or > 300
+            || options.Depth is not (8 or 16) || options.Mode is not (ImageMode.RGB or ImageMode.Grayscale or ImageMode.CMYK or ImageMode.Lab)
+            || options.FontFamily is not { Length: > 0 and <= 256 } || !Enum.IsDefined(options.DisplayUnit))
             throw new ArgumentException("Invalid contact sheet settings.");
-        int capacity = options.Columns * options.Rows, pages = (sources.Count + capacity - 1) / capacity;
+        int capacity = options.Columns * options.Rows;
+        var groups = options.GroupByFolder ? sources.GroupBy(source => source.Path is null ? "" : Path.GetDirectoryName(Path.GetFullPath(source.Path)), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.ToArray()).ToArray() : [sources.ToArray()];
+        var pageSources = groups.SelectMany(group => group.Chunk(capacity)).ToArray();
+        int pages = pageSources.Length;
         if ((long)pages * options.Width * options.Height * (options.Flatten ? 1 : 2) > DocumentLimits.DocumentPixelBudget)
             throw new InvalidOperationException("The contact sheets exceed the document memory budget.");
+        MemoryBudget.Current.Check(checked((long)pages * options.Width * options.Height * (options.Depth == 16 ? 36 : 12) * (options.Flatten ? 1 : 2)));
+        byte[]? profile = null;
+        if (options.Mode != ImageMode.Lab)
+        {
+            profile = IccProfiles.Resolve(options.ColorProfile ?? ColorDefaults.Settings.ProfileName(options.Mode));
+            var model = options.Mode == ImageMode.CMYK ? "CMYK" : options.Mode == ImageMode.Grayscale ? "GRAY" : "RGB";
+            if (IccProfiles.Model(profile) != model) throw new ArgumentException("The color profile does not match the contact sheet mode.");
+        }
+        var settings = new ImageSettings { Mode = options.Mode, Depth = options.Depth,
+            ColorProfile = options.Mode == ImageMode.CMYK ? null : profile, CmykProfile = options.Mode == ImageMode.CMYK ? profile : null };
         float cellWidth = (options.Width - (options.Columns + 1f) * options.HorizontalSpacing) / options.Columns;
         float cellHeight = (options.Height - (options.Rows + 1f) * options.VerticalSpacing) / options.Rows;
         float textSize = (float)(options.FontSize * options.Resolution / 72), caption = options.Captions ? textSize * 1.5f : 0;
         if (cellWidth < 1 || cellHeight - caption < 1) throw new ArgumentException("The page is too small for the rows, columns and captions.");
         var results = new List<CanvasDocument>();
-        using var typeface = SKTypeface.FromFamilyName(options.FontFamily);
+        using var typeface = FontCatalog.Resolve(options.FontFamily);
         using var font = new SKFont(typeface, textSize);
         using var paint = new SKPaint { Color = SKColors.Black, IsAntialias = true };
         try
@@ -124,21 +153,23 @@ public static class FileAutomation
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var document = new CanvasDocument(Guid.NewGuid(), options.Width, options.Height, options.Resolution);
+                document.Image = settings;
                 results.Add(document);
-                using var background = new SKBitmap(options.Width, options.Height); background.Erase(SKColors.White);
+                using var background = new SKBitmap(options.Depth == 16 ? DeepPixels.Info(options.Width, options.Height) : Bitmaps.ColorInfo(options.Width, options.Height)); background.Erase(SKColors.White);
                 using var pageCanvas = new SKCanvas(background);
-                for (int slot = 0; slot < capacity && page * capacity + slot < sources.Count; slot++)
+                for (int slot = 0; slot < pageSources[page].Length; slot++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var source = sources[page * capacity + slot];
-                    using var image = RenderSource(source);
+                    var source = pageSources[page][slot];
+                    using var image = RenderSource(source, options.Depth == 16);
                     int column = options.DownFirst ? slot / options.Rows : slot % options.Columns;
                     int row = options.DownFirst ? slot % options.Rows : slot / options.Columns;
                     float x = options.HorizontalSpacing + column * (cellWidth + options.HorizontalSpacing);
                     float y = options.VerticalSpacing + row * (cellHeight + options.VerticalSpacing);
                     bool rotate = options.RotateToFit && Math.Min(cellWidth / image.Height, (cellHeight - caption) / image.Width)
                         > Math.Min(cellWidth / image.Width, (cellHeight - caption) / image.Height);
-                    using var tile = new SKBitmap(Math.Max(1, (int)cellWidth), Math.Max(1, (int)cellHeight)); tile.Erase(SKColors.Transparent);
+                    int tileWidth = Math.Max(1, (int)cellWidth), tileHeight = Math.Max(1, (int)cellHeight);
+                    using var tile = new SKBitmap(options.Depth == 16 ? DeepPixels.Info(tileWidth, tileHeight) : Bitmaps.ColorInfo(tileWidth, tileHeight)); tile.Erase(SKColors.Transparent);
                     using (var canvas = new SKCanvas(tile))
                     {
                         float scale = Math.Min(cellWidth / (rotate ? image.Height : image.Width), (cellHeight - caption) / (rotate ? image.Width : image.Height));
@@ -154,10 +185,10 @@ public static class FileAutomation
                         }
                     }
                     if (options.Flatten) pageCanvas.DrawBitmap(tile, x, y, new SKSamplingOptions(SKFilterMode.Linear));
-                    else document.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(tile.Copy(), source.Name),
+                    else document.Layers.Add(new ImageLayer(Guid.NewGuid(), ImageModeEdits.Converted(tile, source.Name, settings),
                         new LayerTransform(x, y, tile.Width, tile.Height), source.Name));
                 }
-                document.Layers.Insert(0, new ImageLayer(Guid.NewGuid(), ImportedImage.Create(background.Copy(), "Background"),
+                document.Layers.Insert(0, new ImageLayer(Guid.NewGuid(), ImageModeEdits.Converted(background, "Background", settings),
                     new LayerTransform(0, 0, options.Width, options.Height), "Background"));
             }
             return results;
