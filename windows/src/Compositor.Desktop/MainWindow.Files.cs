@@ -56,13 +56,18 @@ public sealed partial class MainWindow
             tab.History.Begin("Shrink Artboard Canvas", tab.Document, ReferenceEquals(tab, _open) ? Selected : null);
             FitArtboardCanvas(tab.Document, true); tab.History.End(tab.Document, ReferenceEquals(tab, _open) ? Selected : null);
         }
-        await RaiseScriptEvent(ScriptEvent.StartSaveDocument, tab);
-        if (tab.Document is null || !_tabs.Contains(tab)) return;
-        tab.Saving = WriteTab(tab, path);
-        bool saved;
-        try { saved = await tab.Saving; }
-        finally { tab.Saving = null; }
-        if (saved) await RaiseScriptEvent(ScriptEvent.SaveDocument, tab);
+        // Reserve the whole save, including async event notices, so a second save/close cannot race it.
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        tab.Saving = completion.Task;
+        var saved = false;
+        try
+        {
+            await RaiseScriptEvent(ScriptEvent.StartSaveDocument, tab);
+            if (tab.Document is null || !_tabs.Contains(tab)) return;
+            saved = await WriteTab(tab, path);
+            if (saved) await RaiseScriptEvent(ScriptEvent.SaveDocument, tab);
+        }
+        finally { tab.Saving = null; completion.TrySetResult(saved); }
     }
 
     private async Task<bool> WriteTab(Tab tab, string path)
@@ -88,25 +93,16 @@ public sealed partial class MainWindow
     /// <summary>The file picker, command line and shell integration use the same import path.</summary>
     internal Task OpenPath(string path, bool newTab = true) => OpenPath(path, newTab, null);
 
-    /// <summary>Opening into a tab of its own is the Script Events Manager's Open Document event; placing into a tab is not.</summary>
+    /// <summary>Dispatch only after a successful document adoption, once per document; placement is not an open event.</summary>
     private async Task OpenPath(string path, bool newTab, Tab? importTarget, bool forceSmartObject = false)
     {
         var previous = _open;
-        var previousDocument = _open.Document;
-        await OpenPathCore(path, newTab, importTarget, forceSmartObject);
-        // An empty tab is reused for what opens, so the document, not the tab, tells an open from a placement.
-        if (_open.Document is { } opened && !ReferenceEquals(opened, previousDocument) && _tabs.Contains(_open))
-            await RaiseScriptEvent(ScriptEvent.OpenDocument, _open, previous);
-    }
-
-    private async Task OpenPathCore(string path, bool newTab, Tab? importTarget, bool forceSmartObject)
-    {
         try
         {
             path = Path.GetFullPath(path);
-            if (Directory.Exists(path)) { Open(path); return; }
+            if (Directory.Exists(path)) { await OpenAsync(path); return; }
             if (Path.GetFileName(path).Equals("manifest.json", StringComparison.OrdinalIgnoreCase))
-            { Open(Path.GetDirectoryName(path)!); return; }
+            { await OpenAsync(Path.GetDirectoryName(path)!); return; }
             var extension = Path.GetExtension(path);
             if (extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase)) { await OpenPdf(path); return; }
             if (extension.Equals(".psd", StringComparison.OrdinalIgnoreCase) || extension.Equals(".psb", StringComparison.OrdinalIgnoreCase))
@@ -116,7 +112,11 @@ public sealed partial class MainWindow
                 if (notes.Length > 0 && !await ConfirmDialog.Ask(this, "Photoshop conversion report",
                     string.Join(Environment.NewLine, notes.Select(note => $"{note.Layer}: {Localize.Text(note.What)}")), "Import", "Cancel"))
                 { foreach (var item in imports) item.Import.Snapshot().Dispose(); return; }
-                foreach (var item in imports) { AdoptImported(item.Import.Snapshot().ToDocument(), "Import Photoshop"); _open.CustomName = item.Name; }
+                foreach (var item in imports)
+                {
+                    AdoptImported(item.Import.Snapshot().ToDocument(), "Import Photoshop"); _open.CustomName = item.Name;
+                    await RaiseScriptEvent(ScriptEvent.OpenDocument, _open, previous);
+                }
                 NoteRecent(path);
                 RefreshTabs(); Say($"Imported {Path.GetFileName(path)}: {imports.Count} document(s).");
                 return;
@@ -147,6 +147,7 @@ public sealed partial class MainWindow
                 AdoptImported(imported, forceSmartObject ? "Open as Smart Object" : "Import Image");
                 NoteRecent(path);
                 if (openCameraRaw && Selected is { } id) QueueImportedCameraRaw(_open, id);
+                await RaiseScriptEvent(ScriptEvent.OpenDocument, _open, previous);
                 return;
             }
             if (!_tabs.Contains(target)) { image.Dispose(); return; }

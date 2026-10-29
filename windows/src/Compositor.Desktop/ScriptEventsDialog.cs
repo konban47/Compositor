@@ -58,14 +58,14 @@ internal sealed partial class ScriptEventsDialog : DialogWindow
         Width = 780; Height = 520; MinWidth = 640; MinHeight = 470;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-        var root = new Grid { ColumnDefinitions = new("*,170"), Margin = new Thickness(16), Tag = "script-events-layout" };
-        var left = new Grid { RowDefinitions = new("Auto,*,Auto,Auto"), RowSpacing = 8 };
+        var root = new Grid { ColumnDefinitions = new("*,170"), RowDefinitions = new("Auto,*,Auto,Auto"), RowSpacing = 8,
+            Margin = new Thickness(16), Tag = "script-events-layout" };
         _enabled.Content = Localize.Text("_Enable Events to Run Scripts/Actions") + ":";
         _enabled.IsChecked = settings.Enabled;
-        left.Children.Add(_enabled);
+        root.Children.Add(_enabled);
         var listHost = new Panel { Children = { _list, _empty } };
         var listBorder = new Border { BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(1), Background = Skin.SurfaceDarkBrush, Child = listHost };
-        Grid.SetRow(listBorder, 1); left.Children.Add(listBorder);
+        Grid.SetRow(listBorder, 1); root.Children.Add(listBorder);
 
         var chooser = new Grid
         {
@@ -83,20 +83,19 @@ internal sealed partial class ScriptEventsDialog : DialogWindow
         Grid.SetRow(_actionSet, 3); Grid.SetColumn(_actionSet, 1); chooser.Children.Add(_actionSet);
         Grid.SetRow(_action, 3); Grid.SetColumn(_action, 2); chooser.Children.Add(_action);
         var chooserBorder = new Border { BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(1), Child = chooser, Margin = new Thickness(0, 6, 0, 0) };
-        Grid.SetRow(chooserBorder, 2); left.Children.Add(chooserBorder);
-        Grid.SetRow(_error, 3); left.Children.Add(_error);
-        root.Children.Add(left);
+        Grid.SetRow(chooserBorder, 2); root.Children.Add(chooserBorder);
+        Grid.SetRow(_error, 3); root.Children.Add(_error);
 
-        var actions = new Grid { RowDefinitions = new("Auto,*,Auto,Auto,*,Auto,Auto"), RowSpacing = 10, Margin = new Thickness(18, 0, 0, 0) };
         var done = Wide(FormDialog.ActionButton("_Done", Done)); done.Tag = "script-events-done";
         _remove = Wide(FormDialog.ActionButton("_Remove", RemoveSelected)); _remove.Tag = "script-events-remove";
         _removeAll = Wide(FormDialog.ActionButton("Remo_ve All", RemoveAll)); _removeAll.Tag = "script-events-remove-all";
         var add = Wide(FormDialog.ActionButton("_Add", Add)); add.Tag = "script-events-add";
-        actions.Children.Add(done);
-        Grid.SetRow(_remove, 2); actions.Children.Add(_remove);
-        Grid.SetRow(_removeAll, 3); actions.Children.Add(_removeAll);
-        Grid.SetRow(add, 5); actions.Children.Add(add);
-        Grid.SetColumn(actions, 1); root.Children.Add(actions);
+        done.Margin = new Thickness(18, 0, 0, 0); Grid.SetColumn(done, 1); root.Children.Add(done);
+        var removal = new StackPanel { Spacing = 10, VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(18, 0, 0, 16), Children = { _remove, _removeAll } };
+        Grid.SetColumn(removal, 1); Grid.SetRow(removal, 1); root.Children.Add(removal);
+        add.Margin = new Thickness(18, 18, 0, 0); add.VerticalAlignment = VerticalAlignment.Top;
+        Grid.SetColumn(add, 1); Grid.SetRow(add, 2); root.Children.Add(add);
         Content = root;
 
         FillEvents(ScriptEvent.StartApplication, "");

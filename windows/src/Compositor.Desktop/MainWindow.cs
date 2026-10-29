@@ -1334,12 +1334,13 @@ public sealed partial class MainWindow : Window
     private void Open(string path) => OpenSnapshot(path, ProjectStore.Load(path));
     private async Task OpenAsync(string path)
     {
-        var snapshot = await RunLongTask("Open", token => ProjectStore.Load(path, token));
-        OpenSnapshot(path, snapshot);
-    }
-    private void OpenSnapshot(string path, ProjectSnapshot snapshot)
-    {
         var previous = _open;
+        var snapshot = await RunLongTask("Open", token => ProjectStore.Load(path, token));
+        var opened = OpenSnapshot(path, snapshot);
+        await RaiseScriptEvent(ScriptEvent.OpenDocument, opened, previous);
+    }
+    private Tab OpenSnapshot(string path, ProjectSnapshot snapshot)
+    {
         // Into an empty tab when there is one and a tab of its own otherwise: an open project is not thrown
         // away by opening another, as the Mac build keeps one open per tab.
         _open = TabForNew();
@@ -1353,7 +1354,7 @@ public sealed partial class MainWindow : Window
         Show(_open);
         Say($"{System.IO.Path.GetFileName(path)} — {_document.Width} by {_document.Height}, " +
             $"{_document.Layers.Count} layers, {_document.Resolution:0} pixels per inch");
-        _ = RaiseScriptEvent(ScriptEvent.OpenDocument, _open, previous);
+        return _open;
     }
 
     /// <summary>
@@ -2811,7 +2812,7 @@ public sealed partial class MainWindow : Window
         if (ReferenceEquals(tab, _open)) { FinishPen(); CommitText(); }
         // Discarding is only for a tab whose content has already gone elsewhere, as Open As Layer's has.
         if (!discard && !HasOtherView(tab) && !await MayReplace(tab)) return;
-        if (tab.Document is not null && _tabs.Contains(tab)) await RaiseScriptEvent(ScriptEvent.CloseDocument, tab);
+        if (tab.Document is not null && _tabs.Contains(tab) && !HasOtherView(tab)) await RaiseScriptEvent(ScriptEvent.CloseDocument, tab);
         var at = _tabs.IndexOf(tab);
         if (at < 0) return;
         var wasOpen = ReferenceEquals(tab, _open);

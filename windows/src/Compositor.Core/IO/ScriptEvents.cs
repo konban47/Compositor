@@ -293,7 +293,7 @@ public static class EventScriptWork
         if (pixels + (long)source.Width * source.Height > DocumentLimits.DocumentPixelBudget)
             throw new InvalidOperationException("The opened document is too large to add as a layer.");
         var image = ImportedImage.Create(DocumentRenderer.Render(source), name);
-        var placement = new LayerTransform((target.Width - image.Width) / 2.0, (target.Height - image.Height) / 2.0, image.Width, image.Height);
+        var placement = new Model.LayerTransform((target.Width - image.Width) / 2.0, (target.Height - image.Height) / 2.0, image.Width, image.Height);
         return new ImageLayer(Guid.NewGuid(), image, placement, name);
     }
 }

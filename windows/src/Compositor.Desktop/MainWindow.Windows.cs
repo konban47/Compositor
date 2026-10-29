@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Compositor.Core.Document;
+using Compositor.Core.IO;
 using Compositor.Core.Model;
 using SkiaSharp;
 
@@ -46,7 +47,8 @@ public sealed partial class MainWindow
         if (_closeApproved) return;
         CommitText();
         if (_detecting) { e.Cancel = true; return; }
-        if (!_tabs.Any(tab => tab.History.IsModified || tab.Saving is not null || tab.Recovering is not null)) return;
+        if (!_tabs.Any(tab => tab.History.IsModified || tab.Saving is not null || tab.Recovering is not null)
+            && !(_tabs.Any(tab => tab.Document is not null) && ScriptEvents.Matching(EventSettings, ScriptEvent.CloseDocument).Count > 0)) return;
         e.Cancel = true;
         if (_confirmingClose) return;
         _confirmingClose = true;
@@ -54,6 +56,7 @@ public sealed partial class MainWindow
         {
             foreach (var tab in _tabs.Where(tab => !HasOtherView(tab)).ToArray())
                 if (!await MayReplace(tab)) return;
+            await RaiseClosingDocumentEvents();
             _closeApproved = true;
             Close();
         }

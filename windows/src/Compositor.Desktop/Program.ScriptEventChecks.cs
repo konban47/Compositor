@@ -144,6 +144,68 @@ public partial class MainWindow
                 "A pixel action on a closing document was not skipped.");
             Check(File.Exists(ScriptEvents.LogPath), "Script events were not logged.");
 
+            // A project folder and its manifest share the same open path: neither may dispatch twice.
+            _scriptEventSettings = ScriptEvents.Add(ScriptEventSettings.Default,
+                new(ScriptEvent.OpenDocument, ScriptEventTarget.Script, EventScript.Welcome));
+            foreach (var path in new[] { project, Path.Combine(project, "manifest.json") })
+            {
+                notices.Clear(); Finish(OpenPath(path));
+                Check(notices.SequenceEqual(["Welcome"]), "Opening a project dispatched zero or multiple open events.");
+                Finish(CloseTab(_open, true));
+            }
+            notices.Clear(); Finish(OpenAsync(project));
+            Check(notices.SequenceEqual(["Welcome"]), "The project picker open path did not dispatch exactly once.");
+            notices.Clear(); Finish(OpenPath(Path.Combine(folder, "missing.png")));
+            Check(notices.Count == 0, "A failed open dispatched an event.");
+            Finish(OpenPath(image, false));
+            Check(notices.Count == 0, "Placing an image dispatched an open event.");
+
+            _scriptEventSettings = ScriptEvents.Add(ScriptEventSettings.Default,
+                new(ScriptEvent.OpenDocument, ScriptEventTarget.Script, EventScript.OpenAsLayer));
+            var receiver = _open; var tabCount = _tabs.Count; var layerCount = _document!.Layers.Count;
+            Finish(OpenPath(project));
+            Check(ReferenceEquals(_open, receiver) && _tabs.Count == tabCount && _document!.Layers.Count == layerCount + 1,
+                "Open As Layer did not transfer to the original document exactly once.");
+            Undo(); Check(_document!.Layers.Count == layerCount, "Open As Layer did not undo as one step.");
+            Redo(); Check(_document!.Layers.Count == layerCount + 1, "Open As Layer did not redo as one step.");
+
+            // Independent events wait behind a notice; only events caused by that script are suppressed.
+            _scriptEventSettings = ScriptEvents.Add(ScriptEventSettings.Default,
+                new(ScriptEvent.Everything, ScriptEventTarget.Script, EventScript.Welcome));
+            var noticeGate = new TaskCompletionSource(); var noticeCount = 0;
+            ScriptEventNotice = async (_, _) =>
+            {
+                noticeCount++;
+                if (noticeCount == 1)
+                {
+                    await RaiseScriptEvent(ScriptEvent.SaveDocument, _open);
+                    await noticeGate.Task;
+                }
+            };
+            var firstEvent = RaiseScriptEvent(ScriptEvent.OpenDocument, _open);
+            var secondEvent = RaiseScriptEvent(ScriptEvent.ExportDocument, _open);
+            Check(noticeCount == 1 && !firstEvent.IsCompleted && !secondEvent.IsCompleted, "Events were dropped or recursively dispatched.");
+            noticeGate.SetResult(); Finish(Task.WhenAll(firstEvent, secondEvent));
+            Check(noticeCount == 2, "An independent event was lost while a script awaited a notice.");
+
+            // Repeated save commands during a Start Save notice share one save operation.
+            _scriptEventSettings = ScriptEvents.Add(ScriptEventSettings.Default,
+                new(ScriptEvent.StartSaveDocument, ScriptEventTarget.Script, EventScript.Welcome));
+            noticeGate = new TaskCompletionSource(); noticeCount = 0;
+            ScriptEventNotice = (_, _) => { noticeCount++; return noticeGate.Task; };
+            var firstSave = SaveTab(_open, false); var secondSave = SaveTab(_open, false);
+            Check(noticeCount == 1 && !secondSave.IsCompleted, "A concurrent save bypassed the pending Start Save event.");
+            noticeGate.SetResult(); Finish(Task.WhenAll(firstSave, secondSave));
+            Check(noticeCount == 1 && _open.Saving is null, "Concurrent saves duplicated the event or left a save pending.");
+
+            ScriptEventNotice = (title, _) => { notices.Add(title); return Task.CompletedTask; };
+            _scriptEventSettings = ScriptEvents.Add(ScriptEventSettings.Default,
+                new(ScriptEvent.CloseDocument, ScriptEventTarget.Script, EventScript.Welcome));
+            notices.Clear(); Finish(RaiseClosingDocumentEvents());
+            Check(notices.Count == _tabs.Where(t => t.Document is not null).Select(t => t.Document).Distinct().Count(),
+                "Window close did not dispatch once per document.");
+            Finish(CloseTab(_open, true));
+
             _scriptEventSettings = settings with { Enabled = false };
             notices.Clear();
             Command("Auto Tone", () => { }).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); pump();
@@ -155,6 +217,6 @@ public partial class MainWindow
             _scriptEventSettings = ScriptEventSettings.Default;
             try { File.Delete(ScriptEvents.SettingsPath); ScriptEvents.CleanLog(); Directory.Delete(folder, true); } catch (IOException) { }
         }
-        Console.WriteLine("PASS: Script Events Manager layout, add/remove/cancel/Done, Add Event, JS limit, saved settings and open/command/save/export/close dispatch with undo.");
+        Console.WriteLine("PASS: Script Events Manager layout, persistence, undo, exactly-once project open, placement/failure exclusions, Open As Layer, queued independent events, concurrent save guard and window-close dispatch.");
     }
 }

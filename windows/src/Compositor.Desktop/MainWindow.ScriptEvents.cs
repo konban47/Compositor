@@ -14,7 +14,9 @@ public partial class MainWindow
 {
     private static bool _startApplicationRaised;
     private ScriptEventSettings? _scriptEventSettings;
-    private int _scriptEventDepth;
+    // AsyncLocal suppresses events caused by a script itself, while independent UI operations wait their turn.
+    private readonly AsyncLocal<int> _scriptEventDepth = new();
+    private readonly SemaphoreSlim _scriptEventGate = new(1, 1);
     /// <summary>How script messages are shown; the self check replaces it so nothing waits for a click.</summary>
     internal Func<string, string, Task>? ScriptEventNotice { get; set; }
     /// <summary>Lines of the most recent dispatches, newest last, for the self check and the status line.</summary>
@@ -76,7 +78,7 @@ public partial class MainWindow
 
     private void RaiseCommandEvent(string command)
     {
-        if (_scriptEventDepth > 0 || EventSettings is not { Enabled: true } settings
+        if (_scriptEventDepth.Value > 0 || EventSettings is not { Enabled: true } settings
             || !settings.Bindings.Any(b => b.Event == ScriptEvent.Command && b.Command == command)) return;
         _ = RaiseScriptEvent(ScriptEvent.Command, _open, command: command);
     }
@@ -87,12 +89,15 @@ public partial class MainWindow
     /// </summary>
     private async Task RaiseScriptEvent(ScriptEvent happened, Tab? tab, Tab? previous = null, string? command = null)
     {
-        if (_scriptEventDepth > 0) return;
+        if (_scriptEventDepth.Value > 0) return;
         var bindings = ScriptEvents.Matching(EventSettings, happened, command);
         if (bindings.Count == 0) return;
-        _scriptEventDepth++;
+        var document = tab?.Document;
+        await _scriptEventGate.WaitAsync();
+        _scriptEventDepth.Value++;
         try
         {
+            if (tab is not null && (!_tabs.Contains(tab) || !ReferenceEquals(document, tab.Document))) return;
             foreach (var binding in bindings)
             {
                 string? error;
@@ -109,7 +114,13 @@ public partial class MainWindow
                 if (error is not null) Say($"{Localize.Text(ScriptEventsDialog.Row(binding))}: {Localize.Text(error)}");
             }
         }
-        finally { _scriptEventDepth--; }
+        finally { _scriptEventDepth.Value--; _scriptEventGate.Release(); }
+    }
+
+    private async Task RaiseClosingDocumentEvents()
+    {
+        foreach (var tab in _tabs.Where(t => t.Document is not null).DistinctBy(t => t.Document).ToArray())
+            await RaiseScriptEvent(ScriptEvent.CloseDocument, tab);
     }
 
     private const string NotApplicable = "\0not-applicable";

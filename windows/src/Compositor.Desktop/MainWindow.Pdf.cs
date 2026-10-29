@@ -5,6 +5,7 @@ public sealed partial class MainWindow
 {
     private async Task OpenPdf(string path)
     {
+        var previous = _open;
         string? password = null; IReadOnlyList<PdfPageSize> sizes;
         while (true)
         {
@@ -26,6 +27,7 @@ public sealed partial class MainWindow
         {
             var resolution = (int)(dpi.Value ?? 72); var image = await WorkScheduler.Run(token => PdfImporter.Page(path, page, resolution, password, cancellation: token));
             AdoptImported(ImageImporter.NewDocument(image, resolution), "Import PDF"); _open.CustomName = image.Name; RefreshTabs();
+            await RaiseScriptEvent(ScriptEvent.OpenDocument, _open, previous);
         }
     }
 }

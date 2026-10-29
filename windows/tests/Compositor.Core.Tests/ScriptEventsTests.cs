@@ -2,6 +2,7 @@ using Compositor.Core.Format;
 using Compositor.Core.IO;
 using Compositor.Core.Model;
 using SkiaSharp;
+using LayerTransform = Compositor.Core.Model.LayerTransform;
 
 namespace Compositor.Core.Tests;
 
