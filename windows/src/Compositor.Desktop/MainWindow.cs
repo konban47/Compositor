@@ -320,7 +320,7 @@ public sealed partial class MainWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         // The two calls a screen has to be asked for are made once the window is open, which is when there is a
         // screen to ask.
-        Opened += (_, _) => { FitToScreen(); RestoreNativeWindowCorners(); };
+        Opened += (_, _) => { FitToScreen(); RestoreNativeWindowCorners(); RaiseStartApplication(); };
         // The picker is a window of its own and the app is left running until the last window closes, so it
         // goes with the editor rather than being left behind to hold the session open.
         Closing += ConfirmWindowClose;
@@ -775,7 +775,7 @@ public sealed partial class MainWindow : Window
     private MenuItem Command(string header, Action action, string? key = null)
     {
         var item = new MenuItem { Header = Localize.Text(header), Tag = header };
-        item.Click += (_, _) => action();
+        item.Click += (_, _) => { action(); RaiseCommandEvent(header); };
         ShowKey(item, key);
         return item;
     }
@@ -1339,6 +1339,7 @@ public sealed partial class MainWindow : Window
     }
     private void OpenSnapshot(string path, ProjectSnapshot snapshot)
     {
+        var previous = _open;
         // Into an empty tab when there is one and a tab of its own otherwise: an open project is not thrown
         // away by opening another, as the Mac build keeps one open per tab.
         _open = TabForNew();
@@ -1352,6 +1353,7 @@ public sealed partial class MainWindow : Window
         Show(_open);
         Say($"{System.IO.Path.GetFileName(path)} — {_document.Width} by {_document.Height}, " +
             $"{_document.Layers.Count} layers, {_document.Resolution:0} pixels per inch");
+        _ = RaiseScriptEvent(ScriptEvent.OpenDocument, _open, previous);
     }
 
     /// <summary>
@@ -2802,12 +2804,14 @@ public sealed partial class MainWindow : Window
     /// let go, and the tab beside it comes in front. The last tab is not closed — an empty one takes its place,
     /// so there is always somewhere for the next project to go.
     /// </summary>
-    private async Task CloseTab(Tab tab)
+    private async Task CloseTab(Tab tab, bool discard = false)
     {
         if (ReferenceEquals(tab, _placementTab)) FinishPlacement(true);
         if (_tabs.Count == 1 && tab.Document is null && tab.Path is null) return;
         if (ReferenceEquals(tab, _open)) { FinishPen(); CommitText(); }
-        if (!HasOtherView(tab) && !await MayReplace(tab)) return;
+        // Discarding is only for a tab whose content has already gone elsewhere, as Open As Layer's has.
+        if (!discard && !HasOtherView(tab) && !await MayReplace(tab)) return;
+        if (tab.Document is not null && _tabs.Contains(tab)) await RaiseScriptEvent(ScriptEvent.CloseDocument, tab);
         var at = _tabs.IndexOf(tab);
         if (at < 0) return;
         var wasOpen = ReferenceEquals(tab, _open);
@@ -2918,6 +2922,7 @@ public sealed partial class MainWindow : Window
         Show(_open);
         if (_document.Layers.Count > 0) Reselect(_document.Layers[^1].ID);
         Say($"New {_document.Width} by {_document.Height} canvas at {_document.Resolution:0.##} per inch, not saved yet");
+        await RaiseScriptEvent(ScriptEvent.NewDocument, _open);
     }
 
     /// <summary>
@@ -6147,6 +6152,7 @@ public sealed partial class MainWindow : Window
             Say("Nothing to export yet.");
             return;
         }
+        var exporting = _open;
         try
         {
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
@@ -6170,6 +6176,7 @@ public sealed partial class MainWindow : Window
                 return true;
             });
             Say($"Exported {path}");
+            await RaiseScriptEvent(ScriptEvent.ExportDocument, exporting);
         }
         catch (Exception error)
         {
@@ -6186,6 +6193,7 @@ public sealed partial class MainWindow : Window
     private async Task ExportAs(ExportFormat format = ExportFormat.Png)
     {
         if (_document is not { } document) { Say("Nothing to export yet."); return; }
+        var exporting = _open;
         try
         {
             if (await ExportAsDialog.Ask(this, document, format) is not { } result) return;
@@ -6197,6 +6205,7 @@ public sealed partial class MainWindow : Window
             });
             if (file?.TryGetLocalPath() is not { } path) return;
             await WorkScheduler.Run(_ => { AtomicFile.WriteBytes(path, result.Bytes); return true; }); Say($"Exported {path}");
+            await RaiseScriptEvent(ScriptEvent.ExportDocument, exporting);
         }
         catch (Exception error) { Say($"Could not export: {error.Message}"); }
     }

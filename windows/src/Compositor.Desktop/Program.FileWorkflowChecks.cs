@@ -59,6 +59,7 @@ internal static partial class Program
             var layers = new LayerExportDialog(document, LayerExportKind.Layers);
             _ = layers.ShowDialog(owner); Capture(layers, "layers"); layers.Close();
             owner.FileImportSelfCheck(Pump, Capture);
+            owner.ScriptEventSelfCheck(Pump, Capture);
             Console.WriteLine("PASS: Web preview encoding, four-up, palette, linked sizing, stale previews, cancellation and file workflow layouts.");
             return 0;
         }

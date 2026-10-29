@@ -75,6 +75,8 @@ public partial class MainWindow
                     Command("Flatten All Masks", FlattenAllMasks),
                     Command("Flatten All Layer Effects", FlattenAllLayerEffects),
                     new Separator(),
+                    Command("Script Events Manager…", () => _ = ShowScriptEvents()),
+                    new Separator(),
                     Command("Load Files into Stack…", () => _ = ShowAutomation(AutomationKind.LoadLayers)),
                     Command("Image Statistics…", () => _ = ShowAutomation(AutomationKind.Statistics)),
                     Command("Load Multiple DICOM Files…", () => _ = ImportDicomFiles()),

@@ -56,9 +56,13 @@ public sealed partial class MainWindow
             tab.History.Begin("Shrink Artboard Canvas", tab.Document, ReferenceEquals(tab, _open) ? Selected : null);
             FitArtboardCanvas(tab.Document, true); tab.History.End(tab.Document, ReferenceEquals(tab, _open) ? Selected : null);
         }
+        await RaiseScriptEvent(ScriptEvent.StartSaveDocument, tab);
+        if (tab.Document is null || !_tabs.Contains(tab)) return;
         tab.Saving = WriteTab(tab, path);
-        try { await tab.Saving; }
+        bool saved;
+        try { saved = await tab.Saving; }
         finally { tab.Saving = null; }
+        if (saved) await RaiseScriptEvent(ScriptEvent.SaveDocument, tab);
     }
 
     private async Task<bool> WriteTab(Tab tab, string path)
@@ -84,7 +88,18 @@ public sealed partial class MainWindow
     /// <summary>The file picker, command line and shell integration use the same import path.</summary>
     internal Task OpenPath(string path, bool newTab = true) => OpenPath(path, newTab, null);
 
+    /// <summary>Opening into a tab of its own is the Script Events Manager's Open Document event; placing into a tab is not.</summary>
     private async Task OpenPath(string path, bool newTab, Tab? importTarget, bool forceSmartObject = false)
+    {
+        var previous = _open;
+        var previousDocument = _open.Document;
+        await OpenPathCore(path, newTab, importTarget, forceSmartObject);
+        // An empty tab is reused for what opens, so the document, not the tab, tells an open from a placement.
+        if (_open.Document is { } opened && !ReferenceEquals(opened, previousDocument) && _tabs.Contains(_open))
+            await RaiseScriptEvent(ScriptEvent.OpenDocument, _open, previous);
+    }
+
+    private async Task OpenPathCore(string path, bool newTab, Tab? importTarget, bool forceSmartObject)
     {
         try
         {

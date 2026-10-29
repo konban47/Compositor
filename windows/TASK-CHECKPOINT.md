@@ -15,9 +15,17 @@
 
 - 联系表 II：已补齐灰度／RGB／CMYK／Lab、8／16 位、ICC 和真实字体样式；增加按文件夹分页、分辨率单位、物理间距、自动间距和预设完整往返。`ContactSheetColorTests` 验证高于 8 位的像素精度，界面自检验证单位与设置往返。
 
+## 进行中：脚本事件管理器（2026-10-29，Claude，未在本机编译验证）
+
+- 基线 `windows-port@4f4eafa`。实现于云端克隆，云端无 .NET/NuGet，**尚未编译、未运行测试**；补丁与改动文件放在交接目录 `claude-output`。
+- 新增：`Compositor.Core/IO/ScriptEvents.cs`（事件、关联、JSON v1 设置、校验、日志、内置脚本逻辑）、`BatchProcessing.ApplyTo`、`ScriptEventsDialog.cs`、`MainWindow.ScriptEvents.cs`、`ConfirmDialog.Tell`、`Program.ScriptEventChecks.cs`、`ScriptEventsTests.cs`、中文词条。
+- 接线：文件 ▸ 脚本菜单；`Command()` 菜单命令事件；窗口打开（启动应用程序，每进程一次）；新建；打开（图像/PSD/PDF/项目，按文档身份判断，置入不算）；开始存储／存储；关闭（关闭前运行，改文档的项跳过）；导出 PNG／导出为。
+- 验收入口：`ScriptEventsTests`；`--file-workflow-checks` 末尾的 `ScriptEventSelfCheck`（布局、添加／重复／移去／全部移去／取消／完成、添加事件、JS 限制、设置存盘重载、打开动作撤销重做、命令事件、存储前文件信息与存储后 JPEG、导出、关闭、禁用）。
+- 待办：本机 `build -warnaserror`、Core 测试、中英文 file-workflow／interaction／windows 检查；对照截图人工核对；通过后再更新版本号与 Release。
+
 ## 尚未完成
 
-完整脚本事件管理器与 JS/JSX 解释器；链接智能对象／依赖打包与 Bridge；Photomerge、HDR Pro、完整镜头配置数据库；PSD 写入；Web HTML 切片与动画输出；PDF 幻灯片播放属性；组蒙版／组效果、GIF 效果烘焙；Adobe/PDF/FDF 注释格式；Rim Light 上游移植。
+JS/JSX 解释器（脚本事件管理器的外部脚本）；链接智能对象／依赖打包与 Bridge；Photomerge、HDR Pro、完整镜头配置数据库；PSD 写入；Web HTML 切片与动画输出；PDF 幻灯片播放属性；组蒙版／组效果、GIF 效果烘焙；Adobe/PDF/FDF 注释格式；Rim Light 上游移植。
 
 画笔、图章、橡皮擦、渐变、修饰、视图、路径、文字／字符／段落、图层复合、时间轴、颜色／OCIO、预设和其余文件功能已有历史实现，仍需按原始截图逐项检查及联动验收。对应 `TOOL-OPTIONS.md`、`PAINTING-AND-GIF.md`、`TYPE-AND-MASKS.md`、`TIMELINE-AND-PRESETS.md`、`COLOR-MANAGEMENT.md`、`FILE-WORKFLOWS.md` 的边界；不能仅凭编译或本轮测试标记全部完成。
 

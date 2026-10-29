@@ -47,6 +47,9 @@ internal sealed class ConfirmDialog : DialogWindow
             Foreground = Avalonia.Media.Brushes.White,
             HorizontalContentAlignment = HorizontalAlignment.Center,
         };
+        // A notice has one answer: its only button both accepts and cancels.
+        keep.IsVisible = no.Length > 0;
+        if (!keep.IsVisible) go.IsCancel = true;
         keep.Click += (_, _) => Close();
         go.Click += (_, _) =>
         {
@@ -69,7 +72,7 @@ internal sealed class ConfirmDialog : DialogWindow
                 },
             },
         };
-        Opened += (_, _) => keep.Focus();
+        Opened += (_, _) => { if (keep.IsVisible) keep.Focus(); else go.Focus(); };
     }
 
     /// <summary>Whether the first answer was given: closing the dialog without choosing is the second one.</summary>
@@ -78,5 +81,12 @@ internal sealed class ConfirmDialog : DialogWindow
         var dialog = new ConfirmDialog(title, message, yes, no);
         await dialog.ShowDialog(owner);
         return dialog._answered;
+    }
+
+    /// <summary>A notice with a single OK button, for messages such as those the event scripts show.</summary>
+    public static async Task Tell(Window owner, string title, string message)
+    {
+        var dialog = new ConfirmDialog(title, message, "OK", "");
+        await dialog.ShowDialog(owner);
     }
 }

@@ -147,16 +147,19 @@ public static class BatchProcessing
     private static void Apply(CanvasDocument document, BatchAction action)
     {
         if (action == BatchAction.None) return;
-        var id = document.Layers[0].ID;
-        _ = action switch
-        {
-            BatchAction.AutoColor => LevelsEdits.Auto(document, id, LevelsAuto.Neutral),
-            BatchAction.AutoTone => LevelsEdits.Auto(document, id, LevelsAuto.Color),
-            BatchAction.AutoContrast => LevelsEdits.Auto(document, id, LevelsAuto.Contrast),
-            BatchAction.Vibrance => ImageAdjustments.Apply(document, id, new ImageAdjustmentSettings { Kind = ImageAdjustmentKind.Vibrance, Values = new() { ["Vibrance"] = 25 } }),
-            BatchAction.Desaturate => ImageAdjustments.Apply(document, id, new ImageAdjustmentSettings { Kind = ImageAdjustmentKind.Desaturate }),
-            BatchAction.Equalize => ImageAdjustments.Apply(document, id, new ImageAdjustmentSettings { Kind = ImageAdjustmentKind.Equalize }),
-            _ => throw new ArgumentException("Unknown batch action.")
-        };
+        _ = ApplyTo(document, document.Layers[0].ID, action);
     }
+
+    /// <summary>One built-in action on one pixel layer; the Script Events Manager runs these on the active document.</summary>
+    public static bool ApplyTo(CanvasDocument document, Guid id, BatchAction action) => action switch
+    {
+        BatchAction.None => false,
+        BatchAction.AutoColor => LevelsEdits.Auto(document, id, LevelsAuto.Neutral),
+        BatchAction.AutoTone => LevelsEdits.Auto(document, id, LevelsAuto.Color),
+        BatchAction.AutoContrast => LevelsEdits.Auto(document, id, LevelsAuto.Contrast),
+        BatchAction.Vibrance => ImageAdjustments.Apply(document, id, new ImageAdjustmentSettings { Kind = ImageAdjustmentKind.Vibrance, Values = new() { ["Vibrance"] = 25 } }),
+        BatchAction.Desaturate => ImageAdjustments.Apply(document, id, new ImageAdjustmentSettings { Kind = ImageAdjustmentKind.Desaturate }),
+        BatchAction.Equalize => ImageAdjustments.Apply(document, id, new ImageAdjustmentSettings { Kind = ImageAdjustmentKind.Equalize }),
+        _ => throw new ArgumentException("Unknown batch action.")
+    };
 }
