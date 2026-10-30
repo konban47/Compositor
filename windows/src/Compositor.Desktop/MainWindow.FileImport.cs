@@ -136,12 +136,20 @@ public partial class MainWindow
         var files = await StorageProvider.OpenFilePickerAsync(new()
         {
             Title = Localize.Text("Import Notes…"),
-            FileTypeFilter = [new("Compositor Notes") { Patterns = ["*.comp-notes.json"] }]
+            FileTypeFilter = [new(Localize.Text("Notes")) { Patterns = ["*.comp-notes.json", "*.pdf", "*.fdf", "*.xfdf"] }]
         });
         if (files.FirstOrDefault()?.TryGetLocalPath() is not { } path) return;
         try
         {
-            var notes = await WorkScheduler.Run(_ => DocumentNotesFile.Read(path));
+            // Acrobat comments come from the first page, placed where they were on it.
+            var notes = path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? await WorkScheduler.Run(_ => DocumentNotesFile.Read(path))
+                : await WorkScheduler.Run(_ =>
+                {
+                    var (read, pages) = PdfNotes.Read(File.ReadAllBytes(path));
+                    var marks = PdfNotes.ToMarks(read, pages, document.Width, document.Height, document.Resolution);
+                    if (marks.Length == 0) throw new InvalidDataException("The file has no text notes on its first page.");
+                    return marks;
+                });
             if (!ReferenceEquals(document, _document)) return;
             if (document.Marks.Count + notes.Length > 10000) throw new InvalidDataException("The document contains too many annotations.");
             Edit("Import Notes…", () => { document.Marks.AddRange(notes); return true; });
@@ -158,9 +166,12 @@ public partial class MainWindow
             var file = await StorageProvider.SaveFilePickerAsync(new()
             {
                 Title = Localize.Text("Export Notes…"), SuggestedFileName = "Notes.comp-notes.json",
-                FileTypeChoices = [new("Compositor Notes") { Patterns = ["*.comp-notes.json"] }]
+                FileTypeChoices = [new("Compositor Notes") { Patterns = ["*.comp-notes.json"] }, new("Acrobat FDF") { Patterns = ["*.fdf"] }, new("Acrobat XFDF") { Patterns = ["*.xfdf"] }]
             });
             if (file is null) return;
+            if (file.TryGetLocalPath() is { } target && Path.GetExtension(target).ToLowerInvariant() is ".fdf" or ".xfdf")
+                bytes = Path.GetExtension(target).Equals(".fdf", StringComparison.OrdinalIgnoreCase)
+                    ? PdfNotes.WriteFdf(document.Marks, document.Height, document.Resolution) : PdfNotes.WriteXfdf(document.Marks, document.Height, document.Resolution);
             await using var stream = await file.OpenWriteAsync();
             stream.SetLength(0); await stream.WriteAsync(bytes);
         }

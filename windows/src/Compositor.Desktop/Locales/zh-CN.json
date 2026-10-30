@@ -4043,5 +4043,7 @@
   "Photomerge found no overlap between the photos.": "Photomerge 没有在照片之间找到重叠区域。",
   "The photos cover too wide a view for Perspective; try Cylindrical or Spherical.": "照片视角过宽，无法使用“透视”；请尝试“圆柱”或“球面”。",
   "Photomerge could not lay out the photos.": "Photomerge 无法排列这些照片。",
-  "Photomerge takes at most 40 photos.": "Photomerge 最多处理 40 张照片。"
+  "Photomerge takes at most 40 photos.": "Photomerge 最多处理 40 张照片。",
+  "Writes the notes of open documents as PDF comments where they sit on the picture.": "把已打开文档的注释按其在画面上的位置写成 PDF 注释。",
+  "The file has no text notes on its first page.": "该文件第一页没有文本注释。"
 }

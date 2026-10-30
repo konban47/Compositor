@@ -24,7 +24,7 @@ public enum PdfCaption { None = 0, FileName = 1, Extension = 2, Title = 4, Descr
 /// </summary>
 public sealed record PdfPresentationOptions(SKColor Background, double FontSize = 12, bool FileNames = false,
     bool Presentation = false, bool AutoAdvance = true, double AdvanceSeconds = 5, bool Loop = false,
-    PdfTransition Transition = PdfTransition.None, PdfCaption Captions = PdfCaption.None)
+    PdfTransition Transition = PdfTransition.None, PdfCaption Captions = PdfCaption.None, bool Annotations = false)
 {
     public PdfCaption EffectiveCaptions => Captions | (FileNames ? PdfCaption.FileName | PdfCaption.Extension : PdfCaption.None);
 }
@@ -322,6 +322,7 @@ public static class FileAutomation
         if (options.Presentation) PdfSlideshow.Validate(options);
         // The pages are drawn first; presentation timing and transitions are an update appended to that file.
         using var rendered = new MemoryStream();
+        var annotated = new List<(IReadOnlyList<DocumentMark> Notes, double DocumentWidth, double DocumentHeight, double PageWidth, double PageTop)>();
         using (var pdf = SKDocument.CreatePdf(rendered))
         {
             using var font = new SKFont(SKTypeface.Default, (float)options.FontSize);
@@ -336,6 +337,9 @@ public static class FileAutomation
                 float width = image.Width * scale, height = image.Height * scale;
                 var caption = lines.Count == 0 ? 0 : lines.Count * lineHeight + (float)options.FontSize * .6f;
                 var canvas = pdf.BeginPage(width, height + caption); canvas.Clear(options.Background);
+                // The source's notes, placed later as text annotations where they sit on the picture.
+                annotated.Add(([.. options.Annotations && source.Document is { } notesFrom ? notesFrom.Marks.Where(m => m.Kind == MarkKind.Note) : []],
+                    source.Document?.Width ?? image.Width, source.Document?.Height ?? image.Height, width, height + caption));
                 canvas.DrawBitmap(image, new SKRect(0, 0, width, height), new SKSamplingOptions(SKFilterMode.Linear));
                 for (var line = 0; line < lines.Count; line++)
                     canvas.DrawText(lines[line], width / 2, height + (float)options.FontSize + line * lineHeight, SKTextAlign.Center, font, paint);
@@ -345,6 +349,7 @@ public static class FileAutomation
         }
         cancellationToken.ThrowIfCancellationRequested();
         var bytes = PdfSlideshow.Apply(rendered.ToArray(), options);
+        if (options.Annotations) bytes = PdfNotes.Annotate(bytes, annotated);
         AtomicFile.WriteBytes(path, bytes, cancellationToken);
     }
 

@@ -168,8 +168,7 @@ internal sealed class AutomationDialog : DialogWindow
         for (var column = 0; column < cells.Length; column++) { Grid.SetColumn(cells[column], column); look.Children.Add(cells[column]); }
         _background.HorizontalAlignment = _pdfFontSize.HorizontalAlignment = HorizontalAlignment.Stretch;
         panel.Children.Add(look);
-        _pdfNotes.IsEnabled = false;
-        ToolTip.SetTip(_pdfNotes, Localize.Text("PDF annotations are not written in this version."));
+        ToolTip.SetTip(_pdfNotes, Localize.Text("Writes the notes of open documents as PDF comments where they sit on the picture."));
         var include = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto"), ColumnSpacing = 14, RowSpacing = 8 };
         include.Children.Add(new TextBlock { Text = Localize.Text("Include") + ":", VerticalAlignment = VerticalAlignment.Center });
         CheckBox[] fields = [_fileNames, _pdfExtension, _pdfTitle, _pdfDescription, _pdfAuthor, _pdfCopyright, _pdfExif, _pdfNotes];
@@ -209,7 +208,7 @@ internal sealed class AutomationDialog : DialogWindow
         return new PdfPresentationOptions(_background.SelectedIndex switch { 1 => SKColors.Gray, 2 => SKColors.Black, _ => SKColors.White },
             PdfFontSizes[Math.Clamp(_pdfFontSize.SelectedIndex, 0, PdfFontSizes.Length - 1)], false,
             _presentation.IsChecked == true, _advance.IsChecked == true, Value(_advanceSeconds), _loop.IsChecked == true,
-            (PdfTransition)Math.Max(0, _transition.SelectedIndex), captions);
+            (PdfTransition)Math.Max(0, _transition.SelectedIndex), captions, _pdfNotes.IsChecked == true);
     }
 
     private StackPanel SourcesPanel()
@@ -445,7 +444,7 @@ internal sealed class AutomationDialog : DialogWindow
     {
         static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
         pump();
-        Check(_presentationOptions?.IsEnabled == false && !_pdfExtension.IsEnabled && !_pdfNotes.IsEnabled, "PDF presentation controls are enabled for a multi-page document.");
+        Check(_presentationOptions?.IsEnabled == false && !_pdfExtension.IsEnabled, "PDF presentation controls are enabled for a multi-page document.");
         Check(PdfOptions() is { Presentation: false, FontSize: 12, Captions: PdfCaption.None }, "PDF defaults are wrong.");
         _presentation.IsChecked = true; _fileNames.IsChecked = true; pump();
         Check(_presentationOptions?.IsEnabled == true && _pdfExtension.IsEnabled && _advanceSeconds.IsEnabled, "Presentation controls did not follow Save As.");
