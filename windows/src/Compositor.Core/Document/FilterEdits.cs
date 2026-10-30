@@ -31,6 +31,12 @@ public enum FilterKind
     LensCorrection,
     Scanlines,
     ProgressiveBlur, RgbSplit, LensEffects, Sharpen,
+
+    /// <summary>Colored lights behind the subject that catch its edges, and glow in the air around it.</summary>
+    RimLight,
+
+    /// <summary>Haze lit by a light placed on the image, with beams the subject and dark shapes cast shadows through.</summary>
+    VolumetricLight,
 }
 
 /// <summary>
@@ -46,6 +52,8 @@ public sealed class FilterSettings
     public double SharpenAmount { get; set; } = 100;
     public double SharpenRadius { get; set; } = 1;
     public LensEffectSettings Lens { get; set; } = new();
+    public RimLightSettings RimLight { get; set; } = new();
+    public VolumetricLightSettings Volumetric { get; set; } = new();
     public double RgbSplitDistance { get; set; } = 10;
     public double RgbSplitBlur { get; set; }
     public double RgbSplitAngle { get; set; }
@@ -122,7 +130,7 @@ public sealed class FilterSettings
     /// </summary>
     public FilterSettings Copy()
     {
-        var copy = (FilterSettings)MemberwiseClone(); copy.Scanlines = Scanlines.Copy(); copy.Lens = Lens with { }; return copy;
+        var copy = (FilterSettings)MemberwiseClone(); copy.Scanlines = Scanlines.Copy(); copy.Lens = Lens with { }; copy.RimLight = RimLight.Copy(); copy.Volumetric = Volumetric with { }; return copy;
     }
 
     /// <summary>Whether the amounts this filter reads are ones it may use.</summary>
@@ -130,6 +138,8 @@ public sealed class FilterSettings
     {
         FilterKind.Sharpen => Within(SharpenAmount, 0, 500) && Within(SharpenRadius, .1, 100),
         FilterKind.LensEffects => Lens.IsValid,
+        FilterKind.RimLight => RimLight.IsValid,
+        FilterKind.VolumetricLight => Volumetric.IsValid,
         FilterKind.RgbSplit => Within(RgbSplitDistance, 0, 200) && Within(RgbSplitBlur, 0, 400) && Within(RgbSplitAngle, -180, 180) && Within(RgbSplitReach, 1, 100000) && double.IsFinite(RgbSplitCenterX + RgbSplitCenterY),
         FilterKind.ProgressiveBlur => Within(ProgressiveFrom, 0, 250) && Within(ProgressiveTo, 0, 250) && new[] { ProgressiveStartX, ProgressiveStartY, ProgressiveEndX, ProgressiveEndY }.All(double.IsFinite),
         FilterKind.Scanlines => Scanlines.IsValid,
@@ -152,6 +162,8 @@ public sealed class FilterSettings
     {
         FilterKind.Sharpen => SharpenAmount > 0,
         FilterKind.LensEffects => Lens.DoesAnything,
+        FilterKind.RimLight => RimLight.DoesAnything,
+        FilterKind.VolumetricLight => Volumetric.DoesAnything,
         FilterKind.RgbSplit => RgbSplitDistance > 0 || RgbSplitBlur > 0,
         FilterKind.ProgressiveBlur => ProgressiveFrom > 0 || ProgressiveTo > 0,
         FilterKind.Scanlines => true,
@@ -204,6 +216,14 @@ public static class FilterEdits
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { } layer) return false;
         if (kind == FilterKind.LensEffects && layer.Asset is { } lensSource)
         { using var result = LensEffects.Apply(lensSource.WorkingImage, settings.Lens); return ImageAdjustments.SetPixels(document, layer, result); }
+        // The subject is found once per layer image; without one, Rim Light has no edge to light.
+        if (kind == FilterKind.RimLight && layer.Asset is { } rimSource)
+        {
+            if (SubjectCache.Subject(rimSource.Image) is not { } subject) return false;
+            using var result = RimLighting.Apply(rimSource.WorkingImage, subject, settings.RimLight); return ImageAdjustments.SetPixels(document, layer, result);
+        }
+        if (kind == FilterKind.VolumetricLight && layer.Asset is { } hazeSource)
+        { using var result = VolumetricLighting.Apply(hazeSource.WorkingImage, SubjectCache.Subject(hazeSource.Image), settings.Volumetric); return ImageAdjustments.SetPixels(document, layer, result); }
         if (kind == FilterKind.RgbSplit && layer.Asset is { } splitSource)
         {
             var margin = Margin(kind, settings); var oldMask = layer.MaskTransform;

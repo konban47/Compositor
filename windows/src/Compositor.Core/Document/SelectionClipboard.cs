@@ -14,6 +14,11 @@ public sealed class ClipboardImage(SKBitmap image, SKRectI region) : IDisposable
     /// <summary>The document rectangle it was taken from, which is where a paste puts it back.</summary>
     public SKRectI Region { get; } = region;
 
+    /// <summary>The same pixels at 16 or 32 bits (RgbaF32), when they were copied from a layer that deep, so a
+    /// paste keeps them; null for 8-bit pixels.</summary>
+    public SKBitmap? Deep { get; init; }
+    public int BitDepth { get; init; } = 8;
+
     /// <summary>
     /// Hands the pixels over to whoever asked, so this no longer owns them — what putting them into a layer
     /// does, since the layer keeps the bitmap itself.
@@ -25,7 +30,7 @@ public sealed class ClipboardImage(SKBitmap image, SKRectI region) : IDisposable
         return taken;
     }
 
-    public void Dispose() => _image?.Dispose();
+    public void Dispose() { _image?.Dispose(); Deep?.Dispose(); }
 }
 
 /// <summary>
@@ -57,7 +62,36 @@ public static class SelectionClipboard
             image.Dispose();
             return null;
         }
-        return new ClipboardImage(image, box);
+        return new ClipboardImage(image, box) { Deep = asset.Deep is null ? null : DeepRegion(document, layer, asset, box), BitDepth = asset.BitDepth };
+    }
+
+    /// <summary>A deep layer's own samples over <paramref name="box"/>, clipped by the selection as the 8-bit copy is.</summary>
+    private static SKBitmap? DeepRegion(CanvasDocument document, ImageLayer layer, ImportedImage asset, SKRectI box)
+    {
+        using var drawn = Bitmaps.Allocate(DeepPixels.Info(box.Width, box.Height).WithAlphaType(SKAlphaType.Premul));
+        using (var canvas = new SKCanvas(drawn))
+        {
+            canvas.Clear(SKColors.Transparent);
+            canvas.Translate(-box.Left, -box.Top);
+            canvas.Concat(BrushEdits.PixelToDocument(layer.Transform, asset.Width, asset.Height));
+            // Whole pixels landing on whole pixels are copied as they are; anything else is resampled.
+            var t = layer.Transform;
+            var exact = t.Rotation == 0 && !t.FlipX && !t.FlipY && t.Width == asset.Width && t.Height == asset.Height && t.X == Math.Round(t.X) && t.Y == Math.Round(t.Y);
+            using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+            canvas.DrawBitmap(asset.Deep!, 0, 0, new SKSamplingOptions(exact ? SKFilterMode.Nearest : SKFilterMode.Linear), paint);
+        }
+        var deep = DeepPixels.From(drawn);
+        SKBitmap? coverage;
+        try { coverage = document.Selection.Coverage(box); }
+        catch (InvalidOperationException) { deep.Dispose(); return null; }
+        using var _ = coverage;
+        if (coverage is null) { deep.Dispose(); return null; }
+        var clip = coverage.GetPixelSpan();
+        var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(deep.GetPixelSpan());
+        for (var y = 0; y < box.Height; y++)
+            for (var x = 0; x < box.Width; x++)
+                floats[y * deep.RowBytes / 4 + x * 4 + 3] *= clip[y * coverage.RowBytes + x] / 255f;
+        return deep;
     }
 
     /// <summary>The selected pixels of everything that is drawn, flattened.</summary>
@@ -99,7 +133,17 @@ public static class SelectionClipboard
         using var copied = Copy(document, layerID);
         if (copied is null) return null;
         // The layer keeps the bitmap, so it is handed over rather than disposed with the copy.
-        return LayerPlacement.AddImage(document, copied.Take(), copied.Region, "Layer", activeID);
+        return Deepen(document, LayerPlacement.AddImage(document, copied.Take(), copied.Region, "Layer", activeID), copied);
+    }
+
+    /// <summary>A layer just made from <paramref name="clipboard"/> given its deep samples, so pixels copied from a
+    /// 16-bit or HDR layer stay at that depth.</summary>
+    private static Guid? Deepen(CanvasDocument document, Guid? made, ClipboardImage clipboard)
+    {
+        if (made is { } id && clipboard.Deep is { } deep && document.Layers.FirstOrDefault(layer => layer.ID == id) is { Asset: { } asset } layer
+            && deep.Width == asset.Width && deep.Height == asset.Height)
+            layer.Asset = ImportedImage.CreateDeep(deep.Copy(), asset.Name, clipboard.BitDepth);
+        return made;
     }
 
     /// <summary>The clipboard's pixels as a new layer, where on the document they came from.</summary>
@@ -113,7 +157,7 @@ public static class SelectionClipboard
             canvas.DrawBitmap(clipboard.Image, SKRect.Create(0, 0, image.Width, image.Height),
                 new SKSamplingOptions(SKFilterMode.Nearest), paint);
         }
-        return LayerPlacement.AddImage(document, image, clipboard.Region, "Pasted Layer", activeID);
+        return Deepen(document, LayerPlacement.AddImage(document, image, clipboard.Region, "Pasted Layer", activeID), clipboard);
     }
 
     /// <summary>The selection's bounds on the document, or null when nothing is selected.</summary>

@@ -51,6 +51,8 @@ internal sealed class FilterDialog : DialogWindow
             FilterKind.Vignette => "Vignette",
             FilterKind.Sharpen => "Sharpen",
             FilterKind.TonalContrast => "Tonal Contrast",
+            FilterKind.RimLight => "Rim Light",
+            FilterKind.VolumetricLight => "Volumetric Light",
             _ => "Lens Correction",
         });
         Width = 420;
@@ -191,6 +193,24 @@ internal sealed class FilterDialog : DialogWindow
                 Add(group, "Midtones", -100, 100, start.TonalMidtones, defaults.TonalMidtones, (s, v) => s.TonalMidtones = v);
                 Add(group, "Highlights", -100, 100, start.TonalHighlights, defaults.TonalHighlights, (s, v) => s.TonalHighlights = v);
                 break;
+            case FilterKind.RimLight:
+                Height = 700; Width = 470;
+                RimLightControls(group, start.RimLight);
+                break;
+            case FilterKind.VolumetricLight:
+                Height = 520; Width = 450;
+                var volumetric = new VolumetricLightSettings();
+                group.Children.Add(new TextBlock { Text = Localize.Text("The light starts on the layer's biggest bright area; move it with Light X and Light Y"), TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Skin.SecondaryBrush, Margin = new Thickness(0, 0, 0, 4) });
+                Swatch(group, "Color", (start.Volumetric.Red, start.Volumetric.Green, start.Volumetric.Blue), (volumetric.Red, volumetric.Green, volumetric.Blue),
+                    (s, c) => { s.Volumetric.Red = c.Red; s.Volumetric.Green = c.Green; s.Volumetric.Blue = c.Blue; }, "Color Picker (Light Color)", "Choose the light's color");
+                Add(group, "Light X (%)", -100, 200, start.Volumetric.CenterX, start.Volumetric.CenterX, (s, v) => s.Volumetric.CenterX = v);
+                Add(group, "Light Y (%)", -100, 200, start.Volumetric.CenterY, start.Volumetric.CenterY, (s, v) => s.Volumetric.CenterY = v);
+                Add(group, "Haze", 0, 100, start.Volumetric.Haze, volumetric.Haze, (s, v) => s.Volumetric.Haze = v, "0");
+                Add(group, "Size", 0, 100, start.Volumetric.Size, volumetric.Size, (s, v) => s.Volumetric.Size = v, "0");
+                Add(group, "Intensity", 0, 100, start.Volumetric.Intensity, volumetric.Intensity, (s, v) => s.Volumetric.Intensity = v, "0");
+                Add(group, "Length", 0, 100, start.Volumetric.Length, volumetric.Length, (s, v) => s.Volumetric.Length = v, "0");
+                Add(group, "Shafts", 0, 100, start.Volumetric.Shafts, volumetric.Shafts, (s, v) => s.Volumetric.Shafts = v, "0");
+                break;
             default:
                 Add(group, "Distortion", -100, 100, start.Distortion, defaults.Distortion, (s, v) => s.Distortion = v);
                 break;
@@ -251,6 +271,94 @@ internal sealed class FilterDialog : DialogWindow
         group.Children.Add(buttons);
 
         Content = new ScrollViewer { Content = group };
+    }
+
+    /// <summary>
+    /// Rim Light: Glow, then each light's color, angle, strength, width and choke, with room for up to three. The
+    /// panel keeps three slots and shows the ones in use; removing a light moves the ones after it up.
+    /// </summary>
+    private void RimLightControls(StackPanel group, RimLightSettings start)
+    {
+        Add(group, "Glow", 0, 100, start.Glow, new RimLightSettings().Glow, (s, v) => s.RimLight.Glow = v, "0");
+        _rimCount = Math.Clamp(start.Lights.Count, 1, RimLightSettings.MaximumLights);
+        // The panel's own copy holds all three, so a color picked for a slot not yet in use has somewhere to go.
+        while (_amounts.RimLight.Lights.Count < RimLightSettings.MaximumLights) _amounts.RimLight.Lights.Add(_amounts.RimLight.NextLight);
+        var fallback = new RimLightSettings();
+        while (fallback.Lights.Count < RimLightSettings.MaximumLights) fallback.Lights.Add(fallback.NextLight);
+        for (var slot = 0; slot < RimLightSettings.MaximumLights; slot++)
+        {
+            var k = slot;
+            var light = _amounts.RimLight.Lights[k]; var origin = fallback.Lights[k];
+            var panel = new StackPanel { Spacing = 4, Margin = new Thickness(0, 6, 0, 0) };
+            var remove = new Button { Content = Localize.Text("Remove"), FontSize = 11, Height = 22, Padding = new Thickness(8, 0), CornerRadius = new CornerRadius(6) };
+            ToolTip.SetTip(remove, Localize.Text("Remove this light"));
+            remove.Click += (_, _) => RemoveLight(k);
+            var header = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
+            DockPanel.SetDock(remove, Dock.Right);
+            header.Children.Add(remove);
+            header.Children.Add(new TextBlock { Text = string.Format(Localize.Text("Light {0}"), k + 1), FontWeight = FontWeight.SemiBold, FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center });
+            panel.Children.Add(new Separator { Margin = new Thickness(0, 2) });
+            panel.Children.Add(header);
+            Swatch(panel, "Color", (light.Red, light.Green, light.Blue), (origin.Red, origin.Green, origin.Blue),
+                (s, c) => { s.RimLight.Lights[k].Red = c.Red; s.RimLight.Lights[k].Green = c.Green; s.RimLight.Lights[k].Blue = c.Blue; },
+                string.Format(Localize.Text("Color Picker (Light {0})"), k + 1), "Choose this light's color");
+            var first = _rows.Count;
+            Add(panel, "Angle, degrees", -180, 180, light.Angle, origin.Angle, (s, v) => s.RimLight.Lights[k].Angle = v, "0");
+            Add(panel, "Strength", 0, 100, light.Strength, origin.Strength, (s, v) => s.RimLight.Lights[k].Strength = v, "0");
+            Add(panel, "Width", 0, 100, light.Width, origin.Width, (s, v) => s.RimLight.Lights[k].Width = v, "0");
+            Add(panel, "Choke", 0, 100, light.Choke, origin.Choke, (s, v) => s.RimLight.Lights[k].Choke = v, "0");
+            _rimSlots.Add((panel, remove, first, _swatches[^1].Swatch));
+            group.Children.Add(panel);
+        }
+        _addLight = new Button { Content = Localize.Text("Add Light"), FontSize = 12, Height = 26, Margin = new Thickness(0, 8, 0, 0), CornerRadius = new CornerRadius(7) };
+        ToolTip.SetTip(_addLight, Localize.Text("Light the subject from another side as well"));
+        _addLight.Click += (_, _) => AddLight();
+        group.Children.Add(_addLight);
+        ShowLights();
+    }
+
+    /// <summary>Rim Light's slots as the panel has them: three, the first <see cref="_rimCount"/> in use.</summary>
+    private int _rimCount;
+    private readonly List<(StackPanel Panel, Button Remove, int FirstRow, ColorSwatch Swatch)> _rimSlots = [];
+    private Button? _addLight;
+
+    private void ShowLights()
+    {
+        for (var k = 0; k < _rimSlots.Count; k++)
+        {
+            _rimSlots[k].Panel.IsVisible = k < _rimCount;
+            _rimSlots[k].Remove.IsVisible = _rimCount > 1;
+        }
+        if (_addLight is not null) _addLight.IsVisible = _rimCount < RimLightSettings.MaximumLights;
+    }
+
+    /// <summary>A light from the side across from the ones there, in a color that sets them off.</summary>
+    internal void AddLight()
+    {
+        if (_rimCount >= RimLightSettings.MaximumLights) return;
+        var next = Current().RimLight.NextLight;
+        var (_, _, first, swatch) = _rimSlots[_rimCount];
+        _rows[first].Slider.Value = next.Angle; _rows[first + 1].Slider.Value = next.Strength;
+        _rows[first + 2].Slider.Value = next.Width; _rows[first + 3].Slider.Value = next.Choke;
+        swatch.Colour = (next.Red, next.Green, next.Blue);
+        _rimCount++;
+        ShowLights();
+        Preview?.Invoke(_preview.IsChecked == true ? Current() : null);
+    }
+
+    /// <summary>The light in <paramref name="slot"/> taken away, the ones after it moved up.</summary>
+    internal void RemoveLight(int slot)
+    {
+        if (_rimCount <= 1 || slot >= _rimCount) return;
+        for (var k = slot; k < _rimCount - 1; k++)
+        {
+            var (_, _, to, toSwatch) = _rimSlots[k]; var (_, _, from, fromSwatch) = _rimSlots[k + 1];
+            for (var row = 0; row < 4; row++) _rows[to + row].Slider.Value = _rows[from + row].Slider.Value;
+            toSwatch.Colour = fromSwatch.Colour;
+        }
+        _rimCount--;
+        ShowLights();
+        Preview?.Invoke(_preview.IsChecked == true ? Current() : null);
     }
 
     /// <summary>A box that follows the setting it belongs to, and what it started as for Reset.</summary>
@@ -335,6 +443,7 @@ internal sealed class FilterDialog : DialogWindow
             swatch.Colour = fallback;
             set(_amounts, fallback);
         }
+        if (_rimSlots.Count > 0) { _rimCount = 1; ShowLights(); }
     }
 
     /// <summary>The amounts as the panel has them, for a preview of what they would do. The self check reads
@@ -346,6 +455,7 @@ internal sealed class FilterDialog : DialogWindow
         foreach (var (slider, set) in _rows) set(settings, slider.Value);
         foreach (var (box, set, _) in _checks) set(settings, box.IsChecked == true);
         foreach (var (swatch, set, _) in _swatches) set(settings, swatch.Colour);
+        if (_rimSlots.Count > 0) settings.RimLight.Lights.RemoveRange(_rimCount, settings.RimLight.Lights.Count - _rimCount);
         return settings;
     }
 

@@ -125,5 +125,49 @@ public sealed partial class MainWindow
         scanlines.GetVisualDescendants().OfType<Button>().Single(button => button.Content?.ToString() == Localize.Text("Cancel"))
             .RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         Dispatcher.UIThread.RunJobs(); Check(filtering.IsCompletedSuccessfully, "Scanlines dialog did not cancel.");
+        LightingFilterCheck(output, first.ID);
+    }
+
+    /// <summary>Rim Light's lights added and removed in the panel, and Volumetric Light opening on the layer's
+    /// brightest area. The subject is given rather than found, so the check does not depend on the model.</summary>
+    private void LightingFilterCheck(string output, Guid id)
+    {
+        static void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+        var asset = _document!.Layers.Single(layer => layer.ID == id).Asset!;
+        var subject = Bitmaps.Allocate(Bitmaps.MaskInfo(asset.Width, asset.Height));
+        using (var canvas = new SKCanvas(subject)) using (var paint = new SKPaint { Color = SKColors.White })
+        { canvas.Clear(SKColors.Black); canvas.DrawOval(SKRect.Create(asset.Width / 4f, asset.Height / 4f, asset.Width / 2f, asset.Height / 2f), paint); }
+        SubjectCache.Remember(asset.Image, subject);
+        SelectLayerRow(id);
+        var rim = ApplyFilter(FilterKind.RimLight); Dispatcher.UIThread.RunJobs();
+        var panel = OwnedWindows.OfType<FilterDialog>().Single();
+        Button Named(string text) => panel.GetVisualDescendants().OfType<Button>().First(button => Equals(button.Content, Localize.Text(text)) && button.IsEffectivelyVisible);
+        Check(panel.Current().RimLight.Lights.Count == 1, "Rim Light did not open on one light.");
+        Check(!panel.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, Localize.Text("Remove")) && b.IsEffectivelyVisible), "A single light offered Remove.");
+        Named("Add Light").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var two = panel.Current().RimLight;
+        Check(two.Lights.Count == 2 && Math.Abs(two.Lights[1].Angle - (two.Lights[0].Angle > 0 ? two.Lights[0].Angle - 180 : two.Lights[0].Angle + 180)) < .5,
+            "Add Light did not add a light from the other side.");
+        Named("Add Light").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        Check(panel.Current().RimLight.Lights.Count == 3 && !panel.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, Localize.Text("Add Light")) && b.IsEffectivelyVisible),
+            "A third light did not fill the panel.");
+        panel.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+        using (var frame = panel.CaptureRenderedFrame()) frame!.Save(Path.ChangeExtension(output, "rim-light.png"), new PngBitmapEncoderOptions());
+        var second = panel.Current().RimLight.Lights[1].Angle;
+        Named("Remove").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var left = panel.Current().RimLight;
+        Check(left.Lights.Count == 2 && Math.Abs(left.Lights[0].Angle - second) < .5, "Removing the first light did not move the next one up.");
+        Named("Cancel").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        Check(rim.IsCompletedSuccessfully, "Rim Light dialog did not cancel.");
+
+        var haze = ApplyFilter(FilterKind.VolumetricLight); Dispatcher.UIThread.RunJobs();
+        panel = OwnedWindows.OfType<FilterDialog>().Single(); panel.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+        var brightest = VolumetricLighting.BrightestPoint(asset.Image);
+        var opened = panel.Current().Volumetric;
+        Check(Math.Abs(opened.CenterX - brightest.X / asset.Width * 100) < .2 && Math.Abs(opened.CenterY - brightest.Y / asset.Height * 100) < .2,
+            "Volumetric Light did not open on the brightest area.");
+        using (var frame = panel.CaptureRenderedFrame()) frame!.Save(Path.ChangeExtension(output, "volumetric-light.png"), new PngBitmapEncoderOptions());
+        Named("Cancel").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        Check(haze.IsCompletedSuccessfully, "Volumetric Light dialog did not cancel.");
     }
 }

@@ -522,6 +522,8 @@ public sealed partial class MainWindow : Window
                         new Separator(),
                         Command("_Vignette…", () => _ = ApplyFilter(FilterKind.Vignette)),
                         Command("_Tonal Contrast…", () => _ = ApplyFilter(FilterKind.TonalContrast)),
+                        Command("Volumetric Light…", () => _ = ApplyFilter(FilterKind.VolumetricLight)),
+                        Command("Rim Light…", () => _ = ApplyFilter(FilterKind.RimLight)),
                         Command("Lens _Correction…", () => _ = ApplyFilter(FilterKind.LensCorrection)),
                     },
                 },
@@ -4013,6 +4015,28 @@ public sealed partial class MainWindow : Window
         {
             Say($"{kind} needs a layer with pixels of its own");
             return;
+        }
+        if (kind is FilterKind.RimLight or FilterKind.VolumetricLight && document.Layers.First(layer => layer.ID == id).Asset is { } lit)
+        {
+            // Found once per layer image, before the panel opens: relighting it afterwards is quick.
+            if (!SubjectCache.HasLooked(lit.Image))
+            {
+                Say("Finding the subject…");
+                await Task.Run(() => SubjectCache.Subject(lit.Image));
+            }
+            if (kind == FilterKind.RimLight && SubjectCache.Subject(lit.Image) is null)
+            {
+                Say("Rim Light found no subject on this layer");
+                return;
+            }
+            // Volumetric Light starts on the layer's biggest bright area: a window, the sky, a lamp.
+            if (kind == FilterKind.VolumetricLight)
+            {
+                var point = VolumetricLighting.BrightestPoint(lit.Image);
+                _filterAmounts.Volumetric.CenterX = Math.Round(point.X / lit.Width * 100, 1);
+                _filterAmounts.Volumetric.CenterY = Math.Round(point.Y / lit.Height * 100, 1);
+            }
+            Say();
         }
         StartPreview(document, id);
         var asked = await FilterDialog.Ask(this, kind, _filterAmounts, settings =>
