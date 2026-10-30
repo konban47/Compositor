@@ -65,10 +65,12 @@ public partial class MainWindow
         {
             Gif = new GifAnimation(gifSource), Effects = new LayerEffects { Items = [StyleEffect.Default(StyleEffectKind.ColorOverlay)] }
         };
-        var liveEffects = gifLayer.Effects; _document.Layers.Add(gifLayer);
+        _document.Layers.Add(gifLayer);
         Click("Flatten All Layer Effects");
-        Check(ReferenceEquals(liveEffects, gifLayer.Effects) && gifLayer.Gif.Edited.Count == 0,
-            "Baking animation effects modified only the currently displayed GIF frame.");
+        // Every frame takes the effect, not only the one on show; undo puts the live effect back.
+        Check(gifLayer.Effects is null && gifLayer.Gif!.Edited.Count == gifLayer.Gif.Frames.Count,
+            "Baking animation effects did not reach every GIF frame.");
+        Undo(); Check(_document!.Layers.Single(l => l.Name == "Animation").Effects is not null, "Animation effects were not restored by undo.");
         Console.WriteLine("PASS: Scripts dispatch/undo/redo, effect opacity, import menu, video sampling form and cancellation.");
     }
 }

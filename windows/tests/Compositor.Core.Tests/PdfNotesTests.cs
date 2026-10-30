@@ -68,7 +68,9 @@ public sealed class PdfNotesTests
         // Read against that page, the positions come back in the document's pixels.
         var back = read.Select(n => new DocumentMark { Kind = MarkKind.Note, X = n.Left * 2, Y = (180 - n.Top) * 2, Text = n.Text, Author = n.Author, Color = n.Color }).ToArray();
         Same(notes, back);
-        Assert.Equal(1, PDFtoImage.Conversion.GetPageCount(pdf) - 1);
+        var written = Path.Combine(Path.GetTempPath(), $"annotated-{Guid.NewGuid():N}.pdf");
+        try { File.WriteAllBytes(written, pdf); Assert.Equal(2, PdfImporter.Pages(written).Count); }
+        finally { File.Delete(written); }
     }
 
     [Fact]
@@ -110,7 +112,7 @@ public sealed class PdfNotesTests
             var note = Assert.Single(read);
             Assert.Equal("On the slide", note.Text);
             Assert.Contains("/PageMode /FullScreen", Encoding.Latin1.GetString(bytes));
-            Assert.Equal(1, PDFtoImage.Conversion.GetPageCount(bytes));
+            Assert.Single(PdfImporter.Pages(path));
             FileAutomation.PdfPresentation(path, [new AutomationSource("Page", null, document)], new PdfPresentationOptions(SKColors.White));
             Assert.Empty(PdfNotes.Read(File.ReadAllBytes(path)).Notes);
         }

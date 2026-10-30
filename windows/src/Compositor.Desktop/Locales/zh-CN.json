@@ -4045,5 +4045,9 @@
   "Photomerge could not lay out the photos.": "Photomerge 无法排列这些照片。",
   "Photomerge takes at most 40 photos.": "Photomerge 最多处理 40 张照片。",
   "Writes the notes of open documents as PDF comments where they sit on the picture.": "把已打开文档的注释按其在画面上的位置写成 PDF 注释。",
-  "The file has no text notes on its first page.": "该文件第一页没有文本注释。"
+  "The file has no text notes on its first page.": "该文件第一页没有文本注释。",
+  "{0}: merged into one layer to keep its soft mask.": "{0}：已合并为一个图层以保留柔和的蒙版。",
+  "{0}: merged into one layer to draw in its effects.": "{0}：已合并为一个图层以烘焙其效果。",
+  "{0}: a turned or flipped animation keeps its effects live.": "{0}：旋转或翻转的动画保留实时效果。",
+  "{0}: effects past the animation's frame were cut to it.": "{0}：超出动画帧范围的效果已被裁切。"
 }
