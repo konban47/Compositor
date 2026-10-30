@@ -1,6 +1,6 @@
 # 时间轴、图层复合与预设
 
-适用于 Windows **1.5.12.4 Preview**。
+适用于 Windows **1.5.13.0 Preview**。
 
 ## 界面
 

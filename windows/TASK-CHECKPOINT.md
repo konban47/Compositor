@@ -1,6 +1,6 @@
 # 截图任务交接记录
 
-更新：2026-10-30，目标发行版 1.5.12.4 Preview。
+更新：2026-10-31，目标发行版 1.5.13.0 Preview。
 
 ## 必须保留的约束
 
@@ -11,7 +11,7 @@
 - 文件脚本：删除空图层、像素蒙版和效果烘焙；`BulkLayerScriptsTests` 与 `--file-workflow-checks` 检查 clipping、锁定、禁用蒙版、GIF 逐帧蒙版与效果保留、菜单调用、撤销／重做和不透明度。
 - 导入：变量 CSV 复用已有流程；视频帧解码与帧动画；注释 JSON 往返；DICOM 多帧；原生 WIA。`FileImportTests`、`DicomImportTests`、`VideoImportIntegrationTests` 覆盖核心行为；真实 FFmpeg 测试仅在 PATH 有依赖时运行。
 - `--file-workflow-checks` 包含中英文视频导入窗体与取消检查。扫描仪无硬件验收；不要将入口编译通过当作硬件验证。
-- 完整结果以本版 [更新说明](UPDATES-1.5.12.4.md) 为准。
+- 完整结果以本版 [更新说明](UPDATES-1.5.13.0.md) 为准。
 
 - 联系表 II：已补齐灰度／RGB／CMYK／Lab、8／16 位、ICC 和真实字体样式；增加按文件夹分页、分辨率单位、物理间距、自动间距和预设完整往返。`ContactSheetColorTests` 验证高于 8 位的像素精度，界面自检验证单位与设置往返。
 
@@ -42,9 +42,16 @@
 - 验证：Release 构建零警告／错误，Core 1555 通过、2 默认跳过；中英文 file-workflow／interaction／windows／selection-options／layer-style／image-workspace 检查通过。
 - 仍待：多图层导出的文件夹与替换确认需人工点验；内容识别移动、粘贴等其他 8 位编辑路径未逐一补测；Volumetric Light 与 Rim Light 需 CPU/Skia 重写，建议单独一版。
 
+## 已实现并本机验证：交接剩余项与上游 Rim／Volumetric Light（2026-10-31，1.5.13.0）
+
+- 基线 `windows-port@a23989d`（1.5.12.4）。上游 main `1405545` 之前的全部适用提交现已移植：Rim Light（`b9a0ed8`、`97c3b3f`）与 Volumetric Light（`1405545`）为 CPU 实现（`RimLight.cs`、`VolumetricLight.cs`、`LightPlanes.cs`）。
+- 新增：Web HTML／切片／输出设置与帧动画 GIF（`WebPage.cs`、`OutputSettingsDialog.cs`）；分层 PSD 写入（`PsdWriter.cs`）；Photomerge（`Photomerge.cs`）；合并到 HDR Pro（`HdrMerge.cs`、`HdrProDialog.cs`）；镜头校正与 lensfun 数据库（`LensProfiles.cs`、`lensfun/`）；PDF／FDF／XFDF 注释与演示文稿注释（`PdfNotes.cs`）；组蒙版／组效果／GIF 效果烘焙（`LayerBaking.cs`）；JavaScript／JSX（`ScriptHost.cs`，Jint 4.16.4）；链接的智能对象与打包（`SmartObjectLinks.cs`，项目格式 v32）。16 位图层的复制／粘贴修复，8 位编辑路径逐项测试（`EightBitEditDepthTests`）。
+- 截图对照：本轮逐张核对“输出设置”1–7、储存为 Web（19、29）、Photomerge、镜头校正 1；其余文件工作流截图沿用前几版的验收。交接包中缺失的 117 张参考截图（如 stamp-history-eraser 等）无法核对。
+- 验证：Release 构建零警告／错误，Core 1624 通过、2 默认跳过；中英文 file-workflow／interaction／windows／panel／selection-options／layer-style／image-workspace 检查通过；文档一致性检查通过。
+- 仍待人工：Acrobat 中的 PDF 注释与演示文稿、Photoshop 中打开本程序写出的 PSD、真实照片的 Photomerge／HDR／镜头校正效果、多图层导出与 Web 存储的系统对话框。
 ## 尚未完成
 
-JS/JSX 解释器（脚本事件管理器的外部脚本）；链接智能对象／依赖打包与 Bridge；Photomerge、HDR Pro、完整镜头配置数据库；PSD 写入；Web HTML 切片与动画输出；PDF 注释（演示文稿“注释”选项）；组蒙版／组效果、GIF 效果烘焙；Adobe/PDF/FDF 注释格式；Volumetric Light（上游 `1405545`）与 Rim Light 移植。
+交接清单中的功能项均已实现（边界见 [文件工作流](FILE-WORKFLOWS.md)）。不提供：Adobe Bridge、Adobe 镜头配置文件、Creative Cloud 同步、打印事件、编译的 .jsxbin 与 ExtendScript 的 File／Folder／ActionDescriptor。
 
 画笔、图章、橡皮擦、渐变、修饰、视图、路径、文字／字符／段落、图层复合、时间轴、颜色／OCIO、预设和其余文件功能已有历史实现，仍需按原始截图逐项检查及联动验收。对应 `TOOL-OPTIONS.md`、`PAINTING-AND-GIF.md`、`TYPE-AND-MASKS.md`、`TIMELINE-AND-PRESETS.md`、`COLOR-MANAGEMENT.md`、`FILE-WORKFLOWS.md` 的边界；不能仅凭编译或本轮测试标记全部完成。
 
