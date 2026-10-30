@@ -142,9 +142,11 @@ internal sealed class AutomationDialog : DialogWindow
         var saveAs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 18 };
         saveAs.Children.Add(new TextBlock { Text = Localize.Text("Save As") + ":", VerticalAlignment = VerticalAlignment.Center }); saveAs.Children.Add(_multiPage); saveAs.Children.Add(_presentation);
         panel.Children.Add(saveAs);
-        var look = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 16 };
-        look.Children.Add(Row("Background", _background));
-        var size = Row("Font Size", _pdfFontSize); Grid.SetColumn(size, 1); look.Children.Add(size);
+        // Labels size to their text so both choices keep a readable width in the half-width output group.
+        var look = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,*"), ColumnSpacing = 10 };
+        Control[] cells = [Label("Background"), _background, Label("Font Size"), _pdfFontSize];
+        for (var column = 0; column < cells.Length; column++) { Grid.SetColumn(cells[column], column); look.Children.Add(cells[column]); }
+        _background.HorizontalAlignment = _pdfFontSize.HorizontalAlignment = HorizontalAlignment.Stretch;
         panel.Children.Add(look);
         _pdfNotes.IsEnabled = false;
         ToolTip.SetTip(_pdfNotes, Localize.Text("PDF annotations are not written in this version."));

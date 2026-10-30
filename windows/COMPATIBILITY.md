@@ -1,4 +1,4 @@
-# Windows 10 与低资源验证 · 1.5.12.2 Preview
+# Windows 10 与低资源验证 · 1.5.12.3 Preview
 
 2026-10-22。当前没有可用 Windows 10 实机或虚拟机，用户选择先完成可复现方案。**Windows 10 验收状态：待执行。** 以下本机结果来自 Windows 11 Pro build 26200；CPU 限制、禁用 SIMD、软件绘制或 Windows Server CI 均不等于 Windows 10 验收。
 

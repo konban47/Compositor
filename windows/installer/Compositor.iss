@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.5.12.2"
+  #define AppVersion "1.5.12.3"
 #endif
 #ifndef SourceDir
   #error SourceDir must name the self-contained package folder
