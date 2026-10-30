@@ -63,6 +63,10 @@ public static class LayerWorkflow
     /// File names for layers exported one to a file, in order: Windows-safe, never empty or a device name, and unique
     /// ignoring case, the later of two alike numbered from 2.
     /// </summary>
+    /// <summary>A name Windows keeps for a device (CON, NUL, COM1…), which no file may take.</summary>
+    public static bool ReservedName(string name) =>
+        System.Text.RegularExpressions.Regex.IsMatch(name, @"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
     public static List<string> ExportFileNames(IEnumerable<string> names, string extension)
     {
         var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var result = new List<string>();
@@ -70,7 +74,7 @@ public static class LayerWorkflow
         {
             var cleaned = string.Concat(name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim().TrimEnd('.', ' ');
             if (cleaned.Length == 0 || cleaned.StartsWith('.')) cleaned = "Layer" + cleaned;
-            if (System.Text.RegularExpressions.Regex.IsMatch(cleaned, @"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) cleaned += "_";
+            if (ReservedName(cleaned)) cleaned += "_";
             var unique = cleaned;
             for (var number = 2; !used.Add(unique); number++) unique = $"{cleaned} {number}";
             result.Add(unique + "." + extension);

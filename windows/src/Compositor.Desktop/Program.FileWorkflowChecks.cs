@@ -42,7 +42,17 @@ internal static partial class Program
             }
             var web = new WebExportDialog(document);
             _ = web.ShowDialog(owner);
-            web.FileWorkflowSelfCheck(Pump, suffix => Capture(web, suffix));
+            web.FileWorkflowSelfCheck(Pump, suffix => Capture(web, suffix), Capture);
+            using (var animated = document.Clone())
+            {
+                var shown = LayerComps.Capture(animated, "Shown");
+                animated.Layers[0].IsVisible = false;
+                animated.Timeline = new DocumentTimeline { Mode = TimelineMode.Frames, Frames = [new(Guid.NewGuid(), .5, shown), new(Guid.NewGuid(), .5, LayerComps.Capture(animated, "Hidden"))] };
+                animated.Layers[0].IsVisible = true;
+                var moving = new WebExportDialog(animated);
+                _ = moving.ShowDialog(owner);
+                moving.AnimationSelfCheck(Pump, suffix => Capture(moving, suffix));
+            }
             var sources = new[] { new AutomationSource("Export sample", null, document) };
             foreach (var kind in Enum.GetValues<AutomationKind>())
             {
@@ -71,7 +81,32 @@ internal static partial class Program
 
 internal sealed partial class WebExportDialog
 {
-    internal void FileWorkflowSelfCheck(Action pump, Action<string> capture)
+    /// <summary>A document with a frame animation: the GIF's animation controls step through its frames.</summary>
+    internal void AnimationSelfCheck(Action pump, Action<string> capture)
+    {
+        static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+        void Wait(Func<bool> ready)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(45);
+            while (!ready() && DateTime.UtcNow < deadline) { pump(); Thread.Sleep(5); }
+            Check(ready(), "Animated Web preview timed out: " + _status.Text);
+        }
+        Wait(() => _save.IsEnabled && !_rendering);
+        Check(_loop.IsEnabled && _frameLabel.Text == "1/2" && !_loops.IsEnabled, "Animation controls did not follow the frames.");
+        var first = _results[0].Preview.GetPixel(120, 110);
+        StepFrame(1);
+        Wait(() => _save.IsEnabled && !_rendering);
+        Check(_frameLabel.Text == "2/2" && _results[0].Preview.GetPixel(120, 110) != first, "The next frame did not reach the preview.");
+        _loop.SelectedIndex = 2; pump();
+        Check(_loops.IsEnabled && Loops == 3, "Other did not offer a play count.");
+        capture("web-animation");
+        _format.SelectedIndex = (int)WebFormat.Png24; pump();
+        Check(!_loop.IsEnabled, "A PNG offered GIF animation.");
+        Close();
+        Wait(() => !_rendering);
+    }
+
+    internal void FileWorkflowSelfCheck(Action pump, Action<string> capture, Action<Window, string> captureWindow)
     {
         static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
         void Wait(Func<bool> ready)
@@ -104,6 +139,14 @@ internal sealed partial class WebExportDialog
         Width = 860; Height = 700;
         Wait(() => _save.IsEnabled && !_rendering && _results.Length == 1);
         pump(); capture("web-narrow");
+        Check(!_loop.IsEnabled && _frameLabel.Text == "1/1" && _saveAs.SelectedIndex == 0, "A still document offered animation controls or a page by default.");
+        var output = OutputSettingsDialog.Open(this, _html, out var outputClosed);
+        pump(); captureWindow(output, "web-output-settings");
+        output.SelectPage(1); pump(); captureWindow(output, "web-output-slices");
+        output.SelectPreset(3); pump();
+        Check(output.Current() == WebHtmlSettings.XhtmlPreset, "The XHTML preset did not fill the pages.");
+        output.SelectPreset(1); output.Confirm(); pump();
+        Check(outputClosed.IsCompleted && output.Result == WebHtmlSettings.BackgroundImagePreset, "Output Settings did not return the chosen preset.");
         Queue();
         Close();
         Wait(() => !_rendering);

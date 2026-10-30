@@ -49,18 +49,90 @@ public sealed class WebExportResult(byte[] bytes, SKBitmap preview, WebExportOpt
 /// <summary>Encodes the bytes used by both the comparison preview and the saved web image.</summary>
 public static class WebExport
 {
-    public static WebExportResult Encode(CanvasDocument document, WebExportOptions options, CancellationToken cancellation = default)
+    /// <summary>The document as the web image encodes it; <paramref name="frame"/> picks one of a frame animation's
+    /// frames (the document as it stands when there is none).</summary>
+    public static WebExportResult Encode(CanvasDocument document, WebExportOptions options, CancellationToken cancellation = default, int frame = -1)
     {
         options.Validate(); cancellation.ThrowIfCancellationRequested();
-        using var source = DocumentRenderer.Render(document);
+        var (bitmap, profile) = Prepare(document, options, frame);
+        using (bitmap) return EncodePixels(bitmap, options, profile, document.Metadata, cancellation);
+    }
+
+    /// <summary>The frames of the document's frame animation, or none when it has fewer than two.</summary>
+    public static IReadOnlyList<Document.TimelineFrame> Frames(CanvasDocument document) =>
+        document.Timeline is { Mode: Document.TimelineMode.Frames, Frames.Length: > 1 } timeline ? timeline.Frames : [];
+
+    /// <summary>The rendered, color-converted pixels at the output size, which every slice and frame is cut from.</summary>
+    private static (SKBitmap Bitmap, byte[] Profile) Prepare(CanvasDocument document, WebExportOptions options, int frame)
+    {
+        var frames = Frames(document);
+        using var posed = frame >= 0 && frame < frames.Count ? document.Clone() : null;
+        if (posed is not null) Document.LayerComps.Apply(posed, frames[frame].State, respectLocks: false);
+        using var source = DocumentRenderer.Render(posed ?? document);
         using var resized = source.Resize(Bitmaps.ColorInfo(options.Width, options.Height), Sampling(options.Resample))
             ?? throw new IOException("The image could not be resized.");
         using var rendered = DeepImageCodec.Magick(resized);
         var profile = !options.ConvertToSrgb && document.Image.ColorProfile is { } icc && IccProfiles.Model(icc) == "RGB" ? icc : ColorProfiles.SRGB.ToByteArray();
         using var converted = ColorTransforms.Convert(rendered, ColorProfiles.SRGB.ToByteArray(), profile);
         converted.Depth = 8;
-        using var bitmap = SKBitmap.Decode(converted.ToByteArray(MagickFormat.Png)) ?? throw new IOException("The image could not be decoded.");
-        return EncodePixels(bitmap, options, profile, document.Metadata, cancellation);
+        var bitmap = SKBitmap.Decode(converted.ToByteArray(MagickFormat.Png)) ?? throw new IOException("The image could not be decoded.");
+        return (bitmap, profile);
+    }
+
+    /// <summary>
+    /// Each of <paramref name="regions"/> (in output pixels) encoded on its own with the same settings, as Save for
+    /// Web writes a sliced page's images. A region past the image is cut to it; one wholly outside gives null.
+    /// </summary>
+    public static IReadOnlyList<WebExportResult?> EncodeRegions(CanvasDocument document, WebExportOptions options, IReadOnlyList<SKRectI> regions,
+        CancellationToken cancellation = default)
+    {
+        options.Validate();
+        var (bitmap, profile) = Prepare(document, options, -1);
+        using var _ = bitmap;
+        var results = new List<WebExportResult?>();
+        try
+        {
+            foreach (var region in regions)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                var cut = SKRectI.Intersect(region, SKRectI.Create(bitmap.Width, bitmap.Height));
+                if (cut.IsEmpty) { results.Add(null); continue; }
+                using var piece = new SKBitmap(bitmap.Info.WithSize(cut.Width, cut.Height));
+                if (!bitmap.ExtractSubset(piece, cut)) throw new IOException("A slice could not be cut from the image.");
+                using var owned = piece.Copy();
+                results.Add(EncodePixels(owned, options with { Width = cut.Width, Height = cut.Height }, profile, document.Metadata, cancellation));
+            }
+            return results;
+        }
+        catch
+        {
+            foreach (var result in results) result?.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// The document's frame animation as one GIF: each frame indexed with the same settings, held for its own
+    /// time, and played <paramref name="loops"/> times (0 for forever). Null when there is no frame animation.
+    /// </summary>
+    public static byte[]? EncodeAnimation(CanvasDocument document, WebExportOptions options, int loops, CancellationToken cancellation = default)
+    {
+        var frames = Frames(document);
+        if (frames.Count == 0 || options.Format != WebFormat.Gif || loops is < 0 or > 65535) return null;
+        using var collection = new MagickImageCollection();
+        for (var i = 0; i < frames.Count; i++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            using var result = Encode(document, options, cancellation, i);
+            var image = new MagickImage(result.Bytes, MagickFormat.Gif)
+            {
+                AnimationDelay = (uint)Math.Clamp(Math.Round(frames[i].Duration * 100), 1, 65535),
+                AnimationIterations = (uint)loops,
+                GifDisposeMethod = GifDisposeMethod.Background,
+            };
+            collection.Add(image);
+        }
+        return collection.ToByteArray(MagickFormat.Gif);
     }
 
     public static WebExportResult Optimize(CanvasDocument document, WebExportOptions options, long targetBytes, CancellationToken cancellation = default)

@@ -27,6 +27,15 @@ internal sealed partial class WebExportDialog : DialogWindow
     private readonly ComboBox _resample = Choice(["Nearest Neighbor", "Bilinear", "Bicubic", "Bicubic Smoother", "Bicubic Sharper"], 2);
     private readonly ComboBox _metadata = Choice(["None", "Copyright", "Copyright and Contact", "All Except Camera Information", "All"], 2);
     private readonly ComboBox _view = Choice(["Original", "Optimized", "2-Up", "4-Up"], 1);
+    private readonly ComboBox _saveAs = Choice(["Images Only", "HTML and Images", "HTML Only"]);
+    private readonly ComboBox _scope = Choice(["All Slices", "All User Slices"]);
+    private readonly ComboBox _loop = Choice(["Forever", "Once", "Other"]);
+    private readonly NumericUpDown _loops = Number(3, 1, 65535);
+    private readonly TextBlock _frameLabel = new() { VerticalAlignment = VerticalAlignment.Center, MinWidth = 48, TextAlignment = TextAlignment.Center };
+    private readonly List<Button> _frameButtons = [];
+    /// <summary>Which frame of a frame animation the preview shows; −1 when the document has none.</summary>
+    private int _frame = -1;
+    private WebHtmlSettings _html = WebHtmlSettings.Default;
     private readonly NumericUpDown _width, _height;
     private readonly NumericUpDown _quality = Number(80, 1, 100), _colors = Number(256, 2, 256), _amount = Number(100, 0, 100), _snap = Number(0, 0, 100);
     private readonly NumericUpDown _zoom = Number(100, 6, 1600);
@@ -91,6 +100,18 @@ internal sealed partial class WebExportDialog : DialogWindow
         advanced.Children.Add(FormDialog.ActionButton("Load Settings…", () => _ = LoadSettings())); advanced.Children.Add(FormDialog.ActionButton("Save Settings…", () => _ = SaveSettings()));
         _fields.Children.Add(advanced);
         Add("Metadata", _metadata);
+        _fields.Children.Add(new Separator()); Add("Save As", _saveAs); Add("Slices", _scope);
+        var output = new WrapPanel(); output.Children.Add(FormDialog.ActionButton("Output Settings…", () => _ = EditOutput())); _fields.Children.Add(output);
+        _fields.Children.Add(new Separator()); _fields.Children.Add(new TextBlock { Text = Localize.Text("Animation") });
+        Add("Looping Options", _loop); Add("Play Count", _loops);
+        var frames = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
+        foreach (var (glyph, tip, step) in new[] { ("⏮", "Select First Frame", int.MinValue), ("◀", "Select Previous Frame", -1), ("▶", "Select Next Frame", 1), ("⏭", "Select Last Frame", int.MaxValue) })
+        {
+            var button = FormDialog.ActionButton(glyph, () => StepFrame(step)); button.MinWidth = 40; button.Margin = new Thickness(1, 0); ToolTip.SetTip(button, Localize.Text(tip));
+            _frameButtons.Add(button); frames.Children.Add(button);
+            if (step == -1) frames.Children.Add(_frameLabel);
+        }
+        _fields.Children.Add(frames);
         var settings = new ScrollViewer { Content = _fields, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         Grid.SetColumn(settings, 1); body.Children.Add(settings); layout.Children.Add(body);
         var footer = new Grid { ColumnDefinitions = new("*,Auto"), Margin = new Thickness(4, 12, 4, 0) };
@@ -98,6 +119,9 @@ internal sealed partial class WebExportDialog : DialogWindow
         actions.Children.Add(_save); actions.Children.Add(FormDialog.ActionButton("Cancel", Close)); actions.Children.Add(FormDialog.ActionButton("Done", Close));
         Grid.SetColumn(actions, 1); footer.Children.Add(actions); Grid.SetRow(footer, 1); layout.Children.Add(footer); Content = layout;
         foreach (var choice in new[] { _format, _palette, _dither, _alphaDither, _resample, _metadata }) choice.SelectionChanged += (_, _) => Queue();
+        _loop.SelectionChanged += (_, _) => ShowAnimation();
+        var frameCount = WebExport.Frames(document).Count; _frame = frameCount > 0 ? 0 : -1;
+        ShowAnimation();
         foreach (var number in new[] { _quality, _colors, _amount, _snap }) number.ValueChanged += (_, _) => Queue();
         foreach (var check in new[] { _transparent, _interlaced, _srgb, _icc }) { check.IsCheckedChanged += (_, _) => Queue(); }
         _matte.TextChanged += (_, _) => Queue();
@@ -149,6 +173,7 @@ internal sealed partial class WebExportDialog : DialogWindow
         _alphaDither.IsEnabled = indexed && _transparent.IsChecked == true && _transparent.IsEnabled;
         _icc.IsEnabled = _format.SelectedIndex is 1 or 2 or 3;
         _interlaced.IsEnabled = _format.SelectedIndex != 4;
+        ShowAnimation();
         _status.Text = Localize.Text("Rendering preview…"); _timer.Stop(); _timer.Start();
     }
     internal async Task RenderPreview(long? targetBytes = null)
@@ -165,12 +190,12 @@ internal sealed partial class WebExportDialog : DialogWindow
                 var results = new List<WebExportResult>(); SKBitmap? source = null;
                 try
                 {
-                    results.Add(targetBytes is { } target ? WebExport.Optimize(_lease.Document, options, target, token) : WebExport.Encode(_lease.Document, options, token));
+                    results.Add(targetBytes is { } target ? WebExport.Optimize(_lease.Document, options, target, token) : WebExport.Encode(_lease.Document, options, token, _frame));
                     if (four)
                     {
                         var minimum = Math.Min(options.Colors, Math.Max(2, (options.LockedColors?.Length ?? 0) + (options.Transparency ? 1 : 0)));
-                        results.Add(WebExport.Encode(_lease.Document, options with { Quality = Math.Max(1, options.Quality / 2), Colors = Math.Max(minimum, options.Colors / 2) }, token));
-                        results.Add(WebExport.Encode(_lease.Document, options with { Quality = Math.Max(1, options.Quality / 4), Colors = Math.Max(minimum, options.Colors / 4), Dither = WebDither.None }, token));
+                        results.Add(WebExport.Encode(_lease.Document, options with { Quality = Math.Max(1, options.Quality / 2), Colors = Math.Max(minimum, options.Colors / 2) }, token, _frame));
+                        results.Add(WebExport.Encode(_lease.Document, options with { Quality = Math.Max(1, options.Quality / 4), Colors = Math.Max(minimum, options.Colors / 4), Dither = WebDither.None }, token, _frame));
                     }
                     token.ThrowIfCancellationRequested(); source = DocumentRenderer.Render(_lease.Document);
                     return (results.ToArray(), source);
@@ -332,15 +357,68 @@ internal sealed partial class WebExportDialog : DialogWindow
         if (_results.Length == 0 || !_save.IsEnabled) return;
         // Retain bytes before the picker, which may pump preview and close events.
         var bytes = _results[0].Bytes; var extension = _results[0].Options.Extension; var revision = _revision;
+        var options = _results[0].Options; var kind = SaveKind; var document = _lease.Document;
+        var sliced = document.Marks.Any(m => m.Kind == Compositor.Core.Format.MarkKind.Slice && m.Visible);
+        var animated = options.Format == WebFormat.Gif && WebExport.Frames(document).Count > 0;
         try
         {
-            var file = await StorageProvider.SaveFilePickerAsync(new() { Title = Localize.Text("Save for Web"), SuggestedFileName = "image." + extension, DefaultExtension = extension, FileTypeChoices = [new FilePickerFileType(extension.ToUpperInvariant()) { Patterns = ["*." + extension] }] });
-            if (_closed || file?.TryGetLocalPath() is not { } path) return;
-            _saving = true; _save.IsEnabled = false;
-            await Task.Run(() => AtomicFile.WriteBytes(path, bytes)); _status.Text = Localize.Text("Export complete.");
+            if (kind == WebSaveKind.ImagesOnly && !sliced && !animated)
+            {
+                var file = await StorageProvider.SaveFilePickerAsync(new() { Title = Localize.Text("Save for Web"), SuggestedFileName = "image." + extension, DefaultExtension = extension, FileTypeChoices = [new FilePickerFileType(extension.ToUpperInvariant()) { Patterns = ["*." + extension] }] });
+                if (_closed || file?.TryGetLocalPath() is not { } path) return;
+                _saving = true; _save.IsEnabled = false;
+                await Task.Run(() => AtomicFile.WriteBytes(path, bytes)); _status.Text = Localize.Text("Export complete.");
+                CompletedExports++;
+                return;
+            }
+            var page = kind != WebSaveKind.ImagesOnly;
+            var target = await StorageProvider.SaveFilePickerAsync(new()
+            {
+                Title = Localize.Text("Save for Web"), SuggestedFileName = page ? "index.html" : "image." + (animated ? "gif" : extension),
+                DefaultExtension = page ? "html" : extension,
+                FileTypeChoices = [page ? new FilePickerFileType("HTML") { Patterns = ["*.html", "*.htm"] } : new FilePickerFileType(extension.ToUpperInvariant()) { Patterns = ["*." + (animated ? "gif" : extension)] }],
+            });
+            if (_closed || target?.TryGetLocalPath() is not { } chosen) return;
+            var htmlPath = page ? chosen : Path.ChangeExtension(chosen, ".html");
+            var scope = (WebSliceScope)Math.Max(0, _scope.SelectedIndex); var html = _html; var loops = Loops;
+            // The picker asked about the file it was given; the slices' images are asked about here.
+            var existing = WebPage.Planned(document, options, html, htmlPath, kind, scope).Where(p => !string.Equals(p, Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase) && File.Exists(p)).ToList();
+            if (existing.Count > 0 && !await ConfirmDialog.Ask(this, "Save for Web",
+                existing.Count == 1 ? string.Format(Localize.Text("“{0}” already exists. Replace it?"), Path.GetFileName(existing[0]))
+                    : string.Format(Localize.Text("{0} of these files already exist in the folder. Replace them?"), existing.Count), "Replace", "Cancel")) return;
+            if (_closed) return;
+            _saving = true; _save.IsEnabled = false; _status.Text = Localize.Text("Saving…");
+            var result = await Task.Run(() => WebPage.Save(document, options, html, htmlPath, kind, Path.GetFileNameWithoutExtension(htmlPath), loops, scope));
+            _status.Text = string.Format(Localize.Text("Saved {0} files."), result.Files.Count);
             CompletedExports++;
         }
         catch (Exception error) { _status.Text = Localize.Text(error.Message); }
         finally { _saving = false; _save.IsEnabled = !_closed && revision == _revision && _results.Length > 0 && !_rendering; }
+    }
+
+    private WebSaveKind SaveKind => _saveAs.SelectedIndex switch { 1 => WebSaveKind.HtmlAndImages, 2 => WebSaveKind.HtmlOnly, _ => WebSaveKind.ImagesOnly };
+    private int Loops => _loop.SelectedIndex switch { 0 => 0, 1 => 1, _ => (int)(_loops.Value ?? 1) };
+
+    private async Task EditOutput()
+    {
+        if (await OutputSettingsDialog.Ask(this, _html) is { } settings) _html = settings;
+    }
+
+    /// <summary>The animation controls, live only for a GIF of a document with a frame animation.</summary>
+    private void ShowAnimation()
+    {
+        var count = WebExport.Frames(_lease.Document).Count;
+        var live = count > 0 && _format.SelectedIndex == 0;
+        _loop.IsEnabled = live; _loops.IsEnabled = live && _loop.SelectedIndex == 2;
+        foreach (var button in _frameButtons) button.IsEnabled = live;
+        _frameLabel.Text = count > 0 ? $"{_frame + 1}/{count}" : "1/1";
+    }
+
+    private void StepFrame(int step)
+    {
+        var count = WebExport.Frames(_lease.Document).Count;
+        if (count == 0) return;
+        _frame = step switch { int.MinValue => 0, int.MaxValue => count - 1, _ => (_frame + step + count) % count };
+        ShowAnimation(); Queue();
     }
 }
