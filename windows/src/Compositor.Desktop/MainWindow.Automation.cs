@@ -101,8 +101,23 @@ public partial class MainWindow
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = Localize.Text("Save a Copy…"), SuggestedFileName = "Copy.comp", DefaultExtension = "comp", ShowOverwritePrompt = true,
+            FileTypeChoices = [new FilePickerFileType(Localize.Text("Compositor Project")) { Patterns = ["*.comp"] }, new FilePickerFileType("Photoshop") { Patterns = ["*.psd"] }],
         });
         if (file?.TryGetLocalPath() is not { } path) return;
+        if (path.EndsWith(".psd", StringComparison.OrdinalIgnoreCase))
+        {
+            // A layered Photoshop file: what it cannot keep editable is written as it looks and listed.
+            try
+            {
+                var notes = await WorkScheduler.Run(token => Compositor.Core.IO.PSD.PsdWriter.Write(lease.Document, path, token));
+                Say($"Saved {path}");
+                if (notes.Count > 0)
+                    await ConfirmDialog.Tell(this, "Photoshop conversion report", string.Join("\n", notes.Take(30).Select(note =>
+                        (note.Layer.Length > 0 ? note.Layer + ": " : "") + Localize.Text(note.Message))) + (notes.Count > 30 ? "\n…" : ""));
+            }
+            catch (Exception error) { Say($"Could not save: {error.Message}"); }
+            return;
+        }
         if (!path.EndsWith(".comp", StringComparison.OrdinalIgnoreCase)) path += ".comp";
         try
         {

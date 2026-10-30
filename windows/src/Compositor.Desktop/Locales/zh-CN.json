@@ -3998,5 +3998,16 @@
   "Win": "Win",
   "Unix": "Unix",
   "Mac": "Mac",
-  "Mac OS": "Mac OS"
+  "Mac OS": "Mac OS",
+  "32-bit pixels were written as 16 bits per channel; values past white were clipped.": "32 位像素以每通道 16 位写入；超出白色的值被截断。",
+  "The image was written in RGB color.": "图像以 RGB 颜色写入。",
+  "Adjustment layers are not written; the composite image includes their effect.": "未写入调整图层；合成图像包含其效果。",
+  "Type was written as pixels.": "文字以像素写入。",
+  "The shape was written as pixels.": "形状以像素写入。",
+  "The smart object was written as pixels.": "智能对象以像素写入。",
+  "Layer styles are not written; the composite image includes them.": "未写入图层样式；合成图像包含其效果。",
+  "Fill opacity was not written.": "未写入填充不透明度。",
+  "Mask density and feather were not written.": "未写入蒙版浓度与羽化。",
+  "The vector mask was written as pixels.": "矢量蒙版以像素写入。",
+  "Compositor Project": "Compositor 项目"
 }
