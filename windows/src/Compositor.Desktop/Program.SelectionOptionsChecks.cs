@@ -49,7 +49,17 @@ public sealed partial class MainWindow
         SetTool(Tool.SingleColumn); Drag(30, 40, 45, 55); Check(doc.Selection.Path!.Bounds.Width == 1 && doc.Selection.Path.Bounds.Height == 280, "Single-column selection geometry.");
         SetTool(Tool.Marquee); _options.Selection.Style = 2; _options.Selection.Width = 35; _options.Selection.Height = 21; OptionsChanged(); Drag(40, 40, 130, 120); Check(doc.Selection.Path!.Bounds.Width == 35 && doc.Selection.Path.Bounds.Height == 21, "Fixed-size marquee ignored dimensions.");
         _options.Selection.Style = 0; _options.Selection.Mode = SelectionMode.Intersect; OptionsChanged(); Drag(50, 45, 160, 130); Check(doc.Selection.Contains(60, 50) && !doc.Selection.Contains(42, 42), "Toolbar intersection mode was not used.");
-        _options.Selection.Mode = SelectionMode.Replace; _options.Selection.Feather = 4; OptionsChanged(); Drag(30, 30, 90, 90); using (var mask = doc.Selection.Coverage(SKRectI.Create(400, 280))) Check(mask!.GetPixel(29, 50).Red is > 0 and < 255, "Feather did not affect selection coverage.");
+        // Space held mid-drag moves the Marquee without resizing it or taking up the Hand; let go, the far corner follows again.
+        _options.Selection.Mode = SelectionMode.Replace; _options.Selection.Feather = 0; OptionsChanged(); _canvas.Focus();
+        Point Spot(double a, double b) => _canvas.TranslatePoint(_canvas.ToScreen(new SKPoint((float)a, (float)b)), this)!.Value;
+        this.MouseDown(Spot(40, 40), MouseButton.Left); this.MouseMove(Spot(100, 90), RawInputModifiers.LeftMouseButton);
+        Check(TakeHand() && _tool == Tool.Marquee, "Space during a marquee took up the Hand.");
+        this.MouseMove(Spot(130, 120), RawInputModifiers.LeftMouseButton); _canvas.HoldMarqueeSpace(false);
+        this.MouseMove(Spot(150, 140), RawInputModifiers.LeftMouseButton); this.MouseUp(Spot(150, 140), MouseButton.Left); Pump();
+        var moved = doc.Selection.Path!.Bounds;
+        Check(Math.Abs(moved.Left - 70) <= 1 && Math.Abs(moved.Top - 70) <= 1 && Math.Abs(moved.Right - 150) <= 1 && Math.Abs(moved.Bottom - 140) <= 1,
+            $"Space did not move the marquee: {moved}.");
+        _options.Selection.Feather = 4; OptionsChanged(); Drag(30, 30, 90, 90); using (var mask = doc.Selection.Coverage(SKRectI.Create(400, 280))) Check(mask!.GetPixel(29, 50).Red is > 0 and < 255, "Feather did not affect selection coverage.");
         SetTool(Tool.SelectionBrush); _options.Brush = _options.Brush with { Diameter = 20, Hardness = .1, Opacity = .5 }; Pro.SelectionMode = SelectionPaintMode.New; OptionsChanged(); Drag(100, 100, 120, 100); using (var mask = doc.Selection.Coverage(SKRectI.Create(400, 280))) Check(mask!.GetPixel(110, 100).Red is > 90 and < 140 && mask.GetPixel(110, 108).Red is > 0 and < 90, "Selection brush settings were not applied.");
         var preset = CaptureToolPreset("Selection check"); _options.Selection.Width = 999; ApplyToolPreset(preset); Check(_options.Selection.Width == 35, "Selection settings did not round trip through a preset.");
         SetTool(Tool.Crop); _options.Crop.Width = 16; _options.Crop.Height = 9; OptionsChanged(); Check(Math.Abs(_canvas.CropRatio!.Value - 16d / 9) < .0001, "Crop dimensions did not constrain frame.");

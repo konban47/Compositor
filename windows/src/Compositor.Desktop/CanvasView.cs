@@ -390,6 +390,22 @@ public sealed partial class CanvasView : Control
     private bool _selecting;
     private SKPoint _selectionAnchor;
     private SKRectI? _selectionBox;
+    /// <summary>
+    /// Space held while a Marquee is drawn (upstream fc3c81a): where the pointer and the box's starting corner were
+    /// when the move began, and the box's size, so the box follows the pointer rather than resizing, as in Photoshop.
+    /// </summary>
+    private bool _marqueeSpace;
+    private (SKPoint Pointer, SKPoint Anchor, SKPoint Size)? _marqueeMove;
+
+    /// <summary>Whether a Marquee is being dragged out right now, which is when Space moves it.</summary>
+    public bool DrawingMarquee => _selecting && Selection is SelectionTool.Rectangle or SelectionTool.Ellipse;
+
+    /// <summary>Space down or up while a Marquee is drawn; the window gives it here instead of taking up the Hand.</summary>
+    public void HoldMarqueeSpace(bool held)
+    {
+        _marqueeSpace = held;
+        if (!held) _marqueeMove = null;
+    }
 
     /// <summary>The outline being dragged or clicked out right now, in document pixels.</summary>
     private readonly List<SKPoint> _lasso = [];
@@ -1091,6 +1107,9 @@ public sealed partial class CanvasView : Control
         _lasso.Clear();
         _lassoPointer = null;
         _selectionBox = null;
+        // A Space still down when the box is let go moves nothing more: the next box is drawn, not moved.
+        _marqueeSpace = false;
+        _marqueeMove = null;
         _draftMode = SelectionMode.Replace;
     }
 
@@ -1710,6 +1729,7 @@ public sealed partial class CanvasView : Control
                 return;
             }
             _selecting = true;
+            _marqueeMove = null;
             _draftMode = ModeOf(e.KeyModifiers);
             _selectionAnchor = point;
             _selectionBox = ConstrainMarquee?.Invoke(point, point);
@@ -1899,7 +1919,17 @@ public sealed partial class CanvasView : Control
         {
             var point = ToDocument(now);
             if (Selection == SelectionTool.Lasso && Moved(point)) _lasso.Add(point);
-            if (Selection is SelectionTool.Rectangle or SelectionTool.Ellipse)
+            if (Selection is SelectionTool.Rectangle or SelectionTool.Ellipse && _marqueeSpace)
+            {
+                // Space held: the box keeps its size and follows the pointer, its corners on whole pixels.
+                var previous = _lassoPointer ?? point;
+                _marqueeMove ??= (previous, _selectionAnchor, new SKPoint(previous.X - _selectionAnchor.X, previous.Y - _selectionAnchor.Y));
+                var (from, anchor, size) = _marqueeMove.Value;
+                _selectionAnchor = new SKPoint(MathF.Round(anchor.X + point.X - from.X), MathF.Round(anchor.Y + point.Y - from.Y));
+                var far = _selectionAnchor + size;
+                _selectionBox = ConstrainMarquee?.Invoke(_selectionAnchor, far) ?? Between(_selectionAnchor, far);
+            }
+            else if (Selection is SelectionTool.Rectangle or SelectionTool.Ellipse)
             {
                 _selectionBox = ConstrainMarquee?.Invoke(_selectionAnchor, point) ?? Between(_selectionAnchor, point);
             }

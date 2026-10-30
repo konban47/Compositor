@@ -3887,5 +3887,11 @@
   "Invalid caption fields.": "题注字段无效。",
   "Only PDFs with a classic cross-reference table can be made into presentations.": "只有使用传统交叉引用表的 PDF 才能设为演示文稿。",
   "The PDF pages could not be updated.": "无法更新 PDF 页面。",
-  "The PDF catalog could not be updated.": "无法更新 PDF 目录。"
+  "The PDF catalog could not be updated.": "无法更新 PDF 目录。",
+  "Export {0} Layers as PNGs": "将 {0} 个图层导出为 PNG",
+  "“{0}” already exists. Replace it?": "“{0}”已存在。要替换吗？",
+  "{0} of these files already exist in the folder. Replace them?": "文件夹中已有其中 {0} 个文件。要替换吗？",
+  "“{0}” has nothing to export": "“{0}”没有可导出的像素",
+  "{0} layers have nothing to export": "{0} 个图层没有可导出的像素",
+  "Exported {0} layers as PNGs": "已将 {0} 个图层导出为 PNG"
 }

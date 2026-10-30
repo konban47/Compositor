@@ -26,6 +26,58 @@ public static class LayerWorkflow
         }
         return clone;
     }
+    /// <summary>
+    /// The document with only layer <paramref name="id"/> showing (upstream 0673a4a): it, shown even if hidden; what is
+    /// inside it, if it is a group, and the layers clipped to it, each as shown or hidden as it is; and the groups it is
+    /// in, so their opacity and masks still apply. Everything else is hidden.
+    /// </summary>
+    public static CanvasDocument Isolated(CanvasDocument document, Guid id)
+    {
+        var clone = document.Clone(); clone.Marks.Clear();
+        var parents = clone.Layers.ToDictionary(l => l.ID, l => l.ParentID);
+        var folders = new HashSet<Guid>();
+        for (var parent = parents.GetValueOrDefault(id); parent is { } folder && folders.Add(folder);) parent = parents.GetValueOrDefault(folder);
+        var kept = clone.Descendants(id); kept.Add(id);
+        foreach (var layer in clone.Layers)
+        {
+            if (layer.ID == id || folders.Contains(layer.ID)) layer.IsVisible = true;
+            else if (!kept.Contains(layer.ID) && !(layer.MaskSourceID is { } source && kept.Contains(source))) layer.IsVisible = false;
+        }
+        return clone;
+    }
+
+    /// <summary>Layer <paramref name="id"/> on its own, as it looks in the document, trimmed to its pixels. Null when it has none.</summary>
+    public static SKBitmap? IsolatedPixels(CanvasDocument document, Guid id)
+    {
+        using var isolated = Isolated(document, id); using var image = DocumentRenderer.Render(isolated);
+        Span<int> bounds = stackalloc int[4];
+        Pixels.BrushPixels.AlphaBounds(image.GetPixelSpan(), image.Width, image.Height, image.RowBytes, bounds);
+        if (bounds[2] <= bounds[0] || bounds[3] <= bounds[1]) return null;
+        var cropped = Bitmaps.Allocate(Bitmaps.ColorInfo(bounds[2] - bounds[0], bounds[3] - bounds[1]));
+        using var canvas = new SKCanvas(cropped); using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+        canvas.DrawBitmap(image, -bounds[0], -bounds[1], new SKSamplingOptions(SKFilterMode.Nearest), paint);
+        return cropped;
+    }
+
+    /// <summary>
+    /// File names for layers exported one to a file, in order: Windows-safe, never empty or a device name, and unique
+    /// ignoring case, the later of two alike numbered from 2.
+    /// </summary>
+    public static List<string> ExportFileNames(IEnumerable<string> names, string extension)
+    {
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var result = new List<string>();
+        foreach (var name in names)
+        {
+            var cleaned = string.Concat(name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim().TrimEnd('.', ' ');
+            if (cleaned.Length == 0 || cleaned.StartsWith('.')) cleaned = "Layer" + cleaned;
+            if (System.Text.RegularExpressions.Regex.IsMatch(cleaned, @"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) cleaned += "_";
+            var unique = cleaned;
+            for (var number = 2; !used.Add(unique); number++) unique = $"{cleaned} {number}";
+            result.Add(unique + "." + extension);
+        }
+        return result;
+    }
+
     public static SKRect Bounds(CanvasDocument document, IEnumerable<Guid> ids)
     {
         var set = Members(document, ids); var members = document.Layers.Where(l => set.Contains(l.ID) && (!l.IsGroup || l.Container != LayerContainer.Group)).ToArray();

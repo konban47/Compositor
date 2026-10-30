@@ -44,6 +44,31 @@ public static class DeepPaint
         }
         return ImageAdjustments.SetPixels(doc, layer, result, selection: false);
     }
+    /// <summary>
+    /// The layers Convert Layer to 16-Bit / 8-Bit works on: the selected ones and those inside selected groups that
+    /// hold pixels it can convert. A GIF's frame edits keep their own 8-bit grid, so animated layers are left alone.
+    /// </summary>
+    public static List<ImageLayer> DepthTargets(CanvasDocument doc, IEnumerable<Guid> ids)
+    {
+        if (doc.Image.Mode is Compositor.Core.Format.ImageMode.Bitmap or Compositor.Core.Format.ImageMode.Indexed or Compositor.Core.Format.ImageMode.Duotone) return [];
+        var chosen = new HashSet<Guid>(ids);
+        foreach (var id in chosen.ToList()) chosen.UnionWith(doc.Descendants(id));
+        return doc.Layers.Where(l => chosen.Contains(l.ID) && l is { IsGroup: false, LiveText: null, LiveShape: null, Adjustment: null, Gif: null, Asset: not null }
+            && LayerProtection.CanPaint(doc, l.ID)).ToList();
+    }
+
+    /// <summary>Whether converting the selected layers to <paramref name="depth"/> would change one of them.</summary>
+    public static bool CanConvertLayers(CanvasDocument doc, IEnumerable<Guid> ids, int depth) =>
+        DepthTargets(doc, ids).Any(l => l.Asset!.BitDepth != depth);
+
+    /// <summary>Convert Layer to 16-Bit / 8-Bit for every selected layer (upstream de0a43d). False when none changed.</summary>
+    public static bool ConvertLayers(CanvasDocument doc, IEnumerable<Guid> ids, int depth)
+    {
+        var changed = false;
+        foreach (var layer in DepthTargets(doc, ids)) changed |= ConvertLayer(doc, layer.ID, depth);
+        return changed;
+    }
+
     public static bool ConvertLayer(CanvasDocument doc, Guid id, int depth)
     {
         if (depth is not (8 or 16) || doc.Image.Mode is Compositor.Core.Format.ImageMode.Bitmap or Compositor.Core.Format.ImageMode.Indexed or Compositor.Core.Format.ImageMode.Duotone

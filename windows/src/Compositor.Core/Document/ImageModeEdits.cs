@@ -102,11 +102,32 @@ public static class ImageModeEdits
         var previous = before.Layers.ToDictionary(l => l.ID);
         foreach (var layer in after.Layers.Where(l => l.Asset is not null))
         {
-            var old = previous.GetValueOrDefault(layer.ID)?.Asset; if (ReferenceEquals(old, layer.Asset)) continue;
-            if (old?.Deep is not null && layer.Asset!.Deep is null) layer.Asset = DeepPixels.Painted(old, layer.Asset);
+            var was = previous.GetValueOrDefault(layer.ID); var old = was?.Asset; if (ReferenceEquals(old, layer.Asset)) continue;
+            // A deep layer stays deep through 8-bit edits (Content-Aware Fill, Dither, paste); only Convert Layer to
+            // 8-Bit, which the history leaves out of this, makes it 8-bit.
+            if (old?.Deep is not null && layer.Asset!.Deep is null)
+                layer.Asset = DeepPixels.Painted(old, layer.Asset, PixelOffset(was!.Transform, old, layer.Transform, layer.Asset));
             if (after.Image.Mode is ImageMode.Bitmap or ImageMode.Grayscale or ImageMode.Indexed
                 || after.Image.Depth > layer.Asset!.BitDepth)
                 layer.Asset = Converted(layer.Asset!.WorkingImage, layer.Name, after.Image);
         }
+    }
+
+    /// <summary>
+    /// Where a layer's old pixels sit in its new pixel grid, when the edit only gave it room or took some away
+    /// (same pixel size and orientation, whole-pixel shift). Null when the pixels were resampled, moved by part
+    /// of a pixel or turned: the result is then taken whole.
+    /// </summary>
+    internal static (int X, int Y)? PixelOffset(Model.LayerTransform before, ImportedImage old, Model.LayerTransform after, ImportedImage next)
+    {
+        if (old.Width == next.Width && old.Height == next.Height && before.SamePlacement(after)) return (0, 0);
+        if (!BrushEdits.PixelToDocument(after, next.Width, next.Height).TryInvert(out var toNext)) return null;
+        var map = SKMatrix.Concat(toNext, BrushEdits.PixelToDocument(before, old.Width, old.Height));
+        const float tolerance = 1e-3f;
+        if (Math.Abs(map.ScaleX - 1) > tolerance || Math.Abs(map.ScaleY - 1) > tolerance || Math.Abs(map.SkewX) > tolerance
+            || Math.Abs(map.SkewY) > tolerance || Math.Abs(map.Persp0) > tolerance || Math.Abs(map.Persp1) > tolerance) return null;
+        // A layer offset by part of a pixel is resampled when drawn, so its old samples no longer line up.
+        var (x, y) = (MathF.Round(map.TransX), MathF.Round(map.TransY));
+        return Math.Abs(map.TransX - x) > .01f || Math.Abs(map.TransY - y) > .01f ? null : ((int)x, (int)y);
     }
 }

@@ -943,6 +943,7 @@ public sealed partial class MainWindow : Window
     /// <summary>A key let go: the Hand the space bar was holding gives the tool back.</summary>
     private void KeyLetGo(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Space) _canvas.HoldMarqueeSpace(false);
         if (e.Key != Key.Space || _toolBeforeHand is not { } held) return;
         _toolBeforeHand = null;
         if (_tool == Tool.Pan) SetTool(held);
@@ -1293,6 +1294,8 @@ public sealed partial class MainWindow : Window
     private bool TakeHand()
     {
         if (!_canvas.IsFocused) return false;
+        // Drawing a Marquee, Space moves the box instead, as in Photoshop.
+        if (_canvas.DrawingMarquee) { _canvas.HoldMarqueeSpace(true); return true; }
         if (_toolBeforeHand is null)
         {
             _toolBeforeHand = _tool;
@@ -3140,8 +3143,9 @@ public sealed partial class MainWindow : Window
         ShowAppearance(layer);
         ShowPanelState(layer);
         RefreshInspector();
-        _clipping.Header = Localize.Text(layer?.MaskSourceID is not null ? "Release _Clipping Mask" : "Create _Clipping Mask");
-        _clipping.IsEnabled = document is not null && layer is not null && LayerMaskEdits.CanToggle(document, layer.ID);
+        var clipTargets = SelectedLayers;
+        _clipping.Header = Localize.Text(document is not null && LayerMaskEdits.ReleasesSelected(document, clipTargets) ? "Release _Clipping Mask" : "Create _Clipping Mask");
+        _clipping.IsEnabled = document is not null && clipTargets.Count > 0 && LayerMaskEdits.CanToggleSelected(document, clipTargets);
         _addMask.IsEnabled = layer is { Mask: null };
         _maskToggle.Header = Localize.Text(layer?.Mask?.IsEnabled == false ? "_Enable Mask" : "_Disable Mask");
         _maskToggle.IsEnabled = layer?.Mask is not null;
@@ -3278,13 +3282,15 @@ public sealed partial class MainWindow : Window
         Reselect(id);
     }
 
-    /// <summary>Clips the selected layer to the one beneath it, or releases the clip it holds.</summary>
+    /// <summary>
+    /// Clips the selected layers to the one beneath the lowest of them, or releases them when all are clipped, as one step.
+    /// </summary>
     private void ToggleClipping()
     {
         if (_document is not { } document || Selected is not { } id) return;
-        if (document.Layers.FirstOrDefault(layer => layer.ID == id) is not { } layer) return;
-        Edit(layer.MaskSourceID is not null ? "Release Clipping Mask" : "Create Clipping Mask",
-            () => LayerMaskEdits.Toggle(document, id));
+        var ids = SelectedLayers;
+        Edit(LayerMaskEdits.ReleasesSelected(document, ids) ? "Release Clipping Mask" : "Create Clipping Mask",
+            () => LayerMaskEdits.ToggleSelected(document, ids));
         Reselect(id);
     }
 

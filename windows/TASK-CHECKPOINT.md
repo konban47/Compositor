@@ -1,6 +1,6 @@
 # 截图任务交接记录
 
-更新：2026-10-30，目标发行版 1.5.12.3 Preview。
+更新：2026-10-30，目标发行版 1.5.12.4 Preview。
 
 ## 必须保留的约束
 
@@ -11,7 +11,7 @@
 - 文件脚本：删除空图层、像素蒙版和效果烘焙；`BulkLayerScriptsTests` 与 `--file-workflow-checks` 检查 clipping、锁定、禁用蒙版、GIF 逐帧蒙版与效果保留、菜单调用、撤销／重做和不透明度。
 - 导入：变量 CSV 复用已有流程；视频帧解码与帧动画；注释 JSON 往返；DICOM 多帧；原生 WIA。`FileImportTests`、`DicomImportTests`、`VideoImportIntegrationTests` 覆盖核心行为；真实 FFmpeg 测试仅在 PATH 有依赖时运行。
 - `--file-workflow-checks` 包含中英文视频导入窗体与取消检查。扫描仪无硬件验收；不要将入口编译通过当作硬件验证。
-- 完整结果以本版 [更新说明](UPDATES-1.5.12.3.md) 为准。
+- 完整结果以本版 [更新说明](UPDATES-1.5.12.4.md) 为准。
 
 - 联系表 II：已补齐灰度／RGB／CMYK／Lab、8／16 位、ICC 和真实字体样式；增加按文件夹分页、分辨率单位、物理间距、自动间距和预设完整往返。`ContactSheetColorTests` 验证高于 8 位的像素精度，界面自检验证单位与设置往返。
 
@@ -34,9 +34,17 @@
 - 仍待人工：导出事件路径（需文件选择器）无自动化检查，建议把“是否派发”抽成可测函数；Acrobat／Edge／SumatraPDF 实测全屏、换片、过渡与循环；演示文稿峰值内存约为 PDF 大小 5 倍，需大文件实测。
 - 上游 main 已到 `14055459feb47a2bd69ef99c1983f8155bea4e75`，新增 7 个提交（Volumetric Light、16 位深度保持、多选图层显示／剪贴蒙版／位深转换、空格移动选框、逐图层导出 PNG、Image Size 拖动上限）尚未评估移植。
 
+## 已移植并本机验证：上游 main `1405545` 的 5 项改动（2026-10-30，1.5.12.4）
+
+- 基线 `windows-port@908b1cdc4c35786a848a466dd455246037a08627`（1.5.12.3）。逐项对照上游 7 个提交：`5de396b`、`de0a43d`、`d693a2a`、`0673a4a`、`fc3c81a` 已移植；`42eb9b2` 无需移植（Windows 图像大小对话框无拖动调值）；`1405545` Volumetric Light 未移植。
+- 位深：`DeepPixels.Painted` 增加整像素偏移，`ImageModeEdits.PixelOffset` 由新旧像素→文档矩阵求偏移；`DocumentHistory.End` 原有的 `Enforce` 挂钩不变（“转换图层位深”除外）。多选转换：`DeepPaint.DepthTargets／CanConvertLayers／ConvertLayers`。剪贴：`LayerMaskEdits.ReleasesSelected／CanToggleSelected／ToggleSelected`，可用判定在记录副本上进行，不改文档。导出：`LayerWorkflow.Isolated／IsolatedPixels／ExportFileNames` 与 `MainWindow.QuickExportLayers`。选框：`CanvasView.HoldMarqueeSpace`，`TakeHand` 在绘制选框时转交空格。
+- 验收入口：`LayerDepthTests`、`SelectedClippingTests`、`LayerPngExportTests`；`--selection-options-checks` 的空格移动检查；`--layer-style-checks` 右键菜单项。
+- 验证：Release 构建零警告／错误，Core 1555 通过、2 默认跳过；中英文 file-workflow／interaction／windows／selection-options／layer-style／image-workspace 检查通过。
+- 仍待：多图层导出的文件夹与替换确认需人工点验；内容识别移动、粘贴等其他 8 位编辑路径未逐一补测；Volumetric Light 与 Rim Light 需 CPU/Skia 重写，建议单独一版。
+
 ## 尚未完成
 
-JS/JSX 解释器（脚本事件管理器的外部脚本）；链接智能对象／依赖打包与 Bridge；Photomerge、HDR Pro、完整镜头配置数据库；PSD 写入；Web HTML 切片与动画输出；PDF 注释（演示文稿“注释”选项）；组蒙版／组效果、GIF 效果烘焙；Adobe/PDF/FDF 注释格式；Rim Light 及上游 `1405545` 新增 7 个提交的移植。
+JS/JSX 解释器（脚本事件管理器的外部脚本）；链接智能对象／依赖打包与 Bridge；Photomerge、HDR Pro、完整镜头配置数据库；PSD 写入；Web HTML 切片与动画输出；PDF 注释（演示文稿“注释”选项）；组蒙版／组效果、GIF 效果烘焙；Adobe/PDF/FDF 注释格式；Volumetric Light（上游 `1405545`）与 Rim Light 移植。
 
 画笔、图章、橡皮擦、渐变、修饰、视图、路径、文字／字符／段落、图层复合、时间轴、颜色／OCIO、预设和其余文件功能已有历史实现，仍需按原始截图逐项检查及联动验收。对应 `TOOL-OPTIONS.md`、`PAINTING-AND-GIF.md`、`TYPE-AND-MASKS.md`、`TIMELINE-AND-PRESETS.md`、`COLOR-MANAGEMENT.md`、`FILE-WORKFLOWS.md` 的边界；不能仅凭编译或本轮测试标记全部完成。
 

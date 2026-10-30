@@ -109,13 +109,13 @@ public sealed partial class MainWindow
         Add("Convert to Smart Object", ConvertToSmartObject, null, editable);
         if (layer.SmartObject is not null) { Add("Edit Smart Object Contents", EditSmartContents, null, editable); Add("New Smart Object via Copy", IndependentSmartCopy); }
         Add("Rasterize Layer", () => { Edit("Rasterize Layer", () => LayerWorkflow.Rasterize(doc, ids)); ShowLayers(doc); }, null, editable && ids.Any(id => doc.Layers.Any(l => l.ID == id && (l.SmartObject is not null || l.LiveText is not null || l.LiveShape is not null))));
-        var depth = layer.Asset?.BitDepth == 16 ? 8 : 16;
-        var depthTitle = depth == 8 ? "Convert Layer to 8-Bit" : "Convert Layer to 16-Bit";
-        Add(depthTitle, () => { Edit(depthTitle, () => DeepPaint.ConvertLayer(doc, layer.ID, depth)); ShowLayers(doc); }, null,
-            editable && ids.Count == 1 && layer.Asset is not null && layer.LiveText is null && layer.LiveShape is null && !layer.IsGroup && layer.Adjustment is null
-            && doc.Image.Mode is not (ImageMode.Bitmap or ImageMode.Indexed or ImageMode.Duotone));
+        // Whichever would change a selected layer, both for a mix (an HDR layer can go to 16 bits as well as to 8).
+        var toSixteen = DeepPaint.CanConvertLayers(doc, ids, 16); var toEight = DeepPaint.CanConvertLayers(doc, ids, 8);
+        if (toSixteen || !toEight) Add("Convert Layer to 16-Bit", () => ConvertSelectedDepth(16), null, editable && toSixteen);
+        if (toEight) Add("Convert Layer to 8-Bit", () => ConvertSelectedDepth(8), null, editable);
         Add("Mask All Objects", () => _ = MaskAllObjects(), null, editable && layer.Asset is not null); Separator();
-        Add(layer.MaskSourceID is null ? "Create Clipping Mask" : "Release Clipping Mask", ToggleClipping, "Toggle Clipping Mask", editable);
+        Add(LayerMaskEdits.ReleasesSelected(doc, ids) ? "Release Clipping Mask" : "Create Clipping Mask", ToggleClipping, "Toggle Clipping Mask",
+            editable && LayerMaskEdits.CanToggleSelected(doc, ids));
         Add("Link / Unlink Layers", LinkLayers); Separator();
         Add("Copy CSS", () => _ = CopyLayerMarkup(false)); Add("Copy SVG", () => _ = CopyLayerMarkup(true)); Separator();
         var colors = new MenuItem { Header = Localize.Text("Color") };
@@ -138,6 +138,13 @@ public sealed partial class MainWindow
         if (_document is not { } doc) return; var ids = SelectedLayers;
         var name = await TextPrompt.Ask(this, "New Group from Layers", "Name", Localize.Text("Group")); if (string.IsNullOrWhiteSpace(name)) return;
         Guid? made = null; Edit("Group Layers", () => { made = LayerPlacement.GroupSelected(doc, ids); if (made is null) return false; doc.Layers.Single(l => l.ID == made).Name = name.Trim(); return true; }); Reselect(made);
+    }
+    /// <summary>Convert Layer to 16-Bit / 8-Bit for every selected layer and those in selected groups, as one step.</summary>
+    private void ConvertSelectedDepth(int depth)
+    {
+        if (_document is not { } doc) return;
+        var title = depth == 8 ? "Convert Layer to 8-Bit" : "Convert Layer to 16-Bit";
+        Edit(title, () => DeepPaint.ConvertLayers(doc, SelectedLayers, depth)); ShowLayers(doc);
     }
     private void ToggleSelectedVisibility()
     { if (_document is not { } doc) return; var ids = SelectedLayers; var show = !doc.Layers.Where(l => ids.Contains(l.ID)).All(l => l.IsVisible); Edit("Layer Visibility", () => { foreach (var l in doc.Layers.Where(l => ids.Contains(l.ID))) l.IsVisible = show; return true; }); ShowLayers(doc); }
@@ -241,7 +248,62 @@ public sealed partial class MainWindow
         else Say("The parent smart object is missing or locked.");
         return true;
     }
-    private async Task ExportSelectedLayers(bool quick)
+    /// <summary>
+    /// Quick Export as PNG (upstream 0673a4a): each selected layer on its own, as it looks in the document, trimmed to its
+    /// pixels and named after it. One layer goes to a save dialog; several to a folder, replacing same-named files there
+    /// once asked. Layers with nothing to show are left out and named.
+    /// </summary>
+    private async Task QuickExportLayers()
+    {
+        if (_document is not { } doc) return; var exporting = _open;
+        // Top first, as the panel lists them, so the upper of two layers of the same name keeps it.
+        var chosen = SelectedLayers.ToHashSet(); var layers = doc.Layers.AsEnumerable().Reverse().Where(l => chosen.Contains(l.ID)).ToList();
+        if (layers.Count == 0) return;
+        var names = LayerWorkflow.ExportFileNames(layers.Select(l => l.Name), "png");
+        try
+        {
+            List<string> paths;
+            if (layers.Count == 1)
+            {
+                var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = Localize.Text("Quick Export as PNG"), SuggestedFileName = names[0], DefaultExtension = "png", ShowOverwritePrompt = true });
+                if (file?.TryGetLocalPath() is not { } path) return;
+                paths = [path];
+            }
+            else
+            {
+                var folder = (await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = string.Format(Localize.Text("Export {0} Layers as PNGs"), layers.Count) })).FirstOrDefault()?.TryGetLocalPath();
+                if (folder is null) return;
+                paths = names.Select(name => Path.Combine(folder, name)).ToList();
+                // Layer and file names are shown as they are: only the sentence around them is translated.
+                var existing = paths.Where(File.Exists).ToList();
+                if (existing.Count > 0 && !await ConfirmDialog.Ask(this, "Quick Export as PNG",
+                    existing.Count == 1 ? string.Format(Localize.Text("“{0}” already exists. Replace it?"), Path.GetFileName(existing[0]))
+                        : string.Format(Localize.Text("{0} of these files already exist in the folder. Replace them?"), existing.Count),
+                    "Replace", "Cancel")) return;
+            }
+            var empty = new List<string>(); var written = new List<string>();
+            for (var index = 0; index < layers.Count; index++)
+            {
+                using var pixels = LayerWorkflow.IsolatedPixels(doc, layers[index].ID);
+                if (pixels is null) { empty.Add(layers[index].Name); continue; }
+                byte[] bytes;
+                if (EditorPreferences.Current.ExportTransparency) bytes = PngCodec.Encode(pixels);
+                else { using var opaque = Bitmaps.Allocate(Bitmaps.ColorInfo(pixels.Width, pixels.Height)); using var canvas = new SKCanvas(opaque); canvas.Clear(SKColors.White); canvas.DrawBitmap(pixels, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest)); bytes = PngCodec.Encode(opaque); }
+                await Compositor.Core.IO.AtomicFile.WriteBytesAsync(paths[index], bytes); written.Add(paths[index]);
+            }
+            if (empty.Count > 0) Say(empty.Count == 1 ? string.Format(Localize.Text("“{0}” has nothing to export"), empty[0])
+                : string.Format(Localize.Text("{0} layers have nothing to export"), empty.Count));
+            else if (written.Count > 0) Say(written.Count == 1 ? string.Format(Localize.Text("Exported {0}"), written[0])
+                : string.Format(Localize.Text("Exported {0} layers as PNGs"), written.Count));
+            if (written.Count > 0) await RaiseScriptEvent(ScriptEvent.ExportDocument, exporting);
+        }
+        catch (Exception error) { Say(Localize.Text("Could not export selected layers.") + " " + error.Message); }
+    }
+
+    private Task ExportSelectedLayers(bool quick) => quick ? QuickExportLayers() : ExportLayersAs();
+
+    /// <summary>Export Layers As…: the selected layers together, trimmed, in the format the Export As dialog picks.</summary>
+    private async Task ExportLayersAs()
     {
         if (_document is not { } doc) return; var ids = SelectedLayers;
         try
@@ -252,23 +314,13 @@ public sealed partial class MainWindow
             var crop = SKRectI.Create(alpha[0], alpha[1], Math.Max(1, alpha[2] - alpha[0]), Math.Max(1, alpha[3] - alpha[1]));
             using var cropped = Bitmaps.Allocate(Bitmaps.ColorInfo(crop.Width, crop.Height));
             using (var canvas = new SKCanvas(cropped)) canvas.DrawBitmap(image, -crop.Left, -crop.Top, new SKSamplingOptions(SKFilterMode.Nearest));
-            byte[] bytes; string extension;
-            if (quick)
-            {
-                if (!EditorPreferences.Current.ExportTransparency) { using var opaque = Bitmaps.Allocate(Bitmaps.ColorInfo(cropped.Width, cropped.Height)); using var canvas = new SKCanvas(opaque); canvas.Clear(SKColors.White); canvas.DrawBitmap(cropped, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest)); bytes = PngCodec.Encode(opaque); }
-                else bytes = PngCodec.Encode(cropped);
-                extension = "png";
-            }
-            else
-            {
-                using var exportDoc = new CanvasDocument(Guid.NewGuid(), cropped.Width, cropped.Height, doc.Resolution);
-                exportDoc.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(cropped.Copy(), "Export"), new Core.Model.LayerTransform(0, 0, cropped.Width, cropped.Height), "Export"));
-                if (await ExportAsDialog.Ask(this, exportDoc, ExportFormat.Png) is not { } result) return;
-                bytes = result.Bytes; extension = result.Options.Format.ToString().ToLowerInvariant(); if (extension == "jpeg") extension = "jpg";
-            }
+            using var exportDoc = new CanvasDocument(Guid.NewGuid(), cropped.Width, cropped.Height, doc.Resolution);
+            exportDoc.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(cropped.Copy(), "Export"), new Core.Model.LayerTransform(0, 0, cropped.Width, cropped.Height), "Export"));
+            if (await ExportAsDialog.Ask(this, exportDoc, ExportFormat.Png) is not { } result) return;
+            var bytes = result.Bytes; var extension = result.Options.Format.ToString().ToLowerInvariant(); if (extension == "jpeg") extension = "jpg";
             var name = doc.Layers.FirstOrDefault(l => l.ID == Selected)?.Name ?? "Layer";
             foreach (var invalid in Path.GetInvalidFileNameChars()) name = name.Replace(invalid, '_');
-            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = Localize.Text(quick ? "Quick Export as PNG" : "Export Layers As"), SuggestedFileName = name + "." + extension, DefaultExtension = extension, ShowOverwritePrompt = true });
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = Localize.Text("Export Layers As"), SuggestedFileName = name + "." + extension, DefaultExtension = extension, ShowOverwritePrompt = true });
             if (file?.TryGetLocalPath() is { } path) { await Compositor.Core.IO.AtomicFile.WriteBytesAsync(path, bytes); Say($"Exported {path}"); }
         }
         catch (Exception error) { Say(Localize.Text("Could not export selected layers.") + " " + error.Message); }

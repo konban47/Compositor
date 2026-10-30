@@ -1,29 +1,29 @@
 # Compositor for Windows — 简体中文 / English
 
-2026-10-30：当前版本为 **1.5.12.3 Preview**。本版为脚本事件补齐 Web、图层、通道打包和视频导出的“导出文档”派发，并为 PDF 演示文稿加入演示文稿模式、换片间隔、循环、过渡效果和题注选项。布局与交互参考截图，主题、字体和按钮沿用 Compositor，浮窗紧凑按钮样式不变。上游 main `1405545` 已核对、本版未移植；既有完整 UI 对照基线仍为 `2d75d91`，Rim Light 尚未移植。
+2026-10-30：当前版本为 **1.5.12.4 Preview**。本版移植上游 main `1405545` 中的 5 项改动：16 位图层经内容识别填充等 8 位编辑后保持位深（含图层被扩大的情况）、转换图层位深与创建／释放剪贴蒙版作用于所有选中图层、“快速导出为 PNG”把每个选中图层各存一张裁切后的 PNG、绘制选框时按住空格可移动选框。布局与交互参考截图，主题、字体和按钮沿用 Compositor，浮窗紧凑按钮样式不变。Volumetric Light 与 Rim Light 尚未移植；既有完整 UI 对照基线仍为 `2d75d91`。
 
-[下载 1.5.12.3 Preview](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.12.3)：安装版 `Compositor-Windows-1.5.12.3-x64-setup.exe`、免安装版 `Compositor-Windows-1.5.12.3-x64-portable.zip` 和 `SHA256SUMS.txt`。发行包包含本版手册；[1.5.6.0 历史更新](UPDATES-1.5.6.0.md)及下方旧版本测试数字保留历史含义。
+[下载 1.5.12.4 Preview](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.12.4)：安装版 `Compositor-Windows-1.5.12.4-x64-setup.exe`、免安装版 `Compositor-Windows-1.5.12.4-x64-portable.zip` 和 `SHA256SUMS.txt`。发行包包含本版手册；[1.5.6.0 历史更新](UPDATES-1.5.6.0.md)及下方旧版本测试数字保留历史含义。
 
 本版操作与未完成项见[文件工作流手册](FILE-WORKFLOWS.md)。
 
 窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](WINDOW-MENU.md)。
 
-基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 源码版本为 **1.5.12.3 Preview**。
+基于 [Compositor](https://github.com/robbietilton/Compositor) 的独立 Windows 移植版。Windows 源码位于 `windows/`，macOS 源码保留在原目录。本分支为 `windows-port`，Windows 源码版本为 **1.5.12.4 Preview**。
 
 现有界面包含 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](design/panel-icons/README.md)。
 
-[下载 Windows 发行包](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.12.3) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
+[下载 Windows 发行包](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.12.4) · [迁移前项目调研](RESEARCH.md) · [来源和许可证](THIRD-PARTY-NOTICES.md)
 
 2026-10-15 合并上游 1.5.3（`365b5745eda537f984f3d5bed1e53c361dbc9c91`）。1.5.3.0 新增选区／裁剪／切片选项、平滑圆角及窗口细节修复；操作与边界见 [SELECTION-CROP-SLICE.md](SELECTION-CROP-SLICE.md)，上游对应见 [UPDATES-1.5.3.0.md](UPDATES-1.5.3.0.md)。PSD、文字与蒙版操作仍见 [TYPE-AND-MASKS.md](TYPE-AND-MASKS.md)。
 
-使用说明：[本次更新](UPDATES-1.5.12.3.md) · [时间轴与图层复合](TIMELINE-AND-PRESETS.md) · [颜色管理](COLOR-MANAGEMENT.md)。
+使用说明：[本次更新](UPDATES-1.5.12.4.md) · [时间轴与图层复合](TIMELINE-AND-PRESETS.md) · [颜色管理](COLOR-MANAGEMENT.md)。
 
 现有功能手册：[性能](PERFORMANCE.md) · [取样与修复](UTILITY-RETOUCH.md) · [工具选项](TOOL-OPTIONS.md) · [画笔与 GIF](PAINTING-AND-GIF.md) · [文字与蒙版](TYPE-AND-MASKS.md)。
 
 ## 使用
 
 - 目标平台：Windows 11、Windows 10 22H2（待实机验收），**x64**。安装器历史最低门槛仍为 1809，不能据此推断框架支持或通过测试；详细支持矩阵见 [COMPATIBILITY.md](COMPATIBILITY.md)。不提供 32 位或原生 ARM64 包。
-- 安装版：运行 `Compositor-Windows-1.5.12.3-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
+- 安装版：运行 `Compositor-Windows-1.5.12.4-x64-setup.exe`。支持简体中文/英文安装向导、开始菜单、可选桌面快捷方式、卸载。安装需要管理员权限；缺失时安装微软 Visual C++ 运行库。
 - 免安装版：解压整个 `*-portable.zip`，运行文件夹中的 `Compositor.exe`。自带 .NET 运行时，无需安装 .NET SDK。若系统缺少 Visual C++ 2015–2022 x64 运行库，先运行随包提供的 `redist/vc_redist.x64.exe`。
 - 程序与安装包目前未做商业代码签名。只从本仓库下载；`SHA256SUMS.txt` 可用于校验文件完整性。
 - 中文系统默认简体中文；其他系统默认英文。使用 **帮助 → 语言 → 简体中文 / English** 切换，下次启动生效。
@@ -234,7 +234,7 @@ Inno Setup 不在默认位置时，增加 `-InnoCompiler "C:\path\to\ISCC.exe"`�
 
 首次构建还会下载并校验固定版本的 Python/OpenColorIO/NumPy，详见 [颜色管理](COLOR-MANAGEMENT.md)。构建脚本会从微软官网下载签名有效的 C++ 运行库，**不会在构建机安装它**。GitHub Actions 使用 Inno Setup 构建安装包，并在临时 runner 上验证安装／卸载。首次发布时因 Fork 工作流被停用而使用本机验证；2026-10-17 已恢复 Actions，补充验证结果见[更新记录](UPDATES-1.5.3.1.md)。
 
-核心与界面回归的本版结果见 [更新说明](UPDATES-1.5.12.3.md)及 Release 的对应提交 Actions 链接。`--interaction-checks`、`--windows-checks`、`--tool-options-checks` 和 `--color-checks` 等参数后跟截图路径，支持隔离的 `COMPOSITOR_SETTINGS_DIR` 和 en/zh-CN 两种语言。`windows/scripts/check-docs.ps1` 检查应用／安装包／文档版本、格式字段及当前功能说明，CI 在构建前执行以减少文档漂移。
+核心与界面回归的本版结果见 [更新说明](UPDATES-1.5.12.4.md)及 Release 的对应提交 Actions 链接。`--interaction-checks`、`--windows-checks`、`--tool-options-checks` 和 `--color-checks` 等参数后跟截图路径，支持隔离的 `COMPOSITOR_SETTINGS_DIR` 和 en/zh-CN 两种语言。`windows/scripts/check-docs.ps1` 检查应用／安装包／文档版本、格式字段及当前功能说明，CI 在构建前执行以减少文档漂移。
 
 CLI 位于包内 `cli/Compositor.Cli.exe`，运行 `--help` 查看命令。
 
@@ -242,11 +242,11 @@ CLI 位于包内 `cli/Compositor.Cli.exe`，运行 `--help` 查看命令。
 
 This update adds screenshot-guided type and paragraph panels, notes, persistent layer comps, frame/video timelines, an assign-profile preview, and the shared contour/preset manager. Layout follows the references while controls, text and theme remain Compositor’s. See [timeline and preset boundaries](TIMELINE-AND-PRESETS.md).
 
-An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, reference sources updated through upstream macOS 1.5.8 and commit 2d75d91; Windows feature parity is tracked individually in [UPDATES-1.5.12.3.md](UPDATES-1.5.12.3.md), with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
+An independent Windows x64 port retaining Compositor's `.comp` folder format. Based on the MIT Windows work by chenguisen, reference sources updated through upstream macOS 1.5.8 and commit 2d75d91; Windows feature parity is tracked individually in [UPDATES-1.5.12.4.md](UPDATES-1.5.12.4.md), with local ONNX subject masks, newer editing behavior, safer saves, Windows packaging, and Simplified Chinese localization/input/fonts added. See [provenance](THIRD-PARTY-NOTICES.md).
 
 Download the installer or extract the complete portable archive and run `Compositor.exe`. .NET is bundled; the Microsoft Visual C++ x64 runtime may be needed and is included in `redist/`. Choose Help → Language to switch English/Chinese on restart. Neither the executable nor installer is commercially code-signed.
 
-Windows **1.5.12.3 Preview** is available as an installer and portable archive in [GitHub Releases](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.12.3), with SHA-256 checksums. This release raises the Script Events Manager's Export Document event after successful Web, layer, layer comp, channel package and video exports, and adds presentation mode to PDF Presentation: per-page advance time, full-screen open, transitions, Acrobat looping and caption fields. External JS/JSX execution, print events and PDF annotations remain unavailable. See [file workflows and remaining limitations](FILE-WORKFLOWS.md). Earlier painting, text, timeline and color features remain available. Color settings now include an independently implemented ACE-compatible ICC engine, Microsoft ICM and Little CMS; bundled OpenColorIO 2.4.2 handles scene/HDR transforms. This is not Adobe's proprietary ACE binary or a bit-exact clone. Creative Cloud synchronization is absent. See [color management](COLOR-MANAGEMENT.md). Floating-panel caption buttons retain their established style. Validation and remaining upstream differences are tracked in [the update notes](UPDATES-1.5.12.3.md). Windows Server CI does not certify manual Windows 10 testing, physical pen pressure, or administrator upgrade behavior. Skia GPU display, CPU reference compositing and U²-NetP replace Apple-specific implementations; PSD import retains reported limitations and PSD export is unavailable.
+Windows **1.5.12.4 Preview** is available as an installer and portable archive in [GitHub Releases](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.12.4), with SHA-256 checksums. This release ports five changes from upstream main `1405545`: 16-bit layers keep their depth through 8-bit edits such as Content-Aware Fill, even when the edit grows the layer; Convert Layer to 16-Bit / 8-Bit and Create / Release Clipping Mask work on every selected layer as one step; Quick Export as PNG saves each selected layer to its own trimmed PNG named after it; and holding Space while drawing a marquee moves it. Volumetric Light and Rim Light are not yet ported. External JS/JSX execution, print events and PDF annotations remain unavailable. See [file workflows and remaining limitations](FILE-WORKFLOWS.md). Earlier painting, text, timeline and color features remain available. Color settings now include an independently implemented ACE-compatible ICC engine, Microsoft ICM and Little CMS; bundled OpenColorIO 2.4.2 handles scene/HDR transforms. This is not Adobe's proprietary ACE binary or a bit-exact clone. Creative Cloud synchronization is absent. See [color management](COLOR-MANAGEMENT.md). Floating-panel caption buttons retain their established style. Validation and remaining upstream differences are tracked in [the update notes](UPDATES-1.5.12.4.md). Windows Server CI does not certify manual Windows 10 testing, physical pen pressure, or administrator upgrade behavior. Skia GPU display, CPU reference compositing and U²-NetP replace Apple-specific implementations; PSD import retains reported limitations and PSD export is unavailable.
 
 Packaged-app regressions and fresh install/uninstall checks run on temporary Windows Server 2025 runners. The release page links the checks for the exact packaged commit. Core tests, English/Chinese UI suites, scalar-memory gates and packaged-app checks run on Windows Server 2022 and 2025; exact results belong to the release commit.
 

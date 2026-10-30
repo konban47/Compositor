@@ -1,8 +1,8 @@
 # Compositor for Windows
 
-2026-10-30：当前版本为 **1.5.12.3 Preview**。本版为脚本事件补齐 Web、图层、通道打包和视频导出的“导出文档”派发，并为 PDF 演示文稿加入演示文稿模式、换片间隔、循环、过渡效果和题注选项。布局与交互参考截图，主题、字体和按钮沿用 Compositor，浮窗紧凑按钮样式不变。上游 main `1405545` 已核对、本版未移植；既有完整 UI 对照基线仍为 `2d75d91`，Rim Light 尚未移植。
+2026-10-30：当前版本为 **1.5.12.4 Preview**。本版移植上游 main `1405545` 中的 5 项改动：16 位图层经内容识别填充等 8 位编辑后保持位深（含图层被扩大的情况）、转换图层位深与创建／释放剪贴蒙版作用于所有选中图层、“快速导出为 PNG”把每个选中图层各存一张裁切后的 PNG、绘制选框时按住空格可移动选框。布局与交互参考截图，主题、字体和按钮沿用 Compositor，浮窗紧凑按钮样式不变。Volumetric Light 与 Rim Light 尚未移植；既有完整 UI 对照基线仍为 `2d75d91`。
 
-[下载 1.5.12.3 Preview](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.12.3)：安装版 `Compositor-Windows-1.5.12.3-x64-setup.exe`、免安装版 `Compositor-Windows-1.5.12.3-x64-portable.zip` 和 `SHA256SUMS.txt`。发行包包含本版手册；[1.5.6.0 历史更新](windows/UPDATES-1.5.6.0.md)及下方旧版本测试数字保留历史含义。
+[下载 1.5.12.4 Preview](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.12.4)：安装版 `Compositor-Windows-1.5.12.4-x64-setup.exe`、免安装版 `Compositor-Windows-1.5.12.4-x64-portable.zip` 和 `SHA256SUMS.txt`。发行包包含本版手册；[1.5.6.0 历史更新](windows/UPDATES-1.5.6.0.md)及下方旧版本测试数字保留历史含义。
 
 本版操作与未完成项见[文件工作流手册](windows/FILE-WORKFLOWS.md)。
 
@@ -12,11 +12,11 @@
 
 本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
 
-[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.12.3) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.12.3.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
+[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.12.4) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.12.4.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
 
 现有界面包含 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](windows/design/panel-icons/README.md)。
 
-使用说明：[本次更新](windows/UPDATES-1.5.12.3.md) · [时间轴与图层复合](windows/TIMELINE-AND-PRESETS.md) · [颜色管理](windows/COLOR-MANAGEMENT.md)。
+使用说明：[本次更新](windows/UPDATES-1.5.12.4.md) · [时间轴与图层复合](windows/TIMELINE-AND-PRESETS.md) · [颜色管理](windows/COLOR-MANAGEMENT.md)。
 
 现有功能手册：[性能](windows/PERFORMANCE.md) · [取样与修复](windows/UTILITY-RETOUCH.md) · [工具选项](windows/TOOL-OPTIONS.md) · [画笔与 GIF](windows/PAINTING-AND-GIF.md) · [文字与蒙版](windows/TYPE-AND-MASKS.md)。
 
@@ -34,8 +34,8 @@
 
 目标系统：Windows 11、Windows 10 22H2（待实机验收），64 位 x64。安装器历史门槛 1809 不代表已通过测试，详见 [兼容性方案](windows/COMPATIBILITY.md)。
 
-- **安装版**：运行 `Compositor-Windows-1.5.12.3-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.5.12.3-x64-portable.zip`，运行 `Compositor.exe`。
+- **安装版**：运行 `Compositor-Windows-1.5.12.4-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.5.12.4-x64-portable.zip`，运行 `Compositor.exe`。
 - 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
 - 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
 
@@ -100,7 +100,7 @@
 
 ## 验证与当前状态
 
-当前功能和已执行验证见[1.5.12.3 更新](windows/UPDATES-1.5.12.3.md)。历史 CI 结果不作为本次提交的验收记录；当前提交的 Actions 和安装包见 [Release](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.12.3)。Windows 10 尚未实机验收。
+当前功能和已执行验证见[1.5.12.4 更新](windows/UPDATES-1.5.12.4.md)。历史 CI 结果不作为本次提交的验收记录；当前提交的 Actions 和安装包见 [Release](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.12.4)。Windows 10 尚未实机验收。
 
 [历史 1.5.3.2 提交 b0bce9c 的云端验证](https://github.com/konban47/Compositor/actions/runs/39230205560)在 Windows Server 2022／2025 均通过文档检查、零警告构建、1200 项核心测试以及 23 组英文／17 组中文界面检查。安装版与免安装版已成功构建；发行程序的 17 组界面检查及临时 Windows Server 2025 环境中的全新安装／卸载均通过。[下载历史 1.5.3.2](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.2)。
 

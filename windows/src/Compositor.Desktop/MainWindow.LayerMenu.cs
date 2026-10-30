@@ -105,6 +105,8 @@ public sealed partial class MainWindow
             Item("Smart Object", () => RasterizeSelected("Smart"), ready: Smart),
             Missing("3D", "This editor has no 3D scene engine."), Item("Layer Style", () => RasterizeSelected("Effects"), ready: () => Editable() && PropertyLayer?.Effects is not null),
             new Separator(), Item("Layer", () => RasterizeSelected("Layer"), ready: Editable), Item("All Layers", () => RasterizeSelected("All"), ready: Document)));
+        menu.Items.Add(Item("Convert Layer to 16-Bit", () => ConvertSelectedDepth(16), ready: () => Editable() && DeepPaint.CanConvertLayers(_document!, SelectedLayers, 16)));
+        menu.Items.Add(Item("Convert Layer to 8-Bit", () => ConvertSelectedDepth(8), ready: () => Editable() && DeepPaint.CanConvertLayers(_document!, SelectedLayers, 8)));
         menu.Items.Add(new Separator()); menu.Items.Add(Item("New Layer Based Slice", LayerSlice));
         menu.Items.Add(new Separator()); menu.Items.Add(Item("Group Layers", GroupSelected, "Group Layers", Editable));
         menu.Items.Add(Item("Ungroup Layers", UngroupSelected, "Ungroup Layers", Editable)); menu.Items.Add(Item("Hide / Show Layers", ToggleSelectedVisibility, "Hide Layers"));

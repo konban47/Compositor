@@ -1,4 +1,5 @@
 using Compositor.Core.Format;
+using Compositor.Core.IO;
 using Compositor.Core.Model;
 
 namespace Compositor.Core.Document;
@@ -114,6 +115,55 @@ public static class LayerMaskEdits
         document.Layers.FirstOrDefault(layer => layer.ID == layerID);
 
     /// <summary>The layer directly beneath this one among the layers it shares a folder with.</summary>
+    /// <summary>Whether the menus' clipping command releases: every selected layer is clipped already.</summary>
+    public static bool ReleasesSelected(CanvasDocument document, IReadOnlyCollection<Guid> ids)
+    {
+        var layers = document.Layers.Where(layer => ids.Contains(layer.ID)).ToList();
+        return layers.Count > 0 && layers.All(layer => layer.MaskSourceID is not null);
+    }
+
+    public static bool CanToggleSelected(CanvasDocument document, IReadOnlyCollection<Guid> ids) =>
+        ReleasesSelected(document, ids) || PlannedClips(document, ids) is not null;
+
+    /// <summary>
+    /// Create / Release Clipping Mask for every selected layer (upstream d693a2a). Creating works from the bottom up,
+    /// each layer not yet clipped joining the clip of the layer below it, so a run of selected layers all clip to the
+    /// layer under the lowest; when one cannot be clipped (a group, or nothing below) none are. Releasing a layer
+    /// releases the ones clipped above it to the same base too, as releasing one does.
+    /// </summary>
+    public static bool ToggleSelected(CanvasDocument document, IReadOnlyCollection<Guid> ids)
+    {
+        if (ReleasesSelected(document, ids))
+        {
+            var released = false;
+            foreach (var layer in document.Layers.Where(layer => ids.Contains(layer.ID)).ToList()) released |= Release(document, layer.ID);
+            return released;
+        }
+        if (PlannedClips(document, ids) is not { } clips) return false;
+        foreach (var layer in document.Layers) if (clips.TryGetValue(layer.ID, out var source)) layer.MaskSourceID = source;
+        return true;
+    }
+
+    /// <summary>
+    /// The base each selected, unclipped layer would clip to, worked out on the layers' records so the document is not
+    /// touched. Null when there is none to clip, or when one cannot be clipped or the links would not load back.
+    /// </summary>
+    private static Dictionary<Guid, Guid>? PlannedClips(CanvasDocument document, IReadOnlyCollection<Guid> ids)
+    {
+        var clips = new Dictionary<Guid, Guid>();
+        foreach (var layer in document.Layers.Where(layer => ids.Contains(layer.ID) && layer.MaskSourceID is null))
+        {
+            if (layer.IsGroup || Below(document, layer) is not { IsGroup: false } below) return null;
+            // The layer below may itself have just been clipped, from the bottom up: it then shares that base.
+            clips[layer.ID] = clips.TryGetValue(below.ID, out var planned) ? planned : below.MaskSourceID ?? below.ID;
+        }
+        if (clips.Count == 0) return null;
+        var records = document.Layers.Select(CanvasDocument.Record).ToList();
+        foreach (var record in records) if (clips.TryGetValue(record.ID, out var source)) record.MaskSourceID = source;
+        try { LiveMaskGraph.Validate(records); return clips; }
+        catch (ProjectException) { return null; }
+    }
+
     private static ImageLayer? Below(CanvasDocument document, ImageLayer layer)
     {
         var siblings = document.Layers.Where(candidate => candidate.ParentID == layer.ParentID).ToList();
