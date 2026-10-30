@@ -4049,5 +4049,16 @@
   "{0}: merged into one layer to keep its soft mask.": "{0}：已合并为一个图层以保留柔和的蒙版。",
   "{0}: merged into one layer to draw in its effects.": "{0}：已合并为一个图层以烘焙其效果。",
   "{0}: a turned or flipped animation keeps its effects live.": "{0}：旋转或翻转的动画保留实时效果。",
-  "{0}: effects past the animation's frame were cut to it.": "{0}：超出动画帧范围的效果已被裁切。"
+  "{0}: effects past the animation's frame were cut to it.": "{0}：超出动画帧范围的效果已被裁切。",
+  "Compiled .jsxbin scripts cannot run; choose the .jsx source instead.": "编译的 .jsxbin 脚本无法运行；请选择其 .jsx 源文件。",
+  "Runs {0} with the JavaScript interpreter: app.activeDocument, its layers and File Info, alert and $.writeln.": "用 JavaScript 解释器运行 {0}：可使用 app.activeDocument、其图层与文件简介、alert 和 $.writeln。",
+  "Choose a JavaScript (.js or .jsx) file.": "请选择 JavaScript（.js 或 .jsx）文件。",
+  "Script Alert": "脚本提示",
+  "{0} ran": "已运行 {0}",
+  "The script is too large.": "脚本过大。",
+  "The script ran too long and was stopped.": "脚本运行时间过长，已停止。",
+  "The script used too much memory and was stopped.": "脚本占用内存过多，已停止。",
+  "The script recursed too deeply and was stopped.": "脚本递归过深，已停止。",
+  "The script was canceled.": "脚本已取消。",
+  "There is no open document.": "没有打开的文档。"
 }

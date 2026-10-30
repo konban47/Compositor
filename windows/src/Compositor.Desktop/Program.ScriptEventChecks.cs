@@ -43,11 +43,20 @@ internal sealed partial class ScriptEventsDialog
         Add();
         Check(_settings.Bindings[^1].Event == ScriptEvent.Command && _settings.Bindings[^1].Command == _settings.CustomEvents[0], "Command association is wrong.");
 
-        PickScriptFile = () => Task.FromResult<string?>("Sample.jsx");
+        // A compiled .jsxbin is refused; a .jsx source is listed after the built-in scripts and can be associated.
+        PickScriptFile = () => Task.FromResult<string?>(Path.Combine(Path.GetTempPath(), "Sample.jsxbin"));
         var before = _script.SelectedIndex;
         _script.SelectedIndex = _scriptBrowse; pump();
-        Check(_script.SelectedIndex == before && _error.Text?.Contains("JavaScript") == true, "An external script was accepted without an interpreter.");
+        Check(_script.SelectedIndex == before && _error.Text?.Contains(".jsx") == true, "A compiled .jsxbin script was accepted.");
+        var sample = Path.Combine(Path.GetTempPath(), "Sample.jsx");
+        PickScriptFile = () => Task.FromResult<string?>(sample);
+        _script.SelectedIndex = _scriptBrowse; pump();
+        Check(_script.SelectedIndex == ScriptEvents.Scripts.Count && _description.Text?.Contains("Sample.jsx") == true, "A chosen JavaScript file was not listed.");
+        var count = _settings.Bindings.Count;
+        Add();
+        Check(_settings.Bindings.Count == count + 1 && _settings.Bindings[^1].ScriptFile == sample, "A JavaScript file was not associated.");
         capture("script-events-filled");
+        _list.SelectedIndex = _settings.Bindings.Count - 1; pump(); RemoveSelected();
 
         _list.SelectedIndex = 0; pump(); RemoveSelected();
         Check(_settings.Bindings.Count == 2 && _settings.Bindings[0].Target == ScriptEventTarget.Action, "Remove deleted the wrong association.");

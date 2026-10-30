@@ -41,6 +41,8 @@ internal sealed partial class ScriptEventsDialog : DialogWindow
     private int _scriptBrowse = -1;
     private int _lastEvent;
     private int _lastScript;
+    /// <summary>JavaScript files chosen with Browse…, listed after the built-in scripts.</summary>
+    private readonly List<string> _files = [];
     private bool _busy;
     private ScriptEventSettings? _result;
 
@@ -169,9 +171,26 @@ internal sealed partial class ScriptEventsDialog : DialogWindow
         Describe();
     }
 
+    /// <summary>A chosen JavaScript file, listed after the built-ins and the ones chosen before, and selected.</summary>
+    internal void AddFile(string path)
+    {
+        var at = _files.FindIndex(f => string.Equals(f, path, StringComparison.OrdinalIgnoreCase));
+        if (at < 0)
+        {
+            _files.Add(path); at = _files.Count - 1;
+            var item = new ComboBoxItem { Content = Path.GetFileName(path) }; ToolTip.SetTip(item, path);
+            _script.Items.Insert(ScriptEvents.Scripts.Count + at, item);
+            _scriptBrowse++;
+        }
+        _busy = true; _script.SelectedIndex = _lastScript = ScriptEvents.Scripts.Count + at; _busy = false;
+        _error.Text = ""; Describe();
+    }
+
     private void Describe() =>
         _description.Text = _script.SelectedIndex is >= 0 and var index && index < ScriptEvents.Scripts.Count
             ? Localize.Text(ScriptEvents.ScriptDescription(ScriptEvents.Scripts[index]))
+            : _script.SelectedIndex - ScriptEvents.Scripts.Count is >= 0 and var file && file < _files.Count
+                ? string.Format(Localize.Text("Runs {0} with the JavaScript interpreter: app.activeDocument, its layers and File Info, alert and $.writeln."), Path.GetFileName(_files[file]))
             : Localize.Text("Manage your events by adding and removing them. Select different scripts for a detailed description.");
 
     private async Task EventChanged()
@@ -217,8 +236,10 @@ internal sealed partial class ScriptEventsDialog : DialogWindow
             });
             path = files.FirstOrDefault()?.TryGetLocalPath();
         }
-        // Honest limit: there is no ExtendScript/JavaScript engine, so a file is never listed as if it would run.
-        if (path is not null) _error.Text = Localize.Text("External JavaScript/JSX files cannot run in this version: there is no ExtendScript or JavaScript interpreter. Choose a built-in script or an action.");
+        if (path is null) return;
+        if (Path.GetExtension(path).Equals(".jsxbin", StringComparison.OrdinalIgnoreCase))
+        { _error.Text = Localize.Text("Compiled .jsxbin scripts cannot run; choose the .jsx source instead."); return; }
+        AddFile(path);
     }
 
     private void UpdateTarget()
@@ -244,7 +265,7 @@ internal sealed partial class ScriptEventsDialog : DialogWindow
     internal static string Row(ScriptEventBinding binding) =>
         (binding.Event == ScriptEvent.Command ? Localize.Text(binding.Command) : Localize.Text(ScriptEvents.EventName(binding.Event))) + ": "
         + (binding.Target == ScriptEventTarget.Script
-            ? Localize.Text(ScriptEvents.ScriptName(binding.Script))
+            ? binding.ScriptFile.Length > 0 ? Path.GetFileName(binding.ScriptFile) : Localize.Text(ScriptEvents.ScriptName(binding.Script))
             : Localize.Text(ScriptEvents.BasicActionSet) + " ▸ " + Localize.Text(ScriptEvents.ActionName(binding.Action)));
 
     internal void Add()
@@ -252,7 +273,8 @@ internal sealed partial class ScriptEventsDialog : DialogWindow
         if (_event.SelectedIndex < 0 || _event.SelectedIndex >= _eventRows.Count || _eventRows[_event.SelectedIndex].Command == "\0rule") return;
         var (happened, command) = _eventRows[_event.SelectedIndex];
         var binding = _useScript.IsChecked == true
-            ? new ScriptEventBinding(happened, ScriptEventTarget.Script, Script: ScriptEvents.Scripts[Math.Clamp(_lastScript, 0, ScriptEvents.Scripts.Count - 1)], Command: command)
+            ? new ScriptEventBinding(happened, ScriptEventTarget.Script, Script: ScriptEvents.Scripts[Math.Clamp(_lastScript, 0, ScriptEvents.Scripts.Count - 1)], Command: command,
+                ScriptFile: _lastScript - ScriptEvents.Scripts.Count is >= 0 and var file && file < _files.Count ? _files[file] : "")
             : new ScriptEventBinding(happened, ScriptEventTarget.Action, Action: ScriptEvents.Actions[Math.Clamp(_action.SelectedIndex, 0, ScriptEvents.Actions.Count - 1)], Command: command);
         try { _settings = ScriptEvents.Add(_settings, binding); _error.Text = ""; }
         catch (InvalidDataException error) { _error.Text = Localize.Text(error.Message); return; }

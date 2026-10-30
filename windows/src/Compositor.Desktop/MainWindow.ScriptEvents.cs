@@ -1,3 +1,4 @@
+using Avalonia.Platform.Storage;
 using Avalonia.Controls;
 using Avalonia.LogicalTree;
 using Compositor.Core.IO;
@@ -146,6 +147,7 @@ public partial class MainWindow
             Reselect(id);
             return changed ? null : "The action did not change the layer.";
         }
+        if (binding.ScriptFile.Length > 0) return await RunScriptFile(binding.ScriptFile);
         switch (binding.Script)
         {
             case EventScript.CleanListener:
@@ -208,5 +210,41 @@ public partial class MainWindow
         await CloseTab(opened, true);
         Bring(previous);
         return null;
+    }
+    /// <summary>
+    /// A JavaScript or ExtendScript file run on the document in front, as one history step: what it alerts is shown
+    /// after it finishes, and what it writes goes to the script events log. Null when it ran without error.
+    /// </summary>
+    private async Task<string?> RunScriptFile(string path)
+    {
+        string source;
+        try
+        {
+            if (new FileInfo(path).Length > ScriptHost.MaxSourceBytes) return "The script is too large.";
+            source = await File.ReadAllTextAsync(path);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return error.Message; }
+        var name = _tabs.FirstOrDefault(t => ReferenceEquals(t, _open))?.Name ?? "Untitled";
+        ScriptOutcome? outcome = null;
+        if (_document is { } document)
+            Edit(Path.GetFileName(path), () => (outcome = ScriptHost.Run(source, document, Selected, name)).Changed);
+        else outcome = ScriptHost.Run(source, null, null, name);
+        foreach (var line in outcome!.Output) ScriptEvents.AppendLog($"{Path.GetFileName(path)}: {line}");
+        if (outcome.Alerts.Count > 0) await ConfirmDialog.Tell(this, "Script Alert", string.Join("\n", outcome.Alerts.Take(10)));
+        return outcome.Error;
+    }
+
+    /// <summary>File › Scripts › Browse…: a JavaScript or ExtendScript file chosen and run once.</summary>
+    private async Task BrowseScript()
+    {
+        FinishPlacement(true); FinishPen(); CommitText();
+        var files = await StorageProvider.OpenFilePickerAsync(new()
+        {
+            Title = Localize.Text("Load"), AllowMultiple = false,
+            FileTypeFilter = [new(Localize.Text("JavaScript")) { Patterns = ["*.js", "*.jsx"] }],
+        });
+        if (files.FirstOrDefault()?.TryGetLocalPath() is not { } path) return;
+        var error = await RunScriptFile(path);
+        Say(error is null ? $"{Path.GetFileName(path)} ran" : error);
     }
 }

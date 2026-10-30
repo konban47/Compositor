@@ -22,8 +22,8 @@ public enum ScriptEvent
 public enum ScriptEventTarget { Script, Action }
 
 /// <summary>
-/// Scripts shipped with the app. They are native implementations of the sample event scripts' intent, not
-/// JavaScript files: this build has no ExtendScript/JavaScript interpreter.
+/// Scripts shipped with the app: native implementations of the sample event scripts' intent. A binding can instead
+/// name a JavaScript or ExtendScript file of the user's, which <see cref="ScriptHost"/> runs.
 /// </summary>
 public enum EventScript { CleanListener, DisplayCameraMaker, OpenAsLayer, Resize, SaveExtraJpeg, UpdateFileInfo, WarnIfRgb, Welcome }
 
@@ -32,7 +32,8 @@ public sealed record ScriptEventBinding(
     ScriptEventTarget Target,
     EventScript Script = EventScript.Welcome,
     BatchAction Action = BatchAction.AutoColor,
-    string Command = "")
+    string Command = "",
+    string ScriptFile = "")
 {
     /// <summary>The one action set the manager offers: the same built-in adjustments Batch and Image Processor run.</summary>
     [JsonIgnore] public string ActionSet => ScriptEvents.BasicActionSet;
@@ -48,7 +49,7 @@ public sealed record ScriptEventBinding(
     /// <summary>Equivalent rows are one association: the manager never runs the same work twice for one event.</summary>
     public bool SameAs(ScriptEventBinding other) => Event == other.Event && Target == other.Target
         && (Event != ScriptEvent.Command || string.Equals(Command, other.Command, StringComparison.Ordinal))
-        && (Target == ScriptEventTarget.Script ? Script == other.Script : Action == other.Action);
+        && (Target == ScriptEventTarget.Script ? Script == other.Script && string.Equals(ScriptFile, other.ScriptFile, StringComparison.OrdinalIgnoreCase) : Action == other.Action);
 }
 
 public sealed record ScriptEventSettings(int Version, bool Enabled, IReadOnlyList<ScriptEventBinding> Bindings, IReadOnlyList<string> CustomEvents)
@@ -137,7 +138,7 @@ public static class ScriptEvents
 
     /// <summary>Whether running this binding changes pixels or File Info, so it needs the active document and a history step.</summary>
     public static bool ChangesDocument(ScriptEventBinding binding) => binding.Target == ScriptEventTarget.Action
-        || binding.Script is EventScript.Resize or EventScript.UpdateFileInfo or EventScript.OpenAsLayer;
+        || binding.Script is EventScript.Resize or EventScript.UpdateFileInfo or EventScript.OpenAsLayer || binding.ScriptFile.Length > 0;
 
     public static void Validate(ScriptEventSettings settings)
     {
@@ -156,6 +157,10 @@ public static class ScriptEvents
                 throw new InvalidDataException("Invalid event association.");
             if (binding.Target == ScriptEventTarget.Action && binding.Action == BatchAction.None)
                 throw new InvalidDataException("Choose an action.");
+            if (binding.ScriptFile is null || binding.ScriptFile.Length > 0 && (binding.Target != ScriptEventTarget.Script || binding.ScriptFile.Length > 1024
+                || !Path.IsPathRooted(binding.ScriptFile) || binding.ScriptFile.Any(char.IsControl)
+                || Path.GetExtension(binding.ScriptFile).ToLowerInvariant() is not (".js" or ".jsx")))
+                throw new InvalidDataException("Choose a JavaScript (.js or .jsx) file.");
             if (binding.Event == ScriptEvent.Command) ValidateCommand(binding.Command);
             else if (binding.Command.Length != 0) throw new InvalidDataException("Only added events name a command.");
             for (var other = 0; other < index; other++)

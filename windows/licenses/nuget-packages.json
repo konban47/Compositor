@@ -1249,5 +1249,55 @@
       "commit": "b4a7fed0b878f74cb54f7cca84d2889af4e596ba",
       "text": ""
     }
+  },
+  {
+    "package": "Jint",
+    "version": "4.16.4",
+    "authors": {
+      "text": "Sebastien Ros"
+    },
+    "license": {
+      "type": "expression",
+      "text": "BSD-2-Clause"
+    },
+    "licenseUrl": {
+      "text": "https://licenses.nuget.org/BSD-2-Clause"
+    },
+    "projectUrl": {
+      "text": "https://github.com/sebastienros/jint"
+    },
+    "copyright": {
+      "text": "Sebastien Ros"
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/sebastienros/jint",
+      "commit": "884bd0c4ebf7806f70041eae0370ee11a9c138bc"
+    }
+  },
+  {
+    "package": "Acornima",
+    "version": "1.7.0",
+    "authors": {
+      "text": "Adam Simon"
+    },
+    "license": {
+      "type": "expression",
+      "text": "BSD-3-Clause"
+    },
+    "licenseUrl": {
+      "text": "https://licenses.nuget.org/BSD-3-Clause"
+    },
+    "projectUrl": {
+      "text": "https://github.com/adams85/acornima"
+    },
+    "copyright": {
+      "text": "Adam Simon"
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/adams85/acornima",
+      "commit": "401bd62d8aeb9f7cbe7b6147937a87e0c71747a8"
+    }
   }
 ]
