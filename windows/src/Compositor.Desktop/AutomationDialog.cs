@@ -4,16 +4,18 @@ using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using Compositor.Core.IO;
 using FontCatalog = Compositor.Core.Document.FontCatalog;
+using PhotomergeLayout = Compositor.Core.Document.PhotomergeLayout;
+using PhotomergeOptions = Compositor.Core.Document.PhotomergeOptions;
 using Compositor.Core.Format;
 using SkiaSharp;
 using System.Text.Json;
 
 namespace Compositor.Desktop;
 
-internal enum AutomationKind { ContactSheet, LoadLayers, Statistics, PdfPresentation }
+internal enum AutomationKind { ContactSheet, LoadLayers, Statistics, PdfPresentation, Photomerge, HdrPro }
 internal sealed record AutomationJob(AutomationKind Kind, IReadOnlyList<AutomationSource> Sources,
     ContactSheetOptions Contact, StackStatistic Statistic, PdfPresentationOptions Pdf, string? OutputPath,
-    bool AutoAlign = false, bool CreateSmartObject = false);
+    bool AutoAlign = false, bool CreateSmartObject = false, PhotomergeOptions? Photomerge = null);
 
 /// <summary>Shared source selection, with each operation's own grouped layout.</summary>
 internal sealed class AutomationDialog : DialogWindow
@@ -59,6 +61,12 @@ internal sealed class AutomationDialog : DialogWindow
     private readonly ComboBox _order = Choice(["Across First", "Down First"], 0, "Thumbnail order");
     private readonly ComboBox _statistic = Choice(["Mean", "Sum", "Minimum", "Maximum", "Median", "Variance", "Standard Deviation", "Skewness", "Kurtosis", "Range", "Entropy"], 0, "Stack mode");
     private readonly ComboBox _background = Choice(["White", "Gray", "Black"], 0, "PDF background");
+    private readonly RadioButton[] _layouts = [.. new[] { "Auto", "Perspective", "Cylindrical", "Spherical", "Collage", "Reposition" }
+        .Select((name, i) => new RadioButton { Content = Localize.Text(name), GroupName = "Photomerge layout", IsChecked = i == 0, Tag = name })];
+    private readonly CheckBox _blendImages = Check("Blend Images Together", true);
+    private readonly CheckBox _vignette = Check("Vignette Removal", false);
+    private readonly CheckBox _distortion = Check("Geometric Distortion Correction", false);
+    private readonly CheckBox _fillTransparent = Check("Content-Aware Fill Transparent Areas", false);
     private readonly CheckBox _fileNames = Check("File Name", false);
     private readonly RadioButton _multiPage = new() { GroupName = "pdf-save-as", Content = Localize.Text("Multi-Page Document"), IsChecked = true, Tag = "pdf-multi-page" };
     private readonly RadioButton _presentation = new() { GroupName = "pdf-save-as", Content = Localize.Text("Presentation"), Tag = "pdf-presentation" };
@@ -83,8 +91,8 @@ internal sealed class AutomationDialog : DialogWindow
     internal AutomationDialog(AutomationKind kind, IReadOnlyList<AutomationSource> open, Func<AutomationJob, CancellationToken, Task> run)
     {
         _kind = kind; _open = open; _run = run;
-        Title = Localize.Text(kind switch { AutomationKind.ContactSheet => "Contact Sheet II", AutomationKind.LoadLayers => "Load Layers", AutomationKind.Statistics => "Image Statistics", _ => "PDF Presentation" });
-        Width = kind == AutomationKind.PdfPresentation ? 1050 : 900; Height = kind == AutomationKind.ContactSheet ? 900 : 620;
+        Title = Localize.Text(kind switch { AutomationKind.ContactSheet => "Contact Sheet II", AutomationKind.LoadLayers => "Load Layers", AutomationKind.Statistics => "Image Statistics", AutomationKind.Photomerge => "Photomerge", AutomationKind.HdrPro => "Merge to HDR Pro", _ => "PDF Presentation" });
+        Width = kind == AutomationKind.PdfPresentation ? 1050 : kind == AutomationKind.Photomerge ? 980 : 900; Height = kind == AutomationKind.ContactSheet ? 900 : 620;
         MinWidth = 640; MinHeight = 420; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var root = new Grid { ColumnDefinitions = new ColumnDefinitions("*,150"), Margin = new Thickness(16) };
         var scroll = new ScrollViewer { Content = _body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
@@ -117,6 +125,18 @@ internal sealed class AutomationDialog : DialogWindow
             _fileNames.IsCheckedChanged += (_, _) => UpdatePdfOptions();
             _advance.IsCheckedChanged += (_, _) => UpdatePdfOptions();
             UpdatePdfOptions();
+        }
+        else if (kind == AutomationKind.Photomerge)
+        {
+            // Layout on the left, the source files and the four options on the right, as the reference lays them out.
+            var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("170,*"), ColumnSpacing = 16 };
+            var layouts = new StackPanel { Spacing = 10 };
+            foreach (var layout in _layouts) layouts.Children.Add(new StackPanel { Spacing = 4, Children = { layout, LayoutIcon((string)layout.Tag!) } });
+            columns.Children.Add(Group("Layout", layouts));
+            var right = new StackPanel { Spacing = 10 }; Grid.SetColumn(right, 1); columns.Children.Add(right);
+            right.Children.Add(Group("Source Files", sourcePanel));
+            foreach (var option in new[] { _blendImages, _vignette, _distortion, _fillTransparent }) right.Children.Add(option);
+            _body.Children.Add(columns);
         }
         else
         {
@@ -211,7 +231,7 @@ internal sealed class AutomationDialog : DialogWindow
         buttons.Children.Add(FormDialog.ActionButton("Sort by Name", () => { _sources.Sort((a, b) => StringComparer.CurrentCultureIgnoreCase.Compare(a.Name, b.Name)); RefreshSources(); }));
         panel.Children.Add(grid); panel.Children.Add(_recursive);
         if (_kind == AutomationKind.ContactSheet) panel.Children.Add(_groupFolders);
-        if (_kind is AutomationKind.LoadLayers or AutomationKind.Statistics)
+        if (_kind is AutomationKind.LoadLayers or AutomationKind.Statistics or AutomationKind.HdrPro)
         {
             ToolTip.SetTip(_autoAlign, Localize.Text("Aligns translation. Image statistics uses the common overlapping area."));
             panel.Children.Add(_autoAlign);
@@ -319,7 +339,7 @@ internal sealed class AutomationDialog : DialogWindow
     private void AddOpen() { foreach (var source in _open) if (!_sources.Contains(source)) _sources.Add(source); RefreshSources(); }
     private sealed record SourceRow(AutomationSource Source) { public override string ToString() => Source.Name; }
     private void RefreshSources() { _list.ItemsSource = _sources.Select(s => new SourceRow(s)).ToArray(); UpdateAvailability(); }
-    private void UpdateAvailability() => _execute.IsEnabled = !_running && _sources.Count >= (_kind == AutomationKind.Statistics ? 2 : 1);
+    private void UpdateAvailability() => _execute.IsEnabled = !_running && _sources.Count >= (_kind is AutomationKind.Statistics or AutomationKind.Photomerge or AutomationKind.HdrPro ? 2 : 1);
     private double ResolutionPpi => Math.Round(Value(_resolution) * (_resolutionUnits.SelectedIndex == 1 ? 2.54 : 1), 8);
     private double UnitFactor(int index) => index switch { 0 => ResolutionPpi, 1 => ResolutionPpi / 2.54, _ => 1 };
     private ContactSheetOptions ContactOptions()
@@ -349,7 +369,7 @@ internal sealed class AutomationDialog : DialogWindow
             _status.Text = Localize.Text("Processing… Press Esc to cancel.");
             var job = new AutomationJob(_kind, _sources.ToArray(), ContactOptions(), (StackStatistic)_statistic.SelectedIndex,
                 PdfOptions(), path,
-                _autoAlign.IsChecked == true, _createSmartObject.IsChecked == true);
+                _autoAlign.IsChecked == true, _createSmartObject.IsChecked == true, PhotomergeChoices());
             await _run(job, _cancellation.Token);
             _running = false; Close(true);
         }
@@ -357,6 +377,29 @@ internal sealed class AutomationDialog : DialogWindow
         catch (Exception error) { _status.Text = error.Message; }
         finally { _running = false; _body.IsEnabled = true; _cancel.IsEnabled = true; _cancellation?.Dispose(); _cancellation = null; UpdateAvailability(); }
     }
+    /// <summary>The layout and options the Photomerge panel shows.</summary>
+    internal PhotomergeOptions PhotomergeChoices() => new(
+        (PhotomergeLayout)Math.Max(0, Array.FindIndex(_layouts, r => r.IsChecked == true)), _blendImages.IsChecked == true,
+        _vignette.IsChecked == true, _distortion.IsChecked == true, _fillTransparent.IsChecked == true);
+
+    /// <summary>A small picture of how each layout lays the photos out, in the theme's accent and surface colors.</summary>
+    private static Control LayoutIcon(string layout)
+    {
+        var canvas = new Canvas { Width = 92, Height = 52, Margin = new Thickness(24, 0, 0, 0) };
+        var accent = Skin.AccentBrush; var face = Skin.LabelBrush;
+        string geometry = layout switch
+        {
+            "Perspective" => "M0,6 L30,16 L62,16 L92,6 L92,46 L62,36 L30,36 L0,46 Z",
+            "Cylindrical" => "M4,10 Q20,2 46,10 Q72,2 88,10 L88,42 Q72,50 46,42 Q20,50 4,42 Z",
+            "Spherical" => "M2,4 Q46,24 90,4 Q72,26 90,48 Q46,28 2,48 Q20,26 2,4 Z",
+            "Collage" => "M6,14 L60,6 L64,30 L10,38 Z M40,18 L88,22 L86,46 L38,42 Z",
+            "Reposition" => "M4,8 L52,8 L52,34 L4,34 Z M40,18 L88,18 L88,44 L40,44 Z",
+            _ => "M8,10 L84,10 L84,42 L8,42 Z M2,4 L10,4 M2,4 L2,12 M90,4 L82,4 M90,4 L90,12 M2,48 L10,48 M2,48 L2,40 M90,48 L82,48 M90,48 L90,40",
+        };
+        canvas.Children.Add(new Avalonia.Controls.Shapes.Path { Data = Avalonia.Media.Geometry.Parse(geometry), Fill = layout == "Auto" ? face : accent, Stroke = layout == "Auto" ? accent : face, StrokeThickness = 1.5, Opacity = .9 });
+        return canvas;
+    }
+
     private void Cancel() { if (_running) { _cancellation?.Cancel(); _cancel.IsEnabled = false; _status.Text = Localize.Text("Canceling…"); } else Close(false); }
     private async Task SaveSettings()
     {
@@ -387,6 +430,17 @@ internal sealed class AutomationDialog : DialogWindow
         _units.SelectedIndex = (int)o.DisplayUnit; _resolutionUnits.SelectedIndex = o.ResolutionPerCentimeter ? 1 : 0;
     }
     internal static double Value(NumericUpDown control) => (double)(control.Value ?? 0);
+    internal void PhotomergeSelfCheck(Action pump)
+    {
+        static void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+        Check(PhotomergeChoices() == new PhotomergeOptions(), "Photomerge did not open on Auto with Blend Images.");
+        _layouts[2].IsChecked = true; _blendImages.IsChecked = false; _vignette.IsChecked = true; pump();
+        var chosen = PhotomergeChoices();
+        Check(chosen.Layout == PhotomergeLayout.Cylindrical && !chosen.BlendImages && chosen.VignetteRemoval, "Photomerge's choices did not reach the job.");
+        Check(!_execute.IsEnabled, "Photomerge ran with fewer than two photos.");
+        _layouts[0].IsChecked = true; _blendImages.IsChecked = true; _vignette.IsChecked = false; pump();
+    }
+
     internal void PdfPresentationSelfCheck(Action pump)
     {
         static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

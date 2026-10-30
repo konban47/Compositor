@@ -60,6 +60,7 @@ internal static partial class Program
                 _ = dialog.ShowDialog(owner);
                 if (kind == AutomationKind.ContactSheet) dialog.ContactSheetSelfCheck(Pump);
                 if (kind == AutomationKind.PdfPresentation) dialog.PdfPresentationSelfCheck(Pump);
+                if (kind == AutomationKind.Photomerge) dialog.PhotomergeSelfCheck(Pump);
                 Capture(dialog, kind.ToString()); dialog.Close();
             }
             foreach (var processor in new[] { false, true })
@@ -69,6 +70,17 @@ internal static partial class Program
             }
             var layers = new LayerExportDialog(document, LayerExportKind.Layers);
             _ = layers.ShowDialog(owner); Capture(layers, "layers"); layers.Close();
+            // Merge to HDR Pro's toning panel, on a small made-up merge.
+            var light = new float[64 * 32 * 4];
+            for (var i = 0; i < 64 * 32; i++) { var l = .002f * MathF.Pow(5000, i % 64 / 63f); light[i * 4] = l * 1.1f; light[i * 4 + 1] = l; light[i * 4 + 2] = l * .85f; light[i * 4 + 3] = 1; }
+            var hdr = HdrProDialog.Open(owner, light, 64, 32, out var hdrClosed);
+            Pump(); hdr.ShowPreview(); Capture(hdr, "hdr-pro");
+            hdr.SetMethod((int)HdrToneMethod.ExposureAndGamma); Pump();
+            if (hdr.SliderEnabled("Radius") || !hdr.SliderEnabled("Gamma")) throw new InvalidOperationException("Exposure and Gamma offered Edge Glow.");
+            hdr.SetMode(0); Pump();
+            if (hdr.ToningEnabled) throw new InvalidOperationException("A 32-bit merge offered toning.");
+            hdr.Confirm(); Pump();
+            if (!hdrClosed.IsCompleted || hdr.Result is not { Mode: HdrMode.Bits32 }) throw new InvalidOperationException("Merge to HDR Pro did not return its mode.");
             owner.FileImportSelfCheck(Pump, Capture);
             owner.ScriptEventSelfCheck(Pump, Capture);
             Console.WriteLine("PASS: Web preview encoding, four-up, palette, linked sizing, stale previews, cancellation and file workflow layouts.");

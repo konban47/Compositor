@@ -53,8 +53,10 @@ public partial class MainWindow
                 var lease = new DocumentLease(tab.Document!); leases.Add(lease);
                 sources.Add(new AutomationSource(tab.Name, tab.Path, lease.Document));
             }
+            AutomationDialog? owner = null;
             var dialog = new AutomationDialog(kind, sources, async (job, token) =>
             {
+                if (job.Kind == AutomationKind.HdrPro) { await MergeToHdr(job, owner!, token); return; }
                 var documents = await WorkScheduler.Run<IReadOnlyList<CanvasDocument>>(cancellation =>
                 {
                     switch (job.Kind)
@@ -62,6 +64,18 @@ public partial class MainWindow
                         case AutomationKind.ContactSheet: return FileAutomation.ContactSheets(job.Sources, job.Contact, cancellation);
                         case AutomationKind.LoadLayers: return [FileAutomation.LoadLayers(job.Sources, job.AutoAlign, job.CreateSmartObject, cancellation)];
                         case AutomationKind.Statistics: return [FileAutomation.Statistics(job.Sources, job.Statistic, job.AutoAlign, cancellation)];
+                        case AutomationKind.Photomerge:
+                        {
+                            var images = new List<(string, SkiaSharp.SKBitmap)>();
+                            try
+                            {
+                                foreach (var source in job.Sources) { cancellation.ThrowIfCancellationRequested(); images.Add((source.Name, FileAutomation.RenderSource(source))); }
+                                var merged = Photomerge.Merge(images, job.Photomerge ?? new PhotomergeOptions(), cancellation);
+                                if (merged.Unplaced.Count > 0) Avalonia.Threading.Dispatcher.UIThread.Post(() => Say(string.Format(Localize.Text("Photomerge could not place: {0}"), string.Join(", ", merged.Unplaced))));
+                                return [merged.Document];
+                            }
+                            finally { foreach (var (_, image) in images) image.Dispose(); }
+                        }
                         case AutomationKind.PdfPresentation:
                             FileAutomation.PdfPresentation(job.OutputPath!, job.Sources, job.Pdf, cancellation); return [];
                         default: throw new ArgumentOutOfRangeException(nameof(job));
@@ -75,6 +89,7 @@ public partial class MainWindow
                 foreach (var document in documents) AdoptImported(document, Localize.Text(kind.ToString()));
                 if (job.OutputPath is { } output) Say($"Saved {output}");
             });
+            owner = dialog;
             await dialog.ShowDialog<bool>(this);
         }
         catch (Exception error) { Say($"Could not process images: {error.Message}"); }
@@ -93,6 +108,30 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Merge to HDR Pro: the exposures merged small for the toning panel's preview, then in full with what was chosen
+    /// there, as a new document.
+    /// </summary>
+    private async Task MergeToHdr(AutomationJob job, Window owner, CancellationToken token)
+    {
+        var images = await WorkScheduler.Run(cancellation => job.Sources.Select(source => { cancellation.ThrowIfCancellationRequested(); return FileAutomation.RenderSource(source); }).ToArray(), token);
+        try
+        {
+            if (images.Any(i => i.Width != images[0].Width || i.Height != images[0].Height)) throw new InvalidOperationException("The exposures must be the same size.");
+            var scale = Math.Min(1, 480.0 / Math.Max(images[0].Width, images[0].Height));
+            var (w, h) = (Math.Max(1, (int)Math.Round(images[0].Width * scale)), Math.Max(1, (int)Math.Round(images[0].Height * scale)));
+            var preview = await WorkScheduler.Run(cancellation =>
+            {
+                var small = images.Select(i => i.Resize(new SkiaSharp.SKImageInfo(w, h, i.ColorType, i.AlphaType), new SkiaSharp.SKSamplingOptions(SkiaSharp.SKFilterMode.Linear))!).ToArray();
+                try { return HdrMerge.Radiance(small, false, out _, cancellation); }
+                finally { foreach (var s in small) s.Dispose(); }
+            }, token);
+            if (await HdrProDialog.Ask(owner, preview, w, h, job.AutoAlign) is not { } options) throw new OperationCanceledException();
+            var result = await WorkScheduler.Run(cancellation => HdrMerge.Merge(job.Sources.Select((s, i) => (s.Name, images[i])).ToArray(), options, cancellation), token);
+            AdoptImported(result.Document, Localize.Text("Merge to HDR Pro"));
+        }
+        finally { foreach (var image in images) image.Dispose(); }
+    }
     private async Task SaveCopy()
     {
         FinishPlacement(true); FinishPen(); CommitText();
