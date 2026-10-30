@@ -12,10 +12,13 @@ using System.Text.Json;
 
 namespace Compositor.Desktop;
 
-internal enum AutomationKind { ContactSheet, LoadLayers, Statistics, PdfPresentation, Photomerge, HdrPro }
+internal enum AutomationKind { ContactSheet, LoadLayers, Statistics, PdfPresentation, Photomerge, HdrPro, LensCorrection }
+
+/// <summary>Lens Correction's destination, the profile when one is chosen rather than matched, and the corrections.</summary>
+internal sealed record LensJob(string Folder, ExportFormat? Format, string? Lens, Compositor.Core.Document.LensCorrectionOptions Options);
 internal sealed record AutomationJob(AutomationKind Kind, IReadOnlyList<AutomationSource> Sources,
     ContactSheetOptions Contact, StackStatistic Statistic, PdfPresentationOptions Pdf, string? OutputPath,
-    bool AutoAlign = false, bool CreateSmartObject = false, PhotomergeOptions? Photomerge = null);
+    bool AutoAlign = false, bool CreateSmartObject = false, PhotomergeOptions? Photomerge = null, LensJob? Lens = null);
 
 /// <summary>Shared source selection, with each operation's own grouped layout.</summary>
 internal sealed class AutomationDialog : DialogWindow
@@ -67,6 +70,14 @@ internal sealed class AutomationDialog : DialogWindow
     private readonly CheckBox _vignette = Check("Vignette Removal", false);
     private readonly CheckBox _distortion = Check("Geometric Distortion Correction", false);
     private readonly CheckBox _fillTransparent = Check("Content-Aware Fill Transparent Areas", false);
+    private readonly ComboBox _lensFormat = Choice(["PSD", "TIFF", "JPEG", "PNG"], 0, "Lens correction file type");
+    private readonly TextBlock _lensFolder = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap, Foreground = Skin.SecondaryBrush };
+    private readonly CheckBox _matchBest = Check("Match Best Profile", true);
+    private readonly ComboBox _lensProfile = new() { MinHeight = 30, HorizontalAlignment = HorizontalAlignment.Stretch, IsEnabled = false, Tag = "Lens profile" };
+    private readonly CheckBox _geometric = Check("Geometric Distortion", true), _autoScale = Check("Auto Scale Image", true),
+        _aberration = Check("Chromatic Aberration", false), _lensVignette = Check("Vignette", false);
+    private readonly ComboBox _lensEdge = Choice(["Transparency", "Edge Extension", "Black", "White"], 0, "Lens correction edge");
+    private string? _destination;
     private readonly CheckBox _fileNames = Check("File Name", false);
     private readonly RadioButton _multiPage = new() { GroupName = "pdf-save-as", Content = Localize.Text("Multi-Page Document"), IsChecked = true, Tag = "pdf-multi-page" };
     private readonly RadioButton _presentation = new() { GroupName = "pdf-save-as", Content = Localize.Text("Presentation"), Tag = "pdf-presentation" };
@@ -91,7 +102,7 @@ internal sealed class AutomationDialog : DialogWindow
     internal AutomationDialog(AutomationKind kind, IReadOnlyList<AutomationSource> open, Func<AutomationJob, CancellationToken, Task> run)
     {
         _kind = kind; _open = open; _run = run;
-        Title = Localize.Text(kind switch { AutomationKind.ContactSheet => "Contact Sheet II", AutomationKind.LoadLayers => "Load Layers", AutomationKind.Statistics => "Image Statistics", AutomationKind.Photomerge => "Photomerge", AutomationKind.HdrPro => "Merge to HDR Pro", _ => "PDF Presentation" });
+        Title = Localize.Text(kind switch { AutomationKind.ContactSheet => "Contact Sheet II", AutomationKind.LoadLayers => "Load Layers", AutomationKind.Statistics => "Image Statistics", AutomationKind.Photomerge => "Photomerge", AutomationKind.HdrPro => "Merge to HDR Pro", AutomationKind.LensCorrection => "Lens Correction", _ => "PDF Presentation" });
         Width = kind == AutomationKind.PdfPresentation ? 1050 : kind == AutomationKind.Photomerge ? 980 : 900; Height = kind == AutomationKind.ContactSheet ? 900 : 620;
         MinWidth = 640; MinHeight = 420; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var root = new Grid { ColumnDefinitions = new ColumnDefinitions("*,150"), Margin = new Thickness(16) };
@@ -125,6 +136,28 @@ internal sealed class AutomationDialog : DialogWindow
             _fileNames.IsCheckedChanged += (_, _) => UpdatePdfOptions();
             _advance.IsCheckedChanged += (_, _) => UpdatePdfOptions();
             UpdatePdfOptions();
+        }
+        else if (kind == AutomationKind.LensCorrection)
+        {
+            // Source files, destination, profiles and options, top to bottom as the reference has them.
+            sourcePanel.Children.Insert(0, new TextBlock { Text = Localize.Text("Select the files to process with lens correction."), TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+            _body.Children.Add(Group("Source Files", sourcePanel));
+            var destination = new StackPanel { Spacing = 8 };
+            destination.Children.Add(Row("File Type", _lensFormat));
+            var choose = FormDialog.ActionButton("Choose…", () => _ = ChooseDestination()); choose.HorizontalAlignment = HorizontalAlignment.Left;
+            destination.Children.Add(choose); destination.Children.Add(_lensFolder);
+            _body.Children.Add(Group("Destination Folder", destination));
+            var profiles = new StackPanel { Spacing = 8 };
+            profiles.Children.Add(_matchBest); profiles.Children.Add(_lensProfile);
+            _body.Children.Add(Group("Lens Correction Profiles", profiles));
+            var options = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), ColumnSpacing = 24, RowSpacing = 8 };
+            Control[] cells = [_geometric, _autoScale, _aberration, Row("Edge", _lensEdge), _lensVignette];
+            for (var i = 0; i < cells.Length; i++) { Grid.SetRow(cells[i], i / 2); Grid.SetColumn(cells[i], i % 2); options.Children.Add(cells[i]); }
+            _body.Children.Add(Group("Correction Options", options));
+            _matchBest.IsCheckedChanged += (_, _) => { _lensProfile.IsEnabled = _matchBest.IsChecked != true; UpdateAvailability(); };
+            _lensProfile.ItemsSource = Compositor.Core.Document.LensDatabase.Bundled().Lenses.Select(l => l.Name).Distinct().Order(StringComparer.OrdinalIgnoreCase).ToArray();
+            _lensProfile.SelectionChanged += (_, _) => UpdateAvailability();
+            _lensFolder.Text = Localize.Text("No destination folder chosen.");
         }
         else if (kind == AutomationKind.Photomerge)
         {
@@ -338,7 +371,23 @@ internal sealed class AutomationDialog : DialogWindow
     private void AddOpen() { foreach (var source in _open) if (!_sources.Contains(source)) _sources.Add(source); RefreshSources(); }
     private sealed record SourceRow(AutomationSource Source) { public override string ToString() => Source.Name; }
     private void RefreshSources() { _list.ItemsSource = _sources.Select(s => new SourceRow(s)).ToArray(); UpdateAvailability(); }
-    private void UpdateAvailability() => _execute.IsEnabled = !_running && _sources.Count >= (_kind is AutomationKind.Statistics or AutomationKind.Photomerge or AutomationKind.HdrPro ? 2 : 1);
+    private void UpdateAvailability() => _execute.IsEnabled = !_running && _sources.Count >= (_kind is AutomationKind.Statistics or AutomationKind.Photomerge or AutomationKind.HdrPro ? 2 : 1)
+        && (_kind != AutomationKind.LensCorrection || _destination is not null && (_matchBest.IsChecked == true || _lensProfile.SelectedItem is not null));
+
+    private async Task ChooseDestination()
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = Localize.Text("Destination Folder"), AllowMultiple = false });
+        if (folders.FirstOrDefault()?.TryGetLocalPath() is not { } folder) return;
+        _destination = folder; _lensFolder.Text = folder; UpdateAvailability();
+    }
+
+    /// <summary>Lens Correction's destination, profile and options as the panel shows them.</summary>
+    internal LensJob? LensChoices() => _destination is null ? null : new LensJob(_destination,
+        _lensFormat.SelectedIndex switch { 1 => ExportFormat.Tiff, 2 => ExportFormat.Jpeg, 3 => ExportFormat.Png, _ => null },
+        _matchBest.IsChecked == true ? null : _lensProfile.SelectedItem as string,
+        new Compositor.Core.Document.LensCorrectionOptions(_geometric.IsChecked == true, _aberration.IsChecked == true, _lensVignette.IsChecked == true,
+            _autoScale.IsChecked == true, (Compositor.Core.Document.LensEdge)Math.Max(0, _lensEdge.SelectedIndex)));
+    internal void SetDestination(string folder) { _destination = folder; _lensFolder.Text = folder; UpdateAvailability(); }
     private double ResolutionPpi => Math.Round(Value(_resolution) * (_resolutionUnits.SelectedIndex == 1 ? 2.54 : 1), 8);
     private double UnitFactor(int index) => index switch { 0 => ResolutionPpi, 1 => ResolutionPpi / 2.54, _ => 1 };
     private ContactSheetOptions ContactOptions()
@@ -368,7 +417,7 @@ internal sealed class AutomationDialog : DialogWindow
             _status.Text = Localize.Text("Processing… Press Esc to cancel.");
             var job = new AutomationJob(_kind, _sources.ToArray(), ContactOptions(), (StackStatistic)_statistic.SelectedIndex,
                 PdfOptions(), path,
-                _autoAlign.IsChecked == true, _createSmartObject.IsChecked == true, PhotomergeChoices());
+                _autoAlign.IsChecked == true, _createSmartObject.IsChecked == true, PhotomergeChoices(), LensChoices());
             await _run(job, _cancellation.Token);
             _running = false; Close(true);
         }
@@ -429,6 +478,22 @@ internal sealed class AutomationDialog : DialogWindow
         _units.SelectedIndex = (int)o.DisplayUnit; _resolutionUnits.SelectedIndex = o.ResolutionPerCentimeter ? 1 : 0;
     }
     internal static double Value(NumericUpDown control) => (double)(control.Value ?? 0);
+    internal void LensCorrectionSelfCheck(Action pump)
+    {
+        static void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+        Check(!_execute.IsEnabled && LensChoices() is null, "Lens Correction ran without a destination.");
+        SetDestination(Path.GetTempPath()); pump();
+        var choices = LensChoices()!;
+        Check(choices.Format is null && choices.Lens is null && choices.Options.Distortion && choices.Options.AutoScale && !choices.Options.Vignette,
+            "Lens Correction did not open on PSD, Match Best Profile, Geometric Distortion and Auto Scale Image.");
+        Check(!_lensProfile.IsEnabled && _lensProfile.ItemCount > 1000, "The lens profiles were not listed.");
+        _matchBest.IsChecked = false; pump();
+        Check(_lensProfile.IsEnabled && !_execute.IsEnabled, "Choosing a profile did not wait for one to be selected.");
+        _lensProfile.SelectedIndex = 0; _lensFormat.SelectedIndex = 3; pump();
+        Check(LensChoices() is { Format: ExportFormat.Png, Lens: not null }, "The chosen profile or file type did not reach the job.");
+        _matchBest.IsChecked = true; pump();
+    }
+
     internal void PhotomergeSelfCheck(Action pump)
     {
         static void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); }

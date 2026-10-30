@@ -64,6 +64,17 @@ public partial class MainWindow
                         case AutomationKind.ContactSheet: return FileAutomation.ContactSheets(job.Sources, job.Contact, cancellation);
                         case AutomationKind.LoadLayers: return [FileAutomation.LoadLayers(job.Sources, job.AutoAlign, job.CreateSmartObject, cancellation)];
                         case AutomationKind.Statistics: return [FileAutomation.Statistics(job.Sources, job.Statistic, job.AutoAlign, cancellation)];
+                        case AutomationKind.LensCorrection:
+                        {
+                            var lens = job.Lens!;
+                            var database = LensDatabase.Bundled();
+                            var chosen = lens.Lens is { } name ? database.Lenses.First(l => l.Name == name) : null;
+                            var (written, unmatched) = LensCorrection.Batch(job.Sources, lens.Folder, lens.Format, database, chosen, lens.Options, cancellation);
+                            Avalonia.Threading.Dispatcher.UIThread.Post(() => Say(unmatched.Count > 0
+                                ? string.Format(Localize.Text("Corrected {0} files; no profile matched: {1}"), written.Count, string.Join(", ", unmatched))
+                                : string.Format(Localize.Text("Corrected {0} files"), written.Count)));
+                            return [];
+                        }
                         case AutomationKind.Photomerge:
                         {
                             var images = new List<(string, SkiaSharp.SKBitmap)>();

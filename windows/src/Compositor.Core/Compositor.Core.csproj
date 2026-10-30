@@ -22,6 +22,7 @@
   <ItemGroup>
     <Content Include="../../fonts/NotoSansSC.ttf" Link="fonts/NotoSansSC.ttf" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../models/u2netp.onnx" Link="models/u2netp.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../lensfun/*.xml" Link="lensfun/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources/CameraRawShadows.bin" LogicalName="Compositor.CameraRawShadows.bin" />

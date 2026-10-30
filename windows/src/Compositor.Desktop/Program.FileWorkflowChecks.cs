@@ -61,6 +61,7 @@ internal static partial class Program
                 if (kind == AutomationKind.ContactSheet) dialog.ContactSheetSelfCheck(Pump);
                 if (kind == AutomationKind.PdfPresentation) dialog.PdfPresentationSelfCheck(Pump);
                 if (kind == AutomationKind.Photomerge) dialog.PhotomergeSelfCheck(Pump);
+                if (kind == AutomationKind.LensCorrection) dialog.LensCorrectionSelfCheck(Pump);
                 Capture(dialog, kind.ToString()); dialog.Close();
             }
             foreach (var processor in new[] { false, true })

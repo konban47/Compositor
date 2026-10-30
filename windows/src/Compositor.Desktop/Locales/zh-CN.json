@@ -4072,5 +4072,20 @@
   "Linked smart objects are up to date": "链接的智能对象已是最新",
   "Packaged to {0}; linked files not found: {1}": "已打包到 {0}；找不到链接的文件：{1}",
   "Packaged to {0} with {1} linked files": "已打包到 {0}，含 {1} 个链接的文件",
-  "Linked to {0}": "已链接到 {0}"
+  "Linked to {0}": "已链接到 {0}",
+  "Lens Correction…": "镜头校正…",
+  "Select the files to process with lens correction.": "选择进行批量镜头校正的文件。",
+  "Destination Folder": "目标文件夹",
+  "File Type": "文件类型",
+  "Lens Correction Profiles": "镜头校正配置文件",
+  "Match Best Profile": "匹配最佳配置文件",
+  "Correction Options": "校正选项",
+  "Geometric Distortion": "几何扭曲",
+  "Auto Scale Image": "自动缩放图像",
+  "Chromatic Aberration": "色差",
+  "Edge": "边缘",
+  "Edge Extension": "边缘扩展",
+  "No destination folder chosen.": "尚未选择目标文件夹。",
+  "Corrected {0} files; no profile matched: {1}": "已校正 {0} 个文件；以下文件没有匹配的配置：{1}",
+  "Corrected {0} files": "已校正 {0} 个文件"
 }

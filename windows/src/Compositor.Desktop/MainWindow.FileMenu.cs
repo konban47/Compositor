@@ -63,6 +63,7 @@ public partial class MainWindow
                     Command("Contact Sheet II…", () => _ = ShowAutomation(AutomationKind.ContactSheet)),
                     Command("Photomerge…", () => _ = ShowAutomation(AutomationKind.Photomerge)),
                     Command("Merge to HDR Pro…", () => _ = ShowAutomation(AutomationKind.HdrPro)),
+                    Command("Lens Correction…", () => _ = ShowAutomation(AutomationKind.LensCorrection)),
                     Command("Conditional Mode Change…", () => _ = ConditionalModeChange()),
                     Command("Fit Image…", () => _ = FitImage()),
                 },
