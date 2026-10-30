@@ -49,6 +49,9 @@ public sealed class ProjectLayerRecord
     public uint? ArtboardBackground { get; set; }
     public string? SmartObjectFile { get; set; }
     public Guid? SmartObjectID { get; set; }
+    /// <summary>Windows v32: the file a linked smart object follows, and its SHA-256 when last read.</summary>
+    public string? SmartObjectLink { get; set; }
+    public string? SmartObjectLinkHash { get; set; }
 
     /// <summary>A folder has no image file.</summary>
     public bool IsGroupValue => IsGroup ?? false;

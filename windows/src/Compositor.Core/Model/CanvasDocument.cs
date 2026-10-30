@@ -204,6 +204,8 @@ public sealed class CanvasDocument : IDisposable
         ArtboardBackground = layer.Container == LayerContainer.Artboard && layer.ArtboardBackground != 0xffffffff ? layer.ArtboardBackground : null,
         SmartObjectFile = layer.SmartObject is null ? null : SmartObjectData.FileName(layer.ID),
         SmartObjectID = layer.SmartObject?.ID,
+        SmartObjectLink = layer.SmartObject?.LinkedPath,
+        SmartObjectLinkHash = layer.SmartObject?.LinkedHash,
         Text = layer.LiveText,
     };
 

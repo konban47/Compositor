@@ -94,7 +94,11 @@ public sealed partial class MainWindow
             Item("Edit Contents", EditSmartContents, ready: Smart), Item("Reset Transform", ResetSmartTransform, ready: Smart),
             Item("Replace Contents…", () => _ = ReplaceSmartContents(), ready: Smart), Item("Export Contents…", () => _ = ExportSmartContents(), ready: Smart),
             Item("Convert to Layers", UnpackSmartObject, ready: Smart),
-            Missing("Linked Smart Objects…", "Smart objects are embedded. External linking, relinking and automatic linked updates are not supported."),
+            new Separator(),
+            Item("Update Modified Content", () => UpdateLinked(true), ready: () => Smart() && PropertyLayer?.SmartObject?.LinkedPath is not null),
+            Item("Update All Modified Content", () => UpdateLinked(false), ready: () => _document?.Layers.Any(l => l.SmartObject?.LinkedPath is not null) == true),
+            Item("Relink to File…", () => _ = RelinkSmartObject(), ready: Smart),
+            Item("Embed Linked", EmbedLinked, ready: () => Smart() && PropertyLayer?.SmartObject?.LinkedPath is not null),
             Missing("Stack Mode", "Statistical smart-object stack modes are not supported."), Item("Rasterize", () => RasterizeSelected("Smart"), ready: Smart)));
         menu.Items.Add(Missing("Video Layers", "This editor has no video timeline or frame decoder. Video layers cannot be imported or edited."));
         menu.Items.Add(Group("Rasterize",

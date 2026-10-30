@@ -10,6 +10,10 @@ public sealed class SmartObjectData
     public const int MaxBytes = 128 * 1024 * 1024;
     public Guid ID { get; }
     public byte[] Package { get; }
+    /// <summary>For a linked smart object, the file its content comes from and that file's SHA-256 when it was last
+    /// read; null for an embedded one.</summary>
+    public string? LinkedPath { get; init; }
+    public string? LinkedHash { get; init; }
     public SmartObjectData(Guid id, byte[] package)
     {
         if (id == Guid.Empty || package.Length is < 22 or > MaxBytes) throw new ProjectException(ProjectError.Invalid);
@@ -67,7 +71,8 @@ public sealed class SmartObjectData
             {
                 if (layer.ImageFile is { } image) result.Images[layer.ID] = Asset(image, layer.Name, false);
                 if (layer.MaskFile is { } mask) result.Masks[layer.ID] = Asset(mask, layer.Name, true);
-                if (layer.SmartObjectFile is { } nested) result.SmartObjects[layer.ID] = new SmartObjectData(layer.SmartObjectID!.Value, Read(nested, MaxBytes));
+                if (layer.SmartObjectFile is { } nested) result.SmartObjects[layer.ID] = new SmartObjectData(layer.SmartObjectID!.Value, Read(nested, MaxBytes))
+                    { LinkedPath = layer.SmartObjectLink, LinkedHash = layer.SmartObjectLinkHash };
             }
             foreach (var channel in manifest.Channels ?? [])
             {

@@ -4060,5 +4060,17 @@
   "The script used too much memory and was stopped.": "脚本占用内存过多，已停止。",
   "The script recursed too deeply and was stopped.": "脚本递归过深，已停止。",
   "The script was canceled.": "脚本已取消。",
-  "There is no open document.": "没有打开的文档。"
+  "There is no open document.": "没有打开的文档。",
+  "Place Linked…": "置入链接的智能对象…",
+  "Package…": "打包…",
+  "Update Modified Content": "更新修改的内容",
+  "Update All Modified Content": "更新所有修改的内容",
+  "Relink to File…": "重新链接到文件…",
+  "Embed Linked": "嵌入链接的智能对象",
+  "Linked files not found: {0}": "找不到链接的文件：{0}",
+  "Updated {0} linked smart objects": "已更新 {0} 个链接的智能对象",
+  "Linked smart objects are up to date": "链接的智能对象已是最新",
+  "Packaged to {0}; linked files not found: {1}": "已打包到 {0}；找不到链接的文件：{1}",
+  "Packaged to {0} with {1} linked files": "已打包到 {0}，含 {1} 个链接的文件",
+  "Linked to {0}": "已链接到 {0}"
 }

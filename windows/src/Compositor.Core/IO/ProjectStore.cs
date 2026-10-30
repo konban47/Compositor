@@ -84,7 +84,9 @@ public static class ProjectStore
                 || (layer.Container is { } container && (version < 15 || !Enum.IsDefined(container) || layer.IsGroup != true))
                 || (layer.SmartObjectFile is not null && (version < 15 || layer.SmartObjectFile != Model.SmartObjectData.FileName(layer.ID)
                     || layer.SmartObjectID is null || layer.ImageFile is null || layer.IsGroup == true))
-                || (layer.SmartObjectFile is null && layer.SmartObjectID is not null)) throw new ProjectException(ProjectError.Invalid);
+                || (layer.SmartObjectFile is null && layer.SmartObjectID is not null)
+            || (layer.SmartObjectLink is not null || layer.SmartObjectLinkHash is not null) && (version < 32 || layer.SmartObjectFile is null
+                || !Model.SmartObjectLinks.ValidLink(layer.SmartObjectLink, layer.SmartObjectLinkHash))) throw new ProjectException(ProjectError.Invalid);
             if ((layer.Locks is { } locks && (locks < 0 || locks > 15))
                 || (layer.FillOpacity is { } fill && (!double.IsFinite(fill) || fill < 0 || fill > 1))
                 || (version < 12 && (layer.Locks is not null || layer.FillOpacity is not null || layer.LinkID is not null)))
@@ -437,7 +439,7 @@ public static class ProjectStore
                 var bytes = File.ReadAllBytes(ResolveAsset(package, $"{ImagesName}/{layer.SmartObjectFile}", Model.SmartObjectData.MaxBytes));
                 embeddedBytes += bytes.Length;
                 if (embeddedBytes > Model.SmartObjectData.MaxBytes) throw new ProjectException(ProjectError.TooLarge);
-                snapshot.SmartObjects[layer.ID] = new Model.SmartObjectData(layer.SmartObjectID!.Value, bytes);
+                snapshot.SmartObjects[layer.ID] = new Model.SmartObjectData(layer.SmartObjectID!.Value, bytes) { LinkedPath = layer.SmartObjectLink, LinkedHash = layer.SmartObjectLinkHash };
             }
             foreach (var channel in manifest.Channels ?? [])
             {

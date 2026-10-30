@@ -47,6 +47,8 @@ public partial class MainWindow
             new Separator(),
             Command("_Import image…", () => _ = ImportImage()),
             Command("Place Embedded…", () => _ = OpenSmartImage(true)),
+            Command("Place Linked…", () => _ = PlaceLinked()),
+            Command("Package…", () => _ = PackageDocument()),
             Command("Import Folder as Layers…", () => _ = ImportImageFolder()),
             new Separator(),
             new MenuItem
