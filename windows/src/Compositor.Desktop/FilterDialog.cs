@@ -198,7 +198,7 @@ internal sealed class FilterDialog : DialogWindow
                 RimLightControls(group, start.RimLight);
                 break;
             case FilterKind.VolumetricLight:
-                Height = 520; Width = 450;
+                Height = 700; Width = 540;
                 var volumetric = new VolumetricLightSettings();
                 group.Children.Add(new TextBlock { Text = Localize.Text("The light starts on the layer's biggest bright area; move it with Light X and Light Y"), TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Skin.SecondaryBrush, Margin = new Thickness(0, 0, 0, 4) });
                 Swatch(group, "Color", (start.Volumetric.Red, start.Volumetric.Green, start.Volumetric.Blue), (volumetric.Red, volumetric.Green, volumetric.Blue),
@@ -206,6 +206,10 @@ internal sealed class FilterDialog : DialogWindow
                 Add(group, "Light X (%)", -100, 200, start.Volumetric.CenterX, start.Volumetric.CenterX, (s, v) => s.Volumetric.CenterX = v);
                 Add(group, "Light Y (%)", -100, 200, start.Volumetric.CenterY, start.Volumetric.CenterY, (s, v) => s.Volumetric.CenterY = v);
                 Add(group, "Haze", 0, 100, start.Volumetric.Haze, volumetric.Haze, (s, v) => s.Volumetric.Haze = v, "0");
+                Add(group, "Distance", 0, 100, start.Volumetric.Distance, volumetric.Distance, (s, v) => s.Volumetric.Distance = v, "0",
+                    "How far into the scene the haze begins: low reaches up to the camera, high leaves all but the farthest parts clear");
+                Add(group, "Depth Contrast", 0, 100, start.Volumetric.DepthContrast, volumetric.DepthContrast, (s, v) => s.Volumetric.DepthContrast = v, "0",
+                    "Spread out depths bunched together, such as a distant city, so the haze builds through them in steps; 0 keeps the depth as the model sees it");
                 Add(group, "Size", 0, 100, start.Volumetric.Size, volumetric.Size, (s, v) => s.Volumetric.Size = v, "0");
                 Add(group, "Intensity", 0, 100, start.Volumetric.Intensity, volumetric.Intensity, (s, v) => s.Volumetric.Intensity = v, "0");
                 Add(group, "Length", 0, 100, start.Volumetric.Length, volumetric.Length, (s, v) => s.Volumetric.Length = v, "0");
@@ -268,6 +272,22 @@ internal sealed class FilterDialog : DialogWindow
             Margin = new Thickness(0, 14, 0, 0),
             Children = { _preview, new TextBlock { Text = Localize.Text(""), Width = 8 }, reset, cancel, ok },
         };
+        if (kind == FilterKind.VolumetricLight)
+        {
+            // Extract Depth shares the row with Cancel and OK, and both wait while the depth model is fetched.
+            _ok = ok;
+            _extract = new Button
+            {
+                Content = Localize.Text("Extract Depth"), MinWidth = 96, Height = 26, FontSize = 12, CornerRadius = new CornerRadius(7),
+                Background = Skin.SurfaceControlBrush, BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(1),
+                Foreground = Skin.LabelBrush, HorizontalContentAlignment = HorizontalAlignment.Center, Tag = "extract-depth",
+            };
+            ToolTip.SetTip(_extract, Localize.Text("Close the filter and add the depth the haze goes by as a new layer: white is near, black is far"));
+            _extract.Click += (_, _) => { _extracted = Current(); Close(); };
+            buttons.Children.Insert(buttons.Children.IndexOf(cancel), _extract);
+            _waiting = new TextBlock { Text = Localize.Text("Getting depth…"), FontSize = 11, Foreground = Skin.SecondaryBrush, IsVisible = false, Margin = new Thickness(0, 8, 0, 0) };
+            group.Children.Add(_waiting);
+        }
         group.Children.Add(buttons);
 
         Content = new ScrollViewer { Content = group };
@@ -370,9 +390,10 @@ internal sealed class FilterDialog : DialogWindow
     }
 
     private void Add(StackPanel parent, string label, double least, double most, double value, double fallback,
-        Action<FilterSettings, double> set, string format = "0.#")
+        Action<FilterSettings, double> set, string format = "0.#", string? hint = null)
     {
         var slider = new Slider { Minimum = least, Maximum = most, Value = value, Width = 240 };
+        if (hint is not null) ToolTip.SetTip(slider, Localize.Text(hint));
         var readout = new TextBlock { Text = Localize.Text(""), Width = 44, FontSize = 11, Foreground = Skin.SecondaryBrush, VerticalAlignment = VerticalAlignment.Center };
         void Show() => readout.Text = slider.Value.ToString(format);
         slider.PropertyChanged += (_, change) =>
@@ -465,12 +486,34 @@ internal sealed class FilterDialog : DialogWindow
         Close();
     }
 
-    /// <summary>The amounts to apply, or null when the panel was dismissed or asks for nothing.</summary>
+    private Button? _ok, _extract;
+    private TextBlock? _waiting;
+    private FilterSettings? _extracted;
+
+    /// <summary>
+    /// Volumetric Light's first opening, while the depth model downloads (about 27 MB): Extract Depth and OK wait for it,
+    /// the line under the sliders says what for, and Cancel stays. Once it's here the preview is drawn again with it.
+    /// </summary>
+    internal void WaitFor(Task<bool> depth)
+    {
+        if (_ok is null || _extract is null || _waiting is null || depth.IsCompleted) return;
+        _ok.IsEnabled = _extract.IsEnabled = false; _waiting.IsVisible = true;
+        depth.ContinueWith(_ => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _ok.IsEnabled = _extract.IsEnabled = true; _waiting.IsVisible = false;
+            Preview?.Invoke(_preview.IsChecked == true ? Current() : null);
+        }), TaskScheduler.Default);
+    }
+
+    /// <summary>The amounts to apply, or null when the panel was dismissed or asks for nothing. Volumetric Light's
+    /// Extract Depth closes the panel and hands its amounts to <paramref name="extractDepth"/> instead.</summary>
     public static async Task<FilterSettings?> Ask(Window owner, FilterKind kind, FilterSettings start,
-        Action<FilterSettings?>? preview = null)
+        Action<FilterSettings?>? preview = null, Task<bool>? depth = null, Action<FilterSettings>? extractDepth = null)
     {
         var dialog = new FilterDialog(kind, start) { Preview = preview };
+        if (depth is not null) dialog.WaitFor(depth);
         await dialog.ShowDialog(owner);
+        if (dialog._extracted is { } extracted) { extractDepth?.Invoke(extracted); return null; }
         return dialog._result is { } settings && settings.IsValid(kind) && settings.DoesAnything(kind) ? settings : null;
     }
 }

@@ -160,14 +160,48 @@ public sealed partial class MainWindow
         Named("Cancel").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs();
         Check(rim.IsCompletedSuccessfully, "Rim Light dialog did not cancel.");
 
-        var haze = ApplyFilter(FilterKind.VolumetricLight); Dispatcher.UIThread.RunJobs();
-        panel = OwnedWindows.OfType<FilterDialog>().Single(); panel.UpdateLayout(); Dispatcher.UIThread.RunJobs();
-        var brightest = VolumetricLighting.BrightestPoint(asset.Image);
-        var opened = panel.Current().Volumetric;
-        Check(Math.Abs(opened.CenterX - brightest.X / asset.Width * 100) < .2 && Math.Abs(opened.CenterY - brightest.Y / asset.Height * 100) < .2,
-            "Volumetric Light did not open on the brightest area.");
-        using (var frame = panel.CaptureRenderedFrame()) frame!.Save(Path.ChangeExtension(output, "volumetric-light.png"), new PngBitmapEncoderOptions());
-        Named("Cancel").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs();
-        Check(haze.IsCompletedSuccessfully, "Volumetric Light dialog did not cancel.");
+        // The depth model's download is held, then fails, so the check never reaches the network.
+        var folder = Directory.CreateTempSubdirectory("compositor-depth-check-").FullName;
+        Environment.SetEnvironmentVariable("COMPOSITOR_DEPTH_MODEL_DIR", folder);
+        var held = new HeldDownload(); DepthModel.Handler = held;
+        try
+        {
+            var haze = ApplyFilter(FilterKind.VolumetricLight); Dispatcher.UIThread.RunJobs();
+            panel = OwnedWindows.OfType<FilterDialog>().Single(); panel.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+            var brightest = VolumetricLighting.BrightestPoint(asset.Image);
+            var opened = panel.Current().Volumetric;
+            Check(Math.Abs(opened.CenterX - brightest.X / asset.Width * 100) < .2 && Math.Abs(opened.CenterY - brightest.Y / asset.Height * 100) < .2,
+                "Volumetric Light did not open on the brightest area.");
+            Check(opened.Distance == 30 && opened.DepthContrast == 0 && opened.Length == 0, "Volumetric Light did not open with upstream's Distance, Depth Contrast and Length.");
+            var extract = panel.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Tag, "extract-depth"));
+            var apply = Named("Apply");
+            var waiting = panel.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == Localize.Text("Getting depth…"));
+            Check(waiting.IsEffectivelyVisible && !extract.IsEnabled && !apply.IsEnabled, "Extract Depth and OK did not wait for the depth model.");
+            using (var frame = panel.CaptureRenderedFrame()) frame!.Save(Path.ChangeExtension(output, "volumetric-light.png"), new PngBitmapEncoderOptions());
+            held.Release();
+            for (var i = 0; i < 200 && !extract.IsEnabled; i++) { Thread.Sleep(10); Dispatcher.UIThread.RunJobs(); }
+            Check(extract.IsEnabled && apply.IsEnabled && !waiting.IsVisible, "Extract Depth and OK stayed off after the depth model failed to download.");
+            Check(Directory.GetFiles(folder).Length == 0, "A failed depth download left a file behind.");
+            Named("Cancel").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs();
+            Check(haze.IsCompletedSuccessfully, "Volumetric Light dialog did not cancel.");
+        }
+        finally
+        {
+            held.Release(); DepthModel.Handler = null;
+            Environment.SetEnvironmentVariable("COMPOSITOR_DEPTH_MODEL_DIR", null);
+            Directory.Delete(folder, true);
+        }
+    }
+
+    /// <summary>A download that waits until it's let go, then fails as an unreachable server does.</summary>
+    private sealed class HeldDownload : HttpMessageHandler
+    {
+        private readonly TaskCompletionSource _released = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void Release() => _released.TrySetResult();
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await _released.Task;
+            throw new HttpRequestException("Offline for the self check.");
+        }
     }
 }

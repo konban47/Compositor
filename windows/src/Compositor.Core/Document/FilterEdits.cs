@@ -223,7 +223,12 @@ public static class FilterEdits
             using var result = RimLighting.Apply(rimSource.WorkingImage, subject, settings.RimLight); return ImageAdjustments.SetPixels(document, layer, result);
         }
         if (kind == FilterKind.VolumetricLight && layer.Asset is { } hazeSource)
-        { using var result = VolumetricLighting.Apply(hazeSource.WorkingImage, SubjectCache.Subject(hazeSource.Image), settings.Volumetric); return ImageAdjustments.SetPixels(document, layer, result); }
+        {
+            // The depth model's map once it's been downloaded; until then the haze guesses.
+            using var result = VolumetricLighting.Apply(hazeSource.WorkingImage, SubjectCache.Subject(hazeSource.Image), settings.Volumetric,
+                DepthModel.Depth(hazeSource.Image));
+            return ImageAdjustments.SetPixels(document, layer, result);
+        }
         if (kind == FilterKind.RgbSplit && layer.Asset is { } splitSource)
         {
             var margin = Margin(kind, settings); var oldMask = layer.MaskTransform;

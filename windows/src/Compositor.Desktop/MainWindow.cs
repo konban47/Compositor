@@ -4038,6 +4038,9 @@ public sealed partial class MainWindow : Window
             }
             Say();
         }
+        // Volumetric Light's depth model, downloaded the first time: the haze guesses until it's here, then redraws.
+        var depth = kind == FilterKind.VolumetricLight ? DepthModel.PrepareAsync() : null;
+        FilterSettings? extract = null;
         StartPreview(document, id);
         var asked = await FilterDialog.Ask(this, kind, _filterAmounts, settings =>
         {
@@ -4047,8 +4050,9 @@ public sealed partial class MainWindow : Window
                 return;
             }
             HidePreview();
-        });
+        }, depth, chosen => extract = chosen);
         StopPreview();
+        if (extract is { } extracting) { await ExtractDepth(id, extracting); return; }
         if (asked is not { } settings) return;
         // The amounts this filter was used with are kept for the next time it is opened, as the Mac's one set
         // of filter settings does.
@@ -4063,6 +4067,30 @@ public sealed partial class MainWindow : Window
         else return;
         Reselect(id);
         Say($"{kind} applied");
+    }
+
+    /// <summary>
+    /// Volumetric Light's Extract Depth: the filter is closed and the depth its haze goes by is added as a layer of its
+    /// own, above the layer, white near and black far, to look at or use. The depth model is fetched first if it isn't
+    /// here; without it, nothing is added.
+    /// </summary>
+    private async Task ExtractDepth(Guid id, FilterSettings settings)
+    {
+        if (_document is not { } document || document.Layers.FirstOrDefault(layer => layer.ID == id)?.Asset is not { } asset) return;
+        Say("Getting depth…");
+        var image = await DepthModel.PrepareAsync()
+            ? await Task.Run(() => VolumetricLighting.DepthImage(asset.Image, SubjectCache.Subject(asset.Image), settings.Volumetric))
+            : null;
+        if (image is null || !ReferenceEquals(document, _document))
+        {
+            image?.Dispose();
+            Say("The depth model couldn't be downloaded; check the connection and try again");
+            return;
+        }
+        Guid? made = null;
+        if (!Edit("Extract Depth", () => (made = VolumetricLighting.AddDepthLayer(document, id, image, Localize.Text("Depth"))) is not null)) image.Dispose();
+        Reselect(made);
+        Say();
     }
 
     /// <summary>
