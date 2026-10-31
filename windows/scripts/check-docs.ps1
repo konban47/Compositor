@@ -113,10 +113,10 @@ if (!(Read-Repo '.github/workflows/windows.yml').Contains('--docking-checks')) {
 if (!(Read-Repo 'windows/scripts/package.ps1').Contains('WINDOW-MENU.md')) { throw 'Window guide missing from package.' }
 foreach ($feature in @('各列独立','左／右边缘','柔和光晕','固定位置')) { if (!$windowGuide.Contains($feature)) { throw "Docking guide missing $feature." } }
 $panelIcons = (Read-Repo 'windows/design/panel-icons/prompts.json') | ConvertFrom-Json
-$glyphs = Read-Repo 'windows/src/Compositor.Desktop/DockPanelGlyph.cs'
+$glyphs = Read-Repo 'windows/src/Compositor.Desktop/IconSet.cs'
 if ($panelIcons.icons.Count -ne 35 -or !$windowGuide.Contains('35 个专属')) { throw 'Collapsed icon coverage or guide is stale.' }
 foreach ($icon in $panelIcons.icons) {
-    if (!$glyphs.Contains('["' + $icon.name + '"]')) { throw "Missing runtime panel icon: $($icon.name)" }
+    if (!$glyphs.Contains('["panel:' + $icon.name + '"]')) { throw "Missing runtime panel icon: $($icon.name)" }
     foreach ($asset in @($icon.reference, $icon.vector)) {
         if (!(Test-Path -LiteralPath (Join-Path $repo "windows/design/panel-icons/$asset"))) { throw "Missing panel design asset: $asset" }
     }
@@ -141,7 +141,7 @@ foreach ($feature in @('32 DIP','同一实际快捷键','取消滚动','imagegen
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--panel-workflow-checks')) { throw 'Panel workflow checks missing from CI.' }
 $sliceIconGuide = Read-Repo 'windows/design/slice-order-icons/README.md'
 foreach ($name in @('front','forward','backward','back')) {
-    $iconPath = Join-Path $repo "windows/src/Compositor.Desktop/Assets/slice-order/$name.png"
+    $iconPath = Join-Path $repo "windows/design/slice-order-icons/$name.png"
     $hash = (Get-FileHash -LiteralPath $iconPath -Algorithm SHA256).Hash.ToLower()
     if (!$sliceIconGuide.Contains($hash) -or !$sliceIconGuide.Contains("### $name")) { throw "Generated icon provenance missing: $name" }
 }
@@ -222,7 +222,7 @@ Write-Output 'PASS: current download names, English overview and project-format 
 
 $paintingGuide = Read-Repo 'windows/PAINTING-AND-GIF.md'
 if ($paintingGuide.Contains('窄面板用分类下拉框') -or !$paintingGuide.Contains('底部笔触预览') -or !$paintingGuide.Contains('单调时钟')) { throw 'Brush layout or GIF playback guide is stale.' }
-if (!(Read-Repo 'windows/WINDOW-MENU.md').Contains('紧凑按钮样式不变')) { throw 'Floating caption exception is undocumented.' }
+foreach ($feature in @('≡ 面板菜单', 'Photoshop', '标签上没有 ×')) { if (!(Read-Repo 'windows/WINDOW-MENU.md').Contains($feature)) { throw "Floating panel chrome is undocumented: $feature" } }
 Write-Output 'PASS: brush layout, playback timing and floating caption scope are documented.'
 
 foreach ($field in @('gradient','startX','endX','stops','fillEnabled','strokeColor','strokeWidth','strokePattern','ClarityDehaze')) {

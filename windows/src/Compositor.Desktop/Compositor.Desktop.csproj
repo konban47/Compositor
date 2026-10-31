@@ -3,7 +3,6 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets/compositor.ico" />
     <AvaloniaResource Include="Assets/compositor-logo.png" />
-    <AvaloniaResource Include="Assets/slice-order/*.png" />
     <AvaloniaResource Include="../../fonts/NotoSansSC.ttf" Link="Assets/Fonts/NotoSansSC.ttf" />
     <EmbeddedResource Include="Locales/zh-CN.json" />
     <ProjectReference Include="..\Compositor.Core\Compositor.Core.csproj" />
@@ -20,8 +19,8 @@
 
   <PropertyGroup>
     <!-- Windows releases use an independent fourth version component. -->
-    <Version>1.5.13.0</Version>
-    <AssemblyVersion>1.5.13.0</AssemblyVersion>
+    <Version>1.5.14.0</Version>
+    <AssemblyVersion>1.5.14.0</AssemblyVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>Compositor</AssemblyName>
     <ApplicationIcon>Assets/compositor.ico</ApplicationIcon>

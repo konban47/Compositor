@@ -1,8 +1,8 @@
 # Compositor for Windows
 
-2026-10-31：当前版本为 **1.5.13.0 Preview**。本版补齐交接记录中的剩余项：移植上游 Rim Light（轮廓光）与 Volumetric Light（体积光）为 CPU 滤镜；“储存为 Web 所用格式”输出 HTML 与切片（含参考截图的“输出设置”四页）及帧动画 GIF；“存储副本”可写分层 PSD；新增 Photomerge、合并到 HDR Pro 与基于 lensfun 数据库的批量镜头校正；注释可读写 PDF／FDF／XFDF，PDF 演示文稿可写入注释；拼合脚本支持组蒙版、组效果与 GIF 效果；脚本事件管理器和“文件 › 脚本 › 浏览”可运行 JavaScript／JSX（Jint 解释器）；支持链接的智能对象与“打包”。16 位图层的复制、粘贴与“通过拷贝的图层”现保留 16 位样本，8 位编辑路径逐项补测。布局与交互参考截图，主题、字体和按钮沿用 Compositor，浮窗紧凑按钮样式不变。Adobe Bridge 与 Adobe 镜头配置文件不提供；既有完整 UI 对照基线仍为 `2d75d91`。
+2026-10-31：当前版本为 **1.5.14.0 Preview**。本版移植上游 main `76b7921` 之前的体积光深度改动：“距离”“深度对比度”和“提取深度”，深度模型在首次使用时下载 Depth Anything V2 Small 并校验（上游的 Core ML 模型无法在 Windows 运行）；参照上游图标风格与 Photoshop 的图标含义，统一重绘全部按钮、工具和面板图标，上游自绘图标与应用图标直接沿用；浮窗的标签、折叠／展开、关闭和 ≡ 面板菜单改为 Photoshop 样式，停靠、浮动与工作区逻辑不变。1.5.13.0 加入的 Web 输出、PSD 写入、Photomerge、HDR Pro、镜头校正、注释、JavaScript 与链接的智能对象见[上一版更新](windows/UPDATES-1.5.13.0.md)。Adobe Bridge 与 Adobe 镜头配置文件不提供；既有完整 UI 对照基线仍为 `2d75d91`。
 
-[下载 1.5.13.0 Preview](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.13.0)：安装版 `Compositor-Windows-1.5.13.0-x64-setup.exe`、免安装版 `Compositor-Windows-1.5.13.0-x64-portable.zip` 和 `SHA256SUMS.txt`。发行包包含本版手册；[1.5.6.0 历史更新](windows/UPDATES-1.5.6.0.md)及下方旧版本测试数字保留历史含义。
+[下载 1.5.14.0 Preview](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.14.0)：安装版 `Compositor-Windows-1.5.14.0-x64-setup.exe`、免安装版 `Compositor-Windows-1.5.14.0-x64-portable.zip` 和 `SHA256SUMS.txt`。发行包包含本版手册；[1.5.6.0 历史更新](windows/UPDATES-1.5.6.0.md)及下方旧版本测试数字保留历史含义。
 
 本版操作与未完成项见[文件工作流手册](windows/FILE-WORKFLOWS.md)。
 
@@ -12,11 +12,11 @@
 
 本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
 
-[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.13.0) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.13.0.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
+[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.14.0) · [使用与构建说明](windows/README.md) · [更新记录](windows/UPDATES-1.5.14.0.md) · [许可证与来源](windows/THIRD-PARTY-NOTICES.md)
 
-现有界面包含 35 个面板／浮窗折叠专属图标，使用内置 imagegen 逐一生成参考并适配为主题矢量；[设计与实际预览](windows/design/panel-icons/README.md)。
+全部按钮、工具与 35 个面板折叠图标属于同一图标体系（24 单位网格、1.5 线宽），浮窗按 Photoshop 样式；[图标设计说明](windows/design/README.md#统一图标体系1514) · [浮窗与面板菜单](windows/WINDOW-MENU.md#浮窗与面板菜单1514)。
 
-使用说明：[本次更新](windows/UPDATES-1.5.13.0.md) · [时间轴与图层复合](windows/TIMELINE-AND-PRESETS.md) · [颜色管理](windows/COLOR-MANAGEMENT.md)。
+使用说明：[本次更新](windows/UPDATES-1.5.14.0.md) · [时间轴与图层复合](windows/TIMELINE-AND-PRESETS.md) · [颜色管理](windows/COLOR-MANAGEMENT.md)。
 
 现有功能手册：[性能](windows/PERFORMANCE.md) · [取样与修复](windows/UTILITY-RETOUCH.md) · [工具选项](windows/TOOL-OPTIONS.md) · [画笔与 GIF](windows/PAINTING-AND-GIF.md) · [文字与蒙版](windows/TYPE-AND-MASKS.md)。
 
@@ -34,8 +34,8 @@
 
 目标系统：Windows 11、Windows 10 22H2（待实机验收），64 位 x64。安装器历史门槛 1809 不代表已通过测试，详见 [兼容性方案](windows/COMPATIBILITY.md)。
 
-- **安装版**：运行 `Compositor-Windows-1.5.13.0-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.5.13.0-x64-portable.zip`，运行 `Compositor.exe`。
+- **安装版**：运行 `Compositor-Windows-1.5.14.0-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.5.14.0-x64-portable.zip`，运行 `Compositor.exe`。
 - 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
 - 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
 
@@ -100,7 +100,7 @@
 
 ## 验证与当前状态
 
-当前功能和已执行验证见[1.5.13.0 更新](windows/UPDATES-1.5.13.0.md)。历史 CI 结果不作为本次提交的验收记录；当前提交的 Actions 和安装包见 [Release](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.13.0)。Windows 10 尚未实机验收。
+当前功能和已执行验证见[1.5.14.0 更新](windows/UPDATES-1.5.14.0.md)。历史 CI 结果不作为本次提交的验收记录；当前提交的 Actions 和安装包见 [Release](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.14.0)。Windows 10 尚未实机验收。
 
 [历史 1.5.3.2 提交 b0bce9c 的云端验证](https://github.com/konban47/Compositor/actions/runs/39230205560)在 Windows Server 2022／2025 均通过文档检查、零警告构建、1200 项核心测试以及 23 组英文／17 组中文界面检查。安装版与免安装版已成功构建；发行程序的 17 组界面检查及临时 Windows Server 2025 环境中的全新安装／卸载均通过。[下载历史 1.5.3.2](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.2)。
 

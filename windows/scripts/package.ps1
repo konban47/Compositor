@@ -1,6 +1,6 @@
 param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\dist'),
-    [string]$Version = '1.5.13.0',
+    [string]$Version = '1.5.14.0',
     [string]$Dotnet = 'dotnet',
     [string]$InnoCompiler = (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
     [switch]$Installer
@@ -22,7 +22,7 @@ if ($LASTEXITCODE -ne 0) { throw 'CLI publish failed.' }
 Copy-Item -LiteralPath "$repo\LICENSE" -Destination "$bundle\LICENSE.txt"
 Copy-Item -LiteralPath "$repo\windows\README.md" -Destination "$bundle\README.md"
 Copy-Item -LiteralPath "$repo\windows\THIRD-PARTY-NOTICES.md", "$repo\windows\RESEARCH.md", "$repo\windows\UPDATES-1.4.7.1.md", "$repo\windows\UPDATES-1.4.8.1.md", "$repo\windows\UPDATES-1.4.8.2.md", "$repo\windows\UPDATES-1.4.9.1.md", "$repo\windows\UPDATES-1.4.9.2.md", "$repo\windows\UPDATES-1.4.9.3.md", "$repo\windows\UPDATES-1.4.9.4.md", "$repo\windows\UPDATES-1.4.10.0.md", "$repo\windows\UPDATES-1.4.10.1.md", "$repo\windows\UPDATES-1.4.10.2.md", "$repo\windows\UPDATES-1.5.1.1.md", "$repo\windows\UPDATES-1.5.1.2.md", "$repo\windows\UPDATES-1.5.1.3.md", "$repo\windows\UPDATES-1.5.2.0.md", "$repo\windows\UPDATES-1.5.2.1.md", "$repo\windows\UPDATES-1.5.3.0.md", "$repo\windows\UPDATES-1.5.3.1.md", "$repo\windows\UPDATES-1.5.3.2.md", "$repo\windows\PEN-AND-LAYERS.md", "$repo\windows\PERFORMANCE.md", "$repo\windows\COMPATIBILITY.md", "$repo\windows\UPDATES-1.5.5.0.md", "$repo\windows\UPDATES-1.5.5.1.md", "$repo\windows\UTILITY-RETOUCH.md", "$repo\windows\UPDATES-1.5.6.0.md", "$repo\windows\UPDATES-1.5.6.1.md", "$repo\windows\UPDATES-1.5.10.0.md", "$repo\windows\UPDATES-1.5.8.0.md", "$repo\windows\TIMELINE-AND-PRESETS.md", "$repo\windows\TOOL-OPTIONS.md", "$repo\windows\COLOR-MANAGEMENT.md", "$repo\windows\PAINTING-AND-GIF.md", "$repo\windows\SELECTION-CROP-SLICE.md", "$repo\windows\WINDOW-MENU.md", "$repo\windows\TYPE-AND-MASKS.md", "$repo\windows\PREFERENCES.md", "$repo\windows\LAYER-MENU.md", "$repo\windows\EDIT-MENU.md", "$repo\windows\PROFESSIONAL-TOOLS.md", "$repo\windows\UPSTREAM-UI.json", "$repo\windows\EDITING-TOOLS.md", "$repo\windows\LAYER-STYLES.md", "$repo\windows\WORKSPACE.md", "$repo\windows\IMAGE-WORKSPACE.md", "$repo\windows\PLUGINS.md" -Destination $bundle
-Copy-Item -LiteralPath "$repo\windows\UPDATES-1.5.13.0.md", "$repo\windows\FILE-WORKFLOWS.md", "$repo\windows\TASK-CHECKPOINT.md" -Destination $bundle
+Copy-Item -LiteralPath "$repo\windows\UPDATES-1.5.14.0.md", "$repo\windows\FILE-WORKFLOWS.md", "$repo\windows\TASK-CHECKPOINT.md" -Destination $bundle
 Copy-Item -LiteralPath "$repo\windows\benchmarks" -Destination "$bundle\benchmarks" -Recurse
 Copy-Item -LiteralPath "$repo\windows\design" -Destination $bundle -Recurse
 Copy-Item -LiteralPath "$repo\windows\licenses" -Destination $bundle -Recurse

@@ -1,17 +1,17 @@
 # 截图任务交接记录
 
-更新：2026-10-31，目标发行版 1.5.13.0 Preview。
+更新：2026-10-31，目标发行版 1.5.14.0 Preview。
 
 ## 必须保留的约束
 
-布局、分组、菜单与交互参照用户截图；主题色、字体与控件风格沿用 Compositor；浮窗标题按钮不变。代码与 GitHub 文档同时更新，发布可追溯的预览版。Creative Cloud 同步不提供。独立颜色引擎不能标作 Adobe ACE 原引擎或声称已证明位精确一致。
+布局、分组、菜单与交互参照用户截图；主题色、字体与控件风格沿用 Compositor；浮窗逻辑不变，标题按钮与面板菜单自 1.5.14.0 起按 Photoshop 样式。代码与 GitHub 文档同时更新，发布可追溯的预览版。Creative Cloud 同步不提供。独立颜色引擎不能标作 Adobe ACE 原引擎或声称已证明位精确一致。
 
 ## 本轮交付与验证入口
 
 - 文件脚本：删除空图层、像素蒙版和效果烘焙；`BulkLayerScriptsTests` 与 `--file-workflow-checks` 检查 clipping、锁定、禁用蒙版、GIF 逐帧蒙版与效果保留、菜单调用、撤销／重做和不透明度。
 - 导入：变量 CSV 复用已有流程；视频帧解码与帧动画；注释 JSON 往返；DICOM 多帧；原生 WIA。`FileImportTests`、`DicomImportTests`、`VideoImportIntegrationTests` 覆盖核心行为；真实 FFmpeg 测试仅在 PATH 有依赖时运行。
 - `--file-workflow-checks` 包含中英文视频导入窗体与取消检查。扫描仪无硬件验收；不要将入口编译通过当作硬件验证。
-- 完整结果以本版 [更新说明](UPDATES-1.5.13.0.md) 为准。
+- 完整结果以本版 [更新说明](UPDATES-1.5.14.0.md) 为准。
 
 - 联系表 II：已补齐灰度／RGB／CMYK／Lab、8／16 位、ICC 和真实字体样式；增加按文件夹分页、分辨率单位、物理间距、自动间距和预设完整往返。`ContactSheetColorTests` 验证高于 8 位的像素精度，界面自检验证单位与设置往返。
 
@@ -49,6 +49,14 @@
 - 截图对照：本轮逐张核对“输出设置”1–7、储存为 Web（19、29）、Photomerge、镜头校正 1；其余文件工作流截图沿用前几版的验收。交接包中缺失的 117 张参考截图（如 stamp-history-eraser 等）无法核对。
 - 验证：Release 构建零警告／错误，Core 1624 通过、2 默认跳过；中英文 file-workflow／interaction／windows／panel／selection-options／layer-style／image-workspace 检查通过；文档一致性检查通过。
 - 仍待人工：Acrobat 中的 PDF 注释与演示文稿、Photoshop 中打开本程序写出的 PSD、真实照片的 Photomerge／HDR／镜头校正效果、多图层导出与 Web 存储的系统对话框。
+## 已实现并本机验证：上游体积光深度、统一图标与 Photoshop 式浮窗（2026-10-31，1.5.14.0）
+
+- 基线 `windows-port@c79f9bb`（1.5.13.0）。上游 main `76b7921` 之前的全部适用提交已移植：体积光的距离、深度对比度、提取深度、主体边缘合成、光源发光阈值和预览复用（`VolumetricLight.cs`），深度模型为首次下载并校验的 Depth Anything V2 Small ONNX（`DepthModel.cs`）。上游的 Vision 人像分割与姿态细化无 Windows 对应，使用 U²-NetP 主体蒙版。
+- 图标：全部按钮、工具、面板标志、排列图标与浮窗标记改为统一的 `IconSet`（24 网格、1.5 线宽）；上游有的 15 个工具按其 SF Symbols 造型，上游自绘的 4 个图标与应用图标直接沿用。旧 `GeneratedSymbols.cs` 与排列位图移除（位图移至 `design/slice-order-icons`）。
+- 浮窗：标签去掉 × 与下划线，当前标签与面板同色；标签行末端 ≡ 面板菜单（关闭、关闭选项卡组、浮动、折叠）；停靠组只留拖动条，浮动组保留 «／» 与 ×。停靠、拖动、浮动、分组、工作区逻辑未改。
+- 维护：1.5.13.0 误提交的 `windows/dist-*` 文档副本移出版本控制并忽略。
+- 验证：见 [1.5.14.0 更新](UPDATES-1.5.14.0.md)。真实模型测试需设 `COMPOSITOR_DEPTH_MODEL_FILE`；CI 不下载模型。
+- 仍待人工：真实照片上的深度与雾气效果、首次下载在慢速网络下的体验；其余按钮在实际界面各处的大小和对齐需逐页过目（自检只覆盖图集与主要面板）。
 ## 尚未完成
 
 交接清单中的功能项均已实现（边界见 [文件工作流](FILE-WORKFLOWS.md)）。不提供：Adobe Bridge、Adobe 镜头配置文件、Creative Cloud 同步、打印事件、编译的 .jsxbin 与 ExtendScript 的 File／Folder／ActionDescriptor。
