@@ -32,3 +32,5 @@ TestResults/
 # Local and CI verification output
 /artifacts/
 /windows/runtime/
+# Packaged builds made by windows/scripts/package.ps1
+/windows/dist*/
