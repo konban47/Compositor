@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Templates;
 using Avalonia.Data;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 
@@ -63,6 +64,34 @@ internal static class EditorTheme
         tabs.Setters.Add(new Setter(TemplatedControl.FontSizeProperty, 12d));
         tabs.Setters.Add(new Setter(TemplatedControl.PaddingProperty, new Thickness(7, 3)));
         tabs.Setters.Add(new Setter(Control.MinHeightProperty, 28d)); styles.Add(tabs);
+        // Photoshop's panel tabs: the open tab is the panel's own surface, joined to it, and the others sit back on the
+        // darker strip in gray; no underline.
+        var strip = new Style(s => s.OfType<TabControl>().Class("dock"));
+        strip.Setters.Add(new Setter(TemplatedControl.BackgroundProperty, Skin.TabStripBrush));
+        strip.Setters.Add(new Setter(TemplatedControl.PaddingProperty, new Thickness(0))); styles.Add(strip);
+        var body = new Style(s => s.OfType<TabControl>().Class("dock").Template().OfType<ContentPresenter>().Name("PART_SelectedContentHost"));
+        body.Setters.Add(new Setter(ContentPresenter.BackgroundProperty, Skin.ChromeBrush)); styles.Add(body);
+        var dockTab = new Style(s => s.OfType<TabItem>().Class("dock"));
+        dockTab.Setters.Add(new Setter(TemplatedControl.BackgroundProperty, Brushes.Transparent));
+        dockTab.Setters.Add(new Setter(TemplatedControl.ForegroundProperty, Skin.SecondaryBrush));
+        dockTab.Setters.Add(new Setter(TemplatedControl.PaddingProperty, new Thickness(10, 0)));
+        dockTab.Setters.Add(new Setter(Control.MinHeightProperty, 26d));
+        dockTab.Setters.Add(new Setter(Layoutable.MarginProperty, new Thickness(0)));
+        styles.Add(dockTab);
+        foreach (var state in new[] { ":selected", ":pointerover" })
+        {
+            var lit = new Style(s => s.OfType<TabItem>().Class("dock").Class(state));
+            if (state == ":selected") lit.Setters.Add(new Setter(TemplatedControl.BackgroundProperty, Skin.ChromeBrush));
+            lit.Setters.Add(new Setter(TemplatedControl.ForegroundProperty, Skin.LabelBrush)); styles.Add(lit);
+            var face = new Style(s => s.OfType<TabItem>().Class("dock").Class(state).Template().OfType<Border>().Name("PART_LayoutRoot"));
+            if (state == ":selected") face.Setters.Add(new Setter(Border.BackgroundProperty, Skin.ChromeBrush));
+            else face.Setters.Add(new Setter(Border.BackgroundProperty, Brushes.Transparent));
+            styles.Add(face);
+            var text = new Style(s => s.OfType<TabItem>().Class("dock").Class(state).Template().OfType<ContentPresenter>().Name("PART_ContentPresenter"));
+            text.Setters.Add(new Setter(ContentPresenter.ForegroundProperty, Skin.LabelBrush)); styles.Add(text);
+        }
+        var pipe = new Style(s => s.OfType<TabItem>().Class("dock").Template().OfType<Border>().Name("PART_SelectedPipe"));
+        pipe.Setters.Add(new Setter(Visual.IsVisibleProperty, false)); styles.Add(pipe);
         var disabled = new Style(s => s.OfType<Button>().Class(":disabled"));
         disabled.Setters.Add(new Setter(Visual.OpacityProperty, .45d)); styles.Add(disabled);
         EditorScrollbars.Apply(styles);

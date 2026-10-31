@@ -57,7 +57,10 @@ public sealed partial class MainWindow
         {
             OpenWindowPanel(name); Pump(); var panel = _dockPanels[name]; Check(panel.Body is not null && panel.Visible, "Window panel missing: " + name);
             Check(panel.Tab!.FontSize <= 13, "Oversized tab: " + name);
-            Click(panel.Tab.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "close-panel-" + name)));
+            // As Photoshop's: no close box on the tab; Close is in the group's ≡ panel menu.
+            Check(!panel.Tab.GetVisualDescendants().OfType<Button>().Any(), "Panel tab has a close box: " + name);
+            Check(panel.Group!.Frame.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Tag, "panel-menu-" + panel.Group.ID)), "Panel group has no panel menu: " + name);
+            PanelMenuItems(panel).OfType<MenuItem>().Single(item => Equals(item.Tag, "close-panel-" + name)).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Pump();
             Check(!panel.Visible && !panel.Tab.IsVisible, "Panel close failed: " + name); OpenWindowPanel(name); HidePanel(panel);
         }
         SelectLayerRow(layer.ID); RawImportSelfCheck();

@@ -20,7 +20,7 @@ public sealed partial class MainWindow
         if (entry.Name == "Options") return OptionsChrome(entry);
         if (entry.Name == "Tools") _rail.SetColumns(entry.ToolCollapsed);
         var dock = new DockPanel { Background = Skin.ChromeBrush };
-        var header = new DockPanel { Height = 11, Background = Skin.SurfaceDarkBrush };
+        var header = new DockPanel { Height = 11, Background = Skin.TabStripBrush };
         if (entry.Name != "Tools" || entry.ToolWindow is not null)
         { var close = DockTitleButton("×", "Close Panel", () => HidePanel(entry), "close-panel-" + entry.Name); DockPanel.SetDock(close, Dock.Right); header.Children.Add(close); }
         var menu = new ContextMenu();
@@ -52,7 +52,7 @@ public sealed partial class MainWindow
     {
         entry.ToolCollapsed = false;
         var row = new DockPanel { Background = Skin.ChromeBrush };
-        var grip = new Border { Width = entry.ToolWindow is null ? 0 : 10, Background = Skin.SurfaceDarkBrush,
+        var grip = new Border { Width = entry.ToolWindow is null ? 0 : 10, Background = Skin.TabStripBrush,
             Cursor = new Cursor(StandardCursorType.SizeAll), Tag = "panel-handle-Options" };
         grip.PointerPressed += (_, e) => StartDockDrag(entry, null, grip, e);
         DockPanel.SetDock(grip, Dock.Left); row.Children.Add(grip); row.Children.Add(entry.Body);

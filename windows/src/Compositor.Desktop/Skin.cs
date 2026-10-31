@@ -45,6 +45,11 @@ internal static class Skin
     public static readonly IBrush CaptionHoverBrush = new SolidColorBrush(CaptionHover);
     public static readonly IBrush CaptionPressedBrush = new SolidColorBrush(CaptionPressed);
 
+    /// <summary>Photoshop's panel tab strip and group grip: a step darker than the panels, so the open tab, in the
+    /// panel's own color, reads as part of it.</summary>
+    public static Color TabStrip => Tone(0x19, 0x3C, 0xA4, 0xD6);
+    public static readonly IBrush TabStripBrush = new SolidColorBrush(TabStrip);
+
     /// <summary>Subtle 1px border between docked workspace sections (#262626).</summary>
     public static Color BorderSubtle => Tone(0x26, 0x40, 0xA0, 0xC0);
 
@@ -116,7 +121,7 @@ internal static class Skin
         foreach (var (brush, color) in new[] { (ChromeBrush, Chrome), (ScrollTrackBrush, ScrollTrack), (ScrollThumbBrush, ScrollThumb), (SurfaceDarkBrush, SurfaceDark),
             (SurfaceControlBrush, SurfaceControl), (SurfaceControlHoverBrush, SurfaceControlHover), (CaptionHoverBrush, CaptionHover), (CaptionPressedBrush, CaptionPressed),
             (SurfaceControlPressedBrush, SurfaceControlPressed), (BorderSubtleBrush, BorderSubtle),
-            (BorderControlBrush, BorderControl), (LabelBrush, Label), (SecondaryBrush, Secondary), (MenuRule, BorderControl), (RulerFaceBrush, RulerFace) })
+            (BorderControlBrush, BorderControl), (TabStripBrush, TabStrip), (LabelBrush, Label), (SecondaryBrush, Secondary), (MenuRule, BorderControl), (RulerFaceBrush, RulerFace) })
             if (brush is SolidColorBrush mutable) mutable.Color = color;
         var ink = EditorPreferences.Current.Theme >= 2 ? Colors.Black : Colors.White;
         foreach (var brush in new[] { TabFront, TabBack, TabFrontEdge, TabBackEdge }) if (brush is SolidColorBrush mutable) mutable.Color = ink;

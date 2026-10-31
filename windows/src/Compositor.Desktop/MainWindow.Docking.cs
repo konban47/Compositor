@@ -72,7 +72,7 @@ public sealed partial class MainWindow
     }
     private DockGroup MakeDockGroup(string id, TabControl? tabs = null, int column = -1, double order = 0)
     {
-        var group = new DockGroup(id, tabs ?? new TabControl(), column, order); group.Tabs.MinHeight = 0;
+        var group = new DockGroup(id, tabs ?? new TabControl(), column, order); group.Tabs.MinHeight = 0; group.Tabs.Classes.Add("dock");
         _dockGroups.Add(group);
         group.Tabs.SelectionChanged += (_, e) =>
         {
@@ -88,7 +88,7 @@ public sealed partial class MainWindow
         if (_dockPanels.ContainsKey(name) || tab.Content is not Control body) return;
         var group = _dockGroups.First(g => ReferenceEquals(g.Tabs, host));
         var entry = new DockPanelEntry(name, body, host, tab, null) { Group = group, LastDockGroup = group.ID }; _dockPanels[name] = entry;
-        tab.FontSize = 12; tab.Padding = new Thickness(4, 2); tab.MinHeight = 26; tab.Header = PanelHeader(entry);
+        tab.FontSize = 12; tab.ClearValue(TabItem.PaddingProperty); tab.ClearValue(MinHeightProperty); tab.ClearValue(TabItem.FontWeightProperty); tab.Classes.Add("dock"); tab.Header = PanelHeader(entry);
         RenderDockArea();
     }
     private static void Detach(Control control)
@@ -111,28 +111,50 @@ public sealed partial class MainWindow
     {
         var button = DockButton(text, hint, action, tag); button.Height = 11; button.Content = new ChromeGlyph(text) { Width = 22, Height = 10, VerticalAlignment = VerticalAlignment.Center }; return button;
     }
+    /// <summary>
+    /// A panel's tab, as Photoshop has it: just its name, gray until it's the open one. There's no close box on the tab;
+    /// Close and Close Tab Group are in the group's panel menu (≡) and the tab's own right-click menu.
+    /// </summary>
     private Control PanelHeader(DockPanelEntry entry)
     {
         var header = new DockPanel { Background = Brushes.Transparent, MinHeight = 24 };
-        var close = DockButton("×", "Close Panel", () => HidePanel(entry), "close-panel-" + entry.Name); DockPanel.SetDock(close, Dock.Right); header.Children.Add(close);
-        var title = new TextBlock { Text = Localize.Text(entry.Name), FontSize = 12, Foreground = Skin.LabelBrush, VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(4, 0, 5, 0), Background = Brushes.Transparent, Tag = "panel-handle-" + entry.Name };
+        var title = new TextBlock { Text = Localize.Text(entry.Name), FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0), Background = Brushes.Transparent, Tag = "panel-handle-" + entry.Name };
         header.Children.Add(title);
         title.AddHandler(PointerPressedEvent, (_, e) => StartDockDrag(entry, null, title, e), RoutingStrategies.Tunnel);
-        var menu = new ContextMenu(); menu.Items.Add(Command("Float Panel", () => FloatPanel(entry)));
-        menu.Items.Add(Command("Close Panel", () => HidePanel(entry))); header.ContextMenu = menu; return header;
+        var menu = new ContextMenu();
+        menu.Opening += (_, _) => { menu.Items.Clear(); foreach (var item in PanelMenuItems(entry)) menu.Items.Add(item); };
+        header.ContextMenu = menu; return header;
+    }
+
+    /// <summary>What a panel's menu offers about the panel itself, as Photoshop's panel menus end: Close, Close Tab Group,
+    /// and floating or docking.</summary>
+    private IEnumerable<Control> PanelMenuItems(DockPanelEntry entry)
+    {
+        var group = entry.Group;
+        var close = Command("Close", () => HidePanel(entry)); close.Tag = "close-panel-" + entry.Name; yield return close;
+        if (group is not null) yield return Command("Close Tab Group", () => { foreach (var member in Members(group).ToArray()) HidePanel(member); });
+        yield return new Separator();
+        yield return Command("Float Panel", () => FloatPanel(entry));
+        if (group is not null && group.Window is null) yield return Command("Float Tab Group", () => FloatGroup(group));
+        if (group is not null) yield return Command(group.Collapsed || group.ColumnCollapsed ? "Expand Panels" : "Collapse Panels to Icons", () => ToggleGroupCollapse(group));
     }
     private void BuildGroupChrome(DockGroup group)
     {
         Detach(group.Tabs);
         var root = new Grid(); var content = new DockPanel();
-        var grip = new DockPanel { Height = 11, Background = Skin.SurfaceDarkBrush, Tag = "group-handle-" + group.ID };
-        var close = DockTitleButton("×", "Close Tab Group", () => { foreach (var entry in Members(group).ToArray()) HidePanel(entry); }); DockPanel.SetDock(close, Dock.Right); grip.Children.Add(close);
-        var collapse = DockTitleButton(group.Collapsed ? "»" : "«", "Collapse or Expand Panels", () => ToggleGroupCollapse(group), "collapse-group-" + group.ID); DockPanel.SetDock(collapse, Dock.Right); grip.Children.Add(collapse);
+        // Photoshop's group bar: a docked group's is only a grip to drag it by (its column's bar collapses it to icons);
+        // a floating group's adds « to collapse it to icons, » to open it again, and × to close it.
+        var grip = new DockPanel { Height = 11, Background = Skin.TabStripBrush, Tag = "group-handle-" + group.ID };
+        if (group.Window is not null || group.Column < 0)
+        {
+            var close = DockTitleButton("×", "Close Tab Group", () => { foreach (var entry in Members(group).ToArray()) HidePanel(entry); }); DockPanel.SetDock(close, Dock.Right); grip.Children.Add(close);
+            var collapse = DockTitleButton(group.Collapsed ? "»" : "«", group.Collapsed ? "Expand Panels" : "Collapse Panels to Icons", () => ToggleGroupCollapse(group), "collapse-group-" + group.ID); DockPanel.SetDock(collapse, Dock.Right); grip.Children.Add(collapse);
+        }
         var title = new TextBlock { Text = group.Window is null ? "⋮⋮" : string.Join(" · ", Members(group).Where(p => p.Visible).Select(p => Localize.Text(p.Name))),
             Tag = "group-title-" + group.ID, FontSize = 9, Foreground = Skin.SecondaryBrush, Margin = new Thickness(6, 0), Background = Brushes.Transparent, TextTrimming = TextTrimming.CharacterEllipsis };
         grip.Children.Add(title); title.AddHandler(PointerPressedEvent, (_, e) => StartDockDrag(null, group, title, e), RoutingStrategies.Tunnel);
-        var menu = new ContextMenu(); menu.Items.Add(Command("Float Tab Group", () => FloatGroup(group))); menu.Items.Add(Command("Collapse or Expand Panels", () => ToggleGroupCollapse(group)));
+        var menu = new ContextMenu(); menu.Items.Add(Command("Float Tab Group", () => FloatGroup(group))); menu.Items.Add(Command(group.Collapsed || group.ColumnCollapsed ? "Expand Panels" : "Collapse Panels to Icons", () => ToggleGroupCollapse(group)));
         menu.Items.Add(Command("Close Tab Group", () => { foreach (var entry in Members(group).ToArray()) HidePanel(entry); })); grip.ContextMenu = menu;
         DockPanel.SetDock(grip, Dock.Top); content.Children.Add(grip);
         if (group.Collapsed)
@@ -146,6 +168,22 @@ public sealed partial class MainWindow
         }
         else content.Children.Add(group.Tabs);
         root.Children.Add(content);
+        if (!group.Collapsed)
+        {
+            // The panel menu at the end of the tab row, as Photoshop's ≡: about the open panel and its group.
+            var panelMenu = new ContextMenu { Placement = PlacementMode.BottomEdgeAlignedRight };
+            var opener = DockButton("", "Panel Menu", () => { }, "panel-menu-" + group.ID);
+            opener.Width = 24; opener.Height = 24; opener.Margin = new Thickness(0, 12, 2, 0);
+            opener.HorizontalAlignment = HorizontalAlignment.Right; opener.VerticalAlignment = VerticalAlignment.Top;
+            opener.Content = new ChromeGlyph("≡") { Width = 24, Height = 24, IsHitTestVisible = false };
+            opener.Click += (_, _) =>
+            {
+                if (Members(group).FirstOrDefault(p => ReferenceEquals(group.Tabs.SelectedItem, p.Tab)) is not { } open) return;
+                panelMenu.Items.Clear(); foreach (var item in PanelMenuItems(open)) panelMenu.Items.Add(item);
+                panelMenu.Open(opener);
+            };
+            root.Children.Add(opener);
+        }
         group.Preview = new Border { IsHitTestVisible = false, IsVisible = false, BorderBrush = Skin.AccentBrush, BorderThickness = new Thickness(2), Background = new SolidColorBrush(Color.FromArgb(28, 20, 115, 230)), Tag = "dock-preview-" + group.ID };
         root.Children.Add(group.Preview); group.Frame.Child = root;
         if (group.Window is { } window) { window.Title = title.Text ?? Localize.Text("Panels"); AddFloatingResize(group.Frame, window); }
