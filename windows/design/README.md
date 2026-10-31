@@ -33,3 +33,15 @@
 使用 imagegen skill，经内置 imagegen 为 35 个面板／工具窗口逐一生成专属参考稿。设计思路参考 Photoshop 的面板语义，延续项目单色、统一线宽和紧凑留白；不使用 Photoshop 原始图标文件，不改动左侧 69 个工具的按钮图标。完整提示词、生成稿、SVG 与深浅主题实际预览见 [面板图标设计说明](panel-icons/README.md)。
 
 1.5.2.0 保留既有生成图标，修正按钮最小尺寸及内容居中。停靠预览采用蓝色细线和 9 像素模糊光晕，沿目标列完整高度显示；各列单独保存宽度和缩略状态。
+
+## 统一图标体系（1.5.14）
+
+按用户要求，参照上游的图标风格与 Photoshop 的图标含义重新设计全部按钮图标、工具图标和标志，代码见 [IconSet.cs](../src/Compositor.Desktop/IconSet.cs)。此前的三套图形（24 单位 1.65 线宽的 `EditorIcon`、28 单位 1.8 线宽的 imagegen 适配 `GeneratedSymbols`、各控件内的零散路径）与排列图标的位图遮罩一并替换。
+
+- 规格：24 单位网格，四周 2 单位留白；1.5 单位线宽，圆头圆角，与 SF Symbols 常规字重在 17 pt 时的视觉线重相当；实心部分只用于 Photoshop 习惯用实心表示的部位（画笔刷毛、路径选择箭头、蒙版、排列中被移动的方块）；虚线只用于选区类（选框、快速蒙版、快速选择圈）。工具变体的徽标固定在左上 6×6 区域（加号、减号、闪光、回退箭头、交叉），主体图形让出该区域。
+- 上游已有：应用图标沿用上游 `AppIcon`；仿制图章、渐变、多边形套索、对象选择沿用上游自绘代码（[UpstreamArtwork.cs](../src/Compositor.Desktop/UpstreamArtwork.cs)）。上游其余 15 个工具调用的 SF Symbols（`arrow.up.left.and.arrow.down.right`、`rectangle.dashed`、`circle.dashed`、`lasso`、`wand.and.stars`、`paintbrush.pointed`、`bandage`、`drop`、`square.on.circle`、`crop`、`hand.raised`（左右翻转）、`magnifyingglass`、`textformat`、`eyedropper`）按同一造型重新绘制；Apple 符号与字体不随包分发。
+- Photoshop 独有的工具按 Photoshop 的图形含义绘制：钢笔组为笔尖（自由钢笔加曲线、弯度钢笔加弧线、添加／删除锚点加加号／减号），路径选择为实心箭头、直接选择为空心箭头，减淡为棒棒糖、加深为捏合的手、海绵带孔，橡皮擦为斜置橡皮（背景橡皮擦加交叉、魔术橡皮擦加闪光），历史记录画笔加回退箭头，图案图章加棋盘，快速选择为画笔加虚线圈，磁性套索加磁铁，计数为 123。
+- 面板标志（35 个）保留各面板的含义，按同一规格重绘；浮窗标记（«、»、×、≡）为 1 像素整像素线，见 [ChromeGlyph.cs](../src/Compositor.Desktop/ChromeGlyph.cs)。
+- 检查：`--edit-workspace-checks` 输出 `icons.png`（69 个工具，24 像素）与 `all-icons.png`（全部图标，22 与 40 逻辑像素对照），并检查每个图标都有可绘制内容；`--docking-checks` 继续检查 35 个面板标志完整且互不重复。
+
+旧参考稿保留在本目录：imagegen 图标表、面板图标生成稿（[panel-icons](panel-icons/README.md)）与排列图标位图（[slice-order-icons](slice-order-icons/README.md)）。它们是历史设计参考，运行时不再使用。

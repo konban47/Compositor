@@ -4,26 +4,17 @@ using Avalonia.Media;
 
 namespace Compositor.Desktop;
 
-/// <summary>Independent vectors matching ColorPaletteControls.swift's system-symbol roles; no Apple font assets.</summary>
+/// <summary>ColorPaletteControls.swift's swap and reset buttons, in secondary gray as upstream has them, from the app's
+/// icon system; the swap arrows turned a quarter, so they point from one swatch to the other.</summary>
 internal sealed class UpstreamPaletteGlyph(string kind) : Control
 {
     protected override Size MeasureOverride(Size availableSize) => new(24, 24);
     public override void Render(DrawingContext context)
     {
-        var size = Math.Min(Bounds.Width, Bounds.Height);
-        using var fit = context.PushTransform(Matrix.CreateScale(size / 24, size / 24)
-            * Matrix.CreateTranslation((Bounds.Width - size) / 2, (Bounds.Height - size) / 2));
-        if (kind == "more")
-        {
-            foreach (var x in new[] { 4d, 12d, 20d }) context.DrawEllipse(Skin.LabelBrush, null, new Point(x, 12), 2.1, 2.1);
-            return;
-        }
-        var pen = new Pen(Skin.SecondaryBrush, 1.8) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
-        if (kind == "swap")
-        {
-            using var turn = context.PushTransform(Matrix.CreateTranslation(-12, -12) * Matrix.CreateRotation(Math.PI / 4) * Matrix.CreateTranslation(12, 12));
-            context.DrawGeometry(null, pen, StreamGeometry.Parse("M3,8 L21,8 M17,4 L21,8 L17,12 M21,16 L3,16 M7,12 L3,16 L7,20"));
-        }
-        else context.DrawGeometry(null, pen, StreamGeometry.Parse("M5,10 A8,8 0 1 1 5,17 M5,4 L5,10 L11,10"));
+        if (kind == "more") { EditorIcon.Draw(context, "more", Bounds.Size); return; }
+        if (kind != "swap") { IconSet.Draw(context, "reset", Bounds.Size, Skin.SecondaryBrush); return; }
+        var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
+        using var turn = context.PushTransform(Matrix.CreateTranslation(-center.X, -center.Y) * Matrix.CreateRotation(Math.PI / 4) * Matrix.CreateTranslation(center.X, center.Y));
+        IconSet.Draw(context, "swap", Bounds.Size, Skin.SecondaryBrush);
     }
 }

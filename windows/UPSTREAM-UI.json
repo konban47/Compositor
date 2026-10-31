@@ -129,7 +129,7 @@
     "selectedFillOpacity": 0.12,
     "selectedBorderOpacity": 0.14
   },
-  "systemResources": "Other upstream symbols use Apple SF Symbols, and native buttons use SwiftUI/AppKit. No corresponding redistributable asset files exist in this repository; EditorIcon supplies Windows vector counterparts.",
+  "systemResources": "Other upstream symbols use Apple SF Symbols, and native buttons use SwiftUI/AppKit. No corresponding redistributable asset files exist in this repository; since Windows 1.5.14.0 IconSet draws their counterparts, with every other icon, in one 24-unit, 1.5-stroke system. The imagegen sheet is kept as a design reference only.",
   "layoutPorts": {
     "ColorPaletteControls": "ToolRail.cs + UpstreamPaletteGlyph.cs",
     "ProjectTabs": "MainWindow.cs + Skin.cs",
@@ -137,7 +137,7 @@
   },
   "generatedCounterparts": {
     "reference": "windows/design/icon-reference.png",
-    "implementation": "windows/src/Compositor.Desktop/GeneratedSymbols.cs",
+    "implementation": "windows/src/Compositor.Desktop/IconSet.cs",
     "tool": "built-in imagegen",
     "actualModel": "not disclosed by tool",
     "provenance": "windows/design/README.md"

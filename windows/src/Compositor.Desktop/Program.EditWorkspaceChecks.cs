@@ -80,6 +80,17 @@ public sealed partial class MainWindow
             new TextBlock { Text = tool.ToString(), FontSize = 8, MaxWidth = 72 } } });
         gallery.Fields.Children.Add(icons); gallery.Show(this); Pump();
         using (var frame = gallery.CaptureRenderedFrame()) frame!.Save(Path.ChangeExtension(output, "icons.png"), new PngBitmapEncoderOptions()); gallery.Close();
+        // Every icon in the app's one system, at the size buttons show it and at twice that, to check them side by side.
+        var kinds = Enum.GetNames<Tool>().Concat(IconSet.Kinds.Where(kind => !Enum.TryParse<Tool>(kind, out _)).Order(StringComparer.Ordinal)).Distinct().ToArray();
+        if (kinds.Any(kind => !IconSet.Has(kind) && kind is not ("Clone" or "Gradient" or "Polygon" or "Object")) || IconSet.Glyphs.Values.Any(glyph => glyph.Outline.Length + glyph.Fill.Length + glyph.Dashed.Length == 0))
+            throw new InvalidOperationException("An icon has nothing to draw.");
+        var sheet = new FormDialog("Icons", 1180, 1500); var all = new WrapPanel { ItemWidth = 96, ItemHeight = 62 };
+        foreach (var kind in kinds) all.Children.Add(new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Children = {
+            new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 6, HorizontalAlignment = HorizontalAlignment.Center, Children = {
+                new EditorIcon(kind) { Width = 22, Height = 22, VerticalAlignment = VerticalAlignment.Center }, new EditorIcon(kind) { Width = 40, Height = 40 } } },
+            new TextBlock { Text = kind.Replace("panel:", "▸"), FontSize = 8, MaxWidth = 94, HorizontalAlignment = HorizontalAlignment.Center } } });
+        sheet.Fields.Children.Add(all); sheet.Show(this); Pump();
+        using (var frame = sheet.CaptureRenderedFrame()) frame!.Save(Path.ChangeExtension(output, "all-icons.png"), new PngBitmapEncoderOptions()); sheet.Close();
         Save("final");
     }
 }
