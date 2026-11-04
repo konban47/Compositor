@@ -2,7 +2,7 @@
 // Generated from the Unicode Character Database: DerivedBidiClass.txt, BidiBrackets.txt and BidiMirroring.txt.
 // The bidirectional algorithm lives in Bidi.cs; this is only its character data.
 // Unicode data copyright (c) Unicode, Inc.; distributed under the Unicode License v3.
-// See windows/licenses/UNICODE-LICENSE.txt and windows/THIRD-PARTY-NOTICES.md.
+// See windows/licenses/UNICODE-LICENSE.txt and windows/docs/THIRD-PARTY-NOTICES.md.
 // </auto-generated>
 
 namespace Compositor.Core.Document;

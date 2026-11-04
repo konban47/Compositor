@@ -4,7 +4,7 @@ function Read-Repo([string]$Path) { Get-Content -LiteralPath (Join-Path $repo $P
 [xml]$project = Read-Repo 'windows/src/Compositor.Desktop/Compositor.Desktop.csproj'
 $version = @($project.Project.PropertyGroup.Version | Where-Object { $_ })[0]
 if (!$version) { throw 'Missing desktop version.' }
-foreach ($path in @('README.md','windows/README.md')) {
+foreach ($path in @('README.md','windows/docs/README.md')) {
     $body = Read-Repo $path
     if (!$body.Contains("**$version Preview**")) { throw "$path does not describe $version." }
     if (!$body.Contains("Compositor-Windows-$version-x64-setup.exe")) { throw "$path installer name is stale." }
@@ -13,7 +13,7 @@ foreach ($path in @('README.md','windows/README.md')) {
 }
 $homepage = Read-Repo 'README.md'
 if (!$homepage.Contains("releases/tag/windows-v$version") -and !($homepage.Contains('源码构建') -and $homepage.Contains('actions/workflows/windows.yml'))) { throw 'Homepage must link the matching release or explicitly identify a source build.' }
-$updates = "windows/UPDATES-$version.md"
+$updates = "windows/docs/UPDATES-$version.md"
 if (!(Test-Path -LiteralPath (Join-Path $repo $updates))) { throw "Missing $updates." }
 if (!(Read-Repo 'windows/scripts/package.ps1').Contains("[string]`$Version = '$version'")) { throw 'Package version is stale.' }
 if (!(Read-Repo 'windows/installer/Compositor.iss').Contains("#define AppVersion `"$version`"")) { throw 'Installer version is stale.' }
@@ -24,7 +24,7 @@ if (!$formatDoc.Contains("## Windows extension version $format")) { throw 'Curre
 foreach ($field in @('maskDensity','maskFeather','maskVectorPath','bold','italic','underline','strikethrough','smallCaps','allCaps','superscript','subscript','ligatures','kerning','features','direction','complexShaping','language','dynamic','path')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented persisted field: $field" }
 }
-$workspace = Read-Repo 'windows/WORKSPACE.md'
+$workspace = Read-Repo 'windows/docs/WORKSPACE.md'
 if (!($workspace.Split("`n")[0]).Contains($version)) { throw 'Workspace manual version is stale.' }
 foreach ($feature in @('自定义工具栏','生成式工作区','Shift+F','images/generations','DPAPI')) {
     if (!$workspace.Contains($feature)) { throw "Workspace manual is missing $feature." }
@@ -44,22 +44,22 @@ if (!(Read-Repo '.github/workflows/windows.yml').Contains('--workspace-checks'))
 foreach ($field in @('blending','items','globalLightAngle','smartObjectFile','smartObjectID','container','label','blackSplit','whiteSplit')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v15 field: $field" }
 }
-$layerGuide = Read-Repo 'windows/LAYER-STYLES.md'
+$layerGuide = Read-Repo 'windows/docs/LAYER-STYLES.md'
 foreach ($feature in @('混合颜色带','智能对象','画框','画板','遮住所有对象','CSS','SVG','Ctrl+Shift+E','Ctrl+Alt+Shift+')) {
     if (!$layerGuide.Contains($feature)) { throw "Layer guide is missing $feature." }
 }
-if (!(Read-Repo 'windows/scripts/package.ps1').Contains('LAYER-STYLES.md')) { throw 'Layer guide missing from package.' }
+if (!(Test-Path -LiteralPath (Join-Path $repo 'windows/docs/LAYER-STYLES.md'))) { throw 'Layer guide missing from package.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--layer-style-checks')) { throw 'Layer style UI checks missing from CI.' }
 if (!$keys.Contains('Menu("Merge Visible", "E", Ctrl | Shift)')) { throw 'Merge Visible shortcut documentation is stale.' }
-$editing = Read-Repo 'windows/EDITING-TOOLS.md'
+$editing = Read-Repo 'windows/docs/EDITING-TOOLS.md'
 if (!$editing.Contains("**$version Preview**")) { throw 'Editing manual version is stale.' }
 foreach ($feature in @('置入','跨文档','钢笔','直排','图案图章','历史记录艺术画笔','魔术橡皮擦','海绵','单色','v16')) {
     if (!$editing.Contains($feature)) { throw "Editing tool manual is missing $feature." }
 }
-if (!(Read-Repo 'windows/scripts/package.ps1').Contains('EDITING-TOOLS.md')) { throw 'Editing guide missing from package.' }
+if (!(Test-Path -LiteralPath (Join-Path $repo 'windows/docs/EDITING-TOOLS.md'))) { throw 'Editing guide missing from package.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--editing-checks')) { throw 'Editing UI checks missing from CI.' }
 if (!$formatDoc.Contains('`vertical`') -or !$formatDoc.Contains('`lineWidth`')) { throw 'New text/path fields undocumented.' }
-$professional = Read-Repo 'windows/PROFESSIONAL-TOOLS.md'
+$professional = Read-Repo 'windows/docs/PROFESSIONAL-TOOLS.md'
 if (!$professional.Contains("**$version Preview**")) { throw 'Professional tool guide version is stale.' }
 foreach ($feature in @('Alt','磁性套索','快速选择','透视裁剪','切片','颜色取样器','注释','计数','红眼','混合器','v17','SF Symbols')) {
     if (!$professional.Contains($feature)) { throw "Professional guide is missing $feature." }
@@ -67,35 +67,35 @@ foreach ($feature in @('Alt','磁性套索','快速选择','透视裁剪','切�
 foreach ($field in @('marks','kind','group','url','visible')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v17 field: $field" }
 }
-if (!(Read-Repo 'windows/scripts/package.ps1').Contains('PROFESSIONAL-TOOLS.md')) { throw 'Professional guide missing from package.' }
+if (!(Test-Path -LiteralPath (Join-Path $repo 'windows/docs/PROFESSIONAL-TOOLS.md'))) { throw 'Professional guide missing from package.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--professional-checks')) { throw 'Professional UI checks missing from CI.' }
 if (!$keys.Contains('Canvas("Frame tool", "K")')) { throw 'Frame shortcut documentation is stale.' }
 foreach ($field in @('imageSettings','floatImageFile','variables','dataSets','measurementScale','measurements','measurementFields','layout','horizontalScale','verticalScale','baselineShift','justification','smoothing')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v18 field: $field" }
 }
 foreach ($guide in @('IMAGE-WORKSPACE.md','PLUGINS.md','EDIT-MENU.md')) {
-    if (!(Read-Repo "windows/$guide").Contains("**$version Preview**")) { throw "$guide version is stale." }
-    if (!(Read-Repo 'windows/scripts/package.ps1').Contains($guide)) { throw "$guide missing from package." }
+    if (!(Read-Repo "windows/docs/$guide").Contains("**$version Preview**")) { throw "$guide version is stale." }
+    if (!(Test-Path -LiteralPath (Join-Path $repo "windows/docs/$guide"))) { throw "$guide missing from package." }
     if (!(Read-Repo 'README.md').Contains($guide)) { throw "$guide missing from homepage." }
 }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--image-workspace-checks')) { throw 'Image workspace UI checks missing from CI.' }
 foreach ($text in @('8 位 sRGB 再进入','不提供 CMYK/Lab、专色、多通道计算')) {
-    if ((Read-Repo 'windows/README.md').Contains($text)) { throw "Obsolete capability statement: $text" }
+    if ((Read-Repo 'windows/docs/README.md').Contains($text)) { throw "Obsolete capability statement: $text" }
 }
-if (!(Read-Repo 'windows/PLUGINS.md').Contains('apiVersion') -or !(Read-Repo 'windows/PLUGINS.md').Contains('32 位源')) { throw 'Plugin protocol or precision boundary is undocumented.' }
+if (!(Read-Repo 'windows/docs/PLUGINS.md').Contains('apiVersion') -or !(Read-Repo 'windows/docs/PLUGINS.md').Contains('32 位源')) { throw 'Plugin protocol or precision boundary is undocumented.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--edit-workspace-checks')) { throw 'Edit workspace UI checks missing from CI.' }
-$editGuide = Read-Repo 'windows/EDIT-MENU.md'
+$editGuide = Read-Repo 'windows/docs/EDIT-MENU.md'
 foreach ($feature in @('选择性粘贴','内容识别缩放','操控变形','OpenColorIO','ICC','EXR','Windows 拼写','JSON')) {
     if (!$editGuide.Contains($feature)) { throw "Edit guide missing $feature." }
 }
 foreach ($guide in @('PREFERENCES.md','LAYER-MENU.md')) {
-    if (!(Read-Repo "windows/$guide").Contains("**$version Preview**")) { throw "$guide version is stale." }
-    if (!(Read-Repo 'windows/scripts/package.ps1').Contains($guide) -or !(Read-Repo 'README.md').Contains($guide)) { throw "$guide is missing from package/homepage." }
+    if (!(Read-Repo "windows/docs/$guide").Contains("**$version Preview**")) { throw "$guide version is stale." }
+    if (!(Test-Path -LiteralPath (Join-Path $repo "windows/docs/$guide")) -or !(Read-Repo 'README.md').Contains($guide)) { throw "$guide is missing from package/homepage." }
 }
 foreach ($field in @('extended','values','cube','preserveLuminosity','monochrome','absolute','referenceMean','referenceDeviation')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v19 field: $field" }
 }
-$preferences = Read-Repo 'windows/PREFERENCES.md'
+$preferences = Read-Repo 'windows/docs/PREFERENCES.md'
 foreach ($feature in @('OpenCL','Skia','30 位','恢复副本','草稿','暂存盘','--preferences-checks')) {
     if (!$preferences.Contains($feature)) { throw "Preferences guide missing $feature." }
 }
@@ -103,14 +103,14 @@ if (!(Read-Repo '.github/workflows/windows.yml').Contains('--preferences-checks'
 foreach ($field in @('styleRuns','maskVectorEvenOdd','geometry','tateChuYoko','bottomLeading','cmykProfile')) {
     if (!$formatDoc.Contains('`' + $field + '`') -and !$formatDoc.Contains('.' + $field + '`')) { throw "Undocumented v20 field: $field" }
 }
-if (!(Read-Repo 'windows/TYPE-AND-MASKS.md').Contains("**$version Preview**")) { throw 'Type and mask guide is stale.' }
+if (!(Read-Repo 'windows/docs/TYPE-AND-MASKS.md').Contains("**$version Preview**")) { throw 'Type and mask guide is stale.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--type-mask-checks')) { throw 'Type/mask UI checks missing from CI.' }
-$windowGuide = Read-Repo 'windows/WINDOW-MENU.md'
+$windowGuide = Read-Repo 'windows/docs/WINDOW-MENU.md'
 if (!$windowGuide.Contains("**$version Preview**")) { throw 'Window guide is stale.' }
 foreach ($feature in @('工作区','参考线','Ctrl+Esc','Skia','ATN','关键帧')) { if (!$windowGuide.Contains($feature)) { throw "Window guide missing $feature." } }
 if (!$formatDoc.Contains('`artboardID`')) { throw 'Artboard guide ownership is undocumented.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--docking-checks')) { throw 'Docking checks missing from CI.' }
-if (!(Read-Repo 'windows/scripts/package.ps1').Contains('WINDOW-MENU.md')) { throw 'Window guide missing from package.' }
+if (!(Test-Path -LiteralPath (Join-Path $repo 'windows/docs/WINDOW-MENU.md'))) { throw 'Window guide missing from package.' }
 foreach ($feature in @('各列独立','左／右边缘','柔和光晕','固定位置')) { if (!$windowGuide.Contains($feature)) { throw "Docking guide missing $feature." } }
 $panelIcons = (Read-Repo 'windows/design/panel-icons/prompts.json') | ConvertFrom-Json
 $glyphs = Read-Repo 'windows/src/Compositor.Desktop/IconSet.cs'
@@ -124,7 +124,7 @@ foreach ($icon in $panelIcons.icons) {
 }
 if (!$formatDoc.Contains('`artboardBackground`') -or !$windowGuide.Contains('最底部信息栏中间')) { throw 'Artboard background or embedded status scrollbar is undocumented.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--chrome-checks')) { throw 'Chrome checks missing from CI.' }
-$selectionGuide = Read-Repo 'windows/SELECTION-CROP-SLICE.md'
+$selectionGuide = Read-Repo 'windows/docs/SELECTION-CROP-SLICE.md'
 if (!$selectionGuide.Contains("**$version Preview**")) { throw 'Selection/crop/slice guide is stale.' }
 foreach ($feature in @('单行','单列','硬度','交叉','人物','云端','透视','自动切片','Alt','v23','Skia')) {
     if (!(($selectionGuide + (Read-Repo $updates)).Contains($feature))) { throw "Selection guide is missing $feature." }
@@ -132,14 +132,14 @@ foreach ($feature in @('单行','单列','硬度','交叉','人物','云端','�
 foreach ($field in @('noImage','target','altText','background','shape.smoothing')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v23 field: $field" }
 }
-if (!(Read-Repo 'windows/scripts/package.ps1').Contains('SELECTION-CROP-SLICE.md') -or !(Read-Repo 'README.md').Contains('SELECTION-CROP-SLICE.md')) { throw 'Selection guide is missing from package/homepage.' }
+if (!(Test-Path -LiteralPath (Join-Path $repo 'windows/docs/SELECTION-CROP-SLICE.md')) -or !(Read-Repo 'README.md').Contains('SELECTION-CROP-SLICE.md')) { throw 'Selection guide is missing from package/homepage.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--selection-options-checks')) { throw 'Selection options checks missing from CI.' }
 $panelWorkflow = Read-Repo $updates
 foreach ($feature in @('32 DIP','同一实际快捷键','取消滚动','imagegen')) {
     if (!$panelWorkflow.Contains($feature)) { throw "Panel workflow documentation missing $feature." }
 }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--panel-workflow-checks')) { throw 'Panel workflow checks missing from CI.' }
-$sliceIconGuide = Read-Repo 'windows/design/slice-order-icons/README.md'
+$sliceIconGuide = Read-Repo 'windows/docs/DESIGN-SLICE-ORDER-ICONS.md'
 foreach ($name in @('front','forward','backward','back')) {
     $iconPath = Join-Path $repo "windows/design/slice-order-icons/$name.png"
     $hash = (Get-FileHash -LiteralPath $iconPath -Algorithm SHA256).Hash.ToLower()
@@ -147,46 +147,46 @@ foreach ($name in @('front','forward','backward','back')) {
 }
 & (Join-Path $PSScriptRoot 'check-upstream-ui.ps1')
 
-$penGuide = Read-Repo 'windows/PEN-AND-LAYERS.md'
+$penGuide = Read-Repo 'windows/docs/PEN-AND-LAYERS.md'
 foreach ($feature in @("**$version Preview**", 'Ctrl+Enter', '磁性', '10 屏幕像素', '220 毫秒', 'v24')) {
     if (!$penGuide.Contains($feature)) { throw "Pen/layer guide missing $feature." }
 }
 if (!$formatDoc.Contains('`workPath`')) { throw 'Work path field is undocumented.' }
-if (!(Read-Repo 'windows/scripts/package.ps1').Contains('PEN-AND-LAYERS.md')) { throw 'Pen guide missing from package.' }
+if (!(Test-Path -LiteralPath (Join-Path $repo 'windows/docs/PEN-AND-LAYERS.md'))) { throw 'Pen guide missing from package.' }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--pen-layer-checks')) { throw 'Pen/layer UI checks missing from CI.' }
 
 Write-Output "PASS: release $version, format v$format, package names, current workflows and feature documentation agree."
 
-$performance = Read-Repo 'windows/PERFORMANCE.md'
+$performance = Read-Repo 'windows/docs/PERFORMANCE.md'
 foreach ($index in 1..16) {
     $finding = 'F{0:d2}' -f $index
     if (!$performance.Contains($finding)) { throw "Missing performance finding: $finding" }
 }
-foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
+foreach ($path in @('README.md','windows/docs/README.md')) {
     if (!(Read-Repo $path).Contains('PERFORMANCE.md')) { throw "Performance guide missing from $path" }
 }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('performance-checks.ps1')) { throw 'Performance gates missing from CI.' }
 if (!$performance.Contains('COMPOSITOR_MEMORY_MB') -or !$performance.Contains('512 MiB')) { throw 'Runtime memory/format limits are undocumented.' }
 
 foreach ($guide in @('COMPATIBILITY.md',"UPDATES-$version.md")) {
-    foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
+    foreach ($path in @('README.md','windows/docs/README.md')) {
         if (!(Read-Repo $path).Contains($guide)) { throw "$guide missing from $path" }
     }
 }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('compatibility-checks.ps1')) { throw 'Low-resource compatibility gate missing.' }
 foreach ($field in @('lineStyle','lineCap')) { if (!$formatDoc.Contains('`' + $field + '`')) { throw "Missing format field $field" } }
 
-if (!(Read-Repo 'README.md').Contains("v1–v$format") -or !(Read-Repo 'windows/README.md').Contains("版本 1–$format")) { throw 'README format range is stale.' }
+if (!(Read-Repo 'README.md').Contains("v1–v$format") -or !(Read-Repo 'windows/docs/README.md').Contains("版本 1–$format")) { throw 'README format range is stale.' }
 
 foreach ($field in @('frameStyle','countGroups','author','secondX','secondY','filterLayerSettings','rgbSplitReach')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v26 field $field" }
 }
 foreach ($guide in @('UTILITY-RETOUCH.md',"UPDATES-$version.md")) {
-    foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
+    foreach ($path in @('README.md','windows/docs/README.md')) {
         if (!(Read-Repo $path).Contains($guide)) { throw "$guide missing from $path" }
     }
 }
-if (!(Read-Repo 'windows/UTILITY-RETOUCH.md').Contains("**$version Preview**")) { throw 'Utility/retouch manual version is stale.' }
+if (!(Read-Repo 'windows/docs/UTILITY-RETOUCH.md').Contains("**$version Preview**")) { throw 'Utility/retouch manual version is stale.' }
 foreach ($path in @('.github/workflows/windows.yml','windows/scripts/compatibility-checks.ps1')) {
     if (!(Read-Repo $path).Contains('utility-retouch-checks')) { throw "Utility/retouch checks missing from $path" }
 }
@@ -195,23 +195,23 @@ foreach ($license in @('PDFtoImage-LICENSE.txt','PDFium-build-LICENSE.txt','PDFi
 }
 
 foreach ($guide in @('PAINTING-AND-GIF.md','UPDATES-1.5.6.0.md','UPDATES-1.5.6.1.md')) {
-    foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
+    foreach ($path in @('README.md','windows/docs/README.md')) {
         if (!(Read-Repo $path).Contains($guide)) { throw "$guide missing from $path" }
     }
 }
-if (!(Read-Repo 'windows/PAINTING-AND-GIF.md').Contains("**$version Preview**")) { throw 'Painting guide is stale.' }
+if (!(Read-Repo 'windows/docs/PAINTING-AND-GIF.md').Contains("**$version Preview**")) { throw 'Painting guide is stale.' }
 foreach ($field in @('gif.sourceFile','gif.selectedFrameIndex','framePixels','frameOrder','deletedFrameIndices','uniformDelay','frameDelays')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented GIF field: $field" }
 }
 foreach ($path in @('.github/workflows/windows.yml','windows/scripts/compatibility-checks.ps1')) {
     foreach ($check in @('painting-checks','gif-checks')) { if (!(Read-Repo $path).Contains($check)) { throw "$check missing from $path" } }
 }
-if ((Read-Repo 'windows/WINDOW-MENU.md').Contains('不提供视频轨道、关键帧或动画文件导出')) { throw 'Timeline capabilities are stale.' }
-if ((Read-Repo 'windows/PROFESSIONAL-TOOLS.md').Contains('不做笔触平滑')) { throw 'Pencil smoothing documentation is stale.' }
+if ((Read-Repo 'windows/docs/WINDOW-MENU.md').Contains('不提供视频轨道、关键帧或动画文件导出')) { throw 'Timeline capabilities are stale.' }
+if ((Read-Repo 'windows/docs/PROFESSIONAL-TOOLS.md').Contains('不做笔触平滑')) { throw 'Pencil smoothing documentation is stale.' }
 
-$english = (Read-Repo 'windows/README.md').Split('## English')[1]
+$english = (Read-Repo 'windows/docs/README.md').Split('## English')[1]
 if (!$english.Contains("Windows **$version Preview**") -or !$english.Contains($upstream.Substring(0,7))) { throw 'English overview version or upstream baseline is stale.' }
-foreach ($path in @('README.md','windows/README.md')) {
+foreach ($path in @('README.md','windows/docs/README.md')) {
     $body = Read-Repo $path
     if (!$body.Contains("project-format.md#windows-extension-version-$format")) { throw "$path format link is stale." }
     foreach ($match in [regex]::Matches($body, 'Compositor-Windows-([0-9.]+)-x64-(setup\.exe|portable\.zip)')) {
@@ -220,21 +220,21 @@ foreach ($path in @('README.md','windows/README.md')) {
 }
 Write-Output 'PASS: current download names, English overview and project-format links agree.'
 
-$paintingGuide = Read-Repo 'windows/PAINTING-AND-GIF.md'
+$paintingGuide = Read-Repo 'windows/docs/PAINTING-AND-GIF.md'
 if ($paintingGuide.Contains('窄面板用分类下拉框') -or !$paintingGuide.Contains('底部笔触预览') -or !$paintingGuide.Contains('单调时钟')) { throw 'Brush layout or GIF playback guide is stale.' }
-foreach ($feature in @('≡ 面板菜单', 'Photoshop', '标签上没有 ×')) { if (!(Read-Repo 'windows/WINDOW-MENU.md').Contains($feature)) { throw "Floating panel chrome is undocumented: $feature" } }
+foreach ($feature in @('≡ 面板菜单', 'Photoshop', '标签上没有 ×')) { if (!(Read-Repo 'windows/docs/WINDOW-MENU.md').Contains($feature)) { throw "Floating panel chrome is undocumented: $feature" } }
 Write-Output 'PASS: brush layout, playback timing and floating caption scope are documented.'
 
 foreach ($field in @('gradient','startX','endX','stops','fillEnabled','strokeColor','strokeWidth','strokePattern','ClarityDehaze')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v28 field: $field" }
 }
-foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
+foreach ($path in @('README.md','windows/docs/README.md')) {
     if (!(Read-Repo $path).Contains('TOOL-OPTIONS.md')) { throw "Tool options guide missing from $path" }
 }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--tool-options-checks')) { throw 'Tool options UI checks missing from CI.' }
 Write-Output 'PASS: v28 and the 1.5.8 tool workflows are documented and packaged.'
 
-foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1','windows/EDIT-MENU.md','windows/UPDATES-1.5.8.0.md')) {
+foreach ($path in @('README.md','windows/docs/README.md','windows/docs/EDIT-MENU.md','windows/docs/UPDATES-1.5.8.0.md')) {
     if (!(Read-Repo $path).Contains('COLOR-MANAGEMENT.md')) { throw "Color guide missing from $path" }
 }
 foreach ($field in @('colorProfile','ocioConfiguration','ocioWorkingSpace')) {
@@ -243,13 +243,13 @@ foreach ($field in @('colorProfile','ocioConfiguration','ocioWorkingSpace')) {
 foreach ($path in @('.github/workflows/windows.yml','windows/scripts/compatibility-checks.ps1')) {
     if (!(Read-Repo $path).Contains('color-checks')) { throw "Color regression missing from $path" }
 }
-if ((Read-Repo 'windows/EDIT-MENU.md').Contains('工具未随包安装')) { throw 'OCIO runtime documentation is stale.' }
+if ((Read-Repo 'windows/docs/EDIT-MENU.md').Contains('工具未随包安装')) { throw 'OCIO runtime documentation is stale.' }
 Write-Output 'PASS: color management guide, v28 metadata and bundled runtime checks agree.'
 
 foreach ($field in @('layerComps','timeline','imageSettings.profileEncoding','contourSamples','fractionalWidths','hyphenMinimum')) {
     if (!$formatDoc.Contains('`' + $field + '`')) { throw "Undocumented v29 field $field" }
 }
-foreach ($path in @('README.md','windows/README.md','windows/scripts/package.ps1')) {
+foreach ($path in @('README.md','windows/docs/README.md')) {
     if (!(Read-Repo $path).Contains('TIMELINE-AND-PRESETS.md')) { throw "Timeline/preset guide missing from $path" }
 }
 if (!(Read-Repo '.github/workflows/windows.yml').Contains('--asset-workflow-checks')) { throw 'Asset workflow checks missing from CI.' }

@@ -5,6 +5,32 @@ using SkiaSharp;
 namespace Compositor.Core.Pixels;
 internal static class FilterLayerOperators
 {
+    /// <summary>The largest picture whose Reduce Noise is kept: the input and the result, each this many bytes.</summary>
+    private const long KeptBytes = 512L << 20;
+    private static readonly object KeptGate = new();
+    private static (byte[] Input, byte[] Output, int Width, double Strength, double Details, double Color)? _kept;
+
+    /// <summary>
+    /// Reduce Noise is too slow to work out again for every tile and pan, and the tiles of one frame all hand it the same
+    /// whole picture, so the last result is kept with exactly what it was made from: what's under the layer changing, or
+    /// its settings, works it out afresh. As upstream keeps a Reduce Noise layer's picture while what's under it matches.
+    /// </summary>
+    private static void KeptReduceNoise(SKBitmap image, double strength, double details, double color)
+    {
+        var pixels = image.GetPixelSpan(); var width = image.Width; var stride = image.RowBytes;
+        lock (KeptGate)
+        {
+            if (_kept is { } kept && kept.Width == width && kept.Strength == strength && kept.Details == details && kept.Color == color && pixels.SequenceEqual(kept.Input))
+            {
+                kept.Output.CopyTo(pixels);
+                return;
+            }
+            var input = pixels.Length <= KeptBytes ? pixels.ToArray() : null;
+            AdjustPixels.ReduceNoise(pixels, width, image.Height, stride, strength, details, color);
+            _kept = input is null ? null : (input, pixels.ToArray(), width, strength, details, color);
+        }
+    }
+
     internal static void Apply(LayerAdjustment adjustment, Span<byte> rgba, int width, int height, int stride, long ox, long oy, int canvasWidth, int canvasHeight)
     {
         var f = adjustment.FilterLayer;
@@ -16,7 +42,7 @@ internal static class FilterLayerOperators
         if (adjustment.Kind == AdjustmentKind.Sharpen)
             SharpenPixels.Apply(image, f.SharpenAmount, f.SharpenRadius);
         else if (adjustment.Kind == AdjustmentKind.ReduceNoise)
-            AdjustPixels.ReduceNoise(image.GetPixelSpan(), width, height, image.RowBytes, f.ReduceNoiseStrength, f.ReduceNoiseDetails, f.ReduceNoiseColor);
+            KeptReduceNoise(image, f.ReduceNoiseStrength, f.ReduceNoiseDetails, f.ReduceNoiseColor);
         else if (adjustment.Kind == AdjustmentKind.Vignette)
             AdjustPixels.ColoredVignette(image.GetPixelSpan(), width, height, image.RowBytes, -ox, -oy, canvasWidth, canvasHeight, false,
                 f.VignetteAmount, f.VignetteMidpoint, f.VignetteRoundness, f.VignetteFeather, f.VignetteHighlights, f.VignetteRed, f.VignetteGreen, f.VignetteBlue);

@@ -107,8 +107,9 @@ public static partial class DocumentRenderer
         foreach (var layer in document.Layers)
         {
             if (!layer.IsVisible) continue;
-            // Lens effects sample highlights across the entire frame, including sources outside a tile.
-            if (layer.Adjustment?.Kind == AdjustmentKind.LensEffects) return Math.Max(document.Width, document.Height);
+            // Lens effects sample highlights across the entire frame, including sources outside a tile, and Reduce Noise
+            // measures the whole picture's noise, so each tile sees the same frame and they meet without a seam.
+            if (layer.Adjustment?.Kind is AdjustmentKind.LensEffects or AdjustmentKind.ReduceNoise) return Math.Max(document.Width, document.Height);
             if (layer.Adjustment is { Kind: AdjustmentKind.RgbSplit } split && split.FilterLayer is { RgbSplitRadial: true } f)
             {
                 var center = f.RgbSplitCenter ?? new JsonPoint(document.Width / 2d, document.Height / 2d);

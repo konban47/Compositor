@@ -827,7 +827,9 @@ public sealed partial class MainWindow : Window
         {
             _tools.FilledForBuild = build; _tools.Save(ToolDefaults.DefaultPath);
             Width = room.Width / screen.Scaling; Height = room.Height / screen.Scaling;
-            Position = room.Position;
+            // The side and bottom edges carry the system's invisible resize border, which goes past the working area.
+            var border = (int)Math.Round(Math.Max(0, ((FrameSize?.Width ?? Width) - ClientSize.Width) / 2 * screen.Scaling));
+            Position = new PixelPoint(room.X - border, room.Y);
             return;
         }
         if (_tools.WindowWidth > 0 && _tools.WindowHeight > 0) { Width = _tools.WindowWidth; Height = _tools.WindowHeight; }
@@ -4037,9 +4039,10 @@ public sealed partial class MainWindow : Window
     /// cut to the canvas.</summary>
     private string SelectionSizeText(CanvasDocument document)
     {
+        if (_canvas.DraggedShapeSize is { } shape) return $"    {Localize.Text(shape.Line ? "Line" : "Shape")} {shape.Text}";
         if ((_canvas.DrawingSelectionBox ?? document.Selection.Path?.Bounds) is not { } box) return "";
         var cut = SKRect.Intersect(box, SKRect.Create(document.Width, document.Height));
-        return cut.IsEmpty ? "" : $"    {Math.Round(cut.Width):0} × {Math.Round(cut.Height):0} px";
+        return cut.IsEmpty ? "" : $"    {Localize.Text("Selection")} {Math.Round(cut.Width):0} × {Math.Round(cut.Height):0} px";
     }
 
     /// <summary>

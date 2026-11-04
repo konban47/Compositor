@@ -9,7 +9,7 @@ This fork maintains Compositor for Windows in `windows/` (.NET 10, Avalonia, Ski
 - UI regression: run the Desktop DLL with `--interaction-checks screenshot.png` and `--windows-checks screenshot.png`, using `COMPOSITOR_LANGUAGE=en` and `zh-CN`. Use a temporary `COMPOSITOR_SETTINGS_DIR`.
 - Put UI translations in `windows/src/Compositor.Desktop/Locales/zh-CN.json`. Keep project fields, shortcut identifiers, imported names and user text stable.
 - Package: `windows/scripts/package.ps1`; Inno Setup 6 is required only with `-Installer`.
-- Document upstream parity and platform limitations in `windows/README.md` and the release update notes. Do not claim Windows 10 manual testing from Windows Server CI.
+- Document upstream parity and platform limitations in `windows/docs/README.md` and the release update notes. Do not claim Windows 10 manual testing from Windows Server CI.
 
 ## Designing or editing a Compositor project
 

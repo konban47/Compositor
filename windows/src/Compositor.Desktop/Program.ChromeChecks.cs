@@ -47,7 +47,7 @@ public sealed partial class MainWindow
         }
         Check(this.GetVisualDescendants().OfType<Image>().Any(i => Equals(i.Tag, "project-logo") && i.Source is not null), "Project logo missing from caption.");
         // Upstream 1.6: the status bar's selection size, and Show Extras leaving the selection in force.
-        SelectionEdits.SelectAll(doc); Say(); Check(_statusInfo.Text!.Contains("500 × 340 px    500 × 340 px"), "Status bar lacks the selection's size: " + _statusInfo.Text);
+        SelectionEdits.SelectAll(doc); Say(); Check(_statusInfo.Text!.Contains(Localize.Text("Selection") + " 500 × 340 px"), "Status bar lacks the selection's size: " + _statusInfo.Text);
         var selected = doc.Selection.Path; var guides = _canvas.ShowsGuides; SetTool(Tool.Brush);
         ShowExtras(); Pump(); Check(ReferenceEquals(_canvas.HiddenSelection, selected) && !_canvas.ShowsGuides && doc.Selection.Path is not null && !ExtrasShown, "Show Extras did not hide the outline and guides.");
         ShowExtras(); Pump(); Check(_canvas.HiddenSelection is null && _canvas.ShowsGuides == guides && ExtrasShown, "Show Extras did not bring them back.");

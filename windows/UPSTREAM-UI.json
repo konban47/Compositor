@@ -1,6 +1,6 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "2d75d9172835e1dd6111cb2b659958ec33fa5abf",
+  "commit": "7f703b466da83f64c13624739c4ace42ce4b7991",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
@@ -18,7 +18,7 @@
     },
     {
       "path": "Compositor/ContentView.swift",
-      "sha256": "479714eb301277f3131a2b5f6bf78f79cf4549795f92e0ad410d1de27e154e8b"
+      "sha256": "5e4728a78a6fca2a5b45763fce93bd54a48e36e8dac57698b5df6aac0c4c4465"
     },
     {
       "path": "Compositor/UI/ToolHeaderStyle.swift",
@@ -26,11 +26,11 @@
     },
     {
       "path": "Compositor/Document/EditorSession.swift",
-      "sha256": "92de34600d293a34daa2d74e4b4ea7a1531c688898d2f32fe9018081b5af3eec"
+      "sha256": "2f938ec5daa00c5d0eec913ded359711a43ca6b80d87913296dacb0563eeb611"
     },
     {
       "path": "Compositor/UI/ColorPaletteControls.swift",
-      "sha256": "b4d244b3dff818032719f596ec31db73a8e418dfa3b1d306d0c36db06af3df5c"
+      "sha256": "da5a1d96f04acb1719ac826b5b5d0e4ddc63d3cb523c886573bf0df82d619474"
     },
     {
       "path": "Compositor/UI/ProjectTabs.swift",
@@ -42,7 +42,7 @@
     },
     {
       "path": "Compositor/Document/DeepLayers.swift",
-      "sha256": "d8e45f38f088190fb50e3a5d8b69fc1a34c3bec7d3525c37266492f1c70713af"
+      "sha256": "f2d012a2c5badf901b555b8a9eef31ef309f7ff924beccabb89a594d5c7110b7"
     },
     {
       "path": "Compositor/Document/CameraRawReset.swift",
@@ -58,7 +58,7 @@
     },
     {
       "path": "Compositor/Document/ShapeTool.swift",
-      "sha256": "adaf9af7524c9ff90ec52d998040362d8f67ac0bc2e4df20ba40505990fe7ec3"
+      "sha256": "14d5ddf1fa7b0d95fe1b61dee13ed339fa0bb04031c02231a1358325ba93cd78"
     },
     {
       "path": "Compositor/UI/ShapeControls.swift",
@@ -66,7 +66,7 @@
     },
     {
       "path": "Compositor/UI/NativeLayerList.swift",
-      "sha256": "25b93f69a13a7b9e404691261bda09375f1d6aef488e5eea007ab566398aa932"
+      "sha256": "3a38b7bb45217d7ebfcd5fac3d11e2859dfb3da9524e4e77d3d473c6e66f3470"
     },
     {
       "path": "Compositor/Document/CameraRaw.swift",
@@ -74,7 +74,7 @@
     },
     {
       "path": "Compositor/UI/ToolRail.swift",
-      "sha256": "26123b2c9dc038a06d179ca705b8e7dff0dbe40d9b7d013dab4085f8fe8f7a81"
+      "sha256": "1cb6c1cf6563323629f5102078af5239c3af7add1acabef17c64df0a0a0c7e96"
     },
     {
       "path": "Compositor/UI/GIFTimeline.swift",
@@ -106,7 +106,7 @@
     },
     {
       "path": "Compositor/Document/LensEffects.swift",
-      "sha256": "77f8dd1685ee3f730abe207c288cd831ceb628f11285f40e31c5fcc5b57cdc2e"
+      "sha256": "d71a9bf1d65968b11b85ff95725bba4dcb58368860121fc7a2d959e4648dfcf0"
     },
     {
       "path": "Compositor/Rendering/MetalBokeh.swift",
@@ -140,7 +140,7 @@
     "implementation": "windows/src/Compositor.Desktop/IconSet.cs",
     "tool": "built-in imagegen",
     "actualModel": "not disclosed by tool",
-    "provenance": "windows/design/README.md"
+    "provenance": "windows/docs/DESIGN.md"
   },
   "windowsLayoutOverrides": {
     "railSpacing": 2,

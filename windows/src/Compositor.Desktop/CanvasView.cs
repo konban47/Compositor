@@ -1196,6 +1196,9 @@ public sealed partial class CanvasView : Control
         return DrawingSelectionBox is { Width: > 0, Height: > 0 } box ? (Size(box.Width, box.Height), Farthest(box, _selectionAnchor)) : null;
     }
 
+    /// <summary>The size of a shape being dragged out, for the status bar: its kind's name, then the label's text.</summary>
+    public (bool Line, string Text)? DraggedShapeSize => _shaping && DragOutSize() is { } size ? (ShapeKind == Format.ShapeKind.Line, size.Text) : null;
+
     /// <summary>The size of what's being dragged, in a dark label just above and right of the point being dragged, the
     /// other side of it near the view's edge.</summary>
     private void DrawDragOutSize(DrawingContext context)
@@ -1941,6 +1944,7 @@ public sealed partial class CanvasView : Control
                 : point;
             _shapeBox = ShapeEdits.Box(_shapeAnchor, _shapeEnd,
                 square: shift && ShapeKind != Format.ShapeKind.Line, fromCentre: option);
+            MarqueeMoved?.Invoke();
             InvalidateVisual();
             base.OnPointerMoved(e);
             return;
