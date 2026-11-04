@@ -131,6 +131,10 @@ struct FilterSheet: View {
                 }
             case .lensEffects:
                 lensEffectsControls
+            case .rimLight:
+                rimLightControls
+            case .volumetricLight:
+                volumetricLightControls
             case .motionBlur:
                 control("Angle", \.angle, range: -90...90, unit: "°", decimals: 0, logarithmic: false)
                 control("Distance", \.distance, range: 1...2000, unit: "px", decimals: 0, logarithmic: true)
@@ -177,6 +181,13 @@ struct FilterSheet: View {
                     .help("How strongly edges and fine detail are brought out")
                 control("Radius", \.sharpenRadius, range: 0.1...20, unit: "px", decimals: 1, logarithmic: true)
                     .help("How fine the detail it sharpens: small for crisp texture, larger for a punchier look")
+            case .reduceNoise:
+                control("Strength", \.reduceNoiseLuminance, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+                    .help("How much grain is smoothed from the picture's brightness")
+                control("Preserve Details", \.reduceNoiseDetail, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+                    .help("How much fine texture and edges are kept while the grain is smoothed")
+                control("Color Noise", \.reduceNoiseColor, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+                    .help("How much colored speckle is smoothed into the colors around it")
             case .bloomGlow:
                 control("Amount", \.bloomAmount, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
                 control("Radius", \.bloomRadius, range: 1...150, unit: "px", decimals: 0, logarithmic: true)
@@ -191,8 +202,11 @@ struct FilterSheet: View {
                 Text("Positive straightens lines that bow outward (barrel); negative, lines that bow inward (pincushion).")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-            Toggle("Preview", isOn: Binding(get: { edit?.preview ?? true },
-                                            set: { session.updateFilter(settings, preview: $0) }))
+            // Not for an adjustment layer: its eye in the layers panel shows the picture without it.
+            if session.adjustmentOriginal == nil {
+                Toggle("Preview", isOn: Binding(get: { edit?.preview ?? true },
+                                                set: { session.updateFilter(settings, preview: $0) }))
+            }
             if let error = edit?.previewError {
                 Text(error).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
@@ -220,15 +234,30 @@ struct FilterSheet: View {
                     ProgressView().controlSize(.small)
                     Text(edit?.committing == true ? "Applying…" : "Working…")
                         .font(.callout).foregroundStyle(.secondary)
+                } else if edit?.kind == .volumetricLight, session.preparingDepth {
+                    // The first time only: the depth model is downloading (about 2.6 MB).
+                    ProgressView().controlSize(.small)
+                    Text("Getting depth…").font(.callout).foregroundStyle(.secondary)
+                } else if let edit, edit.preparing, edit.kind == .rimLight && !RimLighting.hasSubject(for: edit.hdrPreviewSource ?? edit.previewSource)
+                            || edit.kind == .volumetricLight && !VolumetricLighting.hasLooked(for: edit.hdrPreviewSource ?? edit.previewSource) {
+                    // Only the first preview, which finds the subject: relighting it afterwards is quick.
+                    ProgressView().controlSize(.small)
+                    Text("Finding the subject…").font(.callout).foregroundStyle(.secondary)
+                }
+                if edit?.kind == .volumetricLight {
+                    Button("Extract Depth") { Task { await session.extractDepth() } }
+                        .help("Close the filter and add the depth the haze goes by as a new layer: white is near, black is far")
+                        .disabled(volumetricWaiting)
                 }
                 Button("OK") { Task { await session.commitFilter() } }
                     .configuredNativeShortcut(.return).buttonStyle(.borderedProminent)
-                    .disabled(edit?.kind.isAutomatic == true && (edit?.preparing == true || edit?.previewError != nil))
+                    .disabled(edit?.kind.isAutomatic == true && (edit?.preparing == true || edit?.previewError != nil) || volumetricWaiting)
             }
         }
         .onPreferenceChange(LabelWidthKey.self) { labelWidth = max(60, $0) }
         .padding(24)
-        .frame(width: isCameraRaw ? FloatingPanelController.dockedWidth : 380)
+        // Volumetric Light's a little wider: Extract Depth shares the row with Cancel and OK.
+        .frame(width: isCameraRaw ? FloatingPanelController.dockedWidth : edit?.kind == .volumetricLight ? 440 : 380)
         .frame(maxHeight: isCameraRaw ? .infinity : nil, alignment: .top)
         .fixedSize(horizontal: false, vertical: !isCameraRaw)
 
@@ -237,6 +266,8 @@ struct FilterSheet: View {
         .onChange(of: session.colorPicker?.color) { _, _ in
             session.previewGradientMapColor()
             session.previewVignetteColor()
+            session.previewRimLightColor()
+            session.previewVolumetricLightColor()
             session.previewDitherColor()
         }
     }
@@ -364,6 +395,96 @@ struct FilterSheet: View {
     }
 
     /// Lens Effects: which effect, then its own settings.
+    /// Rim Light: Glow, then each light's color, angle, strength, width and choke, with room for up to three.
+    /// Volumetric Light's first preview, while it fetches the depth model or finds the subject: Extract Depth and OK
+    /// wait for it (the spinner says what for), and Cancel stays.
+    private var volumetricWaiting: Bool {
+        guard let edit, edit.kind == .volumetricLight else { return false }
+        return session.preparingDepth || edit.preparing && !VolumetricLighting.hasLooked(for: edit.hdrPreviewSource ?? edit.previewSource)
+    }
+
+    @ViewBuilder private var volumetricLightControls: some View {
+        let color = settings.volumetric.color
+        HStack(spacing: 8) {
+            Text("Click or drag on the canvas to move the light")
+                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Button { session.openVolumetricLightColorPicker() } label: {
+                let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
+                shape.fill(Color(.sRGB, red: color.red, green: color.green, blue: color.blue))
+                    .overlay { shape.inset(by: 1).strokeBorder(.white, lineWidth: 1.5) }
+                    .overlay { shape.strokeBorder(.black, lineWidth: 1) }
+                    .frame(width: 24, height: 24)
+                    .contentShape(shape)
+            }
+            .buttonStyle(.plain)
+            .help("Choose the light's color")
+        }
+        control("Haze", \.volumetric.haze, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+            .help("How thick the air is: haze lit by the light, thinner in front of the subject")
+        control("Distance", \.volumetric.distance, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+            .help("How far into the scene the haze begins: low reaches up to the camera, high leaves all but the farthest parts clear")
+        control("Depth Contrast", \.volumetric.depthContrast, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+            .help("Spread out depths bunched together, such as a distant city, so the haze builds through them in steps; 0 keeps the depth as the model sees it")
+        control("Size", \.volumetric.size, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+            .help("How big the light is")
+        control("Intensity", \.volumetric.intensity, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+            .help("How bright the beams are")
+        control("Length", \.volumetric.length, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+            .help("How far from the light the beams reach")
+        control("Shafts", \.volumetric.shafts, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+            .help("How much the beams break up into separate shafts")
+        Toggle("Keep Subject Clear", isOn: flag(\.volumetric.keepsSubjectClear))
+            .help("Keep the subject clear of the haze; off, it's hazed by its own distance, so a figure far off is misted")
+    }
+
+    @ViewBuilder private var rimLightControls: some View {
+        let rim = settings.rimLight
+        control("Glow", \.rimLight.glow, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+            .help("Let the lights glow in the air around the subject, blending them into the background")
+        ForEach(Array(rim.lights.enumerated()), id: \.element.id) { index, light in
+            Divider()
+            HStack(spacing: 8) {
+                Text("Light \(index + 1)").font(.headline)
+                Spacer()
+                let color = light.color
+                Button { session.openRimLightColorPicker(index: index) } label: {
+                    let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    shape.fill(Color(.sRGB, red: color.red, green: color.green, blue: color.blue))
+                        .overlay { shape.inset(by: 1).strokeBorder(.white, lineWidth: 1.5) }
+                        .overlay { shape.strokeBorder(.black, lineWidth: 1) }
+                        .frame(width: 24, height: 24)
+                        .contentShape(shape)
+                }
+                .buttonStyle(.plain)
+                .help("Choose this light's color")
+                if rim.lights.count > 1 {
+                    Button {
+                        // A color still being picked belongs to the lights as they were numbered.
+                        if case .rimLight = session.colorPicker?.target { session.closeColorPicker(commit: true) }
+                        update { $0.rimLight.lights.removeAll { $0.id == light.id } }
+                    } label: { Image(systemName: "minus.circle") }
+                    .buttonStyle(.borderless)
+                    .help("Remove this light")
+                }
+            }
+            control("Angle", \.rimLight[light: light.id].angle, range: -180...180, unit: "°", decimals: 0, logarithmic: false)
+                .help("Where the light comes from, behind the subject: 0° from the right, 90° from above")
+            control("Strength", \.rimLight[light: light.id].strength, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+            control("Width", \.rimLight[light: light.id].width, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+                .help("How far the light wraps around the subject's edges")
+            control("Choke", \.rimLight[light: light.id].choke, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+                .help("How the light ends on the inside: low feathers it off softly from the edge, high holds it bright and ends it crisply")
+        }
+        if rim.lights.count < RimLightSettings.maximumLights {
+            Button("Add Light") {
+                if case .rimLight = session.colorPicker?.target { session.closeColorPicker(commit: true) }
+                update { $0.rimLight.lights.append($0.rimLight.nextLight) }
+            }
+            .help("Light the subject from another side as well")
+        }
+    }
+
     @ViewBuilder private var lensEffectsControls: some View {
         HStack(spacing: 10) {
             Text("Effect")
@@ -411,6 +532,8 @@ struct FilterSheet: View {
                 .help("Which way the copies step")
             control("Blur", \.lens.prismBlur, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
                 .help("Soften the copies, more the farther they're pushed")
+            control("Fringe", \.lens.prismFringe, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+                .help("Split each copy's red and blue apart, as glass does; 0 keeps the copies crisp")
             HStack(spacing: 10) {
                 Text("Direction")
                 Picker("Direction", selection: Binding(get: { settings.lens.prismBothWays }, set: { new in update { $0.lens.prismBothWays = new } })) {

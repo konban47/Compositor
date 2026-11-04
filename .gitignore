@@ -34,3 +34,7 @@ TestResults/
 /windows/runtime/
 # Packaged builds made by windows/scripts/package.ps1
 /windows/dist*/
+
+# Local depth-model plan, and the results it brings back (models, depth maps, reports)
+/DEPTH_MODEL_PLAN.md
+/depth-model-results/

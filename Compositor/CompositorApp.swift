@@ -145,9 +145,15 @@ struct CompositorApp: App {
                         Toggle("Navigator (300% and above)", isOn: $showsNavigator)
                         Toggle("Pixel Grid (800% and above)", isOn: Binding(get: { session.showsPixelGrid },
                                                                               set: { session.showsPixelGrid = $0 }))
-                        Toggle("Show Transform Controls", isOn: Binding(get: { session.showsTransformControls },
-                                                                          set: { session.showsTransformControls = $0 }))
-                            .configuredKeyboardShortcut("h").disabled(session.tool != .move || session.document == nil)
+                        // ⌘H: the Move tool's transform box there; the selection's outline and the guides everywhere else.
+                        if session.tool == .move {
+                            Toggle("Show Transform Controls", isOn: Binding(get: { session.showsTransformControls },
+                                                                              set: { session.showsTransformControls = $0 }))
+                                .configuredKeyboardShortcut("h").disabled(session.document == nil)
+                        } else {
+                            Toggle("Show Extras", isOn: Binding(get: { session.showsExtras }, set: { session.showsExtras = $0 }))
+                                .configuredKeyboardShortcut("h").disabled(session.document == nil)
+                        }
                         Divider()
                         // Print: the canvas as the chosen CMYK profile will print it, tucked in a submenu as few need it. No
                         // shortcuts (Photoshop's ⌘Y sits by ⌘U and would be hit by mistake); Search Commands finds them.
@@ -177,6 +183,8 @@ struct CompositorApp: App {
                                     .configuredKeyboardShortcut("'").disabled(session.document == nil)
                                 Toggle("Guides", isOn: Binding(get: { session.showsGuides }, set: { session.showsGuides = $0 }))
                                     .configuredKeyboardShortcut(";").disabled(session.document == nil)
+                                Toggle("Distances", isOn: Binding(get: { session.showsDistances }, set: { session.showsDistances = $0 }))
+                                    .disabled(session.document == nil)
                             }
                             Button("Grid Settings…") { Task { await applicationDelegate.projects.gridSettings() } }
                                 .disabled(session.document == nil)
@@ -203,7 +211,7 @@ struct CompositorApp: App {
                                 .disabled(!session.canClearGuides)
                         }
                     }
-                    // ⌘H toggles the Move tool's transform controls instead of hiding the app, so Hide keeps its
+                    // ⌘H toggles the transform controls or extras instead of hiding the app, so Hide keeps its
                     // place in the app menu without the shortcut.
                     CommandGroup(replacing: .appVisibility) {
                         Button("Hide Compositor") { NSApp.hide(nil) }
@@ -211,6 +219,8 @@ struct CompositorApp: App {
                             .configuredKeyboardShortcut("h", modifiers: [.command, .option])
                         Button("Show All") { NSApp.unhideAllApplications(nil) }
                     }
+                    // No Services: it acts on selected text and files, which an image editor rarely has.
+                    CommandGroup(replacing: .systemServices) {}
                 }
                 CommandGroup(replacing: .pasteboard) {
                     // Canvas pixels when the canvas has focus; text fields keep their own editing.
@@ -371,11 +381,9 @@ struct CompositorApp: App {
                     Button(session.selection == nil ? "Duplicate Layer" : "Layer via Copy") { session.layerViaCopy() }
                         .configuredKeyboardShortcut("j").disabled(!session.canCopyPixels && !(session.selection == nil && session.canEditLayers && session.activeLayer != nil))
                     Divider()
-                    Button(session.activeLayer?.maskSourceID == nil ? "Create Clipping Mask" : "Release Clipping Mask") {
-                        if let id = session.activeLayerID { session.toggleClippingMask(id) }
-                    }
+                    Button(session.selectedClippingTitle) { session.toggleSelectedClipping() }
                     .configuredKeyboardShortcut("g", modifiers: [.command, .option])
-                    .disabled(session.activeLayerID.map { !session.canToggleClippingMask($0) } ?? true)
+                    .disabled(!session.canToggleSelectedClipping)
                     Divider()
                     Button("Group Selected Layers") { session.groupSelectedLayers() }
                         .configuredKeyboardShortcut("g").disabled(!session.canEditLayers)
@@ -387,8 +395,8 @@ struct CompositorApp: App {
                         .configuredKeyboardShortcut("n", modifiers: [.command, .shift]).disabled(!session.canEditLayers)
                     Button("Rename Layer…") { session.renamingLayerID = session.activeLayerID }
                         .disabled(!session.canEditLayers || session.activeLayer == nil)
-                    Button(session.activeLayer?.isVisible == false ? "Show Layer" : "Hide Layer") {
-                        if let id = session.activeLayerID { session.toggleLayerVisibility(id) }
+                    Button(session.visibilityTitle) {
+                        session.toggleSelectedLayersVisibility()
                     }.disabled(!session.canEditLayers || session.activeLayer == nil)
                     Divider()
                     Button("Move Layer Up") { session.moveActiveLayer(by: 1) }
@@ -398,6 +406,14 @@ struct CompositorApp: App {
                     Group {
                         Button(session.mergeTitle) { session.mergeLayers() }
                             .configuredKeyboardShortcut("e").disabled(!session.canMergeLayers)
+                        // As in the Layers panel's menu: whichever would change a selected layer, both for a mix.
+                        if session.canConvertToSixteenBit || !session.canConvertToEightBit {
+                            Button("Convert to 16-Bit") { session.convertLayers(toSixteenBit: true) }
+                                .disabled(!session.canConvertToSixteenBit)
+                        }
+                        if session.canConvertToEightBit {
+                            Button("Convert to 8-Bit") { session.convertLayers(toSixteenBit: false) }
+                        }
                         Divider()
                         Button("Flip Layer Horizontal") { session.flipLayers(horizontally: true) }
                             .disabled(!session.canTransform)
