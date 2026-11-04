@@ -1240,6 +1240,10 @@ public static partial class AdjustPixels
         }
     }
 
+    /// <summary>Reduce Noise: Camera Raw's noise reduction on its own, its contrast and color smoothness at their defaults.</summary>
+    public static void ReduceNoise(Span<byte> rgba, int width, int height, int stride, double luminance, double detail, double color) =>
+        CameraRawDetail(rgba, width, height, stride, 0, 0, 0, 0, luminance, detail, 0, color, 50, 50, 1);
+
     /// <summary>
     /// Manual noise reduction, then sharpening. <paramref name="scale"/> maps radius to preview pixels.
     /// Applied after the creative grade.
@@ -1276,11 +1280,26 @@ public static partial class AdjustPixels
         }
         if (noiseLuminance > 0)
         {
-            int radius = EffectsRadius(1.0 + noiseLuminance / 50.0, scale);
-            if (!BoxBlurPlane(luma, work, width, height, radius)) return;
+            // Non-local means on the brightness, as strong as the noise measured in it: a clean photo is left nearly
+            // alone. Detail asks patches to be more alike before they count, so less texture goes with the grain.
+            // Smaller previews look nearer and finer, the noise already thinned by their scaling.
             double strength = noiseLuminance / 100.0;
             double preserve = noiseLuminanceDetail / 100.0;
             double contrast = noiseLuminanceContrast / 100.0;
+            var coverage = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
+            for (int y = 0; y < height; ++y)
+                for (int x = 0; x < width; ++x) coverage[y * width + x] = rgba[y * stride + x * 4 + 3] / 255f;
+            double sigma = Math.Max(.5 / 255, NonlocalMeans.NoiseSigma(luma, coverage, width, height));
+            double h = sigma * (.2 + 1.1 * strength) * (1.3 - .6 * preserve);
+            int search = (int)Math.Round(Math.Min(7, Math.Max(3, 7 * (scale > 0 ? scale : 1)))), patch = scale < .5 ? 1 : 2;
+            NonlocalMeans.Run(luma, coverage, work, width, height, search, patch, h, sigma * (.4 + .6 * (1 - preserve)));
+            // Contrast puts back some of the local contrast smoothing took, measured on the smoothed brightness, not the grain.
+            float[]? local = null;
+            if (contrast != 0)
+            {
+                local = Compositor.Core.Model.MemoryBudget.Allocate<float>(checked(count));
+                if (!BoxBlurPlane(work, local, width, height, EffectsRadius(2, scale))) local = null;
+            }
             for (int y = 0; y < height; ++y)
             {
                 int row = y * stride;
@@ -1290,11 +1309,8 @@ public static partial class AdjustPixels
                     double alpha = rgba[p + 3];
                     if (alpha == 0) continue;
                     int index = y * width + x;
-                    float edge = SharpenEdgeAt(luma, width, height, x, y, 1);
-                    double local = strength * (1.0 - preserve * Math.Min(1.0, edge * 6.0));
-                    float blurred = work[index];
-                    float target = (float)(luma[index] * (1.0 - local) + blurred * local);
-                    if (contrast != 0) target = (float)(target + contrast * 0.25 * (luma[index] - blurred));
+                    float target = work[index];
+                    if (local is not null) target = (float)(target + contrast * .5 * (work[index] - local[index]));
                     luma[index] = target;
                     double r = Math.Min(1.0, rgba[p] / alpha), g = Math.Min(1.0, rgba[p + 1] / alpha),
                            b = Math.Min(1.0, rgba[p + 2] / alpha);

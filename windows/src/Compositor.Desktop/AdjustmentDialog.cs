@@ -14,6 +14,7 @@ namespace Compositor.Desktop;
 /// </summary>
 internal sealed class AdjustmentDialog : DialogWindow
 {
+    protected override bool SharesEditPosition => true;
     private readonly List<(Slider Slider, Action<LayerAdjustment, double> Set)> _rows = [];
     private readonly List<double> _fallbacks = [];
     private readonly List<(CheckBox Box, Action<LayerAdjustment, bool> Set, bool Fallback)> _boxes = [];

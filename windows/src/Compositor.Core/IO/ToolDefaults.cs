@@ -33,6 +33,11 @@ public sealed class ToolDefaults
 
     /// <summary>Whether a line is drawn around each document pixel when the view is in far enough.</summary>
     public bool PixelGrid { get; set; }
+    public bool ShowDistances { get; set; }
+    /// <summary>The build whose first launch last filled the screen, and the size the window was left at since.</summary>
+    public string? FilledForBuild { get; set; }
+    public double WindowWidth { get; set; }
+    public double WindowHeight { get; set; }
 
     /// <summary>Whether a drag lines up with anything at all, whatever the per-kind switches say.</summary>
     public bool Snapping { get; set; } = true;

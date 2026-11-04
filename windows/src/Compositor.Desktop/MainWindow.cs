@@ -113,6 +113,14 @@ public sealed partial class MainWindow : Window
     private readonly MenuItem _showRulers = new();
     private bool _rulersVisible;
     private readonly MenuItem _showGuides = new();
+    private readonly MenuItem _showExtras = new();
+    private readonly MenuItem _showDistances = new();
+    /// <summary>The Move tool's pixel gaps, View › Show Distances.</summary>
+    private bool _distancesShown;
+    /// <summary>Ctrl+H's hold on the guides, for the session only, so View › Guides keeps its own setting underneath.</summary>
+    private bool _extrasHideGuides;
+    /// <summary>The selection whose outline Ctrl+H hid.</summary>
+    private SKPath? _hiddenSelection;
     private readonly MenuItem _lockGuides = new();
     private readonly MenuItem _showTransform = new();
     private readonly MenuItem _pixelGrid = new();
@@ -321,6 +329,8 @@ public sealed partial class MainWindow : Window
         // The two calls a screen has to be asked for are made once the window is open, which is when there is a
         // screen to ask.
         Opened += (_, _) => { FitToScreen(); RestoreNativeWindowCorners(); RaiseStartApplication(); };
+        Closing += (_, _) => { if (WindowState == WindowState.Normal && Width > 0 && Height > 0) { _tools.WindowWidth = Width; _tools.WindowHeight = Height; _tools.Save(ToolDefaults.DefaultPath); } };
+        AddHandler(KeyUpEvent, (_, e) => { if (e.Key is Key.LeftCtrl or Key.RightCtrl && _canvas.DistanceLines.Count > 0 && !_canvas.TransformMoving) { _canvas.DistanceLines = []; _canvas.InvalidateVisual(); } }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // The picker is a window of its own and the app is left running until the last window closes, so it
         // goes with the editor rather than being left behind to hold the session open.
         Closing += ConfirmWindowClose;
@@ -377,6 +387,8 @@ public sealed partial class MainWindow : Window
         _canvas.TextCancelled = CancelText;
         _canvas.TransformStarted = TransformStarted;
         _canvas.TransformChanged = TransformChanged;
+        _canvas.HoverMoved = HoverDistances;
+        _canvas.MarqueeMoved = () => Say();
         _canvas.TransformFinished = TransformFinished;
         _paintOnMask.Click += (_, _) => SetPaintingMask(!_options.PaintOnMask);
         _eraseToggle.Click += (_, _) => SetErasing(!_options.Erase);
@@ -444,6 +456,9 @@ public sealed partial class MainWindow : Window
         Toggle("_Guides", _showGuides, _guidesVisible, () => ShowGuides());
         Toggle("_Lock Guides", _lockGuides, _guidesLocked, () => LockGuides());
         Toggle("Show _Transform Controls", _showTransform, _transformShown, () => ShowTransformControls());
+        Toggle("Show _Extras", _showExtras, true, ShowExtras);
+        _distancesShown = _tools.ShowDistances;
+        Toggle("_Distances", _showDistances, _distancesShown, ShowDistances);
         Toggle("_Pixel Grid (800% and above)", _pixelGrid, _pixelGridShown, () => ShowPixelGrid());
         Toggle("S_nap", _snapping, _snappingOn, () => ShowSnapping());
         PushViewSwitches();
@@ -508,6 +523,7 @@ public sealed partial class MainWindow : Window
                         Command("_Camera Raw Filter…", CameraRawFilter),
                         new Separator(),
                         Command("Sharpen…", () => _ = ApplyFilter(FilterKind.Sharpen)),
+                        Command("Reduce Noise…", () => _ = ApplyFilter(FilterKind.ReduceNoise)),
                         Command("_Gaussian Blur…", () => _ = ApplyFilter(FilterKind.GaussianBlur)),
                         Command("Progressive Blur…", () => _ = ApplyFilter(FilterKind.ProgressiveBlur)),
                         Command("Scanlines…", () => _ = ApplyFilter(FilterKind.Scanlines)),
@@ -566,6 +582,8 @@ public sealed partial class MainWindow : Window
                         _showGuides,
                         _lockGuides,
                         _showTransform,
+                        _showExtras,
+                        _showDistances,
                         _pixelGrid,
                         NavigatorMenu(), CmykMenu(),
                         Command("Properties", () => OpenInspector(0)),
@@ -801,6 +819,18 @@ public sealed partial class MainWindow : Window
     {
         if (Screens.Primary is not { } screen || screen.Scaling <= 0) return;
         var room = screen.WorkingArea;
+        if (Program.Headless) return;
+        // The first launch of each build, a new install or an update, fills the screen without going full screen; within
+        // a build the window opens at the size it was left.
+        var build = typeof(MainWindow).Assembly.GetName().Version?.ToString() ?? "";
+        if (_tools.FilledForBuild != build)
+        {
+            _tools.FilledForBuild = build; _tools.Save(ToolDefaults.DefaultPath);
+            Width = room.Width / screen.Scaling; Height = room.Height / screen.Scaling;
+            Position = room.Position;
+            return;
+        }
+        if (_tools.WindowWidth > 0 && _tools.WindowHeight > 0) { Width = _tools.WindowWidth; Height = _tools.WindowHeight; }
         Width = Math.Min(Width, room.Width / screen.Scaling - Room);
         Height = Math.Min(Height, room.Height / screen.Scaling - Room);
         // The window was placed from the size it was made with, so it is put back by hand: at 150% the shrinking
@@ -839,6 +869,7 @@ public sealed partial class MainWindow : Window
                      (_showGuides, "Show Guides"),
                      (_lockGuides, "Lock Guides"),
                      (_showTransform, "Show Transform Controls"),
+                     (_showExtras, "Show Transform Controls"),
                      (_snapping, "Snap"),
                      (_merge, "Merge Layers"),
                      (_clipping, "Toggle Clipping Mask"),
@@ -984,7 +1015,8 @@ public sealed partial class MainWindow : Window
         Does("Actual Pixels", () => { _canvas.ActualSize(); Say(); });
         Does("Zoom In", () => { _canvas.ZoomBy(1.25); Say(); });
         Does("Zoom Out", () => { _canvas.ZoomBy(1 / 1.25); Say(); });
-        Does("Show Transform Controls", ShowTransformControls);
+        // Ctrl+H: the transform handles in the Move tool; everywhere else, the selection's outline and the guides.
+        Does("Show Transform Controls", () => { if (_tool is Tool.Move or Tool.Artboard) ShowTransformControls(); else ShowExtras(); });
         Does("Cut", Cut);
         Does("Copy", Copy);
         Does("Copy Merged", CopyMerged);
@@ -4001,6 +4033,15 @@ public sealed partial class MainWindow : Window
         StopPreview();
     }
 
+    /// <summary>The status bar's size after the canvas's: the Marquee as it's drawn, then the box around any selection,
+    /// cut to the canvas.</summary>
+    private string SelectionSizeText(CanvasDocument document)
+    {
+        if ((_canvas.DrawingSelectionBox ?? document.Selection.Path?.Bounds) is not { } box) return "";
+        var cut = SKRect.Intersect(box, SKRect.Create(document.Width, document.Height));
+        return cut.IsEmpty ? "" : $"    {Math.Round(cut.Width):0} × {Math.Round(cut.Height):0} px";
+    }
+
     /// <summary>
     /// One of the filters that are not Camera Raw. Its amounts are asked for, then it runs over the selected
     /// layer's own pixels, held to the selection, as one undo step.
@@ -4608,6 +4649,7 @@ public sealed partial class MainWindow : Window
         _tools.ShowGuides = _guidesVisible;
         _tools.LockGuides = _guidesLocked;
         _tools.ShowTransformControls = _transformShown;
+        _tools.ShowDistances = _distancesShown;
         _tools.PixelGrid = _pixelGridShown;
         _tools.Snapping = _snappingOn;
         _tools.GridSpacing = _grid.Spacing;
@@ -4639,11 +4681,57 @@ public sealed partial class MainWindow : Window
     /// <summary>View ▸ Guides: whether the guides are drawn, which does not change them.</summary>
     private void ShowGuides()
     {
+        _extrasHideGuides = false;
         _guidesVisible = !_guidesVisible;
         _showGuides.IsChecked = _guidesVisible;
         PushViewSwitches();
         KeepSwitches();
         Say(_guidesVisible ? "Guides shown" : "Guides hidden");
+    }
+
+    /// <summary>View ▸ Show Extras (Ctrl+H outside the Move tool): the selection's edges and the guides together, to see
+    /// the picture alone. On only while both are showing, so Ctrl+H hides whatever is showing and, pressed again, brings
+    /// it all back. Guides turned off with their own switch stay off, and a new selection always shows its outline.</summary>
+    private bool ExtrasShown => (_document?.Selection.Path is not { } path || !ReferenceEquals(path, _hiddenSelection)) && !_extrasHideGuides;
+    private void ShowExtras()
+    {
+        var show = !ExtrasShown;
+        _hiddenSelection = show ? null : _document?.Selection.Path;
+        _extrasHideGuides = !show;
+        PushViewSwitches();
+        _canvas.InvalidateVisual();
+        Say(show ? "Extras shown" : "Extras hidden");
+    }
+
+    /// <summary>View ▸ Show ▸ Distances: with the Move tool, pixel gaps from a dragged layer to the canvas edges and the
+    /// nearest layers level with it, and with Ctrl held, to the layer under the pointer.</summary>
+    private void ShowDistances()
+    {
+        _distancesShown = !_distancesShown;
+        _showDistances.IsChecked = _distancesShown;
+        if (!_distancesShown) _canvas.DistanceLines = [];
+        KeepSwitches();
+        _canvas.InvalidateVisual();
+        Say(_distancesShown ? "Distances shown" : "Distances hidden");
+    }
+
+    /// <summary>The boxes of the layers with pixels that aren't moving, bottom to top.</summary>
+    private IEnumerable<SKRect> LayerBoxes(CanvasDocument document, ICollection<Guid> moving) =>
+        document.Layers.Where(layer => layer.Asset is not null && layer.IsVisible && !moving.Contains(layer.ID)).Select(layer => TransformEdits.Bounds(layer.Transform));
+
+    /// <summary>With Ctrl held in the Move tool: the gaps from the selected layer to the top layer under the pointer, or
+    /// to the canvas.</summary>
+    private void HoverDistances(SKPoint point, KeyModifiers keys)
+    {
+        var lines = new List<DistanceLine>();
+        if (_distancesShown && _tool == Tool.Move && keys.HasFlag(KeyModifiers.Control) && _document is { } document && PropertyLayer is { Asset: not null } active)
+        {
+            var box = TransformEdits.Bounds(active.Transform);
+            var under = LayerBoxes(document, SelectedLayers).LastOrDefault(rect => rect.Contains(point));
+            lines = LayerDistances.Between(box, under.IsEmpty ? SKRect.Create(document.Width, document.Height) : under);
+        }
+        if (lines.Count == 0 && _canvas.DistanceLines.Count == 0) return;
+        _canvas.DistanceLines = lines; _canvas.InvalidateVisual();
     }
 
     /// <summary>View ▸ Lock Guides: whether a guide may be dragged. Locked, a click on one passes by it.</summary>
@@ -4689,7 +4777,8 @@ public sealed partial class MainWindow : Window
     /// <summary>The canvas told where each view switch stands, so what is drawn and what is caught agree.</summary>
     private void PushViewSwitches()
     {
-        _canvas.ShowsGuides = _guidesVisible;
+        _canvas.ShowsGuides = _guidesVisible && !_extrasHideGuides;
+        _canvas.HiddenSelection = _hiddenSelection;
         _canvas.LocksGuides = _guidesLocked;
         _canvas.ShowsTransformControls = _transformShown;
         _canvas.PixelGrid = _pixelGridShown;
@@ -6029,11 +6118,14 @@ public sealed partial class MainWindow : Window
         else if (_tool == Tool.Artboard && SelectedArtboard is { } board && (Math.Abs(from.Width - placed.Width) > .01 || Math.Abs(from.Height - placed.Height) > .01)) board.Transform = placed;
         else TransformEdits.Carry(document, _transformOriginals, from, placed);
         _canvas.TransformBox = placed;
+        _canvas.DistanceLines = _distancesShown && _tool == Tool.Move && _canvas.TransformMoving
+            ? LayerDistances.Moving(TransformEdits.Bounds(placed), LayerBoxes(document, _transformOriginals.Keys), new SKSize(document.Width, document.Height)) : [];
         Refresh();
     }
 
     private void TransformFinished()
     {
+        _canvas.DistanceLines = [];
         if (_document is not { } document || _transforming is not { } id) return;
         _transforming = null;
         _transformMaskOnly = false;
@@ -6291,8 +6383,9 @@ public sealed partial class MainWindow : Window
         if (message.Length > 0) _message = message;
         _status.Text = Localize.Text(_message);
         var limit = _canvas.ZoomedOutAsFarAsItGoes ? "    as far out as one screenful can be drawn" : "";
+        _showExtras.IsChecked = ExtrasShown;
         _statusInfo.Text = Localize.Text(_document is not { } document
             ? "Ready when you are"
-            : $"{_canvas.Zoom * 100:0}%    {document.Width} × {document.Height} px    {Localize.Text(ModeTitle(document.Image.Mode))} · {document.Image.Depth} {Localize.Text("Bits/Channel")}{limit}");
+            : $"{_canvas.Zoom * 100:0}%    {document.Width} × {document.Height} px{SelectionSizeText(document)}    {Localize.Text(ModeTitle(document.Image.Mode))} · {document.Image.Depth} {Localize.Text("Bits/Channel")}{limit}");
     }
 }

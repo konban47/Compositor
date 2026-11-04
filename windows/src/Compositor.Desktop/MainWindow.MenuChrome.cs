@@ -12,6 +12,8 @@ namespace Compositor.Desktop;
 public sealed partial class MainWindow
 {
     internal void RestoreNativeWindowCorners() => WindowChrome.ApplyNative(this);
+    /// <summary>The canvas's frame on the screen, in pixels, which edit panels open beside.</summary>
+    internal PixelRect? CanvasOnScreen => _canvas.Bounds.Width > 0 ? PixelRect.FromRect(new Rect(_canvas.Bounds.Size), RenderScaling).WithX(_canvas.PointToScreen(default).X).WithY(_canvas.PointToScreen(default).Y) : null;
     private Control MenuChrome(Menu menu)
     {
         // Keep tool commands available in Edit and in command search, while matching the compact menu order.

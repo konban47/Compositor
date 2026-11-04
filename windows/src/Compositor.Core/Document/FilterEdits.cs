@@ -26,6 +26,7 @@ public enum FilterKind
 
     /// <summary>Local contrast: the fine detail against a blurred copy of itself.</summary>
     TonalContrast,
+    ReduceNoise,
 
     /// <summary>Radial distortion: either direction straightens a lens.</summary>
     LensCorrection,
@@ -51,6 +52,11 @@ public sealed class FilterSettings
 {
     public double SharpenAmount { get; set; } = 100;
     public double SharpenRadius { get; set; } = 1;
+    /// <summary>Reduce Noise, as Camera Raw's noise reduction: how much grain is smoothed from the brightness, how much
+    /// fine texture is kept from it, and how much colored speckle is smoothed, each 0–100.</summary>
+    public double ReduceNoiseLuminance { get; set; } = 50;
+    public double ReduceNoiseDetail { get; set; } = 50;
+    public double ReduceNoiseColor { get; set; } = 50;
     public LensEffectSettings Lens { get; set; } = new();
     public RimLightSettings RimLight { get; set; } = new();
     public VolumetricLightSettings Volumetric { get; set; } = new();
@@ -137,6 +143,7 @@ public sealed class FilterSettings
     public bool IsValid(FilterKind kind) => kind switch
     {
         FilterKind.Sharpen => Within(SharpenAmount, 0, 500) && Within(SharpenRadius, .1, 100),
+        FilterKind.ReduceNoise => Within(ReduceNoiseLuminance, 0, 100) && Within(ReduceNoiseDetail, 0, 100) && Within(ReduceNoiseColor, 0, 100),
         FilterKind.LensEffects => Lens.IsValid,
         FilterKind.RimLight => RimLight.IsValid,
         FilterKind.VolumetricLight => Volumetric.IsValid,
@@ -161,6 +168,7 @@ public sealed class FilterSettings
     public bool DoesAnything(FilterKind kind) => kind switch
     {
         FilterKind.Sharpen => SharpenAmount > 0,
+        FilterKind.ReduceNoise => ReduceNoiseLuminance > 0 || ReduceNoiseColor > 0,
         FilterKind.LensEffects => Lens.DoesAnything,
         FilterKind.RimLight => RimLight.DoesAnything,
         FilterKind.VolumetricLight => Volumetric.DoesAnything,
@@ -267,6 +275,9 @@ public static class FilterEdits
         {
             case FilterKind.Sharpen:
                 SharpenPixels.Apply(work, settings.SharpenAmount, settings.SharpenRadius);
+                break;
+            case FilterKind.ReduceNoise:
+                AdjustPixels.ReduceNoise(pixels, width, height, stride, settings.ReduceNoiseLuminance, settings.ReduceNoiseDetail, settings.ReduceNoiseColor);
                 break;
             case FilterKind.Scanlines:
                 ScanlinePixels.Apply(pixels, width, height, stride, settings.Scanlines);

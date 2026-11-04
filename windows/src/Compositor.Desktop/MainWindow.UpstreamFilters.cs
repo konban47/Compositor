@@ -11,10 +11,10 @@ public sealed partial class MainWindow
     private async Task EditFilterLayer(Guid id, LayerAdjustment original)
     {
         if (_document is not { } doc) return; var revision = _history.CurrentRevision;
-        var kind = original.Kind switch { AdjustmentKind.Sharpen => FilterKind.Sharpen, AdjustmentKind.Vignette => FilterKind.Vignette, AdjustmentKind.TonalContrast => FilterKind.TonalContrast, AdjustmentKind.LensEffects => FilterKind.LensEffects, AdjustmentKind.ProgressiveBlur => FilterKind.ProgressiveBlur, AdjustmentKind.BloomGlow => FilterKind.BloomGlow, _ => FilterKind.RgbSplit };
+        var kind = original.Kind switch { AdjustmentKind.Sharpen => FilterKind.Sharpen, AdjustmentKind.ReduceNoise => FilterKind.ReduceNoise, AdjustmentKind.Vignette => FilterKind.Vignette, AdjustmentKind.TonalContrast => FilterKind.TonalContrast, AdjustmentKind.LensEffects => FilterKind.LensEffects, AdjustmentKind.ProgressiveBlur => FilterKind.ProgressiveBlur, AdjustmentKind.BloomGlow => FilterKind.BloomGlow, _ => FilterKind.RgbSplit };
         LayerAdjustment Value(FilterSettings settings) => new() { Kind = original.Kind, FilterLayerSettings = FilterLayerSettings.From(settings, doc.Width, doc.Height) };
         StartPreview(doc, id);
-        var settings = await FilterDialog.Ask(this, kind, original.FilterLayer.Local(doc.Width, doc.Height), changed => RequestPreview((target, layer) => LayerAdjustmentEdits.Set(target, layer, changed is null ? original : Value(changed))));
+        var settings = await FilterDialog.Ask(this, kind, original.FilterLayer.Local(doc.Width, doc.Height), changed => RequestPreview((target, layer) => LayerAdjustmentEdits.Set(target, layer, changed is null ? original : Value(changed))), forLayer: true);
         StopPreview();
         if (settings is null || !ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
         Edit(LayerPlacement.Name(original.Kind), () => LayerAdjustmentEdits.Set(doc, id, Value(settings))); Reselect(id);

@@ -72,7 +72,7 @@ public sealed partial class MainWindow
         Existing("Black & White…", AdjustmentKind.BlackWhite); Advanced(ImageAdjustmentKind.PhotoFilter); Advanced(ImageAdjustmentKind.ChannelMixer);
         Advanced(ImageAdjustmentKind.ColorLookup); Advanced(ImageAdjustmentKind.SelectiveColor); adjustment.Items.Add(new Separator());
         Existing("Invert", AdjustmentKind.Invert); Advanced(ImageAdjustmentKind.Posterize); Advanced(ImageAdjustmentKind.Threshold); Existing("Gradient Map…", AdjustmentKind.GradientMap);
-        adjustment.Items.Add(new Separator()); Existing("Add Noise…", AdjustmentKind.AddNoise); Existing("Gaussian Blur…", AdjustmentKind.GaussianBlur); Existing("Motion Blur…", AdjustmentKind.MotionBlur);
+        adjustment.Items.Add(new Separator()); Existing("Reduce Noise…", AdjustmentKind.ReduceNoise); Existing("Add Noise…", AdjustmentKind.AddNoise); Existing("Gaussian Blur…", AdjustmentKind.GaussianBlur); Existing("Motion Blur…", AdjustmentKind.MotionBlur);
         menu.Items.Add(adjustment);
         menu.Items.Add(Item("Layer Content Options…", () => _ = EditLayerContents(), ready: () => Editable() && PropertyLayer is { } l && (l.Adjustment is not null || l.Effects is not null || l.LiveText is not null || l.LiveShape is not null)));
         menu.Items.Add(new Separator());

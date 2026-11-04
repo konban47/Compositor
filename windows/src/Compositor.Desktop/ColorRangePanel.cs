@@ -17,6 +17,7 @@ namespace Compositor.Desktop;
 /// </summary>
 internal sealed class ColorRangePanel : DialogWindow
 {
+    protected override bool SharesEditPosition => true;
     private readonly ColorRangeSession _session;
     private readonly Dictionary<ColorRangeSession.Picking, Button> _modes = [];
     private readonly MaskView _mask = new();

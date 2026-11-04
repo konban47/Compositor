@@ -250,7 +250,9 @@ public sealed class LayerAdjustment
     [JsonIgnore] public bool NeedsVersion16 => Kind is AdjustmentKind.ProgressiveBlur or AdjustmentKind.BloomGlow or AdjustmentKind.RgbSplit;
     [JsonIgnore] public bool NeedsVersion30 => Kind == AdjustmentKind.LensEffects && FilterLayerSettings?.Lens.PrismFringe is not null and not 30;
     [JsonIgnore] public bool NeedsVersion29 => Kind is AdjustmentKind.Vignette or AdjustmentKind.LensEffects or AdjustmentKind.TonalContrast or AdjustmentKind.Sharpen;
-    [JsonIgnore] public bool IsFilterLayer => NeedsVersion16 || NeedsVersion29;
+    /// <summary>Reduce Noise layers: Windows extension 33, or upstream macOS 21.</summary>
+    [JsonIgnore] public bool NeedsVersion33 => Kind == AdjustmentKind.ReduceNoise;
+    [JsonIgnore] public bool IsFilterLayer => NeedsVersion16 || NeedsVersion29 || NeedsVersion33;
     public Document.ImageAdjustmentSettings? Extended { get; set; }
     public AdjustmentKind Kind { get; set; }
     public double Hue { get; set; }
@@ -304,6 +306,8 @@ public sealed class LayerAdjustment
     {
         AdjustmentKind.Sharpen => (int)Math.Ceiling(FilterLayer.SharpenRadius * 3 + 2),
         AdjustmentKind.TonalContrast => (int)Math.Ceiling(FilterLayer.TonalRadius * 3 + 2),
+        // Its search and patches, and its color smoothing, in the widest they reach.
+        AdjustmentKind.ReduceNoise => 24,
         AdjustmentKind.Extended when Extended?.Kind == Document.ImageAdjustmentKind.ClarityDehaze => 26,
         AdjustmentKind.ProgressiveBlur => (int)Math.Ceiling(Math.Max(FilterLayer.ProgressiveFrom, FilterLayer.ProgressiveTo) * 3 + 2),
         AdjustmentKind.BloomGlow => (int)Math.Ceiling(FilterLayer.BloomRadius * 3 + 2),

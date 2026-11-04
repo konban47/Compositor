@@ -119,7 +119,9 @@ public static class ProjectStore
                 {
                     throw new ProjectException(ProjectError.Invalid);
                 }
-                if (adjustment.NeedsVersion30 && version < 30 && version != 19) throw new ProjectException(ProjectError.Invalid);
+                // Upstream's Prism fringe arrived in its version 20, and Reduce Noise layers in its 21; both are read from those files.
+                if (adjustment.NeedsVersion30 && version < 30 && version is not (19 or 20 or 21)) throw new ProjectException(ProjectError.Invalid);
+                if (adjustment.NeedsVersion33 && version < 33 && version != 21) throw new ProjectException(ProjectError.Invalid);
                 if (adjustment.Extended?.Kind == Document.ImageAdjustmentKind.ClarityDehaze && version < 28) throw new ProjectException(ProjectError.Invalid);
                 if (adjustment.Extended is not null && version < 19) throw new ProjectException(ProjectError.Invalid);
                 if ((adjustment.NeedsVersion16 || adjustment.FilterLayerSettings is not null) && version < 16) throw new ProjectException(ProjectError.Invalid);

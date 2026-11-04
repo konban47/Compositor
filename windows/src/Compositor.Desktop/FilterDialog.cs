@@ -13,6 +13,7 @@ namespace Compositor.Desktop;
 /// </summary>
 internal sealed class FilterDialog : DialogWindow
 {
+    protected override bool SharesEditPosition => true;
     /// <summary>
     /// Asks for the picture to be shown with this filter's amounts as they stand, or — with nothing — shown as
     /// it is, which is what the Preview tick being off means. The Mac's own filter sheets have that tick.
@@ -50,6 +51,7 @@ internal sealed class FilterDialog : DialogWindow
             FilterKind.AddNoise => "Add Noise",
             FilterKind.Vignette => "Vignette",
             FilterKind.Sharpen => "Sharpen",
+            FilterKind.ReduceNoise => "Reduce Noise",
             FilterKind.TonalContrast => "Tonal Contrast",
             FilterKind.RimLight => "Rim Light",
             FilterKind.VolumetricLight => "Volumetric Light",
@@ -152,6 +154,11 @@ internal sealed class FilterDialog : DialogWindow
                 Add(group, "Amount, %", 0, 500, start.SharpenAmount, defaults.SharpenAmount, (s, v) => s.SharpenAmount = v);
                 Add(group, "Radius, pixels", .1, 100, start.SharpenRadius, defaults.SharpenRadius, (s, v) => s.SharpenRadius = v);
                 break;
+            case FilterKind.ReduceNoise:
+                Add(group, "Strength", 0, 100, start.ReduceNoiseLuminance, defaults.ReduceNoiseLuminance, (s, v) => s.ReduceNoiseLuminance = v, "0", "How much grain is smoothed from the picture's brightness");
+                Add(group, "Preserve Details", 0, 100, start.ReduceNoiseDetail, defaults.ReduceNoiseDetail, (s, v) => s.ReduceNoiseDetail = v, "0", "How much fine texture and edges are kept while the grain is smoothed");
+                Add(group, "Color Noise", 0, 100, start.ReduceNoiseColor, defaults.ReduceNoiseColor, (s, v) => s.ReduceNoiseColor = v, "0", "How much colored speckle is smoothed into the colors around it");
+                break;
             case FilterKind.GaussianBlur:
                 Add(group, "Radius, pixels", 0.1, 250, start.BlurRadius, defaults.BlurRadius, (s, v) => s.BlurRadius = v);
                 Check(group, "Preserve Transparency", start.PreserveTransparency, (s, v) => s.PreserveTransparency = v);
@@ -198,7 +205,7 @@ internal sealed class FilterDialog : DialogWindow
                 RimLightControls(group, start.RimLight);
                 break;
             case FilterKind.VolumetricLight:
-                Height = 700; Width = 540;
+                Height = 740; Width = 540;
                 var volumetric = new VolumetricLightSettings();
                 group.Children.Add(new TextBlock { Text = Localize.Text("The light starts on the layer's biggest bright area; move it with Light X and Light Y"), TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Skin.SecondaryBrush, Margin = new Thickness(0, 0, 0, 4) });
                 Swatch(group, "Color", (start.Volumetric.Red, start.Volumetric.Green, start.Volumetric.Blue), (volumetric.Red, volumetric.Green, volumetric.Blue),
@@ -214,6 +221,8 @@ internal sealed class FilterDialog : DialogWindow
                 Add(group, "Intensity", 0, 100, start.Volumetric.Intensity, volumetric.Intensity, (s, v) => s.Volumetric.Intensity = v, "0");
                 Add(group, "Length", 0, 100, start.Volumetric.Length, volumetric.Length, (s, v) => s.Volumetric.Length = v, "0");
                 Add(group, "Shafts", 0, 100, start.Volumetric.Shafts, volumetric.Shafts, (s, v) => s.Volumetric.Shafts = v, "0");
+                Check(group, "Keep Subject Clear", start.Volumetric.KeepsSubjectClear, (s, v) => s.Volumetric.KeepsSubjectClear = v);
+                ToolTip.SetTip(_checks[^1].Box, Localize.Text("Keep the subject clear of the haze; off, it's hazed by its own distance, so a figure far off is misted"));
                 break;
             default:
                 Add(group, "Distortion", -100, 100, start.Distortion, defaults.Distortion, (s, v) => s.Distortion = v);
@@ -386,6 +395,7 @@ internal sealed class FilterDialog : DialogWindow
     {
         var box = new CheckBox { Content = Localize.Text(label), IsChecked = value, FontSize = 12, Foreground = Skin.LabelBrush };
         parent.Children.Add(box);
+        box.IsCheckedChanged += (_, _) => Preview?.Invoke(_preview.IsChecked == true ? Current() : null);
         _checks.Add((box, set, value));
     }
 
@@ -498,6 +508,12 @@ internal sealed class FilterDialog : DialogWindow
     {
         if (_ok is null || _extract is null || _waiting is null || depth.IsCompleted) return;
         _ok.IsEnabled = _extract.IsEnabled = false; _waiting.IsVisible = true;
+        // Fetching takes a moment; a slow connection holds the first look only five seconds: then the haze guesses until
+        // the model is here, and redraws.
+        _ = Task.Delay(5000).ContinueWith(_ => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (_waiting.IsVisible && IsVisible) Preview?.Invoke(_preview.IsChecked == true ? Current() : null);
+        }), TaskScheduler.Default);
         depth.ContinueWith(_ => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             _ok.IsEnabled = _extract.IsEnabled = true; _waiting.IsVisible = false;
@@ -508,9 +524,11 @@ internal sealed class FilterDialog : DialogWindow
     /// <summary>The amounts to apply, or null when the panel was dismissed or asks for nothing. Volumetric Light's
     /// Extract Depth closes the panel and hands its amounts to <paramref name="extractDepth"/> instead.</summary>
     public static async Task<FilterSettings?> Ask(Window owner, FilterKind kind, FilterSettings start,
-        Action<FilterSettings?>? preview = null, Task<bool>? depth = null, Action<FilterSettings>? extractDepth = null)
+        Action<FilterSettings?>? preview = null, Task<bool>? depth = null, Action<FilterSettings>? extractDepth = null, bool forLayer = false)
     {
         var dialog = new FilterDialog(kind, start) { Preview = preview };
+        // Not for an adjustment layer: its eye in the layers panel shows the picture without it.
+        dialog._preview.IsVisible = !forLayer;
         if (depth is not null) dialog.WaitFor(depth);
         await dialog.ShowDialog(owner);
         if (dialog._extracted is { } extracted) { extractDepth?.Invoke(extracted); return null; }

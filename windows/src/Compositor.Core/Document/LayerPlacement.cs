@@ -99,7 +99,7 @@ public static class LayerPlacement
     /// <summary>What that kind of adjustment layer is called, as the Filter and Image menus name it.</summary>
     public static string Name(AdjustmentKind kind) => kind switch
     {
-        AdjustmentKind.Vignette => "Vignette", AdjustmentKind.LensEffects => "Lens Effects", AdjustmentKind.TonalContrast => "Tonal Contrast", AdjustmentKind.Sharpen => "Sharpen",
+        AdjustmentKind.Vignette => "Vignette", AdjustmentKind.LensEffects => "Lens Effects", AdjustmentKind.TonalContrast => "Tonal Contrast", AdjustmentKind.Sharpen => "Sharpen", AdjustmentKind.ReduceNoise => "Reduce Noise",
         AdjustmentKind.ProgressiveBlur => "Progressive Blur", AdjustmentKind.BloomGlow => "Bloom / Glow", AdjustmentKind.RgbSplit => "RGB Split",
         AdjustmentKind.HueSaturation => "Hue/Saturation",
         AdjustmentKind.Levels => "Levels",

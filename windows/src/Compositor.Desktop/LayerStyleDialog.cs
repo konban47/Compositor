@@ -16,6 +16,7 @@ namespace Compositor.Desktop;
 
 internal sealed class LayerStyleDialog : DialogWindow
 {
+    protected override bool SharesEditPosition => true;
     internal LayerStylePreset Draft { get; private set; }
     internal string LayerName => _name.Text?.Trim() ?? "";
     private readonly TextBox _name = new();

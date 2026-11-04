@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Compositor.Core.Document;
 using Compositor.Core.Format;
 using Compositor.Core.IO;
 using Compositor.Core.Model;
@@ -45,6 +46,16 @@ public sealed partial class MainWindow
             Check(button.TranslatePoint(new Point(0, 0), this) is { Y: 0 }, tag + " does not reach the top edge.");
         }
         Check(this.GetVisualDescendants().OfType<Image>().Any(i => Equals(i.Tag, "project-logo") && i.Source is not null), "Project logo missing from caption.");
+        // Upstream 1.6: the status bar's selection size, and Show Extras leaving the selection in force.
+        SelectionEdits.SelectAll(doc); Say(); Check(_statusInfo.Text!.Contains("500 × 340 px    500 × 340 px"), "Status bar lacks the selection's size: " + _statusInfo.Text);
+        var selected = doc.Selection.Path; var guides = _canvas.ShowsGuides; SetTool(Tool.Brush);
+        ShowExtras(); Pump(); Check(ReferenceEquals(_canvas.HiddenSelection, selected) && !_canvas.ShowsGuides && doc.Selection.Path is not null && !ExtrasShown, "Show Extras did not hide the outline and guides.");
+        ShowExtras(); Pump(); Check(_canvas.HiddenSelection is null && _canvas.ShowsGuides == guides && ExtrasShown, "Show Extras did not bring them back.");
+        ShowExtras(); SelectionEdits.Deselect(doc); SelectionEdits.Select(doc, SKRectI.Create(10, 10, 40, 30)); Pump(); Say(); Check(!ReferenceEquals(doc.Selection.Path, _hiddenSelection) && _statusInfo.Text!.Contains("40 × 30 px"), "A new selection did not show its outline and size.");
+        ShowExtras(); Check(ExtrasShown, "Extras did not settle."); _hiddenSelection = null; _extrasHideGuides = false; PushViewSwitches();
+        SelectionEdits.Deselect(doc); SetTool(Tool.Move); Say();
+        var footerButtons = this.GetVisualDescendants().OfType<Button>().Select(b => ToolTip.GetTip(b) as string).ToArray();
+        Check(footerButtons.Contains(Localize.Text("New Adjustment Layer")) && footerButtons.Contains(Localize.Text("New Filter Layer")), "Layers footer lacks its two menus.");
         var options = _dockPanels["Options"];
         Check(!options.Slot!.GetVisualDescendants().OfType<Button>().Any(b => b.Tag?.ToString()?.StartsWith("close-panel-") == true), "Options retains title controls.");
         FloatPanel(options); Pump(); Check(options.Floating!.Height == 36, "Options float has a title bar."); Save("options", options.Floating);

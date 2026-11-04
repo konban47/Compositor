@@ -15,6 +15,8 @@ internal static class FilterLayerOperators
         for (var y = 0; y < height; y++) rgba.Slice(y * stride, width * 4).CopyTo(image.GetPixelSpan().Slice(y * image.RowBytes, width * 4));
         if (adjustment.Kind == AdjustmentKind.Sharpen)
             SharpenPixels.Apply(image, f.SharpenAmount, f.SharpenRadius);
+        else if (adjustment.Kind == AdjustmentKind.ReduceNoise)
+            AdjustPixels.ReduceNoise(image.GetPixelSpan(), width, height, image.RowBytes, f.ReduceNoiseStrength, f.ReduceNoiseDetails, f.ReduceNoiseColor);
         else if (adjustment.Kind == AdjustmentKind.Vignette)
             AdjustPixels.ColoredVignette(image.GetPixelSpan(), width, height, image.RowBytes, -ox, -oy, canvasWidth, canvasHeight, false,
                 f.VignetteAmount, f.VignetteMidpoint, f.VignetteRoundness, f.VignetteFeather, f.VignetteHighlights, f.VignetteRed, f.VignetteGreen, f.VignetteBlue);

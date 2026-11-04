@@ -172,7 +172,7 @@ public sealed partial class MainWindow
             var opened = panel.Current().Volumetric;
             Check(Math.Abs(opened.CenterX - brightest.X / asset.Width * 100) < .2 && Math.Abs(opened.CenterY - brightest.Y / asset.Height * 100) < .2,
                 "Volumetric Light did not open on the brightest area.");
-            Check(opened.Distance == 30 && opened.DepthContrast == 0 && opened.Length == 0, "Volumetric Light did not open with upstream's Distance, Depth Contrast and Length.");
+            Check(opened.Distance == 30 && opened.DepthContrast == 0 && opened.Length == 0 && opened.KeepsSubjectClear, "Volumetric Light did not open with upstream's Distance, Depth Contrast, Length and Keep Subject Clear.");
             var extract = panel.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Tag, "extract-depth"));
             var apply = Named("Apply");
             var waiting = panel.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == Localize.Text("Getting depth…"));

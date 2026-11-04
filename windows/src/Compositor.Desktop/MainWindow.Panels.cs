@@ -108,7 +108,10 @@ public sealed partial class MainWindow
         footer.Children.Add(PanelButton("link", "Link / Unlink Layers", LinkLayers));
         footer.Children.Add(PanelButton("fx", "Layer Effects", () => ShowEffectsMenu(footer)));
         footer.Children.Add(PanelButton("mask", "Add Layer Mask", () => AddMask(true)));
-        footer.Children.Add(PanelButton("adjust", "New Adjustment Layer", () => ShowAdjustmentMenu(footer)));
+        // Two menus, as the menu bar has: the Image menu's adjustments, then the Filter menu's filters.
+        Button? adjustments = null, filters = null;
+        adjustments = PanelButton("adjust", "New Adjustment Layer", () => ShowAdjustmentMenu(adjustments!, false)); footer.Children.Add(adjustments);
+        filters = PanelButton("filter-layer", "New Filter Layer", () => ShowAdjustmentMenu(filters!, true)); footer.Children.Add(filters);
         footer.Children.Add(PanelButton("folder", "New Group (Ctrl+G)", () => { if (SelectedLayers.Count > 0) GroupSelected(); else NewFolder(); }));
         footer.Children.Add(PanelButton("add", "New Layer (Ctrl+Shift+N)", NewBlankLayer));
         footer.Children.Add(PanelButton("delete", "Delete Layer or Selected Mask", DeletePanelTarget));
@@ -152,15 +155,20 @@ public sealed partial class MainWindow
         menu.Items.Add(Command("Clear Layer Style", ClearSelectedStyles)); menu.Open(owner);
     }
 
-    private void ShowAdjustmentMenu(Control owner)
+    private void ShowAdjustmentMenu(Control owner, bool filters)
     {
-        var menu = new ContextMenu();
-        foreach (var kind in Enum.GetValues<AdjustmentKind>())
+        // Just above the icon, which sits at the bottom of the window.
+        var menu = new ContextMenu { Placement = PlacementMode.TopEdgeAlignedLeft };
+        foreach (var kind in filters ? FilterLayerKinds : Enum.GetValues<AdjustmentKind>().Except(FilterLayerKinds).Except([AdjustmentKind.Extended]))
         {
             var value = kind; menu.Items.Add(Command(LayerPlacement.Name(kind), () => _ = NewAdjustment(value)));
         }
         menu.Open(owner);
     }
+
+    /// <summary>The Filter menu's filters that can be layers, in that menu's order.</summary>
+    private static readonly AdjustmentKind[] FilterLayerKinds = [AdjustmentKind.GaussianBlur, AdjustmentKind.MotionBlur, AdjustmentKind.ProgressiveBlur, AdjustmentKind.Sharpen,
+        AdjustmentKind.ReduceNoise, AdjustmentKind.AddNoise, AdjustmentKind.Vignette, AdjustmentKind.BloomGlow, AdjustmentKind.RgbSplit, AdjustmentKind.LensEffects, AdjustmentKind.TonalContrast];
 
     private bool MatchesLayerFilter(ImageLayer layer)
     {

@@ -30,6 +30,9 @@ public sealed record VolumetricLightSettings
     /// <summary>How far the depth is spread out (<see cref="DepthMap.Equalized"/>), so depths bunched together, like a
     /// distant city, get haze in steps rather than all alike. 0 keeps the model's own spacing.</summary>
     public double DepthContrast { get; set; }
+    /// <summary>On, the subject always stands clear of the haze; off, it takes its own depth and so its share of the haze,
+    /// a figure far off misted like everything at its distance.</summary>
+    public bool KeepsSubjectClear { get; set; } = true;
 
     public bool IsValid => double.IsFinite(CenterX) && double.IsFinite(CenterY) && CenterX is >= -100 and <= 200 && CenterY is >= -100 and <= 200
         && new[] { Red, Green, Blue }.All(v => double.IsFinite(v) && v is >= 0 and <= 1)
@@ -100,15 +103,15 @@ public static class VolumetricLighting
         if (depth is not null)
             lock (prepared)
             {
-                if (prepared.Depth is { } known && prepared.DepthContrast == settings.DepthContrast) far = known;
+                if (prepared.Depth is { } known && prepared.DepthContrast == settings.DepthContrast && prepared.KeepsSubjectClear == settings.KeepsSubjectClear) far = known;
                 else
                 {
                     var spread = depth.Equalized((float)(settings.DepthContrast / 100));
                     var distances = spread.Values.Select(v => 1 - v).ToArray(); Array.Sort(distances);
-                    var composed = ComposedDepth(spread, scene.Mask, fw, fh, side * fs);
+                    var composed = ComposedDepth(spread, scene.Mask, fw, fh, side * fs, settings.KeepsSubjectClear);
                     for (var i = 0; i < composed.Length; i++) composed[i] = 1 - Math.Clamp(composed[i], 0, 1);
                     far = (composed, distances);
-                    if (keeps) (prepared.Depth, prepared.DepthContrast) = (far, settings.DepthContrast);
+                    if (keeps) (prepared.Depth, prepared.DepthContrast, prepared.KeepsSubjectClear) = (far, settings.DepthContrast, settings.KeepsSubjectClear);
                 }
             }
         var (start, end) = Ramp(settings.Distance, far?.Distances);
@@ -167,6 +170,7 @@ public static class VolumetricLighting
         public (double, double, double, double, double) BeamsKey;
         public (float[] Plane, float[] Distances)? Depth;
         public double DepthContrast;
+        public bool KeepsSubjectClear;
     }
 
     /// <summary>One kept <see cref="Prepared"/>, for the source, subject and depth it was worked out from; held weakly,
@@ -245,11 +249,12 @@ public static class VolumetricLighting
     /// <summary>
     /// The depth the haze goes by, on a <paramref name="width"/> × <paramref name="height"/> grid: 1 near, 0 far. The
     /// model's map is soft at the subject's edge, where its nearness bleeds out into a band around it, so there the
-    /// subject's <paramref name="outline"/> decides instead: inside it the subject is near, and the band around it takes
+    /// subject's <paramref name="outline"/> decides instead: inside it the subject is near (or with
+    /// <paramref name="keepsSubjectClear"/> off, at its own depth), and the band around it takes
     /// the depth of the backdrop just beyond it, worked out from around it; the two meet through the outline's own edge.
     /// Further off, the model's map as it is.
     /// </summary>
-    internal static float[] ComposedDepth(DepthMap predicted, float[]? outline, int width, int height, double side)
+    internal static float[] ComposedDepth(DepthMap predicted, float[]? outline, int width, int height, double side, bool keepsSubjectClear = true)
     {
         var depth = LightPlanes.Blur(DepthModel.Resample(predicted, width, height), width, height, side * .0015);
         if (outline is null) return depth;
@@ -263,6 +268,16 @@ public static class VolumetricLighting
         for (var i = 0; i < product.Length; i++) product[i] = depth[i] * beyond[i];
         var weighted = Blurred(product, reach * 2.5); var coverage = Blurred(beyond, reach * 2.5);
         var closeness = Blurred(outline, reach * 1.5);
+        // At its own depth: the model's averaged over the subject, locally, so people apart from each other each keep
+        // their own, and a figure far down a street is hazed as far while a near one stays clear.
+        float[]? ownDepth = null, ownWeight = null;
+        if (!keepsSubjectClear)
+        {
+            var span = side * .08;
+            var held = new float[depth.Length];
+            for (var i = 0; i < held.Length; i++) held[i] = depth[i] * outline[i];
+            ownDepth = Blurred(held, span); ownWeight = Blurred(outline, span);
+        }
         var result = new float[depth.Length];
         for (var i = 0; i < result.Length; i++)
         {
@@ -270,8 +285,8 @@ public static class VolumetricLighting
             var close = Math.Clamp(closeness[i] * 4, 0, 1);
             // Near the subject, the backdrop's depth; further out, the model's; on the subject, near.
             var around = depth[i] + (behind - depth[i]) * close;
-            var near = Math.Max(depth[i], .9f);
-            result[i] = around + (near - around) * outline[i];
+            var inside = ownDepth is null ? Math.Max(depth[i], .9f) : Math.Clamp(ownDepth[i] / (ownWeight![i] + .001f), 0, 1);
+            result[i] = around + (inside - around) * outline[i];
         }
         return result;
     }
@@ -287,7 +302,7 @@ public static class VolumetricLighting
         var width = source.Width; var height = source.Height; double side = Math.Max(width, height);
         var (fw, fh, fs) = LightPlanes.Grid(width, height, FieldLimit);
         var scene = MakeScene(source, subject, fw, fh, side * fs);
-        var composed = ComposedDepth(spread, scene.Mask, fw, fh, side * fs);
+        var composed = ComposedDepth(spread, scene.Mask, fw, fh, side * fs, settings.KeepsSubjectClear);
         var image = Bitmaps.Allocate(Bitmaps.ColorInfo(width, height));
         var bytes = image.GetPixelSpan();
         for (var y = 0; y < height; y++)

@@ -221,6 +221,9 @@ internal static class IconSet
         ["move"] = new("M12,2.5 L12,21.5 M2.5,12 L21.5,12 M9,5.5 L12,2.5 L15,5.5 M9,18.5 L12,21.5 L15,18.5 M5.5,9 L2.5,12 L5.5,15 M18.5,9 L21.5,12 L18.5,15"),
         ["transparency"] = new("M3.5,3.5 L20.5,3.5 L20.5,20.5 L3.5,20.5 Z", "M3.5,3.5 L9.2,3.5 L9.2,9.2 L3.5,9.2 Z M14.8,3.5 L20.5,3.5 L20.5,9.2 L14.8,9.2 Z M9.2,9.2 L14.8,9.2 L14.8,14.8 L9.2,14.8 Z M3.5,14.8 L9.2,14.8 L9.2,20.5 L3.5,20.5 Z M14.8,14.8 L20.5,14.8 L20.5,20.5 L14.8,20.5 Z"),
         ["adjust"] = new("M20.5,12 A8.5,8.5 0 1 1 3.5,12 A8.5,8.5 0 1 1 20.5,12", "M12,3.5 A8.5,8.5 0 0 0 12,20.5 Z"),
+        // A filter layer: a ring around a checkered disc, beside the adjustments' half-filled circle (upstream's CheckerCircleIcon).
+        ["filter-layer"] = new("M20.5,12 A8.5,8.5 0 1 1 3.5,12 A8.5,8.5 0 1 1 20.5,12",
+            "M9.4,6.8 L12,6.8 L12,9.4 L9.4,9.4 Z M14.6,9.4 L14.6,6.9 Q16.2,7.6 17,9.4 Z M12,9.4 L14.6,9.4 L14.6,12 L12,12 Z M9.4,9.4 L9.4,12 L6.9,12 Q7,10.4 7.8,9.4 Z M14.6,12 L17.2,12 Q17.2,13.4 16.6,14.6 L14.6,14.6 Z M9.4,12 L12,12 L12,14.6 L9.4,14.6 Z M6.9,14.6 L9.4,14.6 L9.4,17 Q7.8,16.2 6.9,14.6 Z M12,14.6 L14.6,14.6 L14.6,17.2 L12,17.2 Z"),
         ["fx"] = new("M10.5,4 Q7.5,3.4 7.2,6.6 L5.8,20 M3.5,10 L10,10 M12.5,10 L19.5,19.5 M19.5,10 L12.5,19.5"),
         // Arrange: the square being moved solid, over or under the other; Forward and Backward add one step's arrow.
         ["slice-front"] = new("M9,9 L4,9 L4,20 L13,20 L13,15", "M9,4 L20,4 L20,15 L9,15 Z"),

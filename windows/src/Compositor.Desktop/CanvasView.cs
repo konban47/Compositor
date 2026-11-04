@@ -600,6 +600,18 @@ public sealed partial class CanvasView : Control
 
     /// <summary>Whether the guides are drawn at all: hiding them is a view choice, not a change to them.</summary>
     public bool ShowsGuides { get; set; } = true;
+    /// <summary>The selection whose outline Show Extras hid. It still limits edits; any other selection shows its outline.</summary>
+    public SKPath? HiddenSelection { get; set; }
+    /// <summary>The Move tool's pixel gaps, drawn while they're set.</summary>
+    public IReadOnlyList<DistanceLine> DistanceLines { get; set; } = [];
+    /// <summary>Where the pointer is when nothing is being dragged, with the keys held; for the Move tool's gaps.</summary>
+    public Action<SKPoint, KeyModifiers>? HoverMoved { get; set; }
+    /// <summary>A Marquee being drawn changed size.</summary>
+    public Action? MarqueeMoved { get; set; }
+    /// <summary>The box of a Marquee being drawn, for the status bar.</summary>
+    public SKRect? DrawingSelectionBox => DrawingMarquee ? _selectionBox : null;
+    /// <summary>Whether the transform drag in hand moves rather than resizes or turns.</summary>
+    public bool TransformMoving => _transformDragging && _handle is null;
 
     /// <summary>Whether the guides may be dragged. Locked, they are drawn but a click passes them by.</summary>
     public bool LocksGuides { get; set; }
@@ -1144,7 +1156,9 @@ public sealed partial class CanvasView : Control
         DrawTransform(context);
         EditingOverlay?.Invoke(context, ToScreen);
         DrawNodes(context);
-        if (_document?.Selection.Path is not { } path || path.IsEmpty) return;
+        DrawDistances(context);
+        DrawDragOutSize(context);
+        if (_document?.Selection.Path is not { } path || path.IsEmpty || ReferenceEquals(path, HiddenSelection)) return;
         // A white line with a black dashed one over it, as the Mac's overlay draws the marching ants.
         var outline = new Pen(Brushes.White, 1);
         var ants = new Pen(Brushes.Black, 1) { DashStyle = new DashStyle([4.0, 4.0], AntsPhase) };
@@ -1160,6 +1174,63 @@ public sealed partial class CanvasView : Control
             }
             context.DrawGeometry(null, outline, geometry);
             context.DrawGeometry(null, ants, geometry);
+        }
+    }
+
+    private static readonly Typeface LabelFace = new("Segoe UI, Microsoft YaHei UI, Noto Sans SC", FontStyle.Normal, FontWeight.Medium);
+    private static FormattedText LabelText(string text) => new(text, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, LabelFace, 11, Brushes.White);
+
+    /// <summary>What's being dragged out, for the label beside the pointer: a Marquee's, a shape's or a resized layer's
+    /// width and height, or a line's length, with the point being dragged, in document pixels. Null between drags.</summary>
+    private (string Text, SKPoint Corner)? DragOutSize()
+    {
+        static string Size(double width, double height) => $"{Math.Round(width):0} × {Math.Round(height):0} px";
+        static SKPoint Farthest(SKRect box, SKPoint anchor) => new[] { new SKPoint(box.Left, box.Top), new SKPoint(box.Right, box.Top), new SKPoint(box.Left, box.Bottom), new SKPoint(box.Right, box.Bottom) }
+            .MaxBy(p => SKPoint.DistanceSquared(p, anchor));
+        if (_transformDragging && _handle is { } handle && handle != TransformHandle.Rotate && TransformBox is { } size && _toolPointer is { } pointer) return (Size(size.Width, size.Height), ToDocument(pointer));
+        if (_shaping)
+        {
+            if (ShapeKind == Format.ShapeKind.Line) return ($"{Math.Round(SKPoint.Distance(_shapeAnchor, _shapeEnd)):0} px", _shapeEnd);
+            return _shapeBox.Width > 0 && _shapeBox.Height > 0 ? (Size(_shapeBox.Width, _shapeBox.Height), Farthest(new SKRect(_shapeBox.Left, _shapeBox.Top, _shapeBox.Right, _shapeBox.Bottom), _shapeAnchor)) : null;
+        }
+        return DrawingSelectionBox is { Width: > 0, Height: > 0 } box ? (Size(box.Width, box.Height), Farthest(box, _selectionAnchor)) : null;
+    }
+
+    /// <summary>The size of what's being dragged, in a dark label just above and right of the point being dragged, the
+    /// other side of it near the view's edge.</summary>
+    private void DrawDragOutSize(DrawingContext context)
+    {
+        if (DragOutSize() is not { } size) return;
+        var corner = ToScreen(size.Corner); var text = LabelText(size.Text);
+        var label = new Rect(corner.X + 14, corner.Y - 14 - (text.Height + 6), text.Width + 12, text.Height + 6);
+        if (label.Right > Bounds.Width - 4) label = label.WithX(corner.X - 14 - label.Width);
+        if (label.Y < 4) label = label.WithY(corner.Y + 14);
+        context.DrawRectangle(new SolidColorBrush(Color.FromArgb(230, 31, 31, 31)), null, label, 4, 4);
+        context.DrawText(text, new Point(label.X + 6, label.Y + 3));
+    }
+
+    /// <summary>The Move tool's pixel gaps: a line with an end bar at each side, and its length in a label on it, the
+    /// same size at any zoom.</summary>
+    private void DrawDistances(DrawingContext context)
+    {
+        if (DistanceLines.Count == 0) return;
+        var pink = new SolidColorBrush(Color.FromRgb(0xFF, 0x2D, 0x55)); var pen = new Pen(pink, 1);
+        foreach (var line in DistanceLines)
+        {
+            var start = ToScreen(line.Horizontal ? new SKPoint(line.From, line.Across) : new SKPoint(line.Across, line.From));
+            var end = ToScreen(line.Horizontal ? new SKPoint(line.To, line.Across) : new SKPoint(line.Across, line.To));
+            context.DrawLine(pen, start, end);
+            foreach (var point in new[] { start, end })
+                context.DrawLine(pen, line.Horizontal ? point + new Vector(0, -4) : point + new Vector(-4, 0), line.Horizontal ? point + new Vector(0, 4) : point + new Vector(4, 0));
+        }
+        foreach (var line in DistanceLines)
+        {
+            var start = ToScreen(line.Horizontal ? new SKPoint(line.From, line.Across) : new SKPoint(line.Across, line.From));
+            var end = ToScreen(line.Horizontal ? new SKPoint(line.To, line.Across) : new SKPoint(line.Across, line.To));
+            var text = LabelText($"{Math.Round(line.Length):0} px");
+            var label = new Rect((start.X + end.X) / 2 - text.Width / 2 - 5, (start.Y + end.Y) / 2 - text.Height / 2 - 2, text.Width + 10, text.Height + 4);
+            context.DrawRectangle(pink, null, label, 4, 4);
+            context.DrawText(text, new Point(label.X + 5, label.Y + 2));
         }
     }
 
@@ -1790,6 +1861,7 @@ public sealed partial class CanvasView : Control
         // stop while a stroke is being painted.
         if (ViewToolMove(e)) return;
         PointerMovedAt?.Invoke(ToDocument(now));
+        if (!_transformDragging) HoverMoved?.Invoke(ToDocument(now), e.KeyModifiers);
         if (_textDrag) { TextDragged?.Invoke(ToDocument(now)); e.Handled = true; return; }
         // Dragging a vector outline's node or handle: where it has been put, in the outline's own pixels.
         if (_nodeDragging && _nodeGrab is { } grab && DocumentToPath is { } toOutline)
@@ -1933,6 +2005,7 @@ public sealed partial class CanvasView : Control
             {
                 _selectionBox = ConstrainMarquee?.Invoke(_selectionAnchor, point) ?? Between(_selectionAnchor, point);
             }
+            if (Selection is SelectionTool.Rectangle or SelectionTool.Ellipse) MarqueeMoved?.Invoke();
             _lassoPointer = point;
             InvalidateVisual();
             base.OnPointerMoved(e);

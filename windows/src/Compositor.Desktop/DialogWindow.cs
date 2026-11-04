@@ -18,6 +18,11 @@ internal abstract class DialogWindow : Window
 {
     private bool _captionAdded;
     protected virtual bool FullCaption => false;
+    /// <summary>The edit panels, used one after another, all open where the last of them was left.</summary>
+    protected virtual bool SharesEditPosition => false;
+    /// <summary>Where an edit panel was left: its top corner on the side it was moved toward, so a wider panel opening
+    /// there grows away from that side of the screen rather than off it.</summary>
+    private static (PixelPoint Corner, bool Right)? _editPosition;
     protected DialogWindow()
     {
         Localize.Prepare(this);
@@ -28,6 +33,29 @@ internal abstract class DialogWindow : Window
         // field, a menu row — exactly as the theme drew it.
         TextElement.SetForeground(this, Skin.LabelBrush);
         Opened += (_, _) => Dispatcher.UIThread.Post(FitTextButtons, DispatcherPriority.Loaded);
+        Closing += (_, _) => RememberEditPosition();
+    }
+
+    /// <summary>Opens where the last edit panel was left; the first one straddles the canvas's right edge, where the
+    /// layers panel begins, centered on the canvas top to bottom, so the picture's middle stays in view.</summary>
+    private void PlaceEditPanel()
+    {
+        if (!SharesEditPosition || Screens.ScreenFromWindow(this) is not { } screen) return;
+        int width = (int)(Bounds.Width * RenderScaling), height = (int)(Bounds.Height * RenderScaling);
+        PixelPoint at;
+        if (_editPosition is { } saved) at = new(saved.Right ? saved.Corner.X - width : saved.Corner.X, saved.Corner.Y);
+        else if (Owner is MainWindow { CanvasOnScreen: { } canvas }) at = new(canvas.Right - width / 2, canvas.Y + (canvas.Height - height) / 2);
+        else return;
+        var room = screen.WorkingArea;
+        Position = new(Math.Clamp(at.X, room.X, Math.Max(room.X, room.Right - width)), Math.Clamp(at.Y, room.Y, Math.Max(room.Y, room.Bottom - height)));
+    }
+
+    private void RememberEditPosition()
+    {
+        if (!SharesEditPosition || Screens.ScreenFromWindow(this) is not { } screen) return;
+        var width = (int)(Bounds.Width * RenderScaling);
+        var right = Position.X + width / 2 > screen.WorkingArea.Center.X;
+        _editPosition = (new(right ? Position.X + width : Position.X, Position.Y), right);
     }
 
     protected override void OnOpened(EventArgs e)
@@ -42,6 +70,7 @@ internal abstract class DialogWindow : Window
         }
         WindowChrome.ApplyNative(this);
         base.OnOpened(e);
+        PlaceEditPanel();
     }
 
     // Explicit 24px heights and fixed English widths must not clip localized labels or high-DPI fonts.

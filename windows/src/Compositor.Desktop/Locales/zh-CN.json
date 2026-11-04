@@ -4096,5 +4096,21 @@
   "Close the filter and add the depth the haze goes by as a new layer: white is near, black is far": "关闭滤镜，把雾气所依据的深度添加为新图层：白色为近，黑色为远",
   "Getting depth…": "正在获取深度…",
   "Depth": "深度",
-  "The depth model couldn't be downloaded; check the connection and try again": "无法下载深度模型；请检查网络连接后重试"
+  "The depth model couldn't be downloaded; check the connection and try again": "无法下载深度模型；请检查网络连接后重试",
+  "Reduce Noise": "减少杂色",
+  "Reduce Noise…": "减少杂色…",
+  "Preserve Details": "保留细节",
+  "Color Noise": "颜色杂色",
+  "How much grain is smoothed from the picture's brightness": "从画面亮度中平滑掉多少颗粒",
+  "How much fine texture and edges are kept while the grain is smoothed": "平滑颗粒时保留多少细微纹理和边缘",
+  "How much colored speckle is smoothed into the colors around it": "把多少彩色斑点平滑融入周围颜色",
+  "Keep Subject Clear": "保持主体清晰",
+  "Keep the subject clear of the haze; off, it's hazed by its own distance, so a figure far off is misted": "让主体不受雾气影响；关闭后主体按自身距离起雾，远处的人物会被雾气笼罩",
+  "New Filter Layer": "新建滤镜图层",
+  "Show Extras": "显示额外内容",
+  "Distances": "距离",
+  "Extras shown": "已显示额外内容",
+  "Extras hidden": "已隐藏额外内容",
+  "Distances shown": "已显示距离",
+  "Distances hidden": "已隐藏距离"
 }

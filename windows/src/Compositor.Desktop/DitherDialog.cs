@@ -19,6 +19,7 @@ namespace Compositor.Desktop;
 /// </summary>
 internal sealed class DitherDialog : DialogWindow
 {
+    protected override bool SharesEditPosition => true;
     /// <summary>One row of the panel, and whether the look being edited uses it.</summary>
     private readonly List<(Control Row, Func<bool> Applies)> _rows = [];
     /// <summary>One heading and the rows under it, so the heading can go when they all have.</summary>

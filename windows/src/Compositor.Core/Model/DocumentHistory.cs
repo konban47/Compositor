@@ -95,6 +95,14 @@ public sealed partial class DocumentHistory
         // Selecting, navigating and edits that changed nothing must preserve the redo history.
         if (Same(before.Document, document)) return;
         _revision = Guid.NewGuid();
+        // What starts a document (an image opened onto the welcome screen, a new canvas) is where its history starts:
+        // undoing all the way back stops at it rather than closing it.
+        if (before.Document is null)
+        {
+            _past.Clear(); _future.Clear();
+            Committed?.Invoke(_pendingName);
+            return;
+        }
         _past.Add(new Entry(_pendingName, before, new Snapshot(document?.Clone(), activeLayer, _revision)));
         // Linear history throws the redo branch away; non-linear history keeps it so the states ahead stay
         // reachable. The new state still lands after the current one, so both remain in order.

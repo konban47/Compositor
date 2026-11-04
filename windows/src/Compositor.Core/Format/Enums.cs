@@ -61,6 +61,7 @@ public enum AdjustmentKind
     [JsonStringEnumMemberName("Lens Effects")] LensEffects,
     [JsonStringEnumMemberName("Tonal Contrast")] TonalContrast,
     Sharpen,
+    [JsonStringEnumMemberName("Reduce Noise")] ReduceNoise,
 }
 
 public enum LevelsChannel

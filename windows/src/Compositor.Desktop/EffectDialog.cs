@@ -13,6 +13,7 @@ namespace Compositor.Desktop;
 /// </summary>
 internal sealed class EffectDialog : DialogWindow
 {
+    protected override bool SharesEditPosition => true;
     private readonly List<(Slider Slider, Action<object, double> Set)> _rows = [];
     private readonly List<double> _fallbacks = [];
     private readonly CheckBox _on = new() { Content = Localize.Text("Draw this effect") };

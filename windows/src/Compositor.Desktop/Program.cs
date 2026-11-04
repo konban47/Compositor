@@ -504,8 +504,11 @@ internal static partial class Program
     /// drawing is off, so the real Skia renderer draws as usual and the window can be photographed as well as
     /// clicked; what the platform leaves out is only the desktop window itself.
     /// </summary>
+    /// <summary>Running the self checks, on a pretend screen, where a window keeps the size it was made with.</summary>
+    internal static bool Headless { get; private set; }
     private static AppBuilder BuildHeadless() =>
         AppBuilder.Configure<DesktopApp>()
+            .AfterSetup(_ => Headless = true)
             .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
             .UseSkia()
             .WithInterFont()
