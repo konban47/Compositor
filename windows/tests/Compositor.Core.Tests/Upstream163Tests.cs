@@ -97,6 +97,40 @@ public sealed class Upstream163Tests
         Assert.False(new FilterLayerSettings { ReduceNoise = new() { Color = 200 } }.IsValid);
     }
 
+    /// <summary>Its strength comes from the noise measured over the whole picture, so tiles have to agree with it.</summary>
+    [Fact]
+    public void AReduceNoiseLayerRendersIdenticallyInTiles()
+    {
+        using var document = new CanvasDocument(Guid.NewGuid(), 96, 72);
+        document.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(Noisy(), "Photo"), new Model.LayerTransform(0, 0, 96, 72), "Photo"));
+        LayerPlacement.AddAdjustment(document, AdjustmentKind.ReduceNoise, document.Layers[0].ID);
+        using var whole = Compositor.Core.Rendering.DocumentRenderer.Render(document);
+        foreach (var region in new[] { SKRectI.Create(0, 0, 48, 72), SKRectI.Create(48, 0, 48, 72) })
+        {
+            using var tile = Compositor.Core.Rendering.DocumentRenderer.RenderRegion(document, region);
+            for (var y = 0; y < region.Height; y++) for (var x = 0; x < region.Width; x++) Assert.Equal(whole.GetPixel(x + region.Left, y), tile.GetPixel(x, y));
+        }
+    }
+
+    /// <summary>A kept result never stands in for a different picture or different settings.</summary>
+    [Fact]
+    public void AKeptResultIsOnlyUsedForTheSamePictureAndSettings()
+    {
+        LayerAdjustment Layer(double strength) => new() { Kind = AdjustmentKind.ReduceNoise, FilterLayerSettings = FilterLayerSettings.From(new FilterSettings { ReduceNoiseLuminance = strength }, 96, 72) };
+        byte[] Run(LayerAdjustment layer, SKBitmap source)
+        {
+            using var copy = source.Copy();
+            AdjustmentOperators.Apply(layer, 1, copy.GetPixelSpan(), copy.Width, copy.Height, copy.RowBytes);
+            return copy.GetPixelSpan().ToArray();
+        }
+        using var first = Noisy(); using var second = Noisy(grain: 12);
+        var strong = Run(Layer(90), first);
+        Assert.Equal(strong, Run(Layer(90), first));
+        Assert.NotEqual(strong, Run(Layer(20), first));
+        Assert.NotEqual(strong, Run(Layer(90), second));
+        Assert.Equal(strong, Run(Layer(90), first));
+    }
+
     [Fact]
     public void AReduceNoiseLayerNeedsTheVersionThatHasIt()
     {
