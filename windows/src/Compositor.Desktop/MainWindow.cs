@@ -314,7 +314,7 @@ public sealed partial class MainWindow : Window
         Localize.Prepare(this);
         Icon = new WindowIcon(Avalonia.Platform.AssetLoader.Open(new Uri("avares://Compositor/Assets/compositor.ico")));
         Title = Localize.Text("Compositor");
-        WindowDecorations = WindowDecorations.BorderOnly;
+        WindowChrome.Frame(this);
         Width = 1280;
         Height = 820;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;

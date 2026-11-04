@@ -39,9 +39,9 @@ internal static class Skin
     /// <summary>Photoshop control pressed and active tool sunken state (#252525).</summary>
     public static Color SurfaceControlPressed => Tone(0x25, 0x40, 0xA8, 0xC0);
 
-    // Caption hit areas brighten dark chrome and darken light chrome.
-    public static Color CaptionHover => Tone(0x3C, 0x68, 0xA2, 0xD6);
-    public static Color CaptionPressed => Tone(0x48, 0x78, 0x90, 0xC6);
+    // Windows 11's subtle caption fills: hover about 6% off the chrome, pressed about half that.
+    public static Color CaptionHover => Tone(0x33, 0x5C, 0xAC, 0xE2);
+    public static Color CaptionPressed => Tone(0x2C, 0x56, 0xB2, 0xE8);
     public static readonly IBrush CaptionHoverBrush = new SolidColorBrush(CaptionHover);
     public static readonly IBrush CaptionPressedBrush = new SolidColorBrush(CaptionPressed);
 

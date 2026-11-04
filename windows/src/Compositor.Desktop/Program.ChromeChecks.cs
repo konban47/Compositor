@@ -35,6 +35,15 @@ public sealed partial class MainWindow
         AdoptImported(doc, "Chrome Check"); SetTool(Tool.Move); SelectLayerRow(layer.ID); Pump();
         Check(_canvasHorizontal.Parent is DockPanel status && status.Children.Contains(_statusInfo) && status.Children.Contains(_status), "Horizontal scrollbar is not embedded between the bottom status fields.");
         Check(WindowDecorations == WindowDecorations.BorderOnly, "Native window border was lost.");
+        // Windows 11: the content reaches the window's top edge, and Windows knows each caption part, for Snap Layouts.
+        Check(ExtendClientAreaToDecorationsHint, "The system frame still shows above the caption buttons.");
+        var captionRoles = new (string Tag, Avalonia.Input.WindowDecorationsElementRole Role)[] { ("caption-Close", Avalonia.Input.WindowDecorationsElementRole.CloseButton), ("caption-Maximize / Restore", Avalonia.Input.WindowDecorationsElementRole.MaximizeButton), ("caption-Minimize", Avalonia.Input.WindowDecorationsElementRole.MinimizeButton) };
+        foreach (var (tag, role) in captionRoles)
+        {
+            var button = this.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, tag));
+            Check(Avalonia.Controls.Chrome.WindowDecorationProperties.GetElementRole(button) == role, "Windows does not know " + tag + ".");
+            Check(button.TranslatePoint(new Point(0, 0), this) is { Y: 0 }, tag + " does not reach the top edge.");
+        }
         Check(this.GetVisualDescendants().OfType<Image>().Any(i => Equals(i.Tag, "project-logo") && i.Source is not null), "Project logo missing from caption.");
         var options = _dockPanels["Options"];
         Check(!options.Slot!.GetVisualDescendants().OfType<Button>().Any(b => b.Tag?.ToString()?.StartsWith("close-panel-") == true), "Options retains title controls.");

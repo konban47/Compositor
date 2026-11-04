@@ -22,7 +22,7 @@ internal abstract class DialogWindow : Window
     {
         Localize.Prepare(this);
         Background = Skin.ChromeBrush;
-        WindowDecorations = WindowDecorations.BorderOnly;
+        WindowChrome.Frame(this);
         // A plain TextBlock has no foreground of its own, so on a dark dialog it would draw black on near
         // black. Setting the inherited one leaves every control that says what its own text is — a button, a
         // field, a menu row — exactly as the theme drew it.
