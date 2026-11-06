@@ -329,7 +329,15 @@ public sealed partial class MainWindow : Window
         // The two calls a screen has to be asked for are made once the window is open, which is when there is a
         // screen to ask.
         Opened += (_, _) => { FitToScreen(); RestoreNativeWindowCorners(); RaiseStartApplication(); };
-        Closing += (_, _) => { if (WindowState == WindowState.Normal && Width > 0 && Height > 0) { _tools.WindowWidth = Width; _tools.WindowHeight = Height; _tools.Save(ToolDefaults.DefaultPath); } };
+        // The size and place to come back to are the ones it last had as an ordinary window, so a window closed maximized still has them.
+        PositionChanged += (_, _) => RememberWindow();
+        SizeChanged += (_, _) => RememberWindow();
+        Closing += (_, _) =>
+        {
+            RememberWindow();
+            _tools.WindowMaximized = (_editingFullscreen ? _beforeEditingFullscreen : WindowState) == WindowState.Maximized;
+            _tools.Save(ToolDefaults.DefaultPath);
+        };
         AddHandler(KeyUpEvent, (_, e) => { if (e.Key is Key.LeftCtrl or Key.RightCtrl && _canvas.DistanceLines.Count > 0 && !_canvas.TransformMoving) { _canvas.DistanceLines = []; _canvas.InvalidateVisual(); } }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // The picker is a window of its own and the app is left running until the last window closes, so it
         // goes with the editor rather than being left behind to hold the session open.
@@ -393,6 +401,8 @@ public sealed partial class MainWindow : Window
         _paintOnMask.Click += (_, _) => SetPaintingMask(!_options.PaintOnMask);
         _eraseToggle.Click += (_, _) => SetErasing(!_options.Erase);
         // The rail is the same set of tools the Tools menu has: picking either marks both.
+        ColorPickerDialog.SwatchAdded += AddSwatch;
+        Closed += (_, _) => ColorPickerDialog.SwatchAdded -= AddSwatch;
         _rail.Chosen += SetTool;
         _rail.ColoursSwapped += SwapColours;
         _rail.ColoursReset += ResetColours;
@@ -672,11 +682,19 @@ public sealed partial class MainWindow : Window
         var views = Views();
         _toolDockSlot = DockTool("Tools", _rail);
         Grid.SetColumn(_toolDockSlot, 0);
-        Grid.SetColumn(views, 1);
+        // Under the canvas, the Timeline's dock, as Photoshop has it; it stays out of the way until a panel lands there.
+        _bottomDockRow = new RowDefinition(new GridLength(0));
+        var center = new Grid { RowDefinitions = { new RowDefinition(GridLength.Star), new RowDefinition(GridLength.Auto), _bottomDockRow } };
+        Grid.SetRow(views, 0); Grid.SetRow(_bottomDockSplitter, 1); Grid.SetRow(_bottomDock, 2);
+        _bottomDockSplitter.DragCompleted += (_, _) => { if (_bottomDock.Bounds.Height >= 120) _bottomDockHeight = _bottomDock.Bounds.Height; };
+        center.Children.Add(views); center.Children.Add(_bottomDockSplitter); center.Children.Add(_bottomDock);
+        center.SizeChanged += (_, e) => _bottomDockRow.MaxHeight = Math.Max(120, e.NewSize.Height - 160);
+        Grid.SetColumn(center, 1);
         body.Children.Add(_toolDockSlot);
-        body.Children.Add(views);
+        body.Children.Add(center);
+        body.SizeChanged += (_, _) => { if (ReferenceEquals(TopLevel.GetTopLevel(_rail), this)) _rail.SetAvailableHeight(RailRoom()); };
         root.Children.Add(body);
-        _chrome = [contextBar, menuChrome, tabs, _optionDockSlot, _placementBar, _cameraRawHost, _layersSide, statusBar, _toolDockSlot, _rulerAcross, _rulerDown, _rulerCorner, _canvasVertical];
+        _chrome = [_bottomDock, _bottomDockSplitter, contextBar, menuChrome, tabs, _optionDockSlot, _placementBar, _cameraRawHost, _layersSide, statusBar, _toolDockSlot, _rulerAcross, _rulerDown, _rulerCorner, _canvasVertical];
         _dockHintOverlay.Children.Add(_dockSidePreview);
         return new Grid { Children = { root, _dockHintOverlay } };
     }
@@ -815,33 +833,44 @@ public sealed partial class MainWindow : Window
     /// display and taller than a 1080 one at 150%, where the bottom of this window — the status line — ends up
     /// under the taskbar and out of reach. Found by opening the real window on this machine.
     /// </summary>
+    private void AddSwatch((double Red, double Green, double Blue) color)
+    {
+        var hex = "#" + PickerHsb.Text(color).TrimStart('#');
+        if (_tools.Swatches.Contains(hex, StringComparer.OrdinalIgnoreCase)) return;
+        _tools.Swatches.Add(hex); _tools.Save(ToolDefaults.DefaultPath);
+        foreach (var name in new[] { "Color", "Swatches" }) if (_utilityRefresh.TryGetValue(name, out var refresh)) refresh();
+    }
+
+    private void RememberWindow()
+    {
+        if (!_placed || Program.Headless || WindowState != WindowState.Normal || Width <= 0 || Height <= 0) return;
+        _tools.WindowWidth = Width; _tools.WindowHeight = Height; _tools.WindowX = Position.X; _tools.WindowY = Position.Y;
+    }
+    private bool _placed;
+
+    /// <summary>
+    /// The first launch of each build, a new install or an update, fills the screen as a maximized window. After that the
+    /// window opens as it was left: its size, its place and whether it was maximized, moved back on screen if that screen is gone.
+    /// </summary>
     private void FitToScreen()
     {
         if (Screens.Primary is not { } screen || screen.Scaling <= 0) return;
         var room = screen.WorkingArea;
         if (Program.Headless) return;
-        // The first launch of each build, a new install or an update, fills the screen without going full screen; within
-        // a build the window opens at the size it was left.
         var build = typeof(MainWindow).Assembly.GetName().Version?.ToString() ?? "";
-        if (_tools.FilledForBuild != build)
-        {
-            _tools.FilledForBuild = build; _tools.Save(ToolDefaults.DefaultPath);
-            Width = room.Width / screen.Scaling; Height = room.Height / screen.Scaling;
-            // The side and bottom edges carry the system's invisible resize border, which goes past the working area.
-            var border = (int)Math.Round(Math.Max(0, ((FrameSize?.Width ?? Width) - ClientSize.Width) / 2 * screen.Scaling));
-            Position = new PixelPoint(room.X - border, room.Y);
-            return;
-        }
-        if (_tools.WindowWidth > 0 && _tools.WindowHeight > 0) { Width = _tools.WindowWidth; Height = _tools.WindowHeight; }
-        Width = Math.Min(Width, room.Width / screen.Scaling - Room);
-        Height = Math.Min(Height, room.Height / screen.Scaling - Room);
-        // The window was placed from the size it was made with, so it is put back by hand: at 150% the shrinking
-        // above is what would otherwise leave its title bar above the top of the screen.
-        Position = new PixelPoint(
-            room.X + (int)Math.Max(0, (room.Width - Width * screen.Scaling) / 2),
-            room.Y + (int)Math.Max(0, (room.Height - Height * screen.Scaling) / 2));
+        var first = _tools.FilledForBuild != build;
+        double width = Width, height = Height;
+        if (_tools.WindowWidth > 0 && _tools.WindowHeight > 0) { width = _tools.WindowWidth; height = _tools.WindowHeight; }
+        width = Math.Min(width, room.Width / screen.Scaling - Room); height = Math.Min(height, room.Height / screen.Scaling - Room);
+        Width = width; Height = height;
+        var rooms = Screens.All.Select(s => new WindowPlacement.Area(s.WorkingArea.X, s.WorkingArea.Y, s.WorkingArea.Width, s.WorkingArea.Height)).ToArray();
+        Position = _tools.WindowX is { } x && _tools.WindowY is { } y && WindowPlacement.IsOnScreen(x, y, width * screen.Scaling, rooms)
+            ? new PixelPoint((int)x, (int)y)
+            : new PixelPoint(room.X + (int)((room.Width - width * screen.Scaling) / 2), room.Y + (int)((room.Height - height * screen.Scaling) / 2));
+        if (first) { _tools.FilledForBuild = build; _tools.Save(ToolDefaults.DefaultPath); }
+        if (first || _tools.WindowMaximized) WindowState = WindowState.Maximized;
+        _placed = true;
     }
-
     /// <summary>How much of the screen a window leaves for the desktop around it.</summary>
     private const double Room = 40;
 
@@ -4042,7 +4071,9 @@ public sealed partial class MainWindow : Window
         if (_canvas.DraggedShapeSize is { } shape) return $"    {Localize.Text(shape.Line ? "Line" : "Shape")} {shape.Text}";
         if ((_canvas.DrawingSelectionBox ?? document.Selection.Path?.Bounds) is not { } box) return "";
         var cut = SKRect.Intersect(box, SKRect.Create(document.Width, document.Height));
-        return cut.IsEmpty ? "" : $"    {Localize.Text("Selection")} {Math.Round(cut.Width):0} × {Math.Round(cut.Height):0} px";
+        // The marching ants look the same at any feather, so it's shown beside the size; a selection still being drawn has none yet.
+        var feather = _canvas.DrawingSelectionBox is null && document.Selection.Feather > 0 ? $" · {Localize.Text("Feather")} {Math.Max(1, Math.Round(document.Selection.Feather)):0} px" : "";
+        return cut.IsEmpty ? "" : $"    {Localize.Text("Selection")} {Math.Round(cut.Width):0} × {Math.Round(cut.Height):0} px{feather}";
     }
 
     /// <summary>
@@ -5821,7 +5852,8 @@ public sealed partial class MainWindow : Window
         }
         var most = which == SelectionAmount.Feather ? SelectionEdits.MaxFeather : SelectionEdits.MaxAmount;
         var label = which == SelectionAmount.Feather ? "Feather radius in pixels" : "Pixels";
-        if (await TextPrompt.Ask(this, $"Modify Selection — {which}", label, "4") is not { } typed) return;
+        var shared = Math.Clamp(_options.Selection.ModifyAmount, 1, most);
+        if (await TextPrompt.Ask(this, $"Modify Selection — {which}", label, shared.ToString(System.Globalization.CultureInfo.InvariantCulture)) is not { } typed) return;
         if (!int.TryParse(typed.Trim(), out var amount) || amount < 1 || amount > most)
         {
             Say($"The amount has to be a whole number from 1 to {most}");
@@ -6358,7 +6390,14 @@ public sealed partial class MainWindow : Window
                 DefaultExtension = extension, FileTypeChoices = [new FilePickerFileType(extension.ToUpperInvariant()) { Patterns = ["*." + extension] }],
             });
             if (file?.TryGetLocalPath() is not { } path) return;
-            await WorkScheduler.Run(_ => { AtomicFile.WriteBytes(path, result.Bytes); return true; }); Say($"Exported {path}");
+            await WorkScheduler.Run(_ => { AtomicFile.WriteBytes(path, result.Bytes); return true; });
+            foreach (var (scale, suffix) in result.Extras)
+            {
+                var sized = result.Options with { Width = Math.Max(1, (int)Math.Round(document.Width * scale)), Height = Math.Max(1, (int)Math.Round(document.Height * scale)), CanvasWidth = 0, CanvasHeight = 0 };
+                var extra = Path.Combine(Path.GetDirectoryName(path) ?? "", Path.GetFileNameWithoutExtension(path) + suffix + Path.GetExtension(path));
+                await WorkScheduler.Run(_ => { using var encoded = ExportImage.Encode(document, sized); AtomicFile.WriteBytes(extra, encoded.Bytes); return true; });
+            }
+            Say($"Exported {path}");
             await RaiseScriptEvent(ScriptEvent.ExportDocument, exporting);
         }
         catch (Exception error) { Say($"Could not export: {error.Message}"); }

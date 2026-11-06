@@ -562,7 +562,7 @@ public static class SelectionEdits
     }
 
     /// <summary>
-    /// Grows the outline by whole pixels with rounded corners, held to the canvas — Photoshop's Expand.
+    /// Grows the outline by whole pixels, keeping its corners sharp, held to the canvas.
     /// </summary>
     public static bool Expand(CanvasDocument document, int amount) =>
         Resize(document, amount, "Expand Selection");
@@ -575,15 +575,13 @@ public static class SelectionEdits
         Resize(document, -amount, "Contract Selection");
 
     /// <summary>
-    /// Softens the edge by whole pixels, as Select ▸ Modify ▸ Feather does. Applying it again softens
-    /// further, the way Expand and Contract stack up.
+    /// Softens the edge by whole pixels, as Select ▸ Modify ▸ Feather does. Applying it again adds to it,
+    /// the way Expand and Contract stack up, so five clicks of 5 are a feather of 25.
     /// </summary>
     public static bool Feather(CanvasDocument document, int amount)
     {
         if (document.Selection.Path is null || document.Selection.IsEmpty || amount <= 0) return false;
-        // Two soft edges together spread a little less than their sum, as blurs do.
-        var softened = Math.Sqrt(document.Selection.Feather * document.Selection.Feather + (double)amount * amount);
-        document.Selection = document.Selection.WithFeather(Math.Min(MaxFeather, softened));
+        document.Selection = document.Selection.WithFeather(Math.Min(MaxFeather, document.Selection.Feather + amount));
         return true;
     }
 
@@ -688,9 +686,10 @@ public static class SelectionEdits
         {
             Style = SKPaintStyle.Stroke,
             StrokeWidth = Math.Abs(amount) * 2,
-            StrokeCap = SKStrokeCap.Round,
-            StrokeJoin = SKStrokeJoin.Round,
-            StrokeMiter = 10,
+            // Mitered, so a rectangle stays a rectangle and doesn't round off or lose a corner.
+            StrokeCap = SKStrokeCap.Butt,
+            StrokeJoin = SKStrokeJoin.Miter,
+            StrokeMiter = 3,
         })
         {
             paint.GetFillPath(current, builder);

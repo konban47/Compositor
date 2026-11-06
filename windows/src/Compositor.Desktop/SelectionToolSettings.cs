@@ -6,6 +6,8 @@ internal sealed class SelectionToolSettings
 {
     public SelectionMode Mode { get; set; }
     public double Feather { get; set; }
+    /// <summary>The pixels Expand, Contract and Feather change a selection by, shared by the three.</summary>
+    public int ModifyAmount { get; set; } = 5;
     public int Style { get; set; }
     public double Width { get; set; } = 1;
     public double Height { get; set; } = 1;

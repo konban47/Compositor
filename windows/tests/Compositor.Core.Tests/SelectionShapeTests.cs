@@ -291,9 +291,32 @@ public class SelectionShapeTests
         Assert.True(across is > 20 and < 235, $"just outside the edge is {across}, not a partial value");
         Assert.Equal(0, CoverageAt(document, 5, 20));
 
-        // A second feather softens further, but less than the two added together.
+        // A second feather adds to the first, as repeated Expand does.
         Assert.True(SelectionEdits.Feather(document, 8));
-        Assert.Equal(10, document.Selection.Feather);
+        Assert.Equal(14, document.Selection.Feather);
+    }
+
+    [Fact]
+    public void FeatherStopsAtTheMostItCanBe()
+    {
+        using var document = Doc(600, 400);
+        SelectionEdits.Select(document, SKRectI.Create(200, 100, 200, 200));
+        for (var i = 0; i < 6; i++) Assert.True(SelectionEdits.Feather(document, 50));
+        Assert.Equal(SelectionEdits.MaxFeather, document.Selection.Feather);
+    }
+
+    [Theory]
+    [InlineData(10, 110, 70, 230, 170)]
+    [InlineData(-10, 130, 90, 210, 150)]
+    public void ExpandAndContractKeepARectangleSquare(int amount, int left, int top, int right, int bottom)
+    {
+        using var document = Doc(400, 300);
+        SelectionEdits.Select(document, SKRectI.Create(120, 80, 100, 80));
+        Assert.True(amount > 0 ? SelectionEdits.Expand(document, amount) : SelectionEdits.Contract(document, -amount));
+        Assert.Equal(new SKRect(left, top, right, bottom), document.Selection.Path!.Bounds);
+        // Its corners are all there: mitered, not rounded off or cut.
+        Assert.True(CoverageAt(document, left + 1, top + 1) > 200, $"the corner is {CoverageAt(document, left + 1, top + 1)}");
+        Assert.True(CoverageAt(document, right - 2, bottom - 2) > 200, $"the corner is {CoverageAt(document, right - 2, bottom - 2)}");
     }
 
     [Fact]

@@ -12,7 +12,18 @@ internal sealed class UpstreamPaletteGlyph(string kind) : Control
     public override void Render(DrawingContext context)
     {
         if (kind == "more") { EditorIcon.Draw(context, "more", Bounds.Size); return; }
-        if (kind != "swap") { IconSet.Draw(context, "reset", Bounds.Size, Skin.SecondaryBrush); return; }
+        if (kind != "swap")
+        {
+            // A square split diagonally into black and white, the colors Reset goes back to.
+            var box = new Rect(Bounds.Size);
+            using (context.PushClip(new RoundedRect(box, 3)))
+            {
+                context.FillRectangle(Brushes.White, box);
+                context.DrawGeometry(Brushes.Black, null, new PolylineGeometry([new Point(0, 0), new Point(box.Width, 0), new Point(0, box.Height)], true));
+            }
+            context.DrawRectangle(new Pen(new SolidColorBrush(Colors.White, .5), .75), box.Deflate(.375), 3);
+            return;
+        }
         var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
         using var turn = context.PushTransform(Matrix.CreateTranslation(-center.X, -center.Y) * Matrix.CreateRotation(Math.PI / 4) * Matrix.CreateTranslation(center.X, center.Y));
         IconSet.Draw(context, "swap", Bounds.Size, Skin.SecondaryBrush);

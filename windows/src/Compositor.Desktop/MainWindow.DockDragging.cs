@@ -9,7 +9,7 @@ namespace Compositor.Desktop;
 
 public sealed partial class MainWindow
 {
-    private enum DockPlacement { Tabs, Above, Below, Left, Right, Sidebar }
+    private enum DockPlacement { Tabs, Above, Below, Left, Right, Sidebar, Bottom }
     private sealed record DockDrop(DockGroup Group, DockPlacement Placement, int Index);
     private DockDrop? _dockDrop;
     private static Rect ScreenBounds(Control control)
@@ -20,7 +20,7 @@ public sealed partial class MainWindow
     private DockDrop? FindDockDrop(PixelPoint at, DockGroup? moving)
     {
         var point = at.ToPoint(1);
-        foreach (var target in _dockGroups.Where(g => !ReferenceEquals(g, moving) && (g.Window is not null || g.Column >= 0) && g.Frame.IsEffectivelyVisible && TopLevel.GetTopLevel(g.Frame) is not null)
+        foreach (var target in _dockGroups.Where(g => !ReferenceEquals(g, moving) && (g.Window is not null || g.Column >= 0 || g.Bottom) && g.Frame.IsEffectivelyVisible && TopLevel.GetTopLevel(g.Frame) is not null)
                      .OrderByDescending(g => g.Window is not null))
         {
             var bounds = ScreenBounds(target.Frame); if (!bounds.Contains(point)) continue;
@@ -44,6 +44,12 @@ public sealed partial class MainWindow
             if (target is null) continue;
             var placement = point.X < bounds.Left + 5 * scale ? DockPlacement.Left : point.X > bounds.Right - 5 * scale ? DockPlacement.Right : DockPlacement.Sidebar;
             return new(target, placement, target.Tabs.Items.Count);
+        }
+        // The bottom edge of the canvas docks under it.
+        if (_dockEditorBody is { } body && moving is not null && !moving.Bottom)
+        {
+            var area = ScreenBounds(body); var edge = 28 * RenderScaling;
+            if (area.Contains(point) && point.Y > area.Bottom - edge) return new(moving, DockPlacement.Bottom, 0);
         }
         var side = ScreenBounds(_layersSide);
         if (_layersSide.IsVisible && side.Inflate(12 * RenderScaling).Contains(point) && !_dockGroups.Any(g => g.Column >= 0 && Members(g).Any(p => p.Visible)))
@@ -75,6 +81,7 @@ public sealed partial class MainWindow
     {
         _dockDrop = drop; _dockSidePreview.IsVisible = false; foreach (var group in _dockGroups) group.Preview.IsVisible = false;
         if (drop is null) return;
+        if (drop.Placement == DockPlacement.Bottom) { if (_dockEditorBody is { } body) ShowDockHint(body, DockPlacement.Below); return; }
         var target = drop.Group.Frame;
         if (drop.Group.Window is not null)
         {
@@ -108,14 +115,20 @@ public sealed partial class MainWindow
     private void ApplyDockDrop(DockDrop drop, IReadOnlyList<DockPanelEntry> entries)
     {
         var target = drop.Group; var active = entries.FirstOrDefault(p => ReferenceEquals(p.Host?.SelectedItem, p.Tab));
+        if (drop.Placement == DockPlacement.Bottom)
+        {
+            foreach (var entry in entries.ToArray()) DockToBottom(entry);
+            if (active is { Visible: true }) SelectPanel(active);
+            return;
+        }
         if (drop.Placement == DockPlacement.Sidebar)
         {
             target = drop.Group.Column >= 0 && drop.Group.Window is null ? drop.Group : _dockGroups.FirstOrDefault(g => g.Column >= 0 && g.Window is null) ?? MakeDockGroup(Guid.NewGuid().ToString("N"), column: 0);
         }
         else if (drop.Placement != DockPlacement.Tabs)
         {
-            // Edges in the editor create a new row/column; floating palettes merge as tabs.
-            if (target.Window is null)
+            // Edges in the editor create a new row/column; floating palettes, and the bottom dock, merge as tabs.
+            if (target.Window is null && !target.Bottom)
             {
                 var column = target.Column; var order = target.Order + (drop.Placement == DockPlacement.Above ? -.5 : .5);
                 if (drop.Placement is DockPlacement.Left or DockPlacement.Right)

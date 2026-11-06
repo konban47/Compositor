@@ -23,6 +23,8 @@ public sealed partial class MainWindow
         public double Weight { get; set; } = 5;
         public bool Collapsed { get; set; }
         public bool ColumnCollapsed { get; set; }
+        /// <summary>Docked under the canvas, across the window, as Photoshop docks the Timeline.</summary>
+        public bool Bottom { get; set; }
         public double ColumnWeight { get; set; } = 1;
         public double ExpandedWidth { get; set; } = 340;
         public double ExpandedHeight { get; set; } = 510;
@@ -44,6 +46,8 @@ public sealed partial class MainWindow
         public double ToolHeight { get; set; } = 120;
         public Window? Floating => Group?.Window ?? ToolWindow;
         public bool Visible { get; set; } = true;
+        /// <summary>Whether the panel has been put where it opens, which happens once, the first time it's opened.</summary>
+        public bool Placed { get; set; }
     }
     private readonly Dictionary<string, DockPanelEntry> _dockPanels = [];
     private readonly List<DockGroup> _dockGroups = [];
@@ -137,8 +141,22 @@ public sealed partial class MainWindow
         yield return new Separator();
         yield return Command("Float Panel", () => FloatPanel(entry));
         if (group is not null && group.Window is null) yield return Command("Float Tab Group", () => FloatGroup(group));
+        if (group is { Bottom: false }) yield return Command("Dock to Bottom", () => DockToBottom(entry));
         if (group is not null) yield return Command(group.Collapsed || group.ColumnCollapsed ? "Expand Panels" : "Collapse Panels to Icons", () => ToggleGroupCollapse(group));
     }
+    /// <summary>The open panel's menu, as Photoshop's ≡: what the panel itself offers, then closing and floating it.</summary>
+    private void OpenPanelMenu(DockGroup group, Control opener)
+    {
+        if ((Members(group).FirstOrDefault(p => ReferenceEquals(group.Tabs.SelectedItem, p.Tab)) ?? Members(group).FirstOrDefault(p => p.Visible)) is not { } open) return;
+        var menu = new ContextMenu { Placement = PlacementMode.BottomEdgeAlignedRight };
+        var own = PanelOwnItems(open).ToArray();
+        foreach (var item in own) menu.Items.Add(item);
+        if (own.Length > 0) menu.Items.Add(new Separator());
+        foreach (var item in PanelMenuItems(open)) menu.Items.Add(item);
+        _panelMenu = menu; menu.Open(opener);
+    }
+    private ContextMenu? _panelMenu;
+
     private void BuildGroupChrome(DockGroup group)
     {
         Detach(group.Tabs);
@@ -146,7 +164,7 @@ public sealed partial class MainWindow
         // Photoshop's group bar: a docked group's is only a grip to drag it by (its column's bar collapses it to icons);
         // a floating group's adds « to collapse it to icons, » to open it again, and × to close it.
         var grip = new DockPanel { Height = 11, Background = Skin.TabStripBrush, Tag = "group-handle-" + group.ID };
-        if (group.Window is not null || group.Column < 0)
+        if (group.Window is not null || group.Column < 0 && !group.Bottom)
         {
             var close = DockTitleButton("×", "Close Tab Group", () => { foreach (var entry in Members(group).ToArray()) HidePanel(entry); }); DockPanel.SetDock(close, Dock.Right); grip.Children.Add(close);
             var collapse = DockTitleButton(group.Collapsed ? "»" : "«", group.Collapsed ? "Expand Panels" : "Collapse Panels to Icons", () => ToggleGroupCollapse(group), "collapse-group-" + group.ID); DockPanel.SetDock(collapse, Dock.Right); grip.Children.Add(collapse);
@@ -159,10 +177,19 @@ public sealed partial class MainWindow
         DockPanel.SetDock(grip, Dock.Top); content.Children.Add(grip);
         if (group.Collapsed)
         {
+            // As Photoshop shows a collapsed floating group: each panel's mark with its name.
             var icons = new StackPanel { Orientation = group.Window is null ? Orientation.Horizontal : Orientation.Vertical, Spacing = 2 };
             foreach (var entry in Members(group).Where(p => p.Visible))
             {
-                var icon = PanelIcon(entry, () => { ToggleGroupCollapse(group); SelectPanel(entry); }); icons.Children.Add(icon);
+                var icon = PanelIcon(entry, () => { ToggleGroupCollapse(group); SelectPanel(entry); });
+                if (group.Window is not null || group.Bottom)
+                {
+                    icon.Width = double.NaN; icon.HorizontalAlignment = HorizontalAlignment.Stretch; icon.HorizontalContentAlignment = HorizontalAlignment.Left; icon.Padding = new Thickness(6, 0);
+                    icon.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = {
+                        new DockPanelGlyph(entry.Name) { Width = 20, Height = 20, IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Center },
+                        new TextBlock { Text = Localize.Text(entry.Name), FontSize = 12, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false } } };
+                }
+                icons.Children.Add(icon);
             }
             content.Children.Add(new ScrollViewer { Content = icons, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = group.Window is null ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto });
         }
@@ -171,17 +198,11 @@ public sealed partial class MainWindow
         if (!group.Collapsed)
         {
             // The panel menu at the end of the tab row, as Photoshop's ≡: about the open panel and its group.
-            var panelMenu = new ContextMenu { Placement = PlacementMode.BottomEdgeAlignedRight };
-            var opener = DockButton("", "Panel Menu", () => { }, "panel-menu-" + group.ID);
+            Button? opener = null;
+            opener = DockButton("", "Panel Menu", () => OpenPanelMenu(group, opener!), "panel-menu-" + group.ID);
             opener.Width = 24; opener.Height = 24; opener.Margin = new Thickness(0, 12, 2, 0);
             opener.HorizontalAlignment = HorizontalAlignment.Right; opener.VerticalAlignment = VerticalAlignment.Top;
             opener.Content = new ChromeGlyph("≡") { Width = 24, Height = 24, IsHitTestVisible = false };
-            opener.Click += (_, _) =>
-            {
-                if (Members(group).FirstOrDefault(p => ReferenceEquals(group.Tabs.SelectedItem, p.Tab)) is not { } open) return;
-                panelMenu.Items.Clear(); foreach (var item in PanelMenuItems(open)) panelMenu.Items.Add(item);
-                panelMenu.Open(opener);
-            };
             root.Children.Add(opener);
         }
         group.Preview = new Border { IsHitTestVisible = false, IsVisible = false, BorderBrush = Skin.AccentBrush, BorderThickness = new Thickness(2), Background = new SolidColorBrush(Color.FromArgb(28, 20, 115, 230)), Tag = "dock-preview-" + group.ID };
@@ -209,7 +230,7 @@ public sealed partial class MainWindow
         group.Collapsed = !group.Collapsed;
         if (group.Window is { } window)
         {
-            if (group.Collapsed) { group.ExpandedHeight = window.Height; group.ExpandedWidth = window.Width; window.Width = 110; window.MinHeight = 46; window.Height = CollapsedGroupHeight(group); }
+            if (group.Collapsed) { group.ExpandedHeight = window.Height; group.ExpandedWidth = window.Width; window.Width = 150; window.MinHeight = 46; window.Height = CollapsedGroupHeight(group); }
             else { window.MinHeight = 100; window.Height = group.ExpandedHeight; window.Width = group.ExpandedWidth; }
         }
         BuildGroupChrome(group); RenderDockArea();
@@ -230,9 +251,10 @@ public sealed partial class MainWindow
     {
         if (entry.Tab is null) return;
         var previous = entry.Group; previous?.Tabs.Items.Remove(entry.Tab);
+        if (previous is not null && !ReferenceEquals(previous.Window, group.Window)) (previous.Window ?? this).UpdateLayout();
         entry.Group = group; entry.Tab.IsVisible = entry.Visible; entry.Tab.Content = entry.Body;
         group.Tabs.Items.Insert(index < 0 ? group.Tabs.Items.Count : Math.Clamp(index, 0, group.Tabs.Items.Count), entry.Tab);
-        if (group.Column >= 0 && group.Window is null) entry.LastDockGroup = group.ID;
+        if ((group.Column >= 0 || group.Bottom) && group.Window is null) entry.LastDockGroup = group.ID;
         SelectPanel(entry); SelectVisiblePanel(previous?.Tabs);
         if (previous is not null && !ReferenceEquals(previous, group) && (previous.Window is not null || previous.Collapsed)) BuildGroupChrome(previous);
     }
@@ -244,10 +266,12 @@ public sealed partial class MainWindow
     private void FloatGroup(DockGroup group, PixelPoint? position = null)
     {
         if (EditorPreferences.Current.LockWorkspace || group.Window is not null) { group.Window?.Activate(); return; }
-        foreach (var entry in Members(group)) if (group.Column >= 0) entry.LastDockGroup = group.ID;
-        Detach(group.Frame); group.Column = -1;
+        foreach (var entry in Members(group)) if (group.Column >= 0 || group.Bottom) entry.LastDockGroup = group.ID;
+        Detach(group.Frame); group.Column = -1; group.Bottom = false;
+        // A window's layout queue can't be left holding something that now belongs to another window.
+        UpdateLayout();
         var window = NewFloatingWindow(Math.Max(260, group.Frame.Bounds.Width), group.Collapsed ? 80 : Math.Max(250, group.Frame.Bounds.Height), position ?? new(Position.X + 80, Position.Y + 100));
-        if (group.Collapsed) { window.MinHeight = 46; window.Width = 110; window.Height = CollapsedGroupHeight(group); }
+        if (group.Collapsed) { window.MinHeight = 46; window.Width = 150; window.Height = CollapsedGroupHeight(group); }
         group.Window = window; BuildGroupChrome(group); window.Content = group.Frame;
         window.Closed += (_, _) =>
         {
@@ -268,11 +292,7 @@ public sealed partial class MainWindow
         if (group.Window is not null && Members(group).Count(p => p.Visible) == 1) { group.Window.Activate(); return; }
         if (Members(group).Count() > 1) { var separate = MakeDockGroup(Guid.NewGuid().ToString("N")); MovePanel(entry, separate); group = separate; }
         FloatGroup(group, at);
-        if (entry.Name == "Timeline" && group.Window is { } timelineWindow) { timelineWindow.Width = 1160; timelineWindow.Height = 540; }
-        if (entry.Name is "Character" or "Paragraph" && group.Window is { } typeWindow) { typeWindow.Width = 350; typeWindow.Height = entry.Name == "Character" ? 480 : 450; }
-        if (entry.Name == "Layer Comps" && group.Window is { } compWindow) { compWindow.Width = 400; compWindow.Height = 300; }
-        if (entry.Name == "Brush Settings" && group.Window is { } brushWindow)
-        { brushWindow.Width = 500; brushWindow.Height = 810; }
+        if (group.Window is { } window && PanelSize(entry.Name) is { } size) { window.Width = size.Width; window.Height = size.Height; }
     }
     private static void SelectVisiblePanel(TabControl? host)
     { if (host?.SelectedItem is not TabItem { IsVisible: true } && host is not null) host.SelectedItem = host.Items.OfType<TabItem>().FirstOrDefault(t => t.IsVisible); }
@@ -290,8 +310,9 @@ public sealed partial class MainWindow
         if (EditorPreferences.Current.LockWorkspace || entry.Name == "Contextual Task Bar" && _contextPinned) return;
         entry.Visible = true;
         if (entry.Slot is not null) { DockToolBack(entry); return; }
-        var target = _dockGroups.FirstOrDefault(g => g.ID == entry.LastDockGroup && g.Window is null && g.Column >= 0) ?? HomeGroup(entry);
-        if (target.Window is not null || target.Column < 0)
+        if (BottomPanels.Contains(entry.Name)) { DockToBottom(entry); return; }
+        var target = _dockGroups.FirstOrDefault(g => g.ID == entry.LastDockGroup && g.Window is null && (g.Column >= 0 || g.Bottom)) ?? HomeGroup(entry);
+        if (target.Window is not null || target.Column < 0 && !target.Bottom)
         {
             var window = target.Window; target.Window = null; if (window is not null) { window.Content = null; window.Close(); }
             target.Column = 0; target.Order = target.ID == "layers" ? 1 : 0; BuildGroupChrome(target);
@@ -320,24 +341,26 @@ public sealed partial class MainWindow
             else { entry.Slot.IsVisible = true; if (entry.Slot.Child is null) entry.Slot.Child = ToolChrome(entry); }
             return;
         }
-        entry.Tab!.IsVisible = true; SelectPanel(entry);
+        entry.Tab!.IsVisible = true; PlacePanel(entry); SelectPanel(entry);
         if (entry.Group is { } group)
         {
             if (group.Collapsed) ToggleGroupCollapse(group);
-            if (group.Column < 0 && group.Window is null) FloatGroup(group);
+            if (group is { Column: < 0, Window: null, Bottom: false }) FloatGroup(group);
             if (group.Window is { } window) { BuildGroupChrome(group); window.Activate(); }
         }
-        _layersSide.IsVisible = true; if (entry.Group is { Column: >= 0 } docked) SetColumnCollapsed(docked.Column, false); else RenderDockArea();
+        if (entry.Group is { Column: >= 0 } || !_restoringDock && entry.Group is { Window: null }) _layersSide.IsVisible = true;
+        if (entry.Group is { Column: >= 0 } docked) SetColumnCollapsed(docked.Column, false); else RenderDockArea();
     }
     private void ResetDockPanels()
     {
         _dockPeek?.Hide(); var restoring = _restoringDock; _restoringDock = true; var locked = EditorPreferences.Current.LockWorkspace; EditorPreferences.Current.LockWorkspace = false; _contextPinned = false; _dockCollapsed = false; _dockExpandedWidth = 340;
         foreach (var group in _dockGroups) { var window = group.Window; group.Window = null; if (window is not null) { window.Content = null; window.Close(); } group.Collapsed = false; group.ColumnCollapsed = false; }
+        foreach (var group in _dockGroups.Where(g => g.Bottom)) group.Bottom = false;
         foreach (var group in _dockGroups.Where(g => g.ID is "inspector" or "layers"))
         { group.Column = 0; group.Order = group.ID == "inspector" ? 0 : 1; group.Weight = 5; group.ColumnWeight = 1; }
         foreach (var entry in _dockPanels.Values)
         {
-            if (entry.Tab is not null) { var home = HomeGroup(entry); MovePanel(entry, home); entry.LastDockGroup = home.ID; }
+            if (entry.Tab is not null) { var home = HomeGroup(entry); MovePanel(entry, home); entry.LastDockGroup = home.ID; entry.Placed = CorePanels.Contains(entry.Name); }
             else { entry.ToolCollapsed = false; entry.ToolDockRight = false; DockToolBack(entry); }
             entry.Visible = entry.Name is "Properties" or "History" or "Layers" or "Channels" or "Tools" or "Options";
             if (entry.Tab is not null) entry.Tab.IsVisible = entry.Visible; else entry.Slot!.IsVisible = entry.Visible;

@@ -24,6 +24,33 @@ internal static partial class Program
 }
 public sealed partial class MainWindow
 {
+    /// <summary>Docks the rail, and walks the window down in height: the cells shrink, then the » button takes the tools that no longer fit.</summary>
+    private void RailFitCheck(DockPanelEntry tools, Action pump, Action<bool, string> check, Action<string, Window?> save)
+    {
+        var floating = tools.Floating is not null; var two = _rail.TwoColumns; var size = (Width, Height);
+        if (floating) DockPanelBack(tools); pump();
+        Width = 1280; var seen = _rail.CellHeight; var hid = false;
+        foreach (var height in new[] { 1000, 900, 800, 700, 620, 560, 500, 440, 380, 330 })
+        {
+            Height = height; pump();
+            var body = _dockEditorBody!; var bottom = body.Bounds.Height;
+            var visible = _rail.GetVisualDescendants().OfType<Button>().Where(b => b.IsEffectivelyVisible).ToArray();
+            foreach (var button in visible)
+            {
+                var at = button.TranslatePoint(new Point(0, button.Bounds.Height), body);
+                check(at is { } point && point.Y <= bottom + 1, $"A rail button is cut off at window height {height}: {button.Tag} at {at}, room {bottom}.");
+            }
+            check(_rail.CellHeight <= seen + .01 || _rail.TwoColumns != two, $"The rail's cells grew as the window shrank at {height}."); seen = _rail.CellHeight; two = _rail.TwoColumns;
+            if (_rail.HiddenGroups > 0) { hid = true; check(_rail.OverflowButton is { IsEffectivelyVisible: true }, "Hidden tools have no » button."); check(_rail.CellHeight <= 24.01, "Tools were hidden before the rail closed up."); }
+            if (height == 620) save("rail-620", null);
+            if (height == 380) save("rail-380", null);
+        }
+        check(hid, "The rail never needed its » button.");
+        var overflow = _rail.OverflowButton!; overflow.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); pump();
+        Width = size.Width; Height = size.Height; pump();
+        check(_rail.HiddenGroups == 0, "The » button stayed after the window grew back.");
+        if (floating) FloatTool(tools, null); pump();
+    }
     internal void ChromeSelfCheck(string output)
     {
         static void Check(bool ok, string reason) { if (!ok) throw new InvalidOperationException(reason); }
@@ -63,7 +90,10 @@ public sealed partial class MainWindow
         var tools = _dockPanels["Tools"];
         Check(!tools.Slot!.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Tag, "close-panel-Tools")), "Docked tool rail has a close button.");
         FloatPanel(tools); Pump(); Check(tools.Floating!.Width == 46, "Single-column toolbar is too wide."); Save("tools-one", tools.Floating);
+        // Shortening the window closes the rail up before anything is hidden, and nothing is ever cut off at the bottom.
+        var (tallWidth, tallHeight) = (Width, Height);
         ToggleToolCollapse(tools); Pump(); Check(_rail.TwoColumns && tools.Floating!.Width == 82, "Expand did not make two columns."); Save("tools-two", tools.Floating);
+        var dockedTools = tools; RailFitCheck(dockedTools, Pump, Check, Save); _ = (tallWidth, tallHeight);
         var layout = CaptureDockWorkspace(); RestoreDockWorkspace(layout); Pump(); Check(_rail.TwoColumns && tools.Floating!.Width == 82, "Workspace lost toolbar width/columns.");
         DockToolBack(tools); ToggleToolCollapse(tools); Pump();
         _options.Brush = _options.Brush with { Diameter = 37 }; var preset = CaptureToolPreset("Round trip");

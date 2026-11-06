@@ -6,11 +6,12 @@ public sealed partial class MainWindow
 {
     private WorkspaceLayout CaptureDockWorkspace() => new()
     {
-        SidebarWidth = _dockExpandedWidth, SidebarCollapsed = _dockCollapsed, ContextBarPinned = _contextPinned,
+        SidebarWidth = _dockExpandedWidth, SidebarCollapsed = _dockCollapsed, ContextBarPinned = _contextPinned, BottomHeight = _bottomDockHeight,
+        BottomPanels = _dockPanels.Values.Where(p => p.Group is { Bottom: true, Window: null }).Select(p => p.Name).ToList(),
         Panels = _dockPanels.Values.Select(p =>
         {
             var g = p.Group; var w = p.Floating;
-            return new WorkspacePanelState(p.Name, p.Visible, w is not null || g?.Column < 0, w?.Position.X ?? 0, w?.Position.Y ?? 0,
+            return new WorkspacePanelState(p.Name, p.Visible, w is not null || g is { Column: < 0, Bottom: false }, w?.Position.X ?? 0, w?.Position.Y ?? 0,
                 w?.Width ?? 340, w?.Height ?? 510, g?.ID, g?.Tabs.Items.IndexOf(p.Tab) ?? 0, g?.Column ?? 0, (int)(g?.Order ?? 0),
                 g?.Collapsed ?? p.ToolCollapsed, p.Tab is not null && ReferenceEquals(g?.Tabs.SelectedItem, p.Tab), p.LastDockGroup,
                 g is { Collapsed: false } && g.Window is null && g.Frame.Bounds.Height > 65 ? g.Frame.Bounds.Height : g?.Weight ?? 1,
@@ -68,6 +69,8 @@ public sealed partial class MainWindow
                 }
                 if (saved.Active && saved.Visible) SelectPanel(panel);
             }
+            _bottomDockHeight = WorkspaceSize(layout.BottomHeight, 120, 1200, 300);
+            foreach (var name in layout.BottomPanels.Take(8)) if (_dockPanels.TryGetValue(name, out var panel) && panel.Visible) DockToBottom(panel);
             _dockExpandedWidth = WorkspaceSize(layout.SidebarWidth, 220, 1200, 340); _dockCollapsed = layout.SidebarCollapsed; _contextPinned = layout.ContextBarPinned;
             CloseEmptyGroups(); RenderDockArea();
         }

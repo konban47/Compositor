@@ -42,6 +42,11 @@ public sealed partial class MainWindow
         switch (action)
         {
             case "Swap Selection Dimensions": (s.Width, s.Height) = (s.Height, s.Width); OptionsChanged(); return;
+            case "Expand Selection" or "Contract Selection" or "Feather Selection":
+                if (_document is not { } current || current.Selection.Path is null) { Say("Select something first"); return; }
+                var amount = action[0] == 'F' ? Math.Min(s.ModifyAmount, SelectionEdits.MaxFeather) : s.ModifyAmount;
+                Edit(action, () => action[0] switch { 'E' => SelectionEdits.Expand(current, amount), 'C' => SelectionEdits.Contract(current, amount), _ => SelectionEdits.Feather(current, amount) });
+                return;
             case "Selection Brush Settings":
                 popup.Number("Size:", _options.Brush.Diameter, 1, 5000, v => _options.Brush = _options.Brush with { Diameter = v }, true);
                 popup.Number("Hardness:", _options.Brush.Hardness * 100, 0, 100, v => _options.Brush = _options.Brush with { Hardness = v / 100 }, true); break;

@@ -21,12 +21,73 @@ internal sealed class ToolRail : Grid
     internal bool TwoColumns { get; private set; }
     private bool _requestedTwo;
     private double _availableHeight = double.PositiveInfinity, _singleColumnHeight;
-    internal void SetAvailableHeight(double height) { _availableHeight = height; SetEffectiveColumns(_requestedTwo || _singleColumnHeight > height); }
+    internal void SetAvailableHeight(double height) { _availableHeight = height; if (!SetEffectiveColumns(_requestedTwo || _singleColumnHeight > height)) Fit(); }
     internal void SetColumns(bool two) { _requestedTwo = two; SetEffectiveColumns(two || _singleColumnHeight > _availableHeight); }
-    private void SetEffectiveColumns(bool two)
+    private bool SetEffectiveColumns(bool two)
     {
-        if (TwoColumns == two) return;
-        TwoColumns = two; Width = two ? 80 : RailWidth; ApplyLayout(_layout);
+        if (TwoColumns == two) return false;
+        TwoColumns = two; Width = two ? 80 : RailWidth; ApplyLayout(_layout); return true;
+    }
+
+    /// <summary>As Photoshop's toolbar on a short screen: the buttons give up the space between them first, down to this height.</summary>
+    private const double MinimumCell = 24;
+    /// <summary>The height each tool button has now.</summary>
+    internal double CellHeight { get; private set; } = UpstreamArtwork.ButtonSide;
+    /// <summary>How many tool groups don't fit and are in the » menu.</summary>
+    internal int HiddenGroups { get; private set; }
+    /// <summary>The » button that holds the tools that don't fit.</summary>
+    internal Button? OverflowButton => _overflow;
+    private readonly List<Button> _toolButtons = [];
+    private readonly List<Button> _footerButtons = [];
+    private Button? _overflow;
+    private StackPanel? _footer;
+    private Control? _colours;
+    private double _fullFooter, _compactFooter;
+
+    /// <summary>
+    /// Fits the rail to the height it has: the tools move closer, then the buttons under them do, and only then do the last
+    /// tools go into a » menu at the bottom of the column. Nothing is ever cut off by the bottom of the window.
+    /// </summary>
+    private void Fit()
+    {
+        if (_footer is null || _overflow is null) return;
+        var columns = TwoColumns ? 2 : 1;
+        var count = _toolButtons.Count;
+        var rows = Math.Ceiling(count / (double)columns);
+        var room = _availableHeight - 6;
+        double Cell(double footer) => double.IsFinite(room) ? Math.Clamp((room - footer) / Math.Max(1, rows), MinimumCell, UpstreamArtwork.ButtonSide) : UpstreamArtwork.ButtonSide;
+        var cell = Cell(_fullFooter);
+        var compact = double.IsFinite(room) && rows * cell + _fullFooter > room;
+        if (compact) cell = Cell(_compactFooter);
+        var footer = compact ? _compactFooter : _fullFooter;
+        var shown = count;
+        if (double.IsFinite(room) && rows * cell + footer > room)
+        {
+            // The last place in the column is the » button.
+            var rowsThatFit = Math.Max(1, (int)Math.Floor((room - footer) / cell));
+            shown = Math.Max(1, rowsThatFit * columns - 1);
+        }
+        HiddenGroups = count - shown; CellHeight = cell;
+        for (var i = 0; i < count; i++) { var button = _toolButtons[i]; button.Height = button.MaxHeight = cell; button.IsVisible = i < shown; }
+        _overflow.Height = _overflow.MaxHeight = cell; _overflow.IsVisible = HiddenGroups > 0;
+        _footer.Spacing = compact ? 0 : 4;
+        foreach (var button in _footerButtons) button.Height = compact ? 22 : 28;
+        if (_colours is not null) _colours.Margin = new Thickness(0, compact ? 0 : 6, 0, compact ? 0 : 4);
+        MaxHeight = Math.Ceiling((shown + (HiddenGroups > 0 ? 1 : 0)) / (double)columns) * cell + 6 + footer;
+    }
+    private void OpenOverflow()
+    {
+        var menu = new ContextMenu { Placement = Avalonia.Controls.PlacementMode.RightEdgeAlignedTop };
+        foreach (var button in _toolButtons.Skip(_toolButtons.Count - HiddenGroups))
+        {
+            if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+            foreach (var tool in _groups[button])
+            {
+                var item = new MenuItem { Header = Localize.Text(ToolCatalog.Title(tool)), Icon = Icon(tool), Tag = "overflow-" + tool };
+                item.Click += (_, _) => Chosen?.Invoke(tool); menu.Items.Add(item);
+            }
+        }
+        menu.Open(_overflow!);
     }
 
     private readonly Dictionary<Tool, Button> _buttons = [];
@@ -38,7 +99,7 @@ internal sealed class ToolRail : Grid
     internal static Control Icon(Tool tool) => new EditorIcon(tool.ToString()) { Width = 18, Height = 18, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     public void ApplyLayout(ToolbarLayout layout)
     {
-        _layout = ToolCatalog.GroupByShortcut(layout, _shortcuts); _buttons.Clear(); _groups.Clear(); Children.Clear();
+        _layout = ToolCatalog.GroupByShortcut(layout, _shortcuts); _buttons.Clear(); _groups.Clear(); _toolButtons.Clear(); _footerButtons.Clear(); Children.Clear(); _colours = null;
         _foreground = new Glyph { Kind = Tool.Brush }; _background = new Glyph { Kind = Tool.Brush };
         _front = _back = null; ShowColours(_foregroundColour, _backgroundColour);
         RowDefinitions = new RowDefinitions("*,Auto");
@@ -64,7 +125,7 @@ internal sealed class ToolRail : Grid
             };
             footer.Children.Add(extra);
         }
-        if (layout.ShowColors) footer.Children.Add(Colours());
+        if (layout.ShowColors) footer.Children.Add(_colours = Colours());
         void Footer(string icon, string name, Action fire)
         {
             var button = FooterButton(icon == "mask" ? new EditorIcon("quick-mask") : new InspectorGlyph(icon), name);
@@ -73,11 +134,13 @@ internal sealed class ToolRail : Grid
         if (layout.ShowQuickMask) Footer("mask", "Quick Mask (Q)", () => QuickMaskRequested?.Invoke());
         if (layout.ShowScreenMode) Footer("screen", "Screen Mode (F)", () => ScreenModeRequested?.Invoke());
         if (layout.ShowGenerative) Footer("generate", "Generative Workspace", () => GenerativeRequested?.Invoke());
+        _footerButtons.AddRange(footer.Children.OfType<Button>());
         footer.Measure(new Size(Width, double.PositiveInfinity));
-        _singleColumnHeight = _layout.Groups.Count * UpstreamArtwork.ButtonSide + 6 + footer.DesiredSize.Height;
-        MaxHeight = Math.Ceiling(_layout.Groups.Count / (TwoColumns ? 2d : 1)) * UpstreamArtwork.ButtonSide + 6 + footer.DesiredSize.Height;
-        SetRow(footer, 1); Children.Add(footer);
-        Mark(_marked); ShowShortcuts(_shortcuts);
+        _fullFooter = footer.DesiredSize.Height;
+        _compactFooter = _fullFooter - 6 * _footerButtons.Count - Math.Max(0, footer.Children.Count - 1) * 4 - (_colours is null ? 0 : 10);
+        _singleColumnHeight = _toolButtons.Count * UpstreamArtwork.ButtonSide + 6 + _fullFooter;
+        _footer = footer; SetRow(footer, 1); Children.Add(footer);
+        Fit(); Mark(_marked); ShowShortcuts(_shortcuts);
     }
     private static Button FooterButton(Control icon, string name) => new()
     {
@@ -111,8 +174,8 @@ internal sealed class ToolRail : Grid
         Width = RailWidth;
         ApplyLayout(ToolCatalog.Load());
         MainWindow? owner = null;
-        void Reflow(object? sender, SizeChangedEventArgs args) => SetAvailableHeight(Math.Max(100, owner!.ClientSize.Height - 150));
-        AttachedToVisualTree += (_, _) => { if (TopLevel.GetTopLevel(this) is MainWindow window) { owner = window; owner.SizeChanged += Reflow; SetAvailableHeight(Math.Max(100, owner.ClientSize.Height - 150)); } else SetAvailableHeight(double.PositiveInfinity); };
+        void Reflow(object? sender, SizeChangedEventArgs args) => SetAvailableHeight(owner!.RailRoom());
+        AttachedToVisualTree += (_, _) => { if (TopLevel.GetTopLevel(this) is MainWindow window) { owner = window; owner.SizeChanged += Reflow; SetAvailableHeight(owner.RailRoom()); } else SetAvailableHeight(double.PositiveInfinity); };
         DetachedFromVisualTree += (_, _) => { if (owner is not null) owner.SizeChanged -= Reflow; owner = null; };
     }
 
@@ -207,7 +270,7 @@ internal sealed class ToolRail : Grid
                 Content = GroupIcon(group[0], group.Count > 1),
                 Tag = group[0],
                 Width = UpstreamArtwork.ButtonSide,
-                Height = double.NaN, MaxHeight = UpstreamArtwork.ButtonSide, MinWidth = 0, MinHeight = 0,
+                Height = UpstreamArtwork.ButtonSide, MaxHeight = UpstreamArtwork.ButtonSide, MinWidth = 0, MinHeight = 0,
                 CornerRadius = new CornerRadius(UpstreamArtwork.ButtonRadius),
                 Padding = new Thickness(0),
                 HorizontalContentAlignment = HorizontalAlignment.Center,
@@ -240,8 +303,16 @@ internal sealed class ToolRail : Grid
             button.Click += (_, _) => { hold.Stop(); if (!heldOpen && button.Tag is Tool tool) Chosen?.Invoke(tool); heldOpen = false; };
             _groups[button] = group;
             foreach (var tool in group) _buttons[tool] = button;
-            column.Children.Add(button);
+            column.Children.Add(button); _toolButtons.Add(button);
         }
+        _overflow = new Button
+        {
+            Content = new ChromeGlyph("»") { Width = 14, Height = 14, IsHitTestVisible = false }, Tag = "rail-overflow", Width = UpstreamArtwork.ButtonSide, Height = MinimumCell, MinWidth = 0, MinHeight = 0,
+            Padding = new Thickness(0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), IsVisible = false,
+            HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        ToolTip.SetTip(_overflow, Localize.Text("More Tools")); _overflow.Click += (_, _) => OpenOverflow();
+        column.Children.Add(_overflow);
         return column;
     }
 
@@ -251,21 +322,21 @@ internal sealed class ToolRail : Grid
     /// </summary>
     private Control Colours()
     {
-        // The 24 px swatches, 12 px overlap and corner actions are the upstream layout.
-        var swatches = new Canvas { Width = 40, Height = 42, Margin = new Thickness(0, 6, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
+        // The upstream layout: 24 px swatches 12 px apart, the foreground ringed in the color behind it, reset and swap in a row beneath.
+        var swatches = new Canvas { Width = 38, Height = 38 };
         var back = Swatch(_background, false); var front = Swatch(_foreground, true);
-        Canvas.SetLeft(back, 14); Canvas.SetTop(back, 15);
-        Canvas.SetLeft(front, 2); Canvas.SetTop(front, 3);
-        swatches.Children.Add(back); swatches.Children.Add(front);
-        var swap = Small("swap", "Switch Foreground and Background Colors (X)");
-        var reset = Small("reset", "Default Foreground and Background Colors (D)");
+        Canvas.SetLeft(back, 13); Canvas.SetTop(back, 13);
+        var ring = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(8), Background = Skin.ChromeBrush, IsHitTestVisible = false };
+        Canvas.SetLeft(ring, -1); Canvas.SetTop(ring, -1);
+        Canvas.SetLeft(front, 1); Canvas.SetTop(front, 1);
+        swatches.Children.Add(back); swatches.Children.Add(ring); swatches.Children.Add(front);
+        var swap = Small("swap", "Swap foreground and background (X)");
+        var reset = Small("reset", "Reset colors to black and white (D)");
         swap.Click += (_, _) => ColoursSwapped?.Invoke(); reset.Click += (_, _) => ColoursReset?.Invoke();
-        Canvas.SetLeft(swap, 29); Canvas.SetTop(swap, 0);
-        Canvas.SetLeft(reset, 1); Canvas.SetTop(reset, 30);
-        swatches.Children.Add(swap); swatches.Children.Add(reset);
-        return swatches;
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, HorizontalAlignment = HorizontalAlignment.Center };
+        actions.Children.Add(reset); actions.Children.Add(swap);
+        return new StackPanel { Spacing = 4, Margin = new Thickness(0, 6, 0, 4), HorizontalAlignment = HorizontalAlignment.Center, Children = { swatches, actions } };
     }
-
     private Button Swatch(Control glyph, bool foreground)
     {
         var button = new Button
@@ -274,10 +345,10 @@ internal sealed class ToolRail : Grid
             Width = 24,
             Height = 24,
             Padding = new Thickness(0),
-            CornerRadius = new CornerRadius(6),
+            CornerRadius = new CornerRadius(6), ClipToBounds = true,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch,
-            BorderThickness = new Thickness(0),
+            BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Colors.White, .26),
             Background = Brushes.Transparent,
         };
         ToolTip.SetTip(button, Localize.Text(foreground ? "Foreground color" : "Background color"));
@@ -291,11 +362,12 @@ internal sealed class ToolRail : Grid
     {
         var button = new Button
         {
-            Content = new UpstreamPaletteGlyph(text),
-            Width = 12,
-            Height = 12,
+            Content = new UpstreamPaletteGlyph(text) { Width = text == "swap" ? 12 : 8, Height = text == "swap" ? 12 : 8, IsHitTestVisible = false },
+            Width = 18,
+            Height = 20,
+            MinWidth = 0, MinHeight = 0,
             Padding = new Thickness(0),
-            CornerRadius = new CornerRadius(7),
+            CornerRadius = new CornerRadius(4),
             FontSize = 11,
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
@@ -366,8 +438,7 @@ internal sealed class ToolRail : Grid
             if (size.Width <= 0 || size.Height <= 0) return;
             if (Fill is { } fill)
             {
-                context.DrawRectangle(fill, new Pen(Brushes.Black, 1), new Rect(size).Deflate(.5), 6, 6);
-                context.DrawRectangle(null, new Pen(Brushes.White, 1.5), new Rect(size).Deflate(1.75), 4.75, 4.75);
+                context.DrawRectangle(fill, null, new Rect(size), 6, 6);
                 return;
             }
             var ox = (size.Width - Side) / 2;

@@ -10,6 +10,9 @@ internal sealed class WorkspaceLayout
     public double SidebarWidth { get; set; } = 340;
     public bool SidebarCollapsed { get; set; }
     public bool ContextBarPinned { get; set; }
+    /// <summary>The panels docked under the canvas, and how tall that dock is.</summary>
+    public List<string> BottomPanels { get; set; } = [];
+    public double BottomHeight { get; set; } = 300;
 }
 
 public sealed partial class MainWindow
@@ -102,11 +105,16 @@ public sealed partial class MainWindow
         {
             RestoreDockWorkspace(layout);
         }
-        else foreach (var panel in name switch
+        else
         {
-            "Graphic and Web" => new[] { "Character", "Paragraph", "Shapes" }, "Motion" => new[] { "Timeline", "Actions" },
-            "Painting" => new[] { "Brushes", "Color", "Swatches" }, "Photography" => new[] { "Histogram", "Navigator", "Adjustments" }, _ => Array.Empty<string>()
-        }) OpenWindowPanel(panel);
+            _workspacePlacing = true;
+            foreach (var panel in name switch
+            {
+                "Graphic and Web" => new[] { "Character", "Paragraph", "Shapes" }, "Motion" => new[] { "Timeline", "Actions" },
+                "Painting" => new[] { "Brushes", "Color", "Swatches" }, "Photography" => new[] { "Histogram", "Navigator", "Adjustments" }, _ => Array.Empty<string>()
+            }) OpenWindowPanel(panel);
+            _workspacePlacing = false;
+        }
         EditorPreferences.Current.LockWorkspace = locked; EditorPreferences.Current.ActiveWorkspace = name; SavePreferenceChanges();
     }
 }

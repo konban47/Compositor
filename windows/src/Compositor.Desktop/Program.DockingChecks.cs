@@ -66,7 +66,31 @@ public sealed partial class MainWindow
         SelectLayerRow(layer.ID); RawImportSelfCheck();
         DockLayoutSelfCheck(output);
         PanelIconSelfCheck(output);
-        ResetDockPanels(); OpenTypePanel("Character"); Pump(); var character = _dockPanels["Character"];
+        // ≡ opens with a real click, docked and floating, and offers the panel's own commands.
+        void PanelMenu(DockPanelEntry panel, string item)
+        {
+            Pump(); var opener = panel.Group!.Frame.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "panel-menu-" + panel.Group.ID));
+            var owner = (Window)TopLevel.GetTopLevel(opener)!; var at = opener.TranslatePoint(new Point(12, 12), owner)!.Value;
+            _panelMenu = null; owner.MouseDown(at, MouseButton.Left); owner.MouseUp(at, MouseButton.Left); Pump();
+            Check(_panelMenu is { IsOpen: true }, "Clicking ≡ did not open the panel menu: " + panel.Name);
+            Check(_panelMenu!.Items.OfType<MenuItem>().Any(m => Equals(m.Tag, "close-panel-" + panel.Name)), "Panel menu has no Close: " + panel.Name);
+            Check(_panelMenu.Items.OfType<MenuItem>().Any(m => Equals(m.Tag, item)), "Panel menu is missing " + item + ": " + panel.Name);
+            _panelMenu.Close(); Pump();
+        }
+        ResetDockPanels(); Pump();
+        PanelMenu(_dockPanels["Layers"], "New Layer…"); ShowDockPanel("History"); PanelMenu(_dockPanels["History"], "Create Snapshot"); ShowDockPanel("Channels"); PanelMenu(_dockPanels["Channels"], "Split Channels");
+        // Panels open where Photoshop puts them.
+        OpenUtilityPanel("Timeline"); Pump(); var timeline = _dockPanels["Timeline"];
+        Check(timeline is { Group.Bottom: true, Floating: null } && timeline.Body.TranslatePoint(new Point(0, 0), this) is { } under && under.Y > _canvas.TranslatePoint(new Point(0, _canvas.Bounds.Height - 1), this)!.Value.Y, $"Timeline did not dock under the canvas: bottom={timeline.Group?.Bottom}, float={timeline.Floating is not null}, at={timeline.Body.TranslatePoint(new Point(0, 0), this)}, canvas={_canvas.TranslatePoint(new Point(0, _canvas.Bounds.Height - 1), this)}, dock={_bottomDock.Bounds}, child={_bottomDock.Child is not null}, window={Bounds}");
+        var canvasBeside = _canvas.Bounds.Width; Check(timeline.Body.Bounds.Width >= canvasBeside - 1, "The bottom dock does not span the canvas."); Save(this, "bottom-dock");
+        PanelMenu(timeline, "close-panel-Timeline"); ToggleGroupCollapse(timeline.Group!); Pump(); Check(_bottomDock.Bounds.Height < 60 && _canvas.Bounds.Height > 300, "Bottom dock did not collapse to its strip."); Save(this, "bottom-dock-collapsed"); ToggleGroupCollapse(timeline.Group!); Pump();
+        FloatGroup(timeline.Group!); Pump(); Check(timeline.Floating is not null && !_bottomDock.IsVisible, "The bottom dock stayed open after its panel floated."); DockPanelBack(timeline); Pump(); Check(timeline.Group is { Bottom: true } && _bottomDock.IsVisible, "Timeline did not dock back under the canvas.");
+        var bottomLayout = CaptureDockWorkspace(); ResetDockPanels(); Pump(); Check(!_bottomDock.IsVisible, "Reset left the bottom dock open."); RestoreDockWorkspace(bottomLayout); Pump(); Check(_dockPanels["Timeline"].Group is { Bottom: true }, "Workspace did not restore the bottom dock."); ResetDockPanels(); Pump();
+        OpenTypePanel("Character"); Pump(); Check(_dockPanels["Character"].Floating is not null, "Character did not open floating."); OpenTypePanel("Paragraph"); Pump();
+        Check(ReferenceEquals(_dockPanels["Character"].Group, _dockPanels["Paragraph"].Group), "Paragraph did not join Character's tab group."); Save(_dockPanels["Character"].Floating!, "type-group"); ResetDockPanels(); Pump();
+        OpenWindowPanel("Color"); OpenWindowPanel("Swatches"); Pump(); Check(_dockPanels["Color"].Group is { Column: 0, Order: < 0, Window: null } && ReferenceEquals(_dockPanels["Color"].Group, _dockPanels["Swatches"].Group), "Color panels did not dock above Properties."); Save(this, "color-group");
+        OpenWindowPanel("Paths"); Pump(); Check(ReferenceEquals(_dockPanels["Paths"].Group, _dockPanels["Layers"].Group), "Paths did not join Layers."); ResetDockPanels(); Pump();
+        OpenTypePanel("Character"); Pump(); var character = _dockPanels["Character"]; DockPanelBack(character); Pump();
         var handle = character.Tab!.GetVisualDescendants().OfType<TextBlock>().Single(t => Equals(t.Tag, "panel-handle-Character"));
         var handleAt = handle.TranslatePoint(new Point(8, 7), this)!.Value;
         this.MouseDown(handleAt, MouseButton.Left); this.MouseMove(handleAt + new Vector(-300, 90), RawInputModifiers.LeftMouseButton); this.MouseUp(handleAt + new Vector(-300, 90), MouseButton.Left); Pump();

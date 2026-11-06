@@ -39,6 +39,52 @@ internal sealed partial class ToolOptionsBar
         var button = icon is null ? new Button { Content = Localize.Text(title), Height = 26, Padding = new Thickness(8, 2) } : IconButton(icon, title, null);
         button.Tag = title; button.Click += (_, _) => SelectionAsked?.Invoke(title, button); Cell(group, button); return button;
     }
+    /// <summary>Buttons joined in one capsule with thin dividers between them, as the upstream tool bars group related actions.</summary>
+    private void OptionPill(string group, double segmentWidth, Button[] segments)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        foreach (var segment in segments)
+        {
+            if (row.Children.Count > 0) row.Children.Add(new Border { Width = 1, Height = 12, VerticalAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(Colors.White, .12) });
+            segment.Width = segmentWidth; segment.Height = 24; segment.MinWidth = 0; segment.MinHeight = 0; segment.Padding = new Thickness(0);
+            segment.Background = Brushes.Transparent; segment.BorderThickness = new Thickness(0); segment.CornerRadius = new CornerRadius(0);
+            segment.HorizontalContentAlignment = HorizontalAlignment.Center; segment.VerticalContentAlignment = VerticalAlignment.Center;
+            row.Children.Add(segment);
+        }
+        Cell(group, new Border { CornerRadius = new CornerRadius(12), ClipToBounds = true, Background = new SolidColorBrush(Colors.White, .09), VerticalAlignment = VerticalAlignment.Center, Child = row });
+    }
+    /// <summary>Expand is a small dashed outline with arrows pointing out, Contract a large one with arrows pointing in, and Feather a solid square whose edge fades away.</summary>
+    private sealed class SelectionModifyGlyph(string operation) : Control
+    {
+        public override void Render(DrawingContext context)
+        {
+            var unit = Bounds.Width / 18;
+            Rect Square(double inset) => new(inset * unit, inset * unit, (18 - inset * 2) * unit, (18 - inset * 2) * unit);
+            void Corners(Action<Func<double, double, Point>> draw)
+            {
+                foreach (var (flipX, flipY) in new[] { (false, false), (true, false), (false, true), (true, true) })
+                    draw((x, y) => new Point((flipX ? 18 - x : x) * unit, (flipY ? 18 - y : y) * unit));
+            }
+            var line = new Pen(Skin.LabelBrush, 1.4 * unit, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+            void Stroke(params Point[] points) { for (var i = 1; i < points.Length; i++) context.DrawLine(line, points[i - 1], points[i]); }
+            switch (operation)
+            {
+                case "Expand":
+                    context.DrawRectangle(new Pen(Skin.LabelBrush, 1.3 * unit, new DashStyle([1.6 / 1.3, 1.2 / 1.3], 0)), Square(6.2));
+                    Corners(at => { Stroke(at(4.3, 4.3), at(1.6, 1.6)); Stroke(at(1.6, 4.3), at(1.6, 1.6), at(4.3, 1.6)); });
+                    break;
+                case "Contract":
+                    context.DrawRectangle(new Pen(Skin.LabelBrush, 1.3 * unit, new DashStyle([1.8 / 1.3, 1.4 / 1.3], 0)), Square(1.4));
+                    Corners(at => { Stroke(at(4.3, 4.3), at(7.2, 7.2)); Stroke(at(7.2, 4.8), at(7.2, 7.2), at(4.8, 7.2)); });
+                    break;
+                default:
+                    context.DrawRectangle(Skin.LabelBrush, null, Square(6), 1 * unit, 1 * unit);
+                    using (context.PushOpacity(.6)) context.DrawRectangle(null, new Pen(Skin.LabelBrush, 1.3 * unit), Square(3.8), 2 * unit, 2 * unit);
+                    using (context.PushOpacity(.28)) context.DrawRectangle(null, new Pen(Skin.LabelBrush, 1.2 * unit), Square(1.4), 3.4 * unit, 3.4 * unit);
+                    break;
+            }
+        }
+    }
     private void BuildSelectionOptions()
     {
         var smooth = OptionCheck("shapeSmoothing", "Smooth Corners", () => _options.ShapeSmoothing, v => _options.ShapeSmoothing = v);
@@ -57,6 +103,14 @@ internal sealed partial class ToolOptionsBar
             _optionRefreshers.Add(() => b.Background = Professional.SelectionMode == mode ? Skin.SurfaceDarkBrush : Brushes.Transparent); Cell("selectionPaintModes", b);
         }
         OptionNumber("selectionFeather", "Feather:", () => s.Feather, n => s.Feather = n, 0, 250);
+        var modifyAmount = OptionNumber("selectionModify", "Size", () => s.ModifyAmount, v => s.ModifyAmount = (int)Math.Clamp(Math.Round(v), 1, 500), 1, 500, 48);
+        ToolTip.SetTip(modifyAmount, Localize.Text("How many pixels to expand, contract or feather the selection by"));
+        OptionPill("selectionModify", 28, [.. new[] { ("Expand", "Expand Selection"), ("Contract", "Contract Selection"), ("Feather", "Feather Selection") }.Select(item =>
+        {
+            var button = new Button { Content = new SelectionModifyGlyph(item.Item1) { Width = 14, Height = 14, IsHitTestVisible = false }, Tag = item.Item2 };
+            ToolTip.SetTip(button, Localize.Text(item.Item1 + " the selection by this many pixels"));
+            button.Click += (_, _) => SelectionAsked?.Invoke(item.Item2, button); return button;
+        })]);
         var aa = OptionCheck("selectionAA", "Anti-alias", () => _options.SelectionAntialiased, v => _options.SelectionAntialiased = v);
         _optionRefreshers.Add(() => { aa.IsEnabled = _shownTool is not (Tool.Marquee or Tool.SingleRow or Tool.SingleColumn); if (!aa.IsEnabled) aa.IsChecked = false; });
         OptionChoice("selectionSize", "Style:", ["Normal", "Fixed Ratio", "Fixed Size"], () => s.Style, v => s.Style = v);
@@ -92,9 +146,9 @@ internal sealed partial class ToolOptionsBar
         {
             var order = tool switch
             {
-                Tool.Wand => new[] { "selectionModes", "wandSample", "wandTolerance", "selectionAA", "wandConnected", "allSample", "selectionSubject", "selectionRefine" },
-                Tool.Object => ["selectionModes", "objectFind", "objectShape", "allSample", "objectHard", "selectionSubject", "selectionRefine"],
-                _ => ["selectionModes", "selectionPaintModes", "selectionFeather", "selectionAA", "selectionSize", "selectionOpacity", "selectionBrushTip", "selectionOverlay", "quickAngle", "quickSample", "magnetOptions", "selectionSubject", "selectionRefine"],
+                Tool.Wand => new[] { "selectionModes", "wandSample", "wandTolerance", "selectionAA", "wandConnected", "allSample", "selectionModify", "selectionSubject", "selectionRefine" },
+                Tool.Object => ["selectionModes", "objectFind", "objectShape", "allSample", "objectHard", "selectionModify", "selectionSubject", "selectionRefine"],
+                _ => ["selectionModes", "selectionPaintModes", "selectionFeather", "selectionModify", "selectionAA", "selectionSize", "selectionOpacity", "selectionBrushTip", "selectionOverlay", "quickAngle", "quickSample", "magnetOptions", "selectionSubject", "selectionRefine"],
             };
             foreach (var group in order) if (_named.TryGetValue(group, out var controls)) foreach (var control in controls) { _cells.Children.Remove(control); _cells.Children.Add(control); }
         }
@@ -104,6 +158,7 @@ internal sealed partial class ToolOptionsBar
         On("selectionModes", selection && tool != Tool.SelectionBrush);
         On("selectionPaintModes", tool == Tool.SelectionBrush);
         On("selectionFeather", tool is Tool.Marquee or Tool.Ellipse or Tool.SingleRow or Tool.SingleColumn or Tool.Lasso or Tool.Polygon or Tool.MagneticLasso);
+        On("selectionModify", tool is Tool.Marquee or Tool.Ellipse or Tool.Lasso or Tool.Polygon or Tool.MagneticLasso or Tool.Wand or Tool.QuickSelection or Tool.Object);
         On("selectionAA", selection && tool is not (Tool.SelectionBrush or Tool.QuickSelection or Tool.Object));
         On("selectionSize", tool is Tool.Marquee or Tool.Ellipse or Tool.SingleRow or Tool.SingleColumn);
         On("selectionOpacity", tool == Tool.SelectionBrush); On("selectionBrushTip", tool is Tool.SelectionBrush or Tool.QuickSelection);

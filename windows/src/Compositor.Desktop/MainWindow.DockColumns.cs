@@ -114,5 +114,132 @@ public sealed partial class MainWindow
         }
         _dockExpandedWidth = Math.Max(220, expanded);
         _layersSide.Width = columns.Length == 0 ? 30 : total;
+        RenderBottomDock();
+    }
+
+    /// <summary>The group docked under the canvas: its height is kept while it's dragged, and it folds to a strip of its
+    /// panels' names when collapsed.</summary>
+    private void RenderBottomDock()
+    {
+        if (_bottomDockRow is null) return;
+        var group = _dockGroups.FirstOrDefault(g => g.Bottom && g.Window is null && Members(g).Any(p => p.Visible));
+        if (!ReferenceEquals(_bottomDock.Child, group?.Frame)) { if (group is not null) Detach(group.Frame); _bottomDock.Child = group?.Frame; }
+        var shown = group is not null;
+        _bottomDock.IsVisible = shown; _bottomDockSplitter.IsVisible = shown && !group!.Collapsed;
+        _bottomDockRow.MinHeight = shown ? group!.Collapsed ? 0 : 120 : 0;
+        _bottomDockRow.Height = shown ? group!.Collapsed ? GridLength.Auto : new GridLength(_bottomDockHeight) : new GridLength(0);
+    }
+    private readonly Border _bottomDock = new() { IsVisible = false, Tag = "bottom-dock" };
+    private readonly GridSplitter _bottomDockSplitter = new() { IsVisible = false, ResizeDirection = GridResizeDirection.Rows, HorizontalAlignment = HorizontalAlignment.Stretch, Height = 4, Background = Skin.BorderSubtleBrush };
+    private RowDefinition? _bottomDockRow;
+    private double _bottomDockHeight = 300;
+
+    /// <summary>The height the tool rail has, from its top down to the status bar.</summary>
+    internal double RailRoom()
+    {
+        var top = _dockEditorBody is { } body ? _rail.TranslatePoint(default, body) : null;
+        return top is { } at && _dockEditorBody!.Bounds.Height > 0 ? Math.Max(100, _dockEditorBody.Bounds.Height - at.Y - 2) : Math.Max(100, ClientSize.Height - 150);
+    }
+
+    /// <summary>The panels Photoshop docks under the document, across the window.</summary>
+    private static readonly string[] BottomPanels = ["Timeline", "Measurement Log"];
+    /// <summary>The panels that start in the workspace, which never need placing.</summary>
+    private static readonly string[] CorePanels = ["Properties", "History", "Layers", "Channels"];
+    /// <summary>Panels Photoshop keeps in one tab group: opening one joins the others when they're showing.</summary>
+    private static readonly string[][] PanelFamilies =
+    [
+        ["Character", "Paragraph"], ["Character Styles", "Paragraph Styles"], ["Brush Settings", "Brushes"], ["Navigator", "Histogram", "Info"],
+        ["Color", "Swatches", "Gradients", "Patterns"], ["Shapes", "Styles"], ["Actions", "Tool Presets"], ["Notes", "Clone Source"], ["Materials", "Libraries"],
+    ];
+    /// <summary>How big a panel opens when it floats on its own; others take the default.</summary>
+    private static Size? PanelSize(string name) => name switch
+    {
+        "Timeline" => new Size(1160, 540), "Character" => new Size(350, 480), "Paragraph" => new Size(350, 450), "Layer Comps" => new Size(400, 300),
+        "Brush Settings" => new Size(500, 810), "Navigator" or "Histogram" or "Info" => new Size(300, 320), "Glyphs" => new Size(420, 360),
+        "Brushes" => new Size(380, 520), "Actions" or "Tool Presets" or "Clone Source" => new Size(320, 400), "Notes" => new Size(320, 300), _ => null,
+    };
+
+    /// <summary>
+    /// The first time a panel opens, it goes where Photoshop puts it: the Timeline and Measurement Log under the canvas;
+    /// Paths with Layers; Adjustments in the Properties group; the color panels in a group of their own at the top of the
+    /// dock; a panel of a tab group with its fellows; anything else floating beside the dock.
+    /// </summary>
+    private void PlacePanel(DockPanelEntry entry)
+    {
+        if (entry.Placed || entry.Tab is null) return;
+        entry.Placed = true;
+        if (_restoringDock || CorePanels.Contains(entry.Name)) return;
+        if (BottomPanels.Contains(entry.Name)) { DockToBottom(entry); return; }
+        if (entry.Name == "Paths") { if (_dockGroups.FirstOrDefault(g => g.ID == "layers" && g.Column >= 0) is { } layers) { MovePanel(entry, layers); return; } }
+        if (entry.Name is "Adjustments" or "Plugins") { if (_dockGroups.FirstOrDefault(g => g.ID == "inspector" && g.Column >= 0) is { } inspector) { MovePanel(entry, inspector); return; } }
+        var family = PanelFamilies.FirstOrDefault(f => f.Contains(entry.Name));
+        if (family?.Select(n => _dockPanels.GetValueOrDefault(n)).FirstOrDefault(p => p is { Visible: true, Placed: true, Group: not null } && !ReferenceEquals(p, entry)) is { Group: { } fellow })
+        { MovePanel(entry, fellow); if (fellow.Window is not null) BuildGroupChrome(fellow); return; }
+        if (entry.Name is "Color" or "Swatches" or "Gradients" or "Patterns")
+        {
+            var top = _dockGroups.FirstOrDefault(g => g.ID == "color") ?? MakeDockGroup("color", null, 0, -1);
+            top.Column = 0; top.Order = -1; top.Weight = 3; top.ColumnCollapsed = _dockGroups.FirstOrDefault(g => g.ID == "inspector")?.ColumnCollapsed ?? false; MovePanel(entry, top); BuildGroupChrome(top); return;
+        }
+        if (_workspacePlacing)
+        {
+            // The built-in workspaces dock what they show, as a group at the top of the dock.
+            var id = family?[0] ?? entry.Name;
+            var group = _dockGroups.FirstOrDefault(g => g.ID == id) ?? MakeDockGroup(id, null, 0, -1);
+            group.Column = 0; group.Order = -1; group.Weight = 3; MovePanel(entry, group); BuildGroupChrome(group); return;
+        }
+        FloatPanel(entry, NextFloatPosition());
+    }
+    private bool _workspacePlacing;
+
+    /// <summary>Where a panel floats: just left of the dock, under the bars, each new one stepped down and left.</summary>
+    private PixelPoint NextFloatPosition()
+    {
+        var step = _dockGroups.Count(g => g.Window is not null) % 8 * 28;
+        var size = PanelFloatWidth * RenderScaling;
+        if (_dockEditorBody is { } body && body.Bounds.Width > 0)
+        {
+            var corner = body.PointToScreen(new Point(body.Bounds.Width, 12));
+            return new PixelPoint((int)(corner.X - size - 12 * RenderScaling - step * RenderScaling), (int)(corner.Y + step * RenderScaling));
+        }
+        return new PixelPoint(Position.X + 80 + step, Position.Y + 100 + step);
+    }
+    private const double PanelFloatWidth = 340;
+
+    /// <summary>Docks a panel under the canvas, with whatever is docked there already as tabs beside it.</summary>
+    private void DockToBottom(DockPanelEntry entry)
+    {
+        if (EditorPreferences.Current.LockWorkspace && !_restoringDock || entry.Tab is null) return;
+        var bottom = _dockGroups.FirstOrDefault(g => g.Bottom && g.Window is null) ?? MakeDockGroup("bottom-" + Guid.NewGuid().ToString("N"));
+        bottom.Bottom = true; bottom.Column = -1; bottom.Collapsed = false; entry.Visible = true; entry.Tab.IsVisible = true;
+        var was = entry.Group; MovePanel(entry, bottom); BuildGroupChrome(bottom);
+        if (was is { Window: { } window } && !ReferenceEquals(was, bottom) && !Members(was).Any(p => p.Visible)) window.Close();
+        CloseEmptyGroups(); RenderDockArea();
+    }
+
+    /// <summary>What a panel's own ≡ offers, as Photoshop's panel menus do; a panel with no commands of its own has only
+    /// the closing and floating ones.</summary>
+    private IEnumerable<Control> PanelOwnItems(DockPanelEntry entry)
+    {
+        switch (entry.Name)
+        {
+            case "Layers":
+                yield return Command("New Layer…", NewBlankLayer); yield return Command("Duplicate Layer…", () => _ = DuplicateNamedLayer());
+                yield return Command("Delete Layer", DeletePanelTarget); yield return Command("New Group", NewFolder);
+                yield return new Separator();
+                yield return Command("Merge Visible", () => MergeAll(false)); yield return Command("Flatten Image", () => _ = FlattenImage());
+                break;
+            case "Channels":
+                yield return Command("Split Channels", SplitChannels); yield return Command("Channel Pack…", () => _ = ExportChannelPack());
+                break;
+            case "History":
+                yield return Command("Create Snapshot", MakeSnapshot); yield return Command("New Document from State", NewDocumentFromHistory);
+                break;
+            case "Timeline": case "Actions": case "Layer Comps": break;
+            case "Character" or "Paragraph" when _text is not null || CurrentType is not null:
+                var flyout = BuildTypographyMenu(CurrentType ?? TypeDefaults, entry.Name == "Paragraph");
+                var items = flyout.Items.OfType<Control>().ToArray(); flyout.Items.Clear();
+                foreach (var item in items) yield return item;
+                break;
+        }
     }
 }

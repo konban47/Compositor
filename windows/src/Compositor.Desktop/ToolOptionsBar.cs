@@ -270,8 +270,8 @@ internal sealed partial class ToolOptionsBar : Border
     private readonly ComboBox _cropRatio = new() { Width = 150 };
     private readonly Button _cropApply = new() { Content = Localize.Text("Apply Crop") };
     private readonly Button _cropCancel = new() { Content = Localize.Text("Cancel") };
-    private readonly Button _flipH = new() { Content = Localize.Text("Flip H") };
-    private readonly Button _flipV = new() { Content = Localize.Text("Flip V") };
+    private readonly Button _flipH = new() { Content = new EditorIcon("flip-x") { Width = 16, Height = 16, IsHitTestVisible = false }, Tag = "Flip Horizontal" };
+    private readonly Button _flipV = new() { Content = new EditorIcon("flip-y") { Width = 16, Height = 16, IsHitTestVisible = false }, Tag = "Flip Vertical" };
     private readonly Button _editText = new() { Content = Localize.Text("Edit Text…") };
     private readonly Button _historySource = new() { Content = Localize.Text("Set Source…") };
     private readonly Button _pathHint = new() { Content = Localize.Text("Drag the mask's nodes") };
@@ -537,8 +537,8 @@ internal sealed partial class ToolOptionsBar : Border
         Cell("crop", _cropRatio);
         Cell("crop", _cropApply);
         Cell("crop", _cropCancel);
-        Cell("transform", _flipH);
-        Cell("transform", _flipV);
+        ToolTip.SetTip(_flipH, Localize.Text("Flip Horizontal")); ToolTip.SetTip(_flipV, Localize.Text("Flip Vertical"));
+        OptionPill("transform", 34, [_flipH, _flipV]);
         Cell("type", _typeControls);
         Cell("history", _historySource);
         Cell("path", _pathHint);
@@ -606,12 +606,13 @@ internal sealed partial class ToolOptionsBar : Border
     {
         public Swatch()
         {
-            Width = 44;
+            Width = 22;
             Height = 22;
+            MinWidth = 0;
             Padding = new Thickness(0);
-            CornerRadius = new CornerRadius(7);
+            CornerRadius = new CornerRadius(6);
             BorderThickness = new Thickness(1);
-            BorderBrush = Skin.BorderControlBrush;
+            BorderBrush = new SolidColorBrush(Colors.White, .26);
             VerticalAlignment = VerticalAlignment.Center;
         }
 

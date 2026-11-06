@@ -16,7 +16,7 @@ internal sealed partial class ToolOptionsBar
     internal event Action<string>? ArtboardAsked;
     private readonly ComboBox _artboardPreset = new() { Width = 170 };
     private readonly ComboBox _artboardColor = new() { Width = 100 };
-    private readonly Button _artboardSwatch = new() { Width = 22, Height = 22, MinWidth = 0, MinHeight = 0, Padding = new Thickness(0), BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(1) };
+    private readonly Button _artboardSwatch = new() { Width = 22, Height = 22, MinWidth = 0, MinHeight = 0, Padding = new Thickness(0), CornerRadius = new CornerRadius(6), BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(1) };
     private readonly NumericUpDown _artboardWidth = new() { Width = 85, Minimum = 1, Maximum = 30000, ShowButtonSpinner = false, FormatString = "0" };
     private readonly NumericUpDown _artboardHeight = new() { Width = 85, Minimum = 1, Maximum = 30000, ShowButtonSpinner = false, FormatString = "0" };
     internal static readonly (string Name, int Width, int Height)[] ArtboardPresets =

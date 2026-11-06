@@ -38,6 +38,11 @@ public sealed class ToolDefaults
     public string? FilledForBuild { get; set; }
     public double WindowWidth { get; set; }
     public double WindowHeight { get; set; }
+    public double? WindowX { get; set; }
+    public double? WindowY { get; set; }
+    public bool WindowMaximized { get; set; }
+    /// <summary>The colors added to the Swatches panel, as #RRGGBB.</summary>
+    public List<string> Swatches { get; set; } = [];
 
     /// <summary>Whether a drag lines up with anything at all, whatever the per-kind switches say.</summary>
     public bool Snapping { get; set; } = true;
@@ -99,5 +104,12 @@ public sealed class ToolDefaults
         GridSpacing = Grid().Spacing,
         GridSubdivisions = Grid().Subdivisions,
         SnapTo = SnapTo & SnapTo.All,
+        FilledForBuild = FilledForBuild,
+        WindowWidth = double.IsFinite(WindowWidth) ? Math.Max(0, WindowWidth) : 0,
+        WindowHeight = double.IsFinite(WindowHeight) ? Math.Max(0, WindowHeight) : 0,
+        WindowX = WindowX is { } x && double.IsFinite(x) ? x : null,
+        WindowY = WindowY is { } y && double.IsFinite(y) ? y : null,
+        WindowMaximized = WindowMaximized,
+        Swatches = Swatches?.Where(s => s is { Length: 7 } && s[0] == '#').Distinct(StringComparer.OrdinalIgnoreCase).Take(512).ToList() ?? [],
     };
 }
