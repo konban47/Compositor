@@ -4,12 +4,12 @@ using SkiaSharp;
 
 namespace Compositor.Core.IO;
 
-public enum ExportFormat { Png, Jpeg, Pdf, Tiff, Exr, Gif }
+public enum ExportFormat { Png, Jpeg, Pdf, Tiff, Exr, Gif, Psd }
 public sealed record ExportOptions(ExportFormat Format, int Width, int Height, int Quality = 90,
     bool Transparency = true, SKColor? Background = null, double Resolution = 72, byte[]? CmykProfile = null, bool NativeColorMode = false,
-    MetadataPolicy Metadata = MetadataPolicy.None)
+    MetadataPolicy Metadata = MetadataPolicy.None, int CanvasWidth = 0, int CanvasHeight = 0, int Resample = -1)
 {
-    public string Extension => Format switch { ExportFormat.Jpeg => "jpg", ExportFormat.Pdf => "pdf", ExportFormat.Tiff => "tif", ExportFormat.Exr => "exr", ExportFormat.Gif => "gif", _ => "png" };
+    public string Extension => Format switch { ExportFormat.Jpeg => "jpg", ExportFormat.Pdf => "pdf", ExportFormat.Tiff => "tif", ExportFormat.Exr => "exr", ExportFormat.Gif => "gif", ExportFormat.Psd => "psd", _ => "png" };
     public bool IsValid => (CmykProfile is null || CmykColor.IsProfile(CmykProfile) && Format is ExportFormat.Jpeg or ExportFormat.Tiff or ExportFormat.Pdf) && Enum.IsDefined(Format) && Width > 0 && Height > 0
         && Width <= DocumentLimits.MaxSide && Height <= DocumentLimits.MaxSide
         && (long)Width * Height <= DocumentLimits.MaxSurfacePixels && Quality is >= 1 and <= 100
@@ -27,6 +27,22 @@ public sealed class ExportResult(byte[] bytes, SKBitmap preview) : IDisposable
 /// <summary>One encoding supplies both the saved bytes and the accurate file-size preview.</summary>
 public static class ExportImage
 {
+    private static SKSamplingOptions Sampling(int resample) => resample switch
+    {
+        0 => new SKSamplingOptions(SKFilterMode.Nearest), 1 => new SKSamplingOptions(SKFilterMode.Linear), 2 => new SKSamplingOptions(SKCubicResampler.Mitchell),
+        3 => new SKSamplingOptions(new SKCubicResampler(1, 0)), 4 => new SKSamplingOptions(SKCubicResampler.CatmullRom), _ => new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear),
+    };
+
+    /// <summary>The picture centered on a canvas of its own size, cropped or with room around it, when one was asked for.</summary>
+    private static SKBitmap? OnCanvas(SKBitmap picture, ExportOptions options)
+    {
+        if (options.CanvasWidth <= 0 || options.CanvasHeight <= 0) return null;
+        var framed = new SKBitmap(new SKImageInfo(options.CanvasWidth, options.CanvasHeight, picture.ColorType, picture.AlphaType, picture.ColorSpace));
+        using var canvas = new SKCanvas(framed); canvas.Clear(SKColors.Transparent);
+        canvas.DrawBitmap(picture, (options.CanvasWidth - picture.Width) / 2f, (options.CanvasHeight - picture.Height) / 2f, new SKSamplingOptions(SKFilterMode.Nearest));
+        return framed;
+    }
+
     public static ExportResult Encode(CanvasDocument document, ExportOptions options)
     {
         if (!options.IsValid) throw new ArgumentOutOfRangeException(nameof(options));
@@ -35,8 +51,10 @@ public static class ExportImage
         if (options.Format == ExportFormat.Gif) return GifExport.Encode(document, options);
         // Resize the complete composite, so rotated layers, masks and effects scale together.
         using var original = document.Image.Depth > 8 || document.Layers.Any(l => l.Asset?.Deep is not null) ? DocumentRenderer.RenderDeep(document) : DocumentRenderer.Render(document);
-        using var pixels = original.Resize(original.ColorType == SKColorType.RgbaF32 ? DeepPixels.Info(options.Width, options.Height) : Bitmaps.ColorInfo(options.Width, options.Height),
-            new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)) ?? throw new IOException("The image could not be resized.");
+        using var resized = original.Resize(original.ColorType == SKColorType.RgbaF32 ? DeepPixels.Info(options.Width, options.Height) : Bitmaps.ColorInfo(options.Width, options.Height),
+            Sampling(options.Resample)) ?? throw new IOException("The image could not be resized.");
+        using var framed = OnCanvas(resized, options);
+        var pixels = framed ?? resized;
         if (options.Format is ExportFormat.Jpeg or ExportFormat.Pdf || !options.Transparency)
         {
             using var canvas = new SKCanvas(pixels);

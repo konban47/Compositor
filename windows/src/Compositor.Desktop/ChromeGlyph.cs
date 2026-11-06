@@ -20,6 +20,10 @@ internal sealed class ChromeGlyph(string kind) : Control
             case "more" or "•••":
                 foreach (var dx in new[] { -6d, 0, 6 }) context.DrawEllipse(Skin.LabelBrush, null, new Point(cx + dx, cy), 1.8, 1.8);
                 break;
+            case "⌄":
+                context.DrawLine(pen, new(cx - 4, cy - 2), new(cx, cy + 2));
+                context.DrawLine(pen, new(cx, cy + 2), new(cx + 4, cy - 2));
+                break;
             case "×":
                 context.DrawLine(pen, new(cx - 3.5, cy - 3.5), new(cx + 3.5, cy + 3.5));
                 context.DrawLine(pen, new(cx - 3.5, cy + 3.5), new(cx + 3.5, cy - 3.5));

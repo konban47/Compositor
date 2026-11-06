@@ -31,6 +31,16 @@ internal sealed class FormDialog : DialogWindow
         var button = new Button { Content = Localize.Text(title), MinHeight = 32, MinWidth = 82, Margin = new Thickness(4, 0), Padding = new Thickness(12, 5), HorizontalContentAlignment = HorizontalAlignment.Center };
         ToolTip.SetTip(button, Localize.Text(title)); button.Click += (_, _) => action(); return button;
     }
+    /// <summary>Moves OK and Cancel to a column down the right, as Photoshop's small dialogs have them, OK first.</summary>
+    internal void SideActions()
+    {
+        if (Content is not Grid layout) return;
+        var actions = layout.Children.OfType<WrapPanel>().Single(); layout.Children.Remove(actions);
+        var buttons = actions.Children.OfType<Button>().Reverse().ToArray(); actions.Children.Clear();
+        var column = DialogKit.ActionColumn(buttons); column.Margin = new Thickness(16, 11, 0, 0);
+        layout.ColumnDefinitions = new("*,Auto"); layout.RowDefinitions = new("*,Auto"); layout.Margin = new Thickness(16, 8, 16, 16);
+        Grid.SetColumn(column, 1); layout.Children.Add(column); Grid.SetRow(_error, 1); Grid.SetColumnSpan(_error, 2);
+    }
     internal void Description(string text) => Fields.Children.Add(new TextBlock { Text = Localize.Text(text), TextWrapping = TextWrapping.Wrap, Foreground = Skin.SecondaryBrush });
     internal void Row(string label, Control control)
     {

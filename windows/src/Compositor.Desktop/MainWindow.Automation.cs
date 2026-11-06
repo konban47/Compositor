@@ -13,7 +13,7 @@ public partial class MainWindow
     {
         try
         {
-            var dialog = new BatchDialog(false, [], (sources, options, progress, token) =>
+            var dialog = new BatchDialog([], (sources, options, progress, token) =>
                 WorkScheduler.Run(cancellation => BatchProcessing.Run(sources, options, progress, cancellation), token));
             dialog.Opened += async (_, _) => await dialog.RunRecipe(recipe, inputs);
             await dialog.ShowDialog(this);
@@ -33,9 +33,10 @@ public partial class MainWindow
                 var lease = new DocumentLease(tab.Document!); leases.Add(lease);
                 sources.Add(new AutomationSource(tab.Name, tab.Path, lease.Document));
             }
-            var dialog = new BatchDialog(processor, sources, (inputs, options, progress, token) =>
-                WorkScheduler.Run(cancellation => BatchProcessing.Run(inputs, options, progress, cancellation), token), shortcutMode);
-            await dialog.ShowDialog(this);
+            Task<BatchResult> Run(IReadOnlyList<AutomationSource> inputs, BatchOptions options, IProgress<BatchProgress> progress, CancellationToken token) =>
+                WorkScheduler.Run(cancellation => BatchProcessing.Run(inputs, options, progress, cancellation), token);
+            if (processor) { await new ImageProcessorDialog(sources, Run).ShowDialog(this); return; }
+            await new BatchDialog(sources, Run, shortcutMode) { ResultsMade = paths => { foreach (var path in paths.Take(30)) _ = OpenPath(path); } }.ShowDialog(this);
         }
         catch (Exception error) { Say($"Could not process images: {error.Message}"); }
         finally { foreach (var lease in leases) lease.Dispose(); }
@@ -181,12 +182,13 @@ public partial class MainWindow
     private async Task FitImage()
     {
         if (_document is not { } document) return;
-        var dialog = new FormDialog("Fit Image", 440, 290);
-        var width = dialog.Number("Width", document.Width, 1, 30000);
-        var height = dialog.Number("Height", document.Height, 1, 30000);
-        var noEnlarge = dialog.Check("Do Not Enlarge", false);
+        var dialog = new FormDialog("Fit Image", 420, 240); dialog.SideActions();
+        var width = AutomationDialog.Number(document.Width, 1, 30000, "Width"); var height = AutomationDialog.Number(document.Height, 1, 30000, "Height");
+        width.Width = height.Width = 110; width.FormatString = height.FormatString = "0";
+        var noEnlarge = AutomationDialog.Check("Don't Enlarge", false);
+        Control Size(string label, NumericUpDown field) => new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { new Border { Width = 56, Child = DialogKit.Label(label) }, field, new TextBlock { Text = Localize.Text("Pixels"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Skin.SecondaryBrush } } };
+        dialog.Fields.Children.Add(DialogKit.Group("Constrain Within", new StackPanel { Spacing = 8, Children = { Size("Width", width), Size("Height", height), dialog.Mnemonic(noEnlarge, 'E') } }));
         if (!await dialog.ShowDialog<bool>(this) || !ReferenceEquals(document, _document)) return;
         var size = FileAutomation.Fit(document.Width, document.Height, (int)width.Value!.Value, (int)height.Value!.Value, noEnlarge.IsChecked == true);
-        Edit("Fit Image", () => ImageEdits.Resize(document, size.Width, size.Height, document.Resolution, LayerSampling.HighQuality));
-    }
+        Edit("Fit Image", () => ImageEdits.Resize(document, size.Width, size.Height, document.Resolution, LayerSampling.HighQuality));    }
 }

@@ -62,13 +62,22 @@ internal static partial class Program
                 if (kind == AutomationKind.PdfPresentation) dialog.PdfPresentationSelfCheck(Pump);
                 if (kind == AutomationKind.Photomerge) dialog.PhotomergeSelfCheck(Pump);
                 if (kind == AutomationKind.LensCorrection) dialog.LensCorrectionSelfCheck(Pump);
-                Capture(dialog, kind.ToString()); dialog.Close();
+                Pump(); Capture(dialog, kind.ToString());
+                if (!dialog.FitsWithoutScrolling) throw new InvalidOperationException(kind + " does not fit its window.");
+                dialog.Close();
             }
-            foreach (var processor in new[] { false, true })
+            static Task<BatchResult> NoRun(IReadOnlyList<AutomationSource> a, BatchOptions b, IProgress<BatchProgress> c, CancellationToken d) => throw new InvalidOperationException("Unexpected batch execution.");
+            foreach (var droplet in new[] { false, true })
             {
-                var dialog = new BatchDialog(processor, sources, (_, _, _, _) => throw new InvalidOperationException("Unexpected batch execution."));
-                _ = dialog.ShowDialog(owner); Capture(dialog, processor ? "processor" : "batch"); dialog.Close();
+                var dialog = new BatchDialog(sources, NoRun, droplet);
+                _ = dialog.ShowDialog(owner); Pump(); Capture(dialog, droplet ? "droplet" : "batch");
+                if (!dialog.FitsWithoutScrolling) throw new InvalidOperationException((droplet ? "Create Droplet" : "Batch") + " does not fit its window.");
+                dialog.Close();
             }
+            var processor = new ImageProcessorDialog(sources, NoRun);
+            _ = processor.ShowDialog(owner); Pump(); Capture(processor, "processor");
+            if (!processor.FitsWithoutScrolling) throw new InvalidOperationException("Image Processor does not fit its window.");
+            processor.Close();
             var layers = new LayerExportDialog(document, LayerExportKind.Layers);
             _ = layers.ShowDialog(owner); Capture(layers, "layers"); layers.Close();
             // Merge to HDR Pro's toning panel, on a small made-up merge.
@@ -82,6 +91,12 @@ internal static partial class Program
             if (hdr.ToningEnabled) throw new InvalidOperationException("A 32-bit merge offered toning.");
             hdr.Confirm(); Pump();
             if (!hdrClosed.IsCompleted || hdr.Result is not { Mode: HdrMode.Bits32 }) throw new InvalidOperationException("Merge to HDR Pro did not return its mode.");
+            var picker = new ColorPickerDialog("Color Picker (Foreground Color)", (.2, .4, .8)); picker.Show(owner); Capture(picker, "color-picker");
+            picker.Sample((1, 0, 0)); Pump(); Capture(picker, "color-picker-red");
+            foreach (var axis in new[] { "Saturation", "Brightness", "Red", "Green", "Blue", "L", "A", "B" })
+            { Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(picker).OfType<RadioButton>().Single(r => Equals(r.Tag, "picker-axis-" + axis)).IsChecked = true; Pump(); }
+            Capture(picker, "color-picker-lab"); picker.Close();
+            owner.DialogLayoutSelfCheck(document, Pump, Capture);
             owner.FileImportSelfCheck(Pump, Capture);
             owner.ScriptEventSelfCheck(Pump, Capture);
             Console.WriteLine("PASS: Web preview encoding, four-up, palette, linked sizing, stale previews, cancellation and file workflow layouts.");
@@ -89,6 +104,23 @@ internal static partial class Program
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
         finally { owner.Close(); }
+    }
+}
+
+public sealed partial class MainWindow
+{
+    /// <summary>The small File menu dialogs: each opens, is captured for review and closes.</summary>
+    internal void DialogLayoutSelfCheck(CanvasDocument document, Action pump, Action<Window, string> capture)
+    {
+        var source = ImageImporter.NewDocument(ImportedImage.Create(new SKBitmap(Bitmaps.ColorInfo(64, 64)), "Sample"));
+        AdoptImported(source, "Dialogs"); pump();
+        foreach (var (open, name) in new (Func<Task>, string)[] { (FitImage, "fit-image"), (ConditionalModeChange, "conditional-mode") })
+        {
+            var running = open(); pump();
+            var dialog = OwnedWindows.OfType<FormDialog>().Last(); capture(dialog, name); dialog.Close(false); pump();
+            if (!running.IsCompleted) throw new InvalidOperationException(name + " did not close.");
+        }
+        var export = new ExportAsDialog(document); _ = export.ShowDialog(this); capture(export, "export-as"); export.Close(); pump();
     }
 }
 
@@ -134,6 +166,20 @@ internal sealed partial class WebExportDialog
         Wait(() => _save.IsEnabled && !_rendering && _results.Length == 3);
         Check(_previews.Children.Count == 4, "Four-up does not contain the original and three encoded previews.");
         capture("web-four-up");
+        Check(SettingsFit, "Save for Web's settings do not fit its window.");
+        var hitTable = _swatches.Children.OfType<Button>().First(); hitTable.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); pump();
+        Check(_selected.Count == 1, "Clicking a color table swatch did not select it.");
+        ChangePaletteColor(0); pump(); Check(_lockedColors.Count == 1, "Locking the selected color did nothing."); _lockedColors.Clear();
+        _preset.SelectedIndex = 7;
+        Wait(() => _save.IsEnabled && !_rendering && _results[0].Options.Format == WebFormat.Jpeg);
+        Check(_results[0].Options.Quality == 60, "JPEG High did not set the quality."); capture("web-jpeg");
+        _preset.SelectedIndex = 1; Wait(() => _save.IsEnabled && !_rendering && _results[0].Options.Format == WebFormat.Gif);
+        _colors.Value = 256; _dither.SelectedIndex = 1; _preset.SelectedIndex = WebPresets.Length;
+        Wait(() => _save.IsEnabled && !_rendering && _results[0].Options.Colors == 256);
+        var optimizing = Optimize(); pump();
+        var optimize = OwnedWindows.OfType<FormDialog>().Last(); captureWindow(optimize, "web-optimize"); optimize.Close(false); pump(); Wait(() => optimizing.IsCompleted);
+        var menus = new[] { TableMenu(), OptimizeMenu(), ZoomMenu() };
+        Check(menus.All(m => m.Items.OfType<MenuItem>().Any()), "A Save for Web menu is empty.");
         _width.Value = 180;
         Check(_height.Value == 120, "Linked dimensions did not preserve aspect ratio.");
         _format.SelectedIndex = (int)WebFormat.Jpeg;

@@ -7,185 +7,272 @@ using System.Text.Json;
 
 namespace Compositor.Desktop;
 
-/// <summary>Batch and image processor share one validated, serializable export recipe.</summary>
+/// <summary>Batch and Create Droplet, laid out as Photoshop's: what to play and on what on the left, where it goes on the right.
+/// Both make the same validated, serializable recipe; only a droplet saves it rather than running it.</summary>
 internal sealed class BatchDialog : DialogWindow
 {
+    internal static readonly (string Set, BatchAction[] Actions)[] ActionSets =
+    [
+        ("Default Actions", [BatchAction.None, BatchAction.AutoColor, BatchAction.AutoTone, BatchAction.AutoContrast, BatchAction.Vibrance, BatchAction.Desaturate, BatchAction.Equalize]),
+        ("Image Size", [BatchAction.FitLong1920, BatchAction.FitLong1280, BatchAction.FitLong640]),
+    ];
+    private static readonly ExportFormat[] Formats = [ExportFormat.Png, ExportFormat.Jpeg, ExportFormat.Tiff, ExportFormat.Gif, ExportFormat.Psd];
     private readonly IReadOnlyList<AutomationSource> _open;
     private readonly Func<IReadOnlyList<AutomationSource>, BatchOptions, IProgress<BatchProgress>, CancellationToken, Task<BatchResult>> _run;
+    private readonly bool _droplet;
     private readonly List<AutomationSource> _sources = [];
-    private readonly ListBox _list = new() { MinHeight = 155, SelectionMode = SelectionMode.Multiple, Tag = "Batch sources" };
-    private readonly ComboBox _source = Choice(["Files", "Folder", "Open Documents"], 0);
-    private readonly CheckBox _recursive = Check("Include Subfolders", false);
-    private readonly ComboBox _action = Choice(["None", "Auto Color", "Auto Tone", "Auto Contrast", "Vibrance", "Desaturate", "Equalize"], 0);
-    private readonly TextBox _destination = new() { IsReadOnly = true, Tag = "Batch destination" };
-    private readonly ComboBox _errors = Choice(["Stop on Error", "Log Errors and Continue"], 0);
+    private readonly ComboBox _set = Choice(ActionSets.Select(s => s.Set).ToArray(), 0);
+    private readonly ComboBox _action = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _source = Choice([DialogKit.FolderWord, "Files", "Opened Files"], 0);
+    private readonly Button _chooseSource;
+    private readonly TextBlock _sourceText = new() { Foreground = Skin.SecondaryBrush, VerticalAlignment = VerticalAlignment.Center, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis };
+    private readonly CheckBox _overrideOpen = Check("Override Action \"Open\" Commands", false);
+    private readonly CheckBox _recursive = Check("Include All Subfolders", false);
+    private readonly CheckBox _quietOpen = Check("Suppress File Open Options Dialogs", true);
+    private readonly CheckBox _quietColor = Check("Suppress Color Profile Warnings", true);
+    private readonly ComboBox _errors = Choice(["Stop for Errors", "Log Errors to File"], 0);
+    private readonly Button _errorLogButton;
+    private string? _errorLog;
+    private readonly ComboBox _destination = Choice(["None", "Save and Close", DialogKit.FolderWord], 0);
+    private readonly Button _chooseDestination;
+    private readonly TextBlock _destinationText = new() { Foreground = Skin.SecondaryBrush, VerticalAlignment = VerticalAlignment.Center, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis, MaxWidth = 260 };
+    private string _folder = "";
+    private string _dropletPath = "";
+    private readonly CheckBox _overrideSave = Check("Override Action \"Save As\" Commands", true);
+    private readonly ComboBox _format = Choice(["PNG", "JPEG", "TIFF", "GIF", "PSD"], 0);
+    private readonly NumericUpDown _quality = Number(90, 1, 100);
     private readonly ComboBox _metadata = Choice(["None", "Copyright", "Copyright and Contact", "All Except Camera Information", "All"], 2);
     private readonly NumericUpDown _serial = Number(1, 0, int.MaxValue - 10000);
+    private readonly TextBlock _example = new() { Foreground = Skin.SecondaryBrush, VerticalAlignment = VerticalAlignment.Center };
     private readonly List<(ComboBox Part, TextBox Text)> _names = [];
-    private readonly List<OutputRow> _outputs = [];
-    private readonly StackPanel _body = new() { Spacing = 12 };
-    private readonly TextBlock _status = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap, MinHeight = 55 };
-    private readonly TextBox _report = new() { IsReadOnly = true, AcceptsReturn = true, MinHeight = 85, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+    private readonly Control _namingGroup;
+    private readonly StackPanel _body = new();
+    private readonly ScrollViewer _scroll;
+    private readonly TextBlock _status = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly Button _execute;
-    private readonly Button _load;
-    private readonly Button _save;
-    private readonly Button _shortcut;
     private CancellationTokenSource? _cancellation;
+    /// <summary>What a loaded recipe saves to when that's more than this dialog's one format: kept until the format is changed here.</summary>
+    private IReadOnlyList<BatchOutput>? _loadedOutputs;
+    private string? _sourceFolder;
+    /// <summary>Opens what a batch with no destination made, since it isn't saved anywhere of the person's choosing.</summary>
+    internal Action<IReadOnlyList<string>>? ResultsMade { get; init; }
+    /// <summary>What the self check reads: true when everything fits without scrolling.</summary>
+    internal bool FitsWithoutScrolling => _scroll.Extent.Height <= _scroll.Viewport.Height + 1 && _scroll.Extent.Width <= _scroll.Viewport.Width + 1;
 
-    private sealed record SourceRow(AutomationSource Source) { public override string ToString() => Source.Name; }
-    private sealed record OutputRow(ExportFormat Format, CheckBox Enabled, NumericUpDown Quality, CheckBox Resize,
-        NumericUpDown Width, NumericUpDown Height, CheckBox NoEnlarge, CheckBox Srgb);
-
-    public BatchDialog(bool processor, IReadOnlyList<AutomationSource> open,
-        Func<IReadOnlyList<AutomationSource>, BatchOptions, IProgress<BatchProgress>, CancellationToken, Task<BatchResult>> run, bool shortcutMode = false)
+    public BatchDialog(IReadOnlyList<AutomationSource> open,
+        Func<IReadOnlyList<AutomationSource>, BatchOptions, IProgress<BatchProgress>, CancellationToken, Task<BatchResult>> run, bool droplet = false)
     {
-        _open = open; _run = run;
-        Title = Localize.Text(shortcutMode ? "Create Droplet" : processor ? "Image Processor" : "Batch");
-        Width = 1060; Height = 830; MinWidth = 750; MinHeight = 480;
-        var root = new Grid { ColumnDefinitions = new ColumnDefinitions("*,170"), Margin = new Thickness(16) };
-        root.Children.Add(new ScrollViewer { Content = _body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
-        var actions = new StackPanel { Spacing = 12, Margin = new Thickness(18,8,0,0) };
-        Grid.SetColumn(actions,1); root.Children.Add(actions); Content = root;
-        _execute = FormDialog.ActionButton(shortcutMode ? "Create…" : "Run", () => _ = shortcutMode ? CreateShortcut() : Execute()); _execute.Tag = "Run batch";
-        actions.Children.Add(_execute);
-        actions.Children.Add(FormDialog.ActionButton("Cancel", Cancel));
-        _load = FormDialog.ActionButton("Load…", () => _ = LoadRecipe());
-        _save = FormDialog.ActionButton("Save Settings…", () => _ = SaveRecipe());
-        _shortcut = FormDialog.ActionButton("Create Droplet…", () => _ = CreateShortcut());
-        _shortcut.IsVisible = OperatingSystem.IsWindows() && !shortcutMode;
-        actions.Children.Add(_load); actions.Children.Add(_save); actions.Children.Add(_shortcut); actions.Children.Add(_status);
-
-        var inputColumn = processor ? _body : new StackPanel { Spacing = 12, Margin = new Thickness(0,0,12,0) };
-        var outputColumn = processor ? _body : new StackPanel { Spacing = 12 };
-        if (!processor)
+        _open = open; _run = run; _droplet = droplet;
+        Title = Localize.Text(droplet ? "Create Droplet" : "Batch");
+        Width = 1010; Height = droplet ? 640 : 580; MinWidth = 900; MinHeight = 520;
+        var root = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(16, 8, 16, 16) };
+        _scroll = new ScrollViewer { Content = _body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
+        root.Children.Add(_scroll);
+        _execute = FormDialog.ActionButton("OK", () => _ = droplet ? CreateDroplet() : Execute()); _execute.Tag = "Run batch";
+        var actions = DialogKit.ActionColumn(_execute, FormDialog.ActionButton("Cancel", Cancel));
+        if (!droplet)
         {
-            var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*") };
-            columns.Children.Add(inputColumn); Grid.SetColumn(outputColumn,1); columns.Children.Add(outputColumn);
-            _body.Children.Add(columns);
+            actions.Children.Add(new Border { Height = 12 });
+            foreach (var button in new[] { FormDialog.ActionButton("Load…", () => _ = LoadRecipe()), FormDialog.ActionButton("Save…", () => _ = SaveRecipe()) })
+            { button.Margin = default; button.HorizontalAlignment = HorizontalAlignment.Stretch; actions.Children.Add(button); }
         }
+        actions.Children.Add(_status);
+        Grid.SetColumn(actions, 1); root.Children.Add(actions); Content = root;
 
-        var source = new StackPanel { Spacing = 7 };
-        source.Children.Add(Row("Use", _source)); source.Children.Add(_recursive); source.Children.Add(_list);
-        var sourceButtons = new WrapPanel { Orientation = Orientation.Horizontal };
-        sourceButtons.Children.Add(FormDialog.ActionButton("Browse…", () => _ = Browse()));
-        sourceButtons.Children.Add(FormDialog.ActionButton("Add Open Documents", AddOpen));
-        sourceButtons.Children.Add(FormDialog.ActionButton("Remove", RemoveSelected));
-        sourceButtons.Children.Add(FormDialog.ActionButton("Sort by Name", () => { _sources.Sort((a,b) => StringComparer.CurrentCultureIgnoreCase.Compare(a.Name,b.Name)); RefreshSources(); }));
-        source.Children.Add(sourceButtons);
-        if (!shortcutMode) inputColumn.Children.Add(Section("Source Images",source));
+        var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("420,*"), ColumnSpacing = 14 };
+        var left = new StackPanel { Spacing = 6 }; columns.Children.Add(left);
+        _body.Children.Add(columns);
+
+        Button Pick(string title, Action action, char key)
+        {
+            var button = FormDialog.ActionButton(title, action); button.Margin = default; button.Width = 128; button.HorizontalAlignment = HorizontalAlignment.Left; return this.Mnemonic(button, key);
+        }
+        var play = new StackPanel { Spacing = 6, Children = { DialogKit.Row("Set", _set, 56), DialogKit.Row("Action", _action, 56) } };
+        var checks = new Control[] { this.Mnemonic(_overrideOpen, 'R'), this.Mnemonic(_recursive, 'I'), this.Mnemonic(_quietOpen, 'F'), this.Mnemonic(_quietColor, 'P') };
+        // This app's actions have no Open step and it asks nothing while it opens a file, so these say what always happens.
+        _overrideOpen.IsEnabled = _quietOpen.IsEnabled = _quietColor.IsEnabled = false;
+        ToolTip.SetTip(_overrideOpen, Localize.Text("Compositor's actions have no Open step."));
+        ToolTip.SetTip(_quietOpen, Localize.Text("Compositor doesn't ask anything while it opens these files."));
+        ToolTip.SetTip(_quietColor, Localize.Text("Compositor doesn't ask anything while it opens these files."));
+        _set.SelectionChanged += (_, _) => ShowActions();
+        ShowActions();
+        _chooseSource = Pick("Choose…", () => _ = droplet ? ChooseDroplet() : Browse(), 'C');
+        var chooser = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 10, Height = 56, Children = { _chooseSource, _sourceText } };
+        Grid.SetColumn(_sourceText, 1); _chooseSource.VerticalAlignment = VerticalAlignment.Top; _sourceText.VerticalAlignment = VerticalAlignment.Top; _sourceText.Margin = new Thickness(0, 6, 0, 0); _sourceText.TextWrapping = Avalonia.Media.TextWrapping.Wrap;
+        if (droplet)
+        {
+            left.Children.Add(DialogKit.Group("Save Droplet In", chooser));
+            _sourceText.Text = Localize.Text("Drag image files or folders onto the saved shortcut to run this recipe.");
+            foreach (var check in checks) play.Children.Add(check);
+            left.Children.Add(DialogKit.Group("Play", play));
+        }
         else
         {
-            inputColumn.Children.Add(Label("Drag image files or folders onto the saved shortcut to run this recipe."));
-            source.Children.Remove(_recursive);
-            inputColumn.Children.Add(_recursive);
+            left.Children.Add(DialogKit.Group("Play", play));
+            _source.Width = 150;
+            var source = new StackPanel { Spacing = 6, Children = { chooser } };
+            foreach (var check in checks) source.Children.Add(check);
+            left.Children.Add(DialogKit.Group("", source, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { DialogKit.Label("Source"), _source } }));
+            _source.SelectionChanged += (_, _) => { _sources.Clear(); _sourceFolder = null; ShowSources(); if (_source.SelectedIndex == 2) AddOpen(); };
+            _recursive.IsCheckedChanged += (_, _) => { if (_sourceFolder is { } folder) _ = LoadFolder(folder); };
         }
-        _source.SelectionChanged += (_,_) => { _recursive.IsEnabled = _source.SelectedIndex == 1; if (_source.SelectedIndex == 2) AddOpen(); };
-        _recursive.IsEnabled = shortcutMode;
+        _errors.Width = 190; _errorLogButton = Pick("Save As…", () => _ = ChooseErrorLog(), 'E'); _errorLogButton.IsEnabled = false;
+        _errors.SelectionChanged += (_, _) => _errorLogButton.IsEnabled = _errors.SelectedIndex == 1;
+        left.Children.Add(DialogKit.Group("", new StackPanel { Children = { _errorLogButton } }, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { DialogKit.Label("Errors"), _errors } }));
 
-        var play = new StackPanel { Spacing = 7 }; play.Children.Add(Row("Action",_action));
-        inputColumn.Children.Add(Section("Play",play));
-        var target = new StackPanel { Spacing = 7 };
-        target.Children.Add(_destination); target.Children.Add(FormDialog.ActionButton("Select Output Folder…", () => _ = ChooseDestination()));
-        target.Children.Add(Row("Errors",_errors));
-        target.Children.Add(Label("Existing files are preserved. Each format uses a separate folder when several formats are selected."));
-        outputColumn.Children.Add(Section("Destination",target));
-
-        foreach (var format in processor ? new[] { ExportFormat.Jpeg, ExportFormat.Png, ExportFormat.Tiff }
-            : new[] { ExportFormat.Png, ExportFormat.Jpeg, ExportFormat.Tiff, ExportFormat.Gif, ExportFormat.Exr, ExportFormat.Pdf })
-            AddOutput(format, processor ? format == ExportFormat.Jpeg : format == ExportFormat.Png, inputColumn);
-
-        var naming = new StackPanel { Spacing = 6 };
+        // Right: the destination, and how what's saved there is named.
+        _destination.Width = 150;
+        _chooseDestination = Pick("Choose…", () => _ = ChooseDestination(), 'H');
+        var naming = new StackPanel { Spacing = 4 };
+        naming.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { DialogKit.Label("Example"), _example } });
+        string[] parts = ["None", "Document Name", "Document Name (lowercase)", "Document Name (UPPERCASE)", "1 Digit Serial Number", "2 Digit Serial Number", "3 Digit Serial Number", "4 Digit Serial Number", "yyyymmdd (date)", "Custom Text"];
         for (var i = 0; i < 6; i++)
         {
-            var part = Choice(["None", "Document Name", "Document Name (lowercase)", "Document Name (UPPERCASE)", "1 Digit Serial Number", "2 Digit Serial Number", "3 Digit Serial Number", "4 Digit Serial Number", "Date", "Custom Text"], i == 0 ? 1 : 0);
-            var literal = new TextBox { IsEnabled = false, MaxLength = 100 };
-            part.SelectionChanged += (_,_) => literal.IsEnabled = part.SelectedIndex == 9;
-            var line = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*") };
-            line.Children.Add(part); Grid.SetColumn(literal,1); line.Children.Add(literal); naming.Children.Add(line); _names.Add((part,literal));
+            var part = Choice(parts, i == 0 ? 1 : 0); part.Height = 26; part.MinHeight = 0;
+            var literal = DialogKit.Line("file-name-text"); literal.IsEnabled = false; literal.MaxLength = 100;
+            var plus = new TextBlock { Text = i < 5 ? "+" : "", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Foreground = Skin.SecondaryBrush };
+            var line = new Grid { ColumnDefinitions = new ColumnDefinitions("*,160,14"), ColumnSpacing = 6 };
+            line.Children.Add(literal); Grid.SetColumn(part, 1); line.Children.Add(part); Grid.SetColumn(plus, 2); line.Children.Add(plus);
+            part.SelectionChanged += (_, _) => { literal.IsEnabled = part.SelectedIndex == 9; if (part.SelectedIndex != 9) literal.Text = part.SelectedIndex == 0 ? "" : part.SelectedItem as string; ShowExample(); };
+            literal.Text = i == 0 ? part.SelectedItem as string : ""; literal.TextChanged += (_, _) => ShowExample();
+            naming.Children.Add(line); _names.Add((part, literal));
         }
-        naming.Children.Add(Row("Starting Serial Number",_serial));
-        naming.Children.Add(Label("The file extension is added automatically. Invalid filename characters are replaced."));
-        outputColumn.Children.Add(Section("File Naming",naming));
-        outputColumn.Children.Add(Row("Metadata", _metadata));
-        _body.Children.Add(Label("Images are processed from a composite copy; original documents and files are preserved."));
-        _body.Children.Add(_report);
-        Closing += (_,e) => { if (_cancellation is not null) { e.Cancel = true; _cancellation.Cancel(); } };
-        KeyDown += (_,e) => { if (e.Key == Avalonia.Input.Key.Escape) { Cancel(); e.Handled = true; } };
+        _serial.Width = 80; _serial.HorizontalAlignment = HorizontalAlignment.Left;
+        _serial.ValueChanged += (_, _) => ShowExample();
+        naming.Children.Add(DialogKit.Row("Starting Serial Number", _serial, 150));
+        CheckBox windows = Check("Windows", true), mac = Check("Mac OS", false), unix = Check("Unix", false);
+        windows.IsEnabled = mac.IsEnabled = unix.IsEnabled = false;
+        ToolTip.SetTip(windows, Localize.Text("Names are always made safe for Windows, which also suits macOS and Unix."));
+        naming.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16, Children = { DialogKit.Label("Compatibility"), windows, mac, unix } });
+        _namingGroup = DialogKit.Group("File Naming", naming);
+        _quality.Width = 56; _format.Width = 96; _metadata.Width = 190;
+        var saveAs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { DialogKit.Label("Format"), _format, DialogKit.Label("Quality"), _quality, DialogKit.Label("Metadata"), _metadata } };
+        var destination = new StackPanel
+        {
+            Spacing = 6,
+            Children = { new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Children = { _chooseDestination, _destinationText } }, this.Mnemonic(_overrideSave, 'V'), saveAs, _namingGroup },
+        };
+        _overrideSave.IsEnabled = false;
+        ToolTip.SetTip(_overrideSave, Localize.Text("Compositor's actions have no Save step: this format is what's saved."));
+        var right = DialogKit.Group("", destination, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { DialogKit.Label("Destination"), _destination } });
+        Grid.SetColumn(right, 1); columns.Children.Add(right);
+        _format.SelectionChanged += (_, _) => { _quality.IsEnabled = _format.SelectedIndex == 1; _loadedOutputs = null; ShowExample(); };
+        _quality.IsEnabled = false;
+        _destination.SelectionChanged += (_, _) => ShowDestination();
+        ShowSources(); ShowDestination(); ShowExample();
+        Closing += (_, e) => { if (_cancellation is not null) { e.Cancel = true; _cancellation.Cancel(); } };
+        KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) { Cancel(); e.Handled = true; } };
     }
 
-    private void AddOutput(ExportFormat format, bool enabled, StackPanel container)
+    private void ShowActions()
     {
-        var row = new OutputRow(format,Check("Save as " + format.ToString().ToUpperInvariant(),enabled),Number(90,1,100),
-            Check("Resize to Fit",false),Number(1920,1,30000),Number(1080,1,30000),Check("Do Not Enlarge",true),Check("Convert to sRGB",false));
-        _outputs.Add(row);
-        var panel = new StackPanel { Spacing = 6 }; panel.Children.Add(row.Enabled);
-        var fields = new StackPanel { Spacing = 6 };
-        if (format == ExportFormat.Jpeg) fields.Children.Add(Row("Quality",row.Quality));
-        fields.Children.Add(row.Resize);
-        fields.Children.Add(Row("Width",row.Width)); fields.Children.Add(Row("Height",row.Height));
-        fields.Children.Add(row.NoEnlarge); fields.Children.Add(row.Srgb); panel.Children.Add(fields);
-        void Update()
-        {
-            fields.IsEnabled = row.Enabled.IsChecked == true;
-            row.Quality.IsEnabled = format == ExportFormat.Jpeg;
-            row.Width.IsEnabled = row.Height.IsEnabled = row.NoEnlarge.IsEnabled = row.Resize.IsChecked == true;
-        }
-        row.Enabled.IsCheckedChanged += (_,_) => Update(); row.Resize.IsCheckedChanged += (_,_) => Update(); Update();
-        var section = Section(format.ToString().ToUpperInvariant(),panel);
-        if (container == _body) container.Children.Add(section);
-        else container.Children.Add(new Expander { Header = format.ToString().ToUpperInvariant(), IsExpanded = enabled, Content = section });
+        var actions = ActionSets[Math.Max(0, _set.SelectedIndex)].Actions;
+        _action.ItemsSource = actions.Select(a => Localize.Text(ActionName(a))).ToArray(); _action.SelectedIndex = 0;
     }
+    internal static string ActionName(BatchAction action) => action switch
+    {
+        BatchAction.None => "None", BatchAction.FitLong1920 => "Fit Long Side to 1920 px", BatchAction.FitLong1280 => "Fit Long Side to 1280 px", BatchAction.FitLong640 => "Fit Long Side to 640 px",
+        _ => ScriptEvents.ActionName(action),
+    };
+    private BatchAction ChosenAction => ActionSets[Math.Max(0, _set.SelectedIndex)].Actions[Math.Max(0, _action.SelectedIndex)];
+
+    private void ShowSources()
+    {
+        if (_droplet) { _recursive.IsEnabled = true; UpdateAvailability(); return; }
+        _chooseSource.IsEnabled = _source.SelectedIndex != 2;
+        _recursive.IsEnabled = _source.SelectedIndex == 0;
+        _sourceText.Text = _sources.Count == 0 ? "" : (_sourceFolder is { } folder ? folder + " · " : "") + string.Format(Localize.Text("{0} images"), _sources.Count);
+        UpdateAvailability();
+    }
+    private void ShowDestination()
+    {
+        var folder = _destination.SelectedIndex == 2;
+        _chooseDestination.IsEnabled = folder;
+        _destinationText.Text = folder ? _folder : "";
+        _namingGroup.IsEnabled = folder;
+        _format.IsEnabled = _destination.SelectedIndex != 0;
+        UpdateAvailability();
+    }
+    private void ShowExample()
+    {
+        var naming = Naming();
+        var extension = Formats[Math.Max(0, _format.SelectedIndex)] switch { ExportFormat.Jpeg => "jpg", ExportFormat.Tiff => "tif", ExportFormat.Gif => "gif", ExportFormat.Psd => "psd", _ => "png" };
+        _example.Text = naming.Length == 0 ? "" : BatchProcessing.BuildName(Localize.Text("My Document"), (int)(_serial.Value ?? 1), DateTime.Today, naming) + "." + extension;
+        UpdateAvailability();
+    }
+    private void UpdateAvailability()
+    {
+        var ready = _droplet ? _dropletPath.Length > 0 : _sources.Count > 0;
+        var folder = _destination.SelectedIndex != 2 || _folder.Length > 0 && Naming().Length > 0;
+        _execute.IsEnabled = _cancellation is null && ready && folder;
+    }
+    private FileNameComponent[] Naming() => [.. _names.Where(n => n.Part.SelectedIndex > 0).Select(n => new FileNameComponent((FileNamePart)(n.Part.SelectedIndex - 1), n.Part.SelectedIndex == 9 ? n.Text.Text ?? "" : ""))];
 
     private void AddOpen()
     {
-        foreach (var source in _open) if (!_sources.Any(s => ReferenceEquals(s.Document,source.Document) && s.Document is not null)) _sources.Add(source);
-        RefreshSources();
+        foreach (var source in _open) if (!_sources.Any(s => ReferenceEquals(s.Document, source.Document) && s.Document is not null)) _sources.Add(source);
+        ShowSources();
     }
-    private void RemoveSelected()
-    {
-        foreach (var row in _list.SelectedItems?.OfType<SourceRow>().ToArray() ?? []) _sources.Remove(row.Source);
-        RefreshSources();
-    }
-    private void RefreshSources() => _list.ItemsSource = _sources.Select(s => new SourceRow(s)).ToArray();
     private void AddPath(string path)
     {
-        if (!_sources.Any(s => s.Document is null && string.Equals(s.Path,path,StringComparison.OrdinalIgnoreCase)))
-            _sources.Add(new AutomationSource(Path.GetFileName(path),path));
+        if (!_sources.Any(s => s.Document is null && string.Equals(s.Path, path, StringComparison.OrdinalIgnoreCase)))
+            _sources.Add(new AutomationSource(Path.GetFileName(path), path));
+    }
+    private async Task LoadFolder(string folder)
+    {
+        var recursive = _recursive.IsChecked == true;
+        var paths = await Task.Run(() => FileAutomation.EnumerateImages(folder, recursive));
+        _sources.Clear(); _sourceFolder = folder;
+        foreach (var file in paths) AddPath(file);
+        ShowSources();
     }
     private async Task Browse()
     {
         try
         {
-            if (_source.SelectedIndex == 2) { AddOpen(); return; }
-            if (_source.SelectedIndex == 1)
+            if (_source.SelectedIndex == 0)
             {
                 var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = Localize.Text("Source Folder"), AllowMultiple = false });
-                if (folders.FirstOrDefault()?.TryGetLocalPath() is not { } path) return;
-                var recursive = _recursive.IsChecked == true;
-                var paths = await Task.Run(() => FileAutomation.EnumerateImages(path,recursive));
-                foreach (var file in paths) AddPath(file);
+                if (folders.FirstOrDefault()?.TryGetLocalPath() is { } path) await LoadFolder(path);
+                return;
             }
-            else
-            {
-                var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = Localize.Text("Source Images"), AllowMultiple = true,
-                    FileTypeFilter = [new FilePickerFileType(Localize.Text("Images")) { Patterns = ImageImporter.Extensions.Select(e => "*" + e).ToArray() }] });
-                foreach (var file in files) if (file.TryGetLocalPath() is { } path) AddPath(path);
-            }
-            RefreshSources();
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = Localize.Text("Source Images"), AllowMultiple = true,
+                FileTypeFilter = [new FilePickerFileType(Localize.Text("Images")) { Patterns = ImageImporter.Extensions.Select(e => "*" + e).ToArray() }] });
+            foreach (var file in files) if (file.TryGetLocalPath() is { } path) AddPath(path);
+            ShowSources();
         }
         catch (Exception ex) { _status.Text = ex.Message; }
     }
     private async Task ChooseDestination()
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = Localize.Text("Destination"), AllowMultiple = false });
-        if (folders.FirstOrDefault()?.TryGetLocalPath() is { } path) _destination.Text = path;
+        if (folders.FirstOrDefault()?.TryGetLocalPath() is { } path) { _folder = path; ShowDestination(); }
+    }
+    private async Task ChooseErrorLog()
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = Localize.Text("Save As…"), SuggestedFileName = "Batch Errors.json", DefaultExtension = "json", ShowOverwritePrompt = true });
+        if (file?.TryGetLocalPath() is { } path) _errorLog = path;
+    }
+    private async Task ChooseDroplet()
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = Localize.Text("Save Droplet In"),
+            SuggestedFileName = "Compositor Batch.lnk", DefaultExtension = "lnk", ShowOverwritePrompt = true,
+            FileTypeChoices = [new FilePickerFileType(Localize.Text("Windows Shortcut")) { Patterns = ["*.lnk"] }] });
+        if (file?.TryGetLocalPath() is not { } path) return;
+        _dropletPath = path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) ? path : path + ".lnk";
+        _sourceText.Text = _dropletPath; UpdateAvailability();
     }
 
-    private BatchOptions Options() => new(_destination.Text ?? "", (BatchAction)_action.SelectedIndex,
-        _outputs.Where(r => r.Enabled.IsChecked == true).Select(r => new BatchOutput(r.Format,(int)(r.Quality.Value ?? 90),r.Resize.IsChecked == true,
-            (int)(r.Width.Value ?? 1920),(int)(r.Height.Value ?? 1080),r.NoEnlarge.IsChecked == true,r.Srgb.IsChecked == true)).ToArray(),
-        _names.Where(n => n.Part.SelectedIndex > 0).Select(n => new FileNameComponent((FileNamePart)(n.Part.SelectedIndex - 1),n.Text.Text ?? "")).ToArray(),
-        (int)(_serial.Value ?? 1),_errors.SelectedIndex == 1, (MetadataPolicy)_metadata.SelectedIndex);
+    /// <summary>What the panel shows as a recipe. With no destination the results go to a temporary folder and are opened from there.</summary>
+    private BatchOptions Options()
+    {
+        var destination = _destination.SelectedIndex;
+        var format = destination == 0 ? ExportFormat.Png : Formats[Math.Max(0, _format.SelectedIndex)];
+        var folder = destination switch { 0 => Path.Combine(Path.GetTempPath(), "Compositor Batch " + Guid.NewGuid().ToString("N")), 1 => "", _ => _folder };
+        IReadOnlyList<FileNameComponent> naming = destination == 2 ? Naming() : [new FileNameComponent(FileNamePart.DocumentName)];
+        return new BatchOptions(folder, ChosenAction, _loadedOutputs ?? [new BatchOutput(format, (int)(_quality.Value ?? 90))], naming,
+            (int)(_serial.Value ?? 1), _errors.SelectedIndex == 1, (MetadataPolicy)_metadata.SelectedIndex, SaveBesideSource: destination == 1);
+    }
 
     private async Task Execute()
     {
@@ -194,25 +281,21 @@ internal sealed class BatchDialog : DialogWindow
         {
             if (_sources.Count == 0) throw new ArgumentException(Localize.Text("Add at least one source image."));
             var options = Options(); BatchProcessing.Validate(options);
-            _cancellation = new CancellationTokenSource(); _body.IsEnabled = _execute.IsEnabled = _load.IsEnabled = _save.IsEnabled = _shortcut.IsEnabled = false;
-            _report.Text = "";
+            _cancellation = new CancellationTokenSource(); _body.IsEnabled = false; UpdateAvailability();
             var progress = new Progress<BatchProgress>(p => _status.Text = $"{p.Completed}/{p.Total}\n{p.Name}");
-            var result = await _run(_sources.ToArray(),options,progress,_cancellation.Token);
+            var result = await _run(_sources.ToArray(), options, progress, _cancellation.Token);
             _status.Text = Localize.Text("Completed") + $": {result.Succeeded}\n" + Localize.Text("Errors") + $": {result.Failed}";
-            _report.Text = string.Join(Environment.NewLine,result.Items.Select(i => i.Source + ": " + (i.Error ?? string.Join(", ",i.Files))));
             if (result.Failed > 0 && options.ContinueOnError)
             {
-                var log = BatchProcessing.UniquePath(options.OutputDirectory,"batch-errors","json");
-                await File.WriteAllTextAsync(log,JsonSerializer.Serialize(result,new JsonSerializerOptions { WriteIndented = true }));
-                _report.Text += Environment.NewLine + log;
+                var log = _errorLog ?? BatchProcessing.UniquePath(options.OutputDirectory.Length > 0 ? options.OutputDirectory : Path.GetTempPath(), "batch-errors", "json");
+                await File.WriteAllTextAsync(log, JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
+                _status.Text += "\n" + log;
             }
+            if (_destination.SelectedIndex == 0) ResultsMade?.Invoke([.. result.Items.SelectMany(i => i.Files)]);
         }
         catch (OperationCanceledException) { _status.Text = Localize.Text("Canceled. Completed files have been preserved."); }
         catch (Exception ex) { _status.Text = ex.Message; }
-        finally
-        {
-            _cancellation?.Dispose(); _cancellation = null; _body.IsEnabled = _execute.IsEnabled = _load.IsEnabled = _save.IsEnabled = _shortcut.IsEnabled = true;
-        }
+        finally { _cancellation?.Dispose(); _cancellation = null; _body.IsEnabled = true; UpdateAvailability(); }
     }
     private void Cancel() { if (_cancellation is not null) _cancellation.Cancel(); else Close(); }
 
@@ -222,7 +305,7 @@ internal sealed class BatchDialog : DialogWindow
         {
             var options = Options(); BatchProcessing.Validate(options);
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = Localize.Text("Save Settings…"), SuggestedFileName = "batch-settings.json", DefaultExtension = "json", ShowOverwritePrompt = true });
-            if (file?.TryGetLocalPath() is { } path) new BatchRecipe(1,options,_recursive.IsChecked == true).Save(path);
+            if (file?.TryGetLocalPath() is { } path) new BatchRecipe(1, options, _recursive.IsChecked == true).Save(path);
         }
         catch (Exception ex) { _status.Text = ex.Message; }
     }
@@ -239,71 +322,55 @@ internal sealed class BatchDialog : DialogWindow
     }
     private void ApplyRecipe(BatchRecipe recipe)
     {
-            var options = recipe.Options; BatchProcessing.Validate(options);
-            _recursive.IsChecked = recipe.IncludeSubfolders;
-            if (options.Outputs.Any(o => !_outputs.Any(r => r.Format == o.Format))) throw new InvalidDataException(Localize.Text("This recipe uses formats available in the Batch dialog."));
-            _destination.Text = options.OutputDirectory; _action.SelectedIndex = (int)options.Action; _errors.SelectedIndex = options.ContinueOnError ? 1 : 0; _serial.Value = options.StartSerial;
-            _metadata.SelectedIndex = (int)options.Metadata;
-            for (var i = 0; i < _names.Count; i++)
-            {
-                var value = options.Naming.ElementAtOrDefault(i);
-                _names[i].Part.SelectedIndex = value is null ? 0 : (int)value.Part + 1; _names[i].Text.Text = value?.Text ?? "";
-            }
-            foreach (var row in _outputs)
-            {
-                var value = options.Outputs.FirstOrDefault(o => o.Format == row.Format); row.Enabled.IsChecked = value is not null;
-                if (value is null) continue;
-                row.Quality.Value = value.Quality; row.Resize.IsChecked = value.Resize; row.Width.Value = value.MaximumWidth; row.Height.Value = value.MaximumHeight;
-                row.NoEnlarge.IsChecked = value.NoEnlarge; row.Srgb.IsChecked = value.ConvertToSrgb;
-            }
-            _status.Text = "";
+        var options = recipe.Options; BatchProcessing.Validate(options);
+        _recursive.IsChecked = recipe.IncludeSubfolders;
+        _folder = options.OutputDirectory; _destination.SelectedIndex = options.SaveBesideSource ? 1 : 2;
+        var set = Array.FindIndex(ActionSets, s => s.Actions.Contains(options.Action));
+        _set.SelectedIndex = Math.Max(0, set); ShowActions(); _action.SelectedIndex = Math.Max(0, Array.IndexOf(ActionSets[Math.Max(0, set)].Actions, options.Action));
+        _errors.SelectedIndex = options.ContinueOnError ? 1 : 0; _serial.Value = options.StartSerial; _metadata.SelectedIndex = (int)options.Metadata;
+        for (var i = 0; i < _names.Count; i++)
+        {
+            var value = options.Naming.ElementAtOrDefault(i);
+            _names[i].Part.SelectedIndex = value is null ? 0 : (int)value.Part + 1; if (value?.Part == FileNamePart.Literal) _names[i].Text.Text = value.Text;
+        }
+        var first = options.Outputs[0];
+        _format.SelectedIndex = Math.Max(0, Array.IndexOf(Formats, first.Format)); _quality.Value = first.Quality;
+        _loadedOutputs = options.Outputs.Count > 1 || first.Resize || first.ConvertToSrgb || !Formats.Contains(first.Format) ? options.Outputs : null;
+        _status.Text = ""; ShowDestination();
     }
     internal async Task RunRecipe(string recipePath, IReadOnlyList<string> inputs)
     {
         try
         {
             var recipe = BatchRecipe.Read(recipePath); ApplyRecipe(recipe);
+            _source.SelectedIndex = 1;
             foreach (var input in inputs)
             {
                 if (Directory.Exists(input))
-                    foreach (var path in await Task.Run(() => FileAutomation.EnumerateImages(input,recipe.IncludeSubfolders))) AddPath(path);
+                    foreach (var path in await Task.Run(() => FileAutomation.EnumerateImages(input, recipe.IncludeSubfolders))) AddPath(path);
                 else AddPath(input);
             }
-            RefreshSources();
+            ShowSources();
             if (_sources.Count > 0) await Execute();
         }
         catch (Exception ex) { _status.Text = ex.Message; }
     }
-    private async Task CreateShortcut()
+    private Task CreateDroplet()
     {
-        if (!OperatingSystem.IsWindows() || _cancellation is not null) return;
+        if (!OperatingSystem.IsWindows() || _cancellation is not null || _dropletPath.Length == 0) return Task.CompletedTask;
         try
         {
-            var recipe = new BatchRecipe(1,Options(),_recursive.IsChecked == true); BatchProcessing.Validate(recipe.Options);
-            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = Localize.Text("Create Droplet…"),
-                SuggestedFileName = "Compositor Batch.lnk", DefaultExtension = "lnk", ShowOverwritePrompt = true,
-                FileTypeChoices = [new FilePickerFileType(Localize.Text("Windows Shortcut")) { Patterns = ["*.lnk"] }] });
-            if (file?.TryGetLocalPath() is not { } path) return;
-            if (!path.EndsWith(".lnk",StringComparison.OrdinalIgnoreCase)) path += ".lnk";
-            var settings = path + "." + Guid.NewGuid().ToString("N") + ".batch.json";
+            var recipe = new BatchRecipe(1, Options(), _recursive.IsChecked == true); BatchProcessing.Validate(recipe.Options);
+            var settings = _dropletPath + "." + Guid.NewGuid().ToString("N") + ".batch.json";
             recipe.Save(settings);
-            try { BatchShortcut.Create(path,settings); }
+            try { BatchShortcut.Create(_dropletPath, settings); }
             catch { File.Delete(settings); throw; }
-            _status.Text = Localize.Text("Drop images or folders on the shortcut to run this batch. Keep its settings file beside it.");
+            Close();
         }
         catch (Exception ex) { _status.Text = ex.Message; }
+        return Task.CompletedTask;
     }
-    private static ComboBox Choice(string[] items,int selected) => new() { ItemsSource = items.Select(Localize.Text).ToArray(), SelectedIndex = selected, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private static CheckBox Check(string text,bool value) => new() { Content = Localize.Text(text), IsChecked = value };
-    private static NumericUpDown Number(decimal value,decimal min,decimal max) => new() { Value = value, Minimum = min, Maximum = max, Increment = 1, FormatString = "0", HorizontalAlignment = HorizontalAlignment.Stretch };
-    private static TextBlock Label(string text) => new() { Text = Localize.Text(text), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-    private static Control Row(string label,Control field)
-    {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("180,*") }; grid.Children.Add(Label(label)); Grid.SetColumn(field,1); grid.Children.Add(field); return grid;
-    }
-    private static Control Section(string title,Control contents) => new Border
-    {
-        BorderThickness = new Thickness(1), BorderBrush = Skin.BorderControlBrush, Padding = new Thickness(12),
-        Child = new StackPanel { Spacing = 8, Children = { Label(title),contents } }
-    };
+    internal static ComboBox Choice(string[] items, int selected) => new() { ItemsSource = items.Select(Localize.Text).ToArray(), SelectedIndex = selected, HorizontalAlignment = HorizontalAlignment.Stretch };
+    internal static CheckBox Check(string text, bool value) => new() { Content = Localize.Text(text), IsChecked = value, Tag = text };
+    internal static NumericUpDown Number(decimal value, decimal min, decimal max) => new() { Value = value, Minimum = min, Maximum = max, Increment = 1, FormatString = "0", ShowButtonSpinner = false, MinHeight = 0, Height = 26 };
 }

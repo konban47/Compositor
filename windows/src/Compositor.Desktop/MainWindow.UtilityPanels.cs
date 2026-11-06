@@ -34,7 +34,7 @@ public sealed partial class MainWindow
                 BuildBrushSettingsPanel(body); body.Children.Clear(); tab.Content = _brushSettingsEditor;
                 RegisterPanel(name, _inspectorTabs, tab);
             }
-            else { RegisterPanel(name, _inspectorTabs, tab); BuildUtilityPanel(name, body); if (name == "Timeline") FloatPanel(_dockPanels[name]); }
+            else { RegisterPanel(name, _inspectorTabs, tab); BuildUtilityPanel(name, body); }
         }
         ShowDockPanel(name); RefreshUtilityPanels();
     }
@@ -81,11 +81,12 @@ public sealed partial class MainWindow
             {
                 Button("Foreground Color…", () => ChooseColour(true)); Button("Background Color…", () => ChooseColour(false));
                 var palette = new WrapPanel(); body.Children.Add(palette);
-                foreach (var hex in new[] { "#000000", "#FFFFFF", "#FF4040", "#FF9A30", "#FFE450", "#50C878", "#20B2AA", "#4080FF", "#7050DF", "#E84AAD", "#808080", "#B08050" })
+                void Fill() { palette.Children.Clear(); foreach (var hex in new[] { "#000000", "#FFFFFF", "#FF4040", "#FF9A30", "#FFE450", "#50C878", "#20B2AA", "#4080FF", "#7050DF", "#E84AAD", "#808080", "#B08050" }.Concat(_tools.Swatches))
                 {
                     var color = SKColor.Parse(hex); var button = new Button { Width = 30, Height = 30, Padding = new Thickness(0), Margin = new Thickness(2), Background = new SolidColorBrush(Color.Parse(hex)) };
                     ToolTip.SetTip(button, hex); button.Click += (_, _) => { _options.Brush = _options.Brush with { Red = color.Red / 255d, Green = color.Green / 255d, Blue = color.Blue / 255d }; PushBrush(); }; palette.Children.Add(button);
-                }
+                } }
+                Fill(); _utilityRefresh[name] = Fill;
                 break;
             }
             case "Brush Settings": BuildBrushSettingsPanel(body); break;

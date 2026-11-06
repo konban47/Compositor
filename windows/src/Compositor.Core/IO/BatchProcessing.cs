@@ -6,14 +6,14 @@ using System.Globalization;
 
 namespace Compositor.Core.IO;
 
-public enum BatchAction { None, AutoColor, AutoTone, AutoContrast, Vibrance, Desaturate, Equalize }
+public enum BatchAction { None, AutoColor, AutoTone, AutoContrast, Vibrance, Desaturate, Equalize, FitLong1920, FitLong1280, FitLong640 }
 public enum FileNamePart { DocumentName, LowerName, UpperName, Serial1, Serial2, Serial3, Serial4, Date, Literal }
 public sealed record FileNameComponent(FileNamePart Part, string Text = "");
 public sealed record BatchOutput(ExportFormat Format, int Quality = 90, bool Resize = false,
-    int MaximumWidth = 1920, int MaximumHeight = 1080, bool NoEnlarge = true, bool ConvertToSrgb = false);
+    int MaximumWidth = 1920, int MaximumHeight = 1080, bool NoEnlarge = true, bool ConvertToSrgb = false, bool Lzw = false);
 public sealed record BatchOptions(string OutputDirectory, BatchAction Action, IReadOnlyList<BatchOutput> Outputs,
     IReadOnlyList<FileNameComponent> Naming, int StartSerial = 1, bool ContinueOnError = false,
-    MetadataPolicy Metadata = MetadataPolicy.CopyrightAndContact);
+    MetadataPolicy Metadata = MetadataPolicy.CopyrightAndContact, bool SaveBesideSource = false, string Copyright = "", bool EmbedProfile = true, string? SourceRoot = null);
 public sealed record BatchProgress(int Completed, int Total, string Name);
 public sealed record BatchItemResult(string Source, IReadOnlyList<string> Files, string? Error);
 public sealed record BatchResult(IReadOnlyList<BatchItemResult> Items)
@@ -30,8 +30,8 @@ public static class BatchProcessing
     {
         Validate(options);
         if (sources.Count is < 1 or > 10000) throw new ArgumentException("Select between 1 and 10000 source images.");
-        var directory = Path.GetFullPath(options.OutputDirectory);
-        Directory.CreateDirectory(directory);
+        var directory = options.SaveBesideSource ? "" : Path.GetFullPath(options.OutputDirectory);
+        if (!options.SaveBesideSource) Directory.CreateDirectory(directory);
         var results = new List<BatchItemResult>();
         var date = DateTime.Today;
         for (var index = 0; index < sources.Count; index++)
@@ -45,6 +45,9 @@ public static class BatchProcessing
                 using var document = OpenComposite(source);
                 Apply(document, options.Action);
                 var name = BuildName(source.Name, checked(options.StartSerial + index), date, options.Naming);
+                var target = TargetFolder(source, directory, options);
+                if (options.Copyright.Length > 0) document.Metadata = document.Metadata with { Copyright = options.Copyright };
+                if (!options.EmbedProfile) document.Image = document.Image with { ColorProfile = null, ProfileEncoding = null };
                 foreach (var output in options.Outputs)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -56,13 +59,21 @@ public static class BatchProcessing
                         : (copy.Width, copy.Height);
                     var export = new ExportOptions(output.Format, size.Item1, size.Item2, output.Quality,
                         Resolution: copy.Resolution, NativeColorMode: output.Format == ExportFormat.Tiff && !output.ConvertToSrgb,
-                        Metadata: output.Format is ExportFormat.Pdf or ExportFormat.Exr ? MetadataPolicy.None : options.Metadata);
-                    var folder = options.Outputs.Count > 1 ? Path.Combine(directory, output.Format.ToString()) : directory;
+                        Metadata: output.Format is ExportFormat.Pdf or ExportFormat.Exr or ExportFormat.Psd ? MetadataPolicy.None : options.Metadata);
+                    var folder = options.Outputs.Count > 1 ? Path.Combine(target, output.Format.ToString()) : target;
                     Directory.CreateDirectory(folder);
                     var path = UniquePath(folder, name, export.Extension);
-                    using var encoded = ExportImage.Encode(copy, export);
-                    cancellationToken.ThrowIfCancellationRequested();
-                    AtomicFile.WriteBytes(path, encoded.Bytes, cancellationToken);
+                    if (output.Format == ExportFormat.Psd)
+                    {
+                        if (size != (copy.Width, copy.Height)) ImageEdits.Resize(copy, size.Item1, size.Item2, copy.Resolution, Compositor.Core.Format.LayerSampling.HighQuality);
+                        IO.PSD.PsdWriter.Write(copy, path, cancellationToken);
+                    }
+                    else
+                    {
+                        using var encoded = ExportImage.Encode(copy, export);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        AtomicFile.WriteBytes(path, output.Lzw && output.Format == ExportFormat.Tiff ? Compressed(encoded.Bytes) : encoded.Bytes, cancellationToken);
+                    }
                     files.Add(path);
                 }
             }
@@ -78,9 +89,28 @@ public static class BatchProcessing
         return new BatchResult(results);
     }
 
+    /// <summary>Where one source's results go: beside it, into the folder, or into the same subfolder of it the source was in.</summary>
+    private static string TargetFolder(AutomationSource source, string directory, BatchOptions options)
+    {
+        if (options.SaveBesideSource) return Path.GetDirectoryName(source.Path) is { Length: > 0 } beside ? beside : throw new ArgumentException("This document has not been saved, so it has no location to save beside.");
+        if (options.SourceRoot is { } root && source.Path is { Length: > 0 } && Path.GetDirectoryName(source.Path) is { } inside)
+        {
+            var relative = Path.GetRelativePath(root, inside);
+            if (!relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative) && relative != ".") return Path.Combine(directory, relative);
+        }
+        return directory;
+    }
+
+    private static byte[] Compressed(byte[] tiff)
+    {
+        using var image = new ImageMagick.MagickImage(tiff);
+        image.Settings.Compression = ImageMagick.CompressionMethod.LZW;
+        return image.ToByteArray(ImageMagick.MagickFormat.Tiff);
+    }
+
     public static void Validate(BatchOptions options)
     {
-        if (string.IsNullOrWhiteSpace(options.OutputDirectory)) throw new ArgumentException("Choose an output folder.");
+        if (!options.SaveBesideSource && string.IsNullOrWhiteSpace(options.OutputDirectory)) throw new ArgumentException("Choose an output folder.");
         if (!Enum.IsDefined(options.Action) || !Enum.IsDefined(options.Metadata) || options.StartSerial < 0 || options.StartSerial > int.MaxValue - 10000)
             throw new ArgumentException("Invalid batch action or starting serial number.");
         if (options.Naming is null || options.Naming.Count is < 1 or > 6 || options.Naming.Any(n => n is null || !Enum.IsDefined(n.Part) || n.Text is null || n.Text.Length > 100))
@@ -147,6 +177,13 @@ public static class BatchProcessing
     private static void Apply(CanvasDocument document, BatchAction action)
     {
         if (action == BatchAction.None) return;
+        if (action is BatchAction.FitLong1920 or BatchAction.FitLong1280 or BatchAction.FitLong640)
+        {
+            var side = action switch { BatchAction.FitLong1920 => 1920, BatchAction.FitLong1280 => 1280, _ => 640 };
+            var size = FileAutomation.Fit(document.Width, document.Height, side, side, true);
+            ImageEdits.Resize(document, size.Width, size.Height, document.Resolution, Compositor.Core.Format.LayerSampling.HighQuality);
+            return;
+        }
         _ = ApplyTo(document, document.Layers[0].ID, action);
     }
 

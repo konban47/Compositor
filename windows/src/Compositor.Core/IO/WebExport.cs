@@ -6,7 +6,7 @@ using SkiaSharp;
 namespace Compositor.Core.IO;
 
 public enum WebFormat { Gif, Jpeg, Png8, Png24, Wbmp }
-public enum WebPalette { Adaptive, Perceptual, WebSafe, BlackWhite, Grayscale, Custom }
+public enum WebPalette { Adaptive, Perceptual, WebSafe, BlackWhite, Grayscale, Custom, Selective, MacOS, Windows }
 public enum WebDither { None, Diffusion, Pattern, Noise }
 public enum WebResample { Nearest, Bilinear, Bicubic, BicubicSmoother, BicubicSharper }
 
@@ -17,7 +17,7 @@ public sealed record WebExportOptions(int Width, int Height, WebFormat Format = 
     int WebSnap = 0, bool ConvertToSrgb = true, bool EmbedProfile = false,
     WebResample Resample = WebResample.Bicubic, uint[]? CustomPalette = null,
     uint[]? LockedColors = null, uint[]? TransparentColors = null,
-    MetadataPolicy Metadata = MetadataPolicy.CopyrightAndContact)
+    MetadataPolicy Metadata = MetadataPolicy.CopyrightAndContact, int Lossy = 0, int AlphaDitherAmount = 100)
 {
     public string Extension => Format switch { WebFormat.Jpeg => "jpg", WebFormat.Gif => "gif", WebFormat.Wbmp => "wbmp", _ => "png" };
     public bool Indexed => Format is WebFormat.Gif or WebFormat.Png8 or WebFormat.Wbmp;
@@ -25,7 +25,7 @@ public sealed record WebExportOptions(int Width, int Height, WebFormat Format = 
     {
         if (Width < 1 || Height < 1 || Width > DocumentLimits.MaxSide || Height > DocumentLimits.MaxSide
             || (long)Width * Height > DocumentLimits.MaxSurfacePixels || Quality is < 1 or > 100
-            || Colors is < 2 or > 256 || DitherAmount is < 0 or > 100 || WebSnap is < 0 or > 100
+            || Colors is < 2 or > 256 || DitherAmount is < 0 or > 100 || WebSnap is < 0 or > 100 || Lossy is < 0 or > 100 || AlphaDitherAmount is < 0 or > 100
             || !Enum.IsDefined(Format) || !Enum.IsDefined(Palette) || !Enum.IsDefined(Dither)
             || !Enum.IsDefined(AlphaDither) || !Enum.IsDefined(Resample) || !Enum.IsDefined(Metadata)
             || CustomPalette is { Length: > 256 }
@@ -199,7 +199,7 @@ public static class WebExport
                     var visible = c.Alpha == 255 || c.Alpha > 0 && alpha >= threshold;
                     if (options.AlphaDither == WebDither.Diffusion)
                     {
-                        var error = alpha - (visible ? 255 : 0);
+                        var error = (alpha - (visible ? 255 : 0)) * options.AlphaDitherAmount / 100;
                         alphaCurrent[x + 2] += error * 7 / 16;
                         alphaNext[x] += error * 3 / 16;
                         alphaNext[x + 1] += error * 5 / 16;
@@ -218,6 +218,7 @@ public static class WebExport
             var hasAlpha = colors.Any(c => c.Alpha == 0);
             palette = MakePalette(pixels, options, hasAlpha, cancellation);
             Map(colors, pixels.Width, pixels.Height, palette, options.Dither, options.DitherAmount, cancellation);
+            if (options.Format == WebFormat.Gif && options.Lossy > 0) Lengthen(colors, pixels.Width, options.Lossy);
             if (options.Transparency && options.Format is WebFormat.Gif or WebFormat.Png8
                 && options.TransparentColors is { Length: > 0 })
             {
@@ -268,6 +269,29 @@ public static class WebExport
         return new WebExportResult(bytes, preview, options, palette) { PaletteUsage = usage };
     }
 
+    /// <summary>GIF's Lossy: a pixel near enough to the one before it takes its color, which gives the encoder longer runs.</summary>
+    private static void Lengthen(SKColor[] colors, int width, int lossy)
+    {
+        var reach = lossy * 3;
+        for (var i = 1; i < colors.Length; i++)
+        {
+            if (i % width == 0) continue;
+            SKColor a = colors[i], b = colors[i - 1];
+            if (a.Alpha == 0 || b.Alpha == 0 || a == b) continue;
+            if (Math.Abs(a.Red - b.Red) + Math.Abs(a.Green - b.Green) + Math.Abs(a.Blue - b.Blue) <= reach) colors[i] = b;
+        }
+    }
+
+    /// <summary>The system palettes: the web cube filled out with a gray ramp, and Windows's fixed colors first.</summary>
+    private static IEnumerable<SKColor> SystemPalette(bool windows)
+    {
+        var cube = Enumerable.Range(0, 216).Select(i => new SKColor((byte)(i / 36 * 51), (byte)(i / 6 % 6 * 51), (byte)(i % 6 * 51)));
+        var grays = Enumerable.Range(1, 38).Select(i => { var v = (byte)(i * 255 / 39); return new SKColor(v, v, v); });
+        if (!windows) return cube.Concat(grays);
+        var vga = new[] { 0x800000u, 0x008000u, 0x808000u, 0x000080u, 0x800080u, 0x008080u, 0xC0C0C0u, 0x808080u, 0xC0DCC0u, 0xA6CAF0u, 0xFFFBF0u, 0xA0A0A4u }.Select(v => new SKColor(v | 0xFF000000u));
+        return vga.Concat(cube).Concat(grays).Distinct();
+    }
+
     private static uint[] MakePalette(SKBitmap pixels, WebExportOptions options, bool alpha, CancellationToken cancellation)
     {
         var count = Math.Max(1, options.Colors - (alpha ? 1 : 0));
@@ -276,16 +300,19 @@ public static class WebExport
         else if (options.Palette == WebPalette.Custom) palette = options.CustomPalette!.Select(c => new SKColor(c).WithAlpha(255)).Take(count);
         else if (options.Palette == WebPalette.WebSafe && count >= 216)
             palette = Enumerable.Range(0, 216).Select(i => new SKColor((byte)(i / 36 * 51), (byte)(i / 6 % 6 * 51), (byte)(i % 6 * 51))).Take(count);
+        else if (options.Palette is WebPalette.MacOS or WebPalette.Windows) palette = SystemPalette(options.Palette == WebPalette.Windows).Take(count);
         else if (options.Palette == WebPalette.Grayscale)
             palette = Enumerable.Range(0, count).Select(i => { var v = (byte)(count == 1 ? 128 : i * 255 / (count - 1)); return new SKColor(v, v, v); });
         else
         {
             using var sample = pixels.Resize(Bitmaps.ColorInfo(Math.Min(512, pixels.Width), Math.Min(512, pixels.Height)), new SKSamplingOptions(SKFilterMode.Linear))!;
             using var image = DeepImageCodec.Magick(sample);
-            image.Quantize(new QuantizeSettings { Colors = (uint)count, ColorSpace = options.Palette == WebPalette.Perceptual ? ColorSpace.Lab : ColorSpace.sRGB, DitherMethod = DitherMethod.No });
+            image.Quantize(new QuantizeSettings { Colors = (uint)count, ColorSpace = options.Palette is WebPalette.Perceptual or WebPalette.Selective ? ColorSpace.Lab : ColorSpace.sRGB, DitherMethod = DitherMethod.No });
             image.ColorSpace = ColorSpace.sRGB;
             using var reduced = SKBitmap.Decode(image.ToByteArray(MagickFormat.Png))!;
             palette = reduced.Pixels.Where(c => c.Alpha > 0).Select(c => c.WithAlpha(255)).Distinct().Take(count).ToArray();
+            // Selective leans toward the colors that stay the same on any screen: what's close to a web color becomes it.
+            if (options.Palette == WebPalette.Selective) palette = palette.Select(c => Math.Abs(c.Red - Math.Round(c.Red / 51d) * 51) + Math.Abs(c.Green - Math.Round(c.Green / 51d) * 51) + Math.Abs(c.Blue - Math.Round(c.Blue / 51d) * 51) <= 12 ? Snap(c, 100) : c).Distinct().ToArray();
         }
         cancellation.ThrowIfCancellationRequested();
         var locked = options.Format == WebFormat.Wbmp ? [] :

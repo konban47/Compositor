@@ -21,12 +21,12 @@ internal sealed partial class WebExportDialog : DialogWindow
 {
     private readonly DocumentLease _lease;
     private readonly ComboBox _format = Choice(["GIF", "JPEG", "PNG-8", "PNG-24", "WBMP"]);
-    private readonly ComboBox _palette = Choice(["Adaptive", "Perceptual", "Web Safe", "Black and White", "Grayscale", "Custom"]);
-    private readonly ComboBox _dither = Choice(["None", "Diffusion", "Pattern", "Noise"], 1);
-    private readonly ComboBox _alphaDither = Choice(["None", "Diffusion", "Pattern", "Noise"]);
+    private readonly ComboBox _palette = Choice(["Perceptual", "Selective", "Adaptive", "Restrictive", "Custom", "Black - White", "Grayscale", "Mac OS", "Windows"], 1);
+    private readonly ComboBox _dither = Choice(["No Dither", "Diffusion", "Pattern", "Noise"], 1);
+    private readonly ComboBox _alphaDither = Choice(["No Transparency Dither", "Diffusion Transparency Dither", "Pattern Transparency Dither", "Noise Transparency Dither"]);
     private readonly ComboBox _resample = Choice(["Nearest Neighbor", "Bilinear", "Bicubic", "Bicubic Smoother", "Bicubic Sharper"], 2);
     private readonly ComboBox _metadata = Choice(["None", "Copyright", "Copyright and Contact", "All Except Camera Information", "All"], 2);
-    private readonly ComboBox _view = Choice(["Original", "Optimized", "2-Up", "4-Up"], 1);
+    private readonly ComboBox _view = Choice(["Original", "Optimized", "2-Up", "4-Up"], 0);
     private readonly ComboBox _saveAs = Choice(["Images Only", "HTML and Images", "HTML Only"]);
     private readonly ComboBox _scope = Choice(["All Slices", "All User Slices"]);
     private readonly ComboBox _loop = Choice(["Forever", "Once", "Other"]);
@@ -36,22 +36,22 @@ internal sealed partial class WebExportDialog : DialogWindow
     /// <summary>Which frame of a frame animation the preview shows; −1 when the document has none.</summary>
     private int _frame = -1;
     private WebHtmlSettings _html = WebHtmlSettings.Default;
-    private readonly NumericUpDown _width, _height;
+    private readonly NumericUpDown _width, _height, _percent = Number(100, 1, 1600);
     private readonly NumericUpDown _quality = Number(80, 1, 100), _colors = Number(256, 2, 256), _amount = Number(100, 0, 100), _snap = Number(0, 0, 100);
     private readonly NumericUpDown _zoom = Number(100, 6, 1600);
     private readonly CheckBox _transparent = Check("Transparency", true), _interlaced = Check("Interlaced"), _srgb = Check("Convert to sRGB", true), _icc = Check("Embed Color Profile"), _linked = Check("Constrain Proportions", true);
-    private readonly TextBox _matte = new() { Text = "#FFFFFF" }, _hex = new() { Text = "#000000" };
+    private readonly TextBox _matte = new() { Text = "#FFFFFF" };
     private readonly Grid _previews = new();
-    private readonly WrapPanel _swatches = new() { Orientation = Orientation.Horizontal };
+    private readonly WrapPanel _swatches = new() { Orientation = Orientation.Horizontal, Width = 16 * 18 };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Foreground = Skin.SecondaryBrush };
     private readonly TextBlock _sample = new() { Text = "RGBA: —", VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _save;
-    private readonly StackPanel _fields = new() { Spacing = 7, Margin = new Thickness(12) };
+    private static WebExportOptions? _remembered;
     private readonly List<WriteableBitmap> _images = [];
     private WebExportResult[] _results = [];
     private SKBitmap? _original;
     private uint[] _custom = [], _displayPalette = [];
-    private int _selectedColor = -1, _revision;
+    private int _revision;
     private bool _changing, _closed, _rendering, _saving;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(220) };
     private CancellationTokenSource? _renderCancel;
@@ -66,66 +66,22 @@ internal sealed partial class WebExportDialog : DialogWindow
         _lease = new DocumentLease(document);
         _width = Number(document.Width, 1, DocumentLimits.MaxSide);
         _height = Number(document.Height, 1, DocumentLimits.MaxSide);
-        Title = Localize.Text("Save for Web"); Width = 1180; Height = 820; MinWidth = 840; MinHeight = 560;
+        Title = Localize.Text("Save for Web"); Width = 1240; Height = 930; MinWidth = 960; MinHeight = 640;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _save = FormDialog.ActionButton("Save…", () => _ = Save()); _save.IsEnabled = false;
-        var layout = new Grid { RowDefinitions = new("*,Auto"), Margin = new Thickness(10) };
-        var body = new Grid { ColumnDefinitions = new("*,330") };
-        var previewArea = new Grid { RowDefinitions = new("Auto,*,Auto") };
-        var tabs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, Margin = new Thickness(4, 0, 4, 8) };
-        foreach (var (label, index) in new[] { "Original", "Optimized", "2-Up", "4-Up" }.Select((label, index) => (label, index)))
-            tabs.Children.Add(FormDialog.ActionButton(label, () => _view.SelectedIndex = index));
-        previewArea.Children.Add(tabs); Grid.SetRow(_previews, 1); previewArea.Children.Add(_previews);
-        var navigation = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(4, 8, 4, 0) };
-        navigation.Children.Add(FormDialog.ActionButton("−", () => _zoom.Value = Math.Max(6, (_zoom.Value ?? 100) / 1.25m)));
-        _zoom.Width = 95; navigation.Children.Add(_zoom);
-        navigation.Children.Add(FormDialog.ActionButton("+", () => _zoom.Value = Math.Min(1600, (_zoom.Value ?? 100) * 1.25m)));
-        navigation.Children.Add(FormDialog.ActionButton("Fit", () => { var bitmap = _results.FirstOrDefault()?.Preview ?? _original; if (bitmap is null) return; var rows = _view.SelectedIndex == 3 ? 4 : _view.SelectedIndex == 2 ? 2 : 1; _zoom.Value = (decimal)Math.Clamp(Math.Min((_previews.Bounds.Width - 36) / bitmap.Width, (_previews.Bounds.Height / rows - 65) / bitmap.Height) * 100, 6, 1600); }));
-        navigation.Children.Add(_sample); Grid.SetRow(navigation, 2); previewArea.Children.Add(navigation); body.Children.Add(previewArea);
-        Add("Format", _format); Add("Quality", _quality); Add("Palette", _palette); Add("Colors", _colors); Add("Dither", _dither); Add("Dither Amount", _amount);
-        _fields.Children.Add(_transparent); Add("Transparency Dither", _alphaDither); Add("Matte", _matte); _fields.Children.Add(_interlaced); Add("Web Snap", _snap);
-        _fields.Children.Add(new Separator()); _fields.Children.Add(_srgb); _fields.Children.Add(_icc);
-        _fields.Children.Add(new TextBlock { Text = Localize.Text("Color Table") });
-        _fields.Children.Add(new ScrollViewer { Content = _swatches, Height = 145, Background = Skin.SurfaceDarkBrush });
-        Add("Color", _hex);
-        var paletteActions = new WrapPanel();
-        paletteActions.Children.Add(FormDialog.ActionButton("Add", () => EditPalette(false)));
-        paletteActions.Children.Add(FormDialog.ActionButton("Replace", () => EditPalette(true)));
-        paletteActions.Children.Add(FormDialog.ActionButton("Delete", DeleteColor));
-        paletteActions.Children.Add(FormDialog.ActionButton("Load…", () => _ = LoadPalette()));
-        paletteActions.Children.Add(FormDialog.ActionButton("Save…", () => _ = SavePalette()));
-        paletteActions.Children.Add(PaletteMenu()); _fields.Children.Add(paletteActions);
-        _fields.Children.Add(new Separator()); Add("Width", _width); Add("Height", _height); _fields.Children.Add(_linked); Add("Resample", _resample);
-        var advanced = new WrapPanel(); advanced.Children.Add(FormDialog.ActionButton("Optimize File Size…", () => _ = Optimize()));
-        advanced.Children.Add(FormDialog.ActionButton("Load Settings…", () => _ = LoadSettings())); advanced.Children.Add(FormDialog.ActionButton("Save Settings…", () => _ = SaveSettings()));
-        _fields.Children.Add(advanced);
-        Add("Metadata", _metadata);
-        _fields.Children.Add(new Separator()); Add("Save As", _saveAs); Add("Slices", _scope);
-        var output = new WrapPanel(); output.Children.Add(FormDialog.ActionButton("Output Settings…", () => _ = EditOutput())); _fields.Children.Add(output);
-        _fields.Children.Add(new Separator()); _fields.Children.Add(new TextBlock { Text = Localize.Text("Animation") });
-        Add("Looping Options", _loop); Add("Play Count", _loops);
-        var frames = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
-        foreach (var (glyph, tip, step) in new[] { ("⏮", "Select First Frame", int.MinValue), ("◀", "Select Previous Frame", -1), ("▶", "Select Next Frame", 1), ("⏭", "Select Last Frame", int.MaxValue) })
-        {
-            var button = FormDialog.ActionButton(glyph, () => StepFrame(step)); button.MinWidth = 40; button.Margin = new Thickness(1, 0); ToolTip.SetTip(button, Localize.Text(tip));
-            _frameButtons.Add(button); frames.Children.Add(button);
-            if (step == -1) frames.Children.Add(_frameLabel);
-        }
-        _fields.Children.Add(frames);
-        var settings = new ScrollViewer { Content = _fields, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        Grid.SetColumn(settings, 1); body.Children.Add(settings); layout.Children.Add(body);
-        var footer = new Grid { ColumnDefinitions = new("*,Auto"), Margin = new Thickness(4, 12, 4, 0) };
-        footer.Children.Add(_status); var actions = new StackPanel { Orientation = Orientation.Horizontal };
-        actions.Children.Add(_save); actions.Children.Add(FormDialog.ActionButton("Cancel", Close)); actions.Children.Add(FormDialog.ActionButton("Done", Close));
-        Grid.SetColumn(actions, 1); footer.Children.Add(actions); Grid.SetRow(footer, 1); layout.Children.Add(footer); Content = layout;
-        foreach (var choice in new[] { _format, _palette, _dither, _alphaDither, _resample, _metadata }) choice.SelectionChanged += (_, _) => Queue();
+        BuildLayout();
+        foreach (var choice in new[] { _format, _palette, _dither, _alphaDither, _resample, _metadata }) choice.SelectionChanged += (_, _) => { if (!_applyingPreset && !_changing) _preset.SelectedIndex = WebPresets.Length; Queue(); };
+        _display.SelectionChanged += (_, _) => ShowPreviews();
+        if (_remembered is { } last) Apply(last with { Width = document.Width, Height = document.Height });
         _loop.SelectionChanged += (_, _) => ShowAnimation();
         var frameCount = WebExport.Frames(document).Count; _frame = frameCount > 0 ? 0 : -1;
         ShowAnimation();
-        foreach (var number in new[] { _quality, _colors, _amount, _snap }) number.ValueChanged += (_, _) => Queue();
+        foreach (var number in new[] { _quality, _colors, _amount, _snap, _lossy, _alphaAmount }) number.ValueChanged += (_, _) => { if (!_applyingPreset && !_changing) _preset.SelectedIndex = WebPresets.Length; Queue(); };
         foreach (var check in new[] { _transparent, _interlaced, _srgb, _icc }) { check.IsCheckedChanged += (_, _) => Queue(); }
         _matte.TextChanged += (_, _) => Queue();
         _width.ValueChanged += (_, _) => DimensionChanged(true); _height.ValueChanged += (_, _) => DimensionChanged(false);
+        _percent.ValueChanged += (_, _) => { if (_changing || _percent.Value is not { } percent) return; _changing = true; _width.Value = Math.Clamp(Math.Round(_lease.Document.Width * percent / 100), 1, DocumentLimits.MaxSide); _height.Value = Math.Clamp(Math.Round(_lease.Document.Height * percent / 100), 1, DocumentLimits.MaxSide); _changing = false; Queue(); };
+        AddHandler(PointerPressedEvent, (_, e) => _modifiers = e.KeyModifiers, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         _zoom.ValueChanged += (_, _) => ShowPreviews(); _view.SelectionChanged += (_, _) => { ShowPreviews(); Queue(); };
         _timer.Tick += (_, _) => { _timer.Stop(); _ = RenderPreview(); };
         Opened += (_, _) => Queue();
@@ -136,21 +92,15 @@ internal sealed partial class WebExportDialog : DialogWindow
     private static ComboBox Choice(string[] choices, int selected = 0) => new() { ItemsSource = choices.Select(Localize.Text).ToArray(), SelectedIndex = selected, HorizontalAlignment = HorizontalAlignment.Stretch };
     private static NumericUpDown Number(int value, int min, int max) => new() { Value = value, Minimum = min, Maximum = max, Increment = 1, FormatString = "0", ShowButtonSpinner = false };
     private static CheckBox Check(string title, bool value = false) => new() { Content = Localize.Text(title), IsChecked = value };
-    private void Add(string title, Control control)
-    {
-        var row = new Grid { ColumnDefinitions = new("125,*") };
-        row.Children.Add(new TextBlock { Text = Localize.Text(title), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap });
-        control.MinHeight = 28; Grid.SetColumn(control, 1); row.Children.Add(control); _fields.Children.Add(row);
-    }
     private WebExportOptions Options()
     {
         if (!SKColor.TryParse(_matte.Text, out var matte)) throw new InvalidDataException("Enter a valid hexadecimal matte color.");
         return new((int)(_width.Value ?? 1), (int)(_height.Value ?? 1), (WebFormat)_format.SelectedIndex,
-            (int)(_quality.Value ?? 80), (int)(_colors.Value ?? 256), (WebPalette)_palette.SelectedIndex,
+            (int)(_quality.Value ?? 80), (int)(_colors.Value ?? 256), Palettes[Math.Max(0, _palette.SelectedIndex)],
             (WebDither)_dither.SelectedIndex, (int)(_amount.Value ?? 100), _transparent.IsChecked == true,
             (WebDither)_alphaDither.SelectedIndex, matte, _interlaced.IsChecked == true, (int)(_snap.Value ?? 0),
             _srgb.IsChecked == true, _icc.IsChecked == true, (WebResample)_resample.SelectedIndex, _custom,
-        _lockedColors.ToArray(), _transparentColors.ToArray(), (MetadataPolicy)_metadata.SelectedIndex);
+        _lockedColors.ToArray(), _transparentColors.ToArray(), (MetadataPolicy)_metadata.SelectedIndex, (int)(_lossy.Value ?? 0), (int)(_alphaAmount.Value ?? 100));
     }
     private void DimensionChanged(bool width)
     {
@@ -167,8 +117,11 @@ internal sealed partial class WebExportDialog : DialogWindow
         if (_changing || _closed) return;
         _revision++; _renderCancel?.Cancel(); _save.IsEnabled = false;
         var indexed = _format.SelectedIndex is 0 or 2 or 4;
-        foreach (var c in new Control[] { _palette, _colors, _dither, _amount, _snap, _hex, _swatches }) c.IsEnabled = indexed;
-        _quality.IsEnabled = _format.SelectedIndex == 1;
+        foreach (var c in new Control[] { _palette, _colors, _dither, _amount, _snap, _swatches }) c.IsEnabled = indexed;
+        foreach (var c in _indexedOnly.OfType<Control>()) c.IsVisible = _format.SelectedIndex != 1;
+        _qualityFields.IsVisible = _format.SelectedIndex == 1; _quality.IsEnabled = _format.SelectedIndex == 1;
+        _lossy.IsEnabled = _format.SelectedIndex == 0; _alphaAmount.IsEnabled = _alphaDither.SelectedIndex == 1;
+        _amount.IsEnabled = indexed && _dither.SelectedIndex == 1;
         _transparent.IsEnabled = _format.SelectedIndex is 0 or 2 or 3;
         _alphaDither.IsEnabled = indexed && _transparent.IsChecked == true && _transparent.IsEnabled;
         _icc.IsEnabled = _format.SelectedIndex is 1 or 2 or 3;
@@ -205,9 +158,9 @@ internal sealed partial class WebExportDialog : DialogWindow
             if (_closed || revision != _revision) return;
             DisposePreviews(); _results = encoded; encoded = null; _original = original; original = null;
             if (targetBytes.HasValue) Apply(_results[0].Options);
-            _displayPalette = _results[0].Palette; _selectedColor = -1; SortPalette(); ShowPreviews(); _save.IsEnabled = true;
-            _status.Text = Localize.Format($"File size: {_results[0].Bytes.Length / 1024.0:0.0} KB");
-            if (targetBytes is { } limit && _results[0].Bytes.Length > limit) _status.Text += " — " + Localize.Text("The requested size cannot be reached at these dimensions and format.");
+            _displayPalette = _results[0].Palette; _selected.Clear(); SortPalette(); ShowPreviews(); _save.IsEnabled = true;
+            _status.Text = "";
+            if (targetBytes is { } limit && _results[0].Bytes.Length > limit) _status.Text = Localize.Text("The requested size cannot be reached at these dimensions and format.");
         }
         catch (OperationCanceledException) { }
         catch (Exception error) { if (!_closed && revision == _revision) _status.Text = Localize.Text(error.Message); }
@@ -218,70 +171,17 @@ internal sealed partial class WebExportDialog : DialogWindow
             if (_closed) _lease.Dispose(); else if (revision != _revision) { _timer.Stop(); _timer.Start(); }
         }
     }
-    private void ShowPreviews()
-    {
-        if (_closed) return;
-        _previews.Children.Clear(); foreach (var image in _images) image.Dispose(); _images.Clear();
-        var count = _view.SelectedIndex == 3 ? 4 : _view.SelectedIndex == 2 ? 2 : 1;
-        _previews.RowDefinitions = new(string.Join(',', Enumerable.Repeat("*", count)));
-        for (var i = 0; i < count; i++)
-        {
-            var resultIndex = count == 1 ? (_view.SelectedIndex == 0 ? -1 : 0) : i - 1;
-            var result = resultIndex >= 0 && resultIndex < _results.Length ? _results[resultIndex] : null;
-            var bitmap = resultIndex < 0 ? _original : result?.Preview; if (bitmap is null) continue;
-            var image = CanvasView.ToImage(bitmap); _images.Add(image);
-            var visual = new Image { Source = image, Width = bitmap.Width * (double)(_zoom.Value ?? 100) / 100, Height = bitmap.Height * (double)(_zoom.Value ?? 100) / 100, Stretch = Stretch.Fill, Margin = new Thickness(12) };
-            var scroll = new ScrollViewer { Content = visual, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = Skin.Checker };
-            scroll.PointerPressed += (_, e) => { if (e.GetCurrentPoint(scroll).Properties.IsLeftButtonPressed) { _pan = e.GetPosition(scroll); _panOffset = scroll.Offset; e.Pointer.Capture(scroll); } };
-            scroll.PointerMoved += (_, e) => { if (_pan is { } start) scroll.Offset = _panOffset - (e.GetPosition(scroll) - start); };
-            scroll.PointerReleased += (_, e) => { _pan = null; e.Pointer.Capture(null); };
-            visual.PointerMoved += (_, e) =>
-            {
-                var p = e.GetPosition(visual); var x = (int)(p.X / visual.Width * bitmap.Width); var y = (int)(p.Y / visual.Height * bitmap.Height);
-                if (x >= 0 && y >= 0 && x < bitmap.Width && y < bitmap.Height) { var c = bitmap.GetPixel(x, y); _sample.Text = $"RGBA: {c.Red}, {c.Green}, {c.Blue}, {c.Alpha}  #{c.Red:X2}{c.Green:X2}{c.Blue:X2}"; }
-            };
-            var cell = new Grid { RowDefinitions = new("*,Auto"), Margin = new Thickness(3) }; cell.Children.Add(scroll);
-            var label = result is null ? Localize.Text("Original") : $"{result.Options.Format} · {result.Bytes.Length / 1024.0:0.00} KB · {Localize.Text("Quality")}: {result.Options.Quality} · {Localize.Text("Colors")}: {result.Palette.Length}";
-            var caption = new Button { Content = label, HorizontalAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(6), IsEnabled = result is not null };
-            if (result is not null) caption.Click += (_, _) => { Apply(result.Options); Queue(); };
-            Grid.SetRow(caption, 1); cell.Children.Add(caption); Grid.SetRow(cell, i); _previews.Children.Add(cell);
-        }
-    }
     private void DisposePreviews()
     {
         _previews.Children.Clear(); foreach (var image in _images) image.Dispose(); _images.Clear();
         foreach (var result in _results) result.Dispose(); _results = []; _original?.Dispose(); _original = null;
-    }
-    private void ShowPalette()
-    {
-        _swatches.Children.Clear();
-        foreach (var (packed, index) in _displayPalette.Select((color, index) => (color, index)))
-        {
-            SKColor c = new(packed);
-            var button = new Button { Width = 18, Height = 18, MinHeight = 0, MinWidth = 0, Padding = new Thickness(0), Margin = new Thickness(1), Background = new SolidColorBrush(Color.FromArgb(c.Alpha, c.Red, c.Green, c.Blue)), BorderThickness = new Thickness(index == _selectedColor ? 2 : 1), BorderBrush = index == _selectedColor ? Skin.AccentBrush : Skin.BorderControlBrush };
-            ToolTip.SetTip(button, $"#{c.Red:X2}{c.Green:X2}{c.Blue:X2} · A {c.Alpha}" + (_lockedColors.Contains(packed) ? " · " + Localize.Text("Locked") : ""));
-            button.Click += (_, _) => { _selectedColor = index; _hex.Text = $"#{c.Red:X2}{c.Green:X2}{c.Blue:X2}"; ShowPalette(); }; _swatches.Children.Add(button);
-        }
-    }
-    private void EditPalette(bool replace)
-    {
-        if (!SKColor.TryParse(_hex.Text, out var color)) { _status.Text = Localize.Text("Enter a valid hexadecimal color."); return; }
-        var palette = _displayPalette.ToList();
-        if (replace) { if (_selectedColor < 0 || _selectedColor >= palette.Count) return; palette[_selectedColor] = (uint)color.WithAlpha(255); }
-        else if (palette.Count < 256) palette.Add((uint)color.WithAlpha(255));
-        SetPalette(palette.Where(c => new SKColor(c).Alpha > 0).ToArray());
-    }
-    private void DeleteColor()
-    {
-        if (_selectedColor < 0 || _selectedColor >= _displayPalette.Length) return;
-        SetPalette(_displayPalette.Where((_, index) => index != _selectedColor).ToArray());
     }
     private void SetPalette(uint[] colors)
     {
         colors = colors.Where(c => new SKColor(c).Alpha > 0).Distinct().ToArray();
         if (colors.Length is < 2 or > 256) { _status.Text = Localize.Text("A custom palette needs between 2 and 256 colors."); return; }
         _lockedColors.IntersectWith(colors); _transparentColors.IntersectWith(colors);
-        _changing = true; _custom = colors; _palette.SelectedIndex = (int)WebPalette.Custom; _colors.Value = Math.Min(256, colors.Length + (_transparent.IsChecked == true ? 1 : 0)); _changing = false; Queue();
+        _changing = true; _custom = colors; _palette.SelectedIndex = Array.IndexOf(Palettes, WebPalette.Custom); _colors.Value = Math.Min(256, colors.Length + (_transparent.IsChecked == true ? 1 : 0)); _changing = false; Queue();
     }
     private async Task LoadPalette()
     {
@@ -310,13 +210,13 @@ internal sealed partial class WebExportDialog : DialogWindow
     {
         _changing = true;
         _width.Value = options.Width; _height.Value = options.Height; _format.SelectedIndex = (int)options.Format;
-        _quality.Value = options.Quality; _colors.Value = options.Colors; _palette.SelectedIndex = (int)options.Palette;
+        _quality.Value = options.Quality; _colors.Value = options.Colors; _palette.SelectedIndex = Array.IndexOf(Palettes, options.Palette); _lossy.Value = options.Lossy; _alphaAmount.Value = options.AlphaDitherAmount;
         _dither.SelectedIndex = (int)options.Dither; _alphaDither.SelectedIndex = (int)options.AlphaDither; _amount.Value = options.DitherAmount; _snap.Value = options.WebSnap;
         _transparent.IsChecked = options.Transparency; _interlaced.IsChecked = options.Interlaced; _srgb.IsChecked = options.ConvertToSrgb; _icc.IsChecked = options.EmbedProfile;
         _resample.SelectedIndex = (int)options.Resample; _metadata.SelectedIndex = (int)options.Metadata; _custom = options.CustomPalette ?? [];
         _lockedColors.Clear(); _lockedColors.UnionWith(options.LockedColors ?? []);
         _transparentColors.Clear(); _transparentColors.UnionWith(options.TransparentColors ?? []);
-        var c = options.Matte ?? SKColors.White; _matte.Text = $"#{c.Red:X2}{c.Green:X2}{c.Blue:X2}";
+        SetMatte(options.Matte ?? SKColors.White);
         _changing = false;
     }
     private sealed record SavedSettings(int Version, WebExportOptions Options, string Matte);
@@ -342,15 +242,6 @@ internal sealed partial class WebExportDialog : DialogWindow
             var options = settings.Options with { Matte = color }; options.Validate(); Apply(options); Queue();
         }
         catch (Exception error) { _status.Text = Localize.Text(error.Message); }
-    }
-    private async Task Optimize()
-    {
-        if (_rendering || _closed) return;
-        var dialog = new FormDialog("Optimize File Size", 420, 250); var size = dialog.Number("Target Size (KB)", 32, 1, 1024000);
-        dialog.Description("JPEG quality or the adaptive color count is reduced. Dimensions are preserved.");
-        if (!await dialog.ShowDialog<bool>(this) || _closed) return;
-        _timer.Stop(); _revision++; _save.IsEnabled = false; _status.Text = Localize.Text("Rendering preview…");
-        await RenderPreview((long)(size.Value ?? 32) * 1024);
     }
     private async Task Save()
     {

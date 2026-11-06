@@ -14,7 +14,7 @@ public sealed partial class MainWindow
         var completed = 0;
         try
         {
-            var dialog = new WebExportDialog(lease.Document);
+            var dialog = new WebExportDialog(lease.Document) { DocumentName = _open?.Name ?? Localize.Text("Untitled") };
             await dialog.ShowDialog(this);
             completed = dialog.CompletedExports;
         }

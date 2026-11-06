@@ -75,7 +75,7 @@ public static class ScriptEvents
     ];
 
     public static IReadOnlyList<EventScript> Scripts { get; } = Enum.GetValues<EventScript>();
-    public static IReadOnlyList<BatchAction> Actions { get; } = Enum.GetValues<BatchAction>().Where(a => a != BatchAction.None).ToArray();
+    public static IReadOnlyList<BatchAction> Actions { get; } = Enum.GetValues<BatchAction>().Where(a => a is not (BatchAction.None or BatchAction.FitLong1920 or BatchAction.FitLong1280 or BatchAction.FitLong640)).ToArray();
 
     private static readonly JsonSerializerOptions Json = new()
     {

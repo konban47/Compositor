@@ -27,13 +27,13 @@ internal sealed class AutomationDialog : DialogWindow
     private readonly IReadOnlyList<AutomationSource> _open;
     private readonly Func<AutomationJob, CancellationToken, Task> _run;
     private readonly List<AutomationSource> _sources = [];
-    private readonly ListBox _list = new() { MinHeight = 160, SelectionMode = SelectionMode.Multiple, Tag = "Automation sources" };
-    private readonly ComboBox _sourceType = Choice(["Files", "Folder", "Open Documents"], 0, "Source type");
+    private readonly ListBox _list = new() { SelectionMode = SelectionMode.Multiple, Tag = "Automation sources" };
+    private readonly ComboBox _sourceType = Choice(["Files", DialogKit.FolderWord, "Open Documents"], 0, "Source type");
     private readonly CheckBox _recursive = Check("Include Subfolders", false);
     private readonly CheckBox _autoAlign = Check("Attempt to Automatically Align Source Images", false);
     private readonly CheckBox _createSmartObject = Check("Create Smart Object after Loading Layers", false);
     private readonly TextBlock _status = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap, MinHeight = 36 };
-    private readonly StackPanel _body = new() { Spacing = 14 };
+    private readonly StackPanel _body = new() { Spacing = 6 };
     private readonly Button _execute;
     private readonly Button _cancel;
     private CancellationTokenSource? _cancellation;
@@ -41,10 +41,10 @@ internal sealed class AutomationDialog : DialogWindow
     private readonly ComboBox _units = Choice(["Inches", "Centimeters", "Pixels"], 1, "Document units");
     private readonly NumericUpDown _width = Number(20.32, .01, 30000, "Document width");
     private readonly NumericUpDown _height = Number(25.4, .01, 30000, "Document height");
-    private readonly NumericUpDown _resolution = Number(300, 1, 9600, "Resolution");
-    private readonly ComboBox _resolutionUnits = Choice(["Pixels/Inch", "Pixels/Centimeter"], 0, "Resolution units");
+    private readonly NumericUpDown _resolution = Number(118.11, .4, 3780, "Resolution");
+    private readonly ComboBox _resolutionUnits = Choice(["Pixels/Inch", "Pixels/Centimeter"], 1, "Resolution units");
     private readonly ComboBox _mode = Choice(["Grayscale", "RGB Color", "CMYK Color", "Lab Color"], 1, "Contact color mode");
-    private readonly ComboBox _depth = Choice(["8 Bits/Channel", "16 Bits/Channel"], 0, "Contact bit depth");
+    private readonly ComboBox _depth = Choice(["8 Bit", "16 Bit"], 0, "Contact bit depth");
     private readonly ComboBox _profile = new() { MinHeight = 30, HorizontalAlignment = HorizontalAlignment.Stretch, Tag = "Contact color profile" };
     private readonly CheckBox _groupFolders = Check("Group Images by Folder", false);
     private readonly NumericUpDown _columns = Number(5, 1, 100, "Columns");
@@ -70,18 +70,18 @@ internal sealed class AutomationDialog : DialogWindow
     private readonly CheckBox _vignette = Check("Vignette Removal", false);
     private readonly CheckBox _distortion = Check("Geometric Distortion Correction", false);
     private readonly CheckBox _fillTransparent = Check("Content-Aware Fill Transparent Areas", false);
-    private readonly ComboBox _lensFormat = Choice(["PSD", "TIFF", "JPEG", "PNG"], 0, "Lens correction file type");
-    private readonly TextBlock _lensFolder = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap, Foreground = Skin.SecondaryBrush };
+    private readonly ComboBox _lensFormat = Choice(["JPG", "PNG", "PSD", "TIFF"], 2, "Lens correction file type");
+    private readonly TextBlock _lensFolder = new() { Foreground = Skin.SecondaryBrush }, _lensProfileName = new() { Foreground = Skin.SecondaryBrush };
     private readonly CheckBox _matchBest = Check("Match Best Profile", true);
     private readonly ComboBox _lensProfile = new() { MinHeight = 30, HorizontalAlignment = HorizontalAlignment.Stretch, IsEnabled = false, Tag = "Lens profile" };
     private readonly CheckBox _geometric = Check("Geometric Distortion", true), _autoScale = Check("Auto Scale Image", true),
         _aberration = Check("Chromatic Aberration", false), _lensVignette = Check("Vignette", false);
-    private readonly ComboBox _lensEdge = Choice(["Transparency", "Edge Extension", "Black", "White"], 0, "Lens correction edge");
+    private readonly ComboBox _lensEdge = Choice(["Edge Extension", "Transparency", "Black", "White"], 1, "Lens correction edge");
     private string? _destination;
     private readonly CheckBox _fileNames = Check("File Name", false);
     private readonly RadioButton _multiPage = new() { GroupName = "pdf-save-as", Content = Localize.Text("Multi-Page Document"), IsChecked = true, Tag = "pdf-multi-page" };
     private readonly RadioButton _presentation = new() { GroupName = "pdf-save-as", Content = Localize.Text("Presentation"), Tag = "pdf-presentation" };
-    private static readonly int[] PdfFontSizes = [6, 8, 10, 12, 14, 16];
+    internal static readonly int[] PdfFontSizes = [6, 8, 10, 12, 14, 16];
     private readonly ComboBox _pdfFontSize = Choice(PdfFontSizes.Select(size => size.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray(), 3, "PDF font size");
     private readonly CheckBox _pdfExtension = Check("Extension", false);
     private readonly CheckBox _pdfTitle = Check("Title", false);
@@ -96,118 +96,144 @@ internal sealed class AutomationDialog : DialogWindow
     private readonly ComboBox _transition = Choice(Enum.GetValues<PdfTransition>().Select(PdfSlideshow.TransitionName).ToArray(), 0, "PDF transition");
     private Control? _presentationOptions;
     private int _previousUnits = 1;
-    private int _previousResolutionUnits;
+    private int _previousResolutionUnits = 1;
     private static readonly ImageMode[] ContactModes = [ImageMode.Grayscale, ImageMode.RGB, ImageMode.CMYK, ImageMode.Lab];
 
     internal AutomationDialog(AutomationKind kind, IReadOnlyList<AutomationSource> open, Func<AutomationJob, CancellationToken, Task> run)
     {
         _kind = kind; _open = open; _run = run;
         Title = Localize.Text(kind switch { AutomationKind.ContactSheet => "Contact Sheet II", AutomationKind.LoadLayers => "Load Layers", AutomationKind.Statistics => "Image Statistics", AutomationKind.Photomerge => "Photomerge", AutomationKind.HdrPro => "Merge to HDR Pro", AutomationKind.LensCorrection => "Lens Correction", _ => "PDF Presentation" });
-        Width = kind == AutomationKind.PdfPresentation ? 1050 : kind == AutomationKind.Photomerge ? 980 : 900; Height = kind == AutomationKind.ContactSheet ? 900 : 620;
+        (Width, Height) = kind switch
+        {
+            AutomationKind.PdfPresentation => (1000d, 480d), AutomationKind.Photomerge => (860d, 790d), AutomationKind.ContactSheet => (800d, 800d),
+            AutomationKind.LensCorrection => (800d, 730d), AutomationKind.Statistics => (720d, 480d), _ => (720d, 500d),
+        };
         MinWidth = 640; MinHeight = 420; WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var root = new Grid { ColumnDefinitions = new ColumnDefinitions("*,150"), Margin = new Thickness(16) };
-        var scroll = new ScrollViewer { Content = _body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        root.Children.Add(scroll);
-        var actions = new StackPanel { Spacing = 12, Margin = new Thickness(18, 8, 0, 0) }; Grid.SetColumn(actions, 1); root.Children.Add(actions);
-        _execute = FormDialog.ActionButton(kind == AutomationKind.PdfPresentation ? "Save…" : "OK", () => _ = Execute());
-        _execute.Tag = "Run automation";
+        var root = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(16, 8, 16, 16) };
+        // The window is sized to what it holds; the scroll is there for a screen too short for it.
+        _scroll = new ScrollViewer { Content = _body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
+        root.Children.Add(_scroll);
+        _execute = FormDialog.ActionButton(kind == AutomationKind.PdfPresentation ? "Save" : "OK", () => _ = Execute()); _execute.Tag = "Run automation";
         _cancel = FormDialog.ActionButton("Cancel", Cancel);
-        actions.Children.Add(_execute); actions.Children.Add(_cancel);
+        var actions = DialogKit.ActionColumn(_execute, _cancel);
+        Grid.SetColumn(actions, 1); root.Children.Add(actions);
         if (kind == AutomationKind.ContactSheet)
         {
-            actions.Children.Add(new Border { Height = 16 });
-            actions.Children.Add(FormDialog.ActionButton("Load…", () => _ = LoadSettings()));
-            actions.Children.Add(FormDialog.ActionButton("Save…", () => _ = SaveSettings()));
-            actions.Children.Add(FormDialog.ActionButton("Reset…", () => ApplySettings(new ContactSheetOptions(AutoSpacing: true, DisplayUnit: ContactSheetUnit.Centimeters))));
+            actions.Children.Add(new Border { Height = 24 });
+            foreach (var button in new[] { FormDialog.ActionButton("Load…", () => _ = LoadSettings()), FormDialog.ActionButton("Save…", () => _ = SaveSettings()),
+                FormDialog.ActionButton("Reset…", () => ApplySettings(new ContactSheetOptions(AutoSpacing: true, DisplayUnit: ContactSheetUnit.Centimeters))) })
+            { button.Margin = default; button.HorizontalAlignment = HorizontalAlignment.Stretch; actions.Children.Add(button); }
+            actions.Children.Add(new TextBlock { Text = Localize.Text("Press the ESC key to Cancel processing images"), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Foreground = Skin.SecondaryBrush, Margin = new Thickness(0, 12, 0, 0) });
         }
         actions.Children.Add(_status);
-        if (kind == AutomationKind.Statistics) _body.Children.Add(Row("Stack Mode", _statistic));
-        var sourcePanel = SourcesPanel();
-        if (kind == AutomationKind.PdfPresentation)
+        switch (kind)
         {
-            var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 16 };
-            columns.Children.Add(Group("Source Files", sourcePanel));
-            var right = new StackPanel { Spacing = 14 }; Grid.SetColumn(right, 1); columns.Children.Add(right);
-            right.Children.Add(Group("Output Options", PdfOutputPanel()));
-            right.Children.Add(_presentationOptions = Group("Presentation Options", PdfPresentationPanel()));
-            _body.Children.Add(columns);
-            _multiPage.IsCheckedChanged += (_, _) => UpdatePdfOptions();
-            _presentation.IsCheckedChanged += (_, _) => UpdatePdfOptions();
-            _fileNames.IsCheckedChanged += (_, _) => UpdatePdfOptions();
-            _advance.IsCheckedChanged += (_, _) => UpdatePdfOptions();
-            UpdatePdfOptions();
-        }
-        else if (kind == AutomationKind.LensCorrection)
-        {
-            // Source files, destination, profiles and options, top to bottom as the reference has them.
-            sourcePanel.Children.Insert(0, new TextBlock { Text = Localize.Text("Select the files to process with lens correction."), TextWrapping = Avalonia.Media.TextWrapping.Wrap });
-            _body.Children.Add(Group("Source Files", sourcePanel));
-            var destination = new StackPanel { Spacing = 8 };
-            destination.Children.Add(Row("File Type", _lensFormat));
-            var choose = FormDialog.ActionButton("Choose…", () => _ = ChooseDestination()); choose.HorizontalAlignment = HorizontalAlignment.Left;
-            destination.Children.Add(choose); destination.Children.Add(_lensFolder);
-            _body.Children.Add(Group("Destination Folder", destination));
-            var profiles = new StackPanel { Spacing = 8 };
-            profiles.Children.Add(_matchBest); profiles.Children.Add(_lensProfile);
-            _body.Children.Add(Group("Lens Correction Profiles", profiles));
-            var options = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), ColumnSpacing = 24, RowSpacing = 8 };
-            Control[] cells = [_geometric, _autoScale, _aberration, Row("Edge", _lensEdge), _lensVignette];
-            for (var i = 0; i < cells.Length; i++) { Grid.SetRow(cells[i], i / 2); Grid.SetColumn(cells[i], i % 2); options.Children.Add(cells[i]); }
-            _body.Children.Add(Group("Correction Options", options));
-            _matchBest.IsCheckedChanged += (_, _) => { _lensProfile.IsEnabled = _matchBest.IsChecked != true; UpdateAvailability(); };
-            _lensProfile.ItemsSource = Compositor.Core.Document.LensDatabase.Bundled().Lenses.Select(l => l.Name).Distinct().Order(StringComparer.OrdinalIgnoreCase).ToArray();
-            _lensProfile.SelectionChanged += (_, _) => UpdateAvailability();
-            _lensFolder.Text = Localize.Text("No destination folder chosen.");
-        }
-        else if (kind == AutomationKind.Photomerge)
-        {
-            // Layout on the left, the source files and the four options on the right, as the reference lays them out.
-            var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("170,*"), ColumnSpacing = 16 };
-            var layouts = new StackPanel { Spacing = 10 };
-            foreach (var layout in _layouts) layouts.Children.Add(new StackPanel { Spacing = 4, Children = { layout, LayoutIcon((string)layout.Tag!) } });
-            columns.Children.Add(Group("Layout", layouts));
-            var right = new StackPanel { Spacing = 10 }; Grid.SetColumn(right, 1); columns.Children.Add(right);
-            right.Children.Add(Group("Source Files", sourcePanel));
-            foreach (var option in new[] { _blendImages, _vignette, _distortion, _fillTransparent }) right.Children.Add(option);
-            _body.Children.Add(columns);
-        }
-        else
-        {
-            _body.Children.Add(Group("Source Images", sourcePanel));
-            if (kind == AutomationKind.ContactSheet) BuildContactSettings();
+            case AutomationKind.PdfPresentation:
+                var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 16 };
+                columns.Children.Add(DialogKit.Group("Source Files", SourcesPanel()));
+                var right = new StackPanel { Spacing = 8 }; Grid.SetColumn(right, 1); columns.Children.Add(right);
+                right.Children.Add(DialogKit.Group("Output Options", PdfOutputPanel()));
+                right.Children.Add(_presentationOptions = DialogKit.Group("Presentation Options", PdfPresentationPanel()));
+                _body.Children.Add(columns);
+                _multiPage.IsCheckedChanged += (_, _) => UpdatePdfOptions();
+                _presentation.IsCheckedChanged += (_, _) => UpdatePdfOptions();
+                _fileNames.IsCheckedChanged += (_, _) => UpdatePdfOptions();
+                _advance.IsCheckedChanged += (_, _) => UpdatePdfOptions();
+                UpdatePdfOptions();
+                break;
+            case AutomationKind.LensCorrection: BuildLensCorrection(); break;
+            case AutomationKind.Photomerge: BuildPhotomerge(); break;
+            case AutomationKind.ContactSheet: _body.Children.Add(DialogKit.Group("Source Images", ContactSources())); BuildContactSettings(); break;
+            case AutomationKind.Statistics:
+                _statistic.Width = 340; _statistic.HorizontalAlignment = HorizontalAlignment.Left;
+                var mode = new Grid { ColumnDefinitions = new ColumnDefinitions("150,*"), ColumnSpacing = 8, Margin = new Thickness(0, 0, 0, 6) };
+                mode.Children.Add(DialogKit.Label("Choose Stack Mode", HorizontalAlignment.Right)); Grid.SetColumn(_statistic, 1); mode.Children.Add(_statistic);
+                _body.Children.Add(mode);
+                _body.Children.Add(DialogKit.Group("Source Files", SourcesPanel("Choose two or more files to compute statistics on.")));
+                break;
+            case AutomationKind.LoadLayers: _body.Children.Add(DialogKit.Group("Source Files", SourcesPanel("Choose two or more files to load into an image stack."))); break;
+            default: _body.Children.Add(DialogKit.Group("Source Files", SourcesPanel("Choose two or more files to merge."))); break;
         }
         _sourceType.SelectionChanged += (_, _) =>
         {
-            if (_sourceType.SelectedIndex == 2) AddOpen();
-            _recursive.IsEnabled = _sourceType.SelectedIndex == 1;
+            if (_kind == AutomationKind.ContactSheet) ShowContactSource();
+            else if (_sourceType.SelectedIndex == 2) AddOpen();
         };
-        _recursive.IsEnabled = false;
         _list.SelectionChanged += (_, _) => UpdateAvailability();
         KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) { Cancel(); e.Handled = true; } };
         Closing += (_, e) => { if (_running) { e.Cancel = true; Cancel(); } };
         Content = root; UpdateAvailability();
     }
+    private readonly ScrollViewer _scroll;
+    /// <summary>What the self check reads: true when everything fits without scrolling.</summary>
+    internal bool FitsWithoutScrolling => _scroll.Extent.Height <= _scroll.Viewport.Height + 1 && _scroll.Extent.Width <= _scroll.Viewport.Width + 1;
 
-    /// <summary>Save As, background, font size and the caption fields, laid out as in the reference dialog.</summary>
+    /// <summary>Source files, destination, profile and options, top to bottom, as Photoshop's Lens Correction lays them out.</summary>
+    private void BuildLensCorrection()
+    {
+        _body.Children.Add(DialogKit.Group("Source Files", SourcesPanel("Choose the files to process with lens correction.")));
+        _lensFormat.Width = 110; _lensFormat.HorizontalAlignment = HorizontalAlignment.Left;
+        var destination = new StackPanel { Spacing = 8 };
+        destination.Children.Add(DialogKit.Row("File Type", _lensFormat));
+        var choose = FormDialog.ActionButton("Choose…", () => _ = ChooseDestination()); choose.HorizontalAlignment = HorizontalAlignment.Left; choose.Margin = default; choose.Width = 130;
+        destination.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Children = { this.Mnemonic(choose, 'H'), _lensFolder } });
+        _lensFolder.VerticalAlignment = VerticalAlignment.Center; _lensFolder.Text = Localize.Text("No destination folder chosen.");
+        _body.Children.Add(DialogKit.Group("Destination Folder", destination));
+        var profiles = new StackPanel { Spacing = 8 };
+        var pick = FormDialog.ActionButton("Choose…", () => _ = ChooseLensProfile()); pick.HorizontalAlignment = HorizontalAlignment.Left; pick.Margin = default; pick.Width = 130; pick.IsEnabled = false;
+        profiles.Children.Add(this.Mnemonic(_matchBest, 'M'));
+        profiles.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Children = { this.Mnemonic(pick, 'O'), _lensProfileName } });
+        _lensProfileName.VerticalAlignment = VerticalAlignment.Center;
+        _body.Children.Add(DialogKit.Group("Lens Correction Profiles", profiles));
+        _lensEdge.Width = 150; _lensEdge.HorizontalAlignment = HorizontalAlignment.Left;
+        var edge = DialogKit.Row("Edge", _lensEdge, 40);
+        var options = DialogKit.Columns("Auto,*", 28, this.Mnemonic(_geometric, 'D'), this.Mnemonic(_autoScale, 'S'), this.Mnemonic(_aberration, 'C'), edge, this.Mnemonic(_lensVignette, 'V'));
+        _body.Children.Add(DialogKit.Group("Correction Options", options));
+        _matchBest.IsCheckedChanged += (_, _) => { pick.IsEnabled = _lensProfile.IsEnabled = _matchBest.IsChecked != true; UpdateAvailability(); };
+        _lensProfile.ItemsSource = Compositor.Core.Document.LensDatabase.Bundled().Lenses.Select(l => l.Name).Distinct().Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        _lensProfile.SelectionChanged += (_, _) => { _lensProfileName.Text = _lensProfile.SelectedItem as string ?? ""; UpdateAvailability(); };
+    }
+
+    /// <summary>The lenses are thousands long, so choosing one is a searchable list of its own.</summary>
+    private async Task ChooseLensProfile()
+    {
+        var names = _lensProfile.ItemsSource as string[] ?? [];
+        var dialog = new FormDialog("Lens Correction Profiles", 560, 520);
+        var search = dialog.Text("Search", "");
+        var list = new ListBox { Height = 340, ItemsSource = names, SelectedItem = _lensProfile.SelectedItem, Tag = "Lens profile list" };
+        search.TextChanged += (_, _) => list.ItemsSource = names.Where(n => n.Contains(search.Text ?? "", StringComparison.OrdinalIgnoreCase)).ToArray();
+        dialog.Fields.Children.Add(list);
+        if (await dialog.ShowDialog<bool>(this) && list.SelectedItem is string chosen) _lensProfile.SelectedItem = chosen;
+    }
+
+    /// <summary>The layouts down the left, the source files and the four options on the right, as Photoshop's Photomerge has them.</summary>
+    private void BuildPhotomerge()
+    {
+        var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("170,*"), ColumnSpacing = 14 };
+        var layouts = new StackPanel { Spacing = 4 };
+        foreach (var layout in _layouts) { layouts.Children.Add(layout); layouts.Children.Add(LayoutIcon((string)layout.Tag!)); }
+        columns.Children.Add(DialogKit.Group("Layout", layouts));
+        var right = SourcesPanel();
+        foreach (var option in new[] { _blendImages, _vignette, _distortion, _fillTransparent }) right.Children.Add(option);
+        var source = DialogKit.Group("Source Files", right); Grid.SetColumn(source, 1); columns.Children.Add(source);
+        _body.Children.Add(columns);
+    }
+
+    /// <summary>Save As, background, font size and the caption fields, laid out as in Photoshop's dialog.</summary>
     private Control PdfOutputPanel()
     {
-        var panel = new StackPanel { Spacing = 10 };
-        var saveAs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 18 };
-        saveAs.Children.Add(new TextBlock { Text = Localize.Text("Save As") + ":", VerticalAlignment = VerticalAlignment.Center }); saveAs.Children.Add(_multiPage); saveAs.Children.Add(_presentation);
-        panel.Children.Add(saveAs);
-        // Labels size to their text so both choices keep a readable width in the half-width output group.
-        var look = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,*"), ColumnSpacing = 10 };
-        Control[] cells = [Label("Background"), _background, Label("Font Size"), _pdfFontSize];
-        for (var column = 0; column < cells.Length; column++) { Grid.SetColumn(cells[column], column); look.Children.Add(cells[column]); }
-        _background.HorizontalAlignment = _pdfFontSize.HorizontalAlignment = HorizontalAlignment.Stretch;
-        panel.Children.Add(look);
+        var panel = new StackPanel { Spacing = 8 };
+        panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14, Children = { DialogKit.Label("Save As"), this.Mnemonic(_multiPage, 'M'), this.Mnemonic(_presentation, 'P') } });
+        _background.Width = 100; _pdfFontSize.Width = 72;
+        panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(36, 0, 0, 0), Children = { DialogKit.Label("Background"), _background, new Border { Width = 24 }, DialogKit.Label("Font Size"), _pdfFontSize } });
         ToolTip.SetTip(_pdfNotes, Localize.Text("Writes the notes of open documents as PDF comments where they sit on the picture."));
-        var include = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto"), ColumnSpacing = 14, RowSpacing = 8 };
-        include.Children.Add(new TextBlock { Text = Localize.Text("Include") + ":", VerticalAlignment = VerticalAlignment.Center });
-        CheckBox[] fields = [_fileNames, _pdfExtension, _pdfTitle, _pdfDescription, _pdfAuthor, _pdfCopyright, _pdfExif, _pdfNotes];
+        var include = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto"), ColumnSpacing = 14, RowSpacing = 4 };
+        include.Children.Add(DialogKit.Label("Include"));
+        (CheckBox Check, char Key)[] fields = [(_fileNames, 'F'), (_pdfExtension, 'N'), (_pdfTitle, 'I'), (_pdfDescription, 'C'), (_pdfAuthor, 'U'), (_pdfCopyright, 'Y'), (_pdfExif, 'X'), (_pdfNotes, 'A')];
         for (var index = 0; index < fields.Length; index++)
         {
-            Grid.SetRow(fields[index], index / 2); Grid.SetColumn(fields[index], 1 + index % 2); include.Children.Add(fields[index]);
+            var check = fields[index].Check; if (fields[index].Key != 'A') this.Mnemonic(check, fields[index].Key);
+            Grid.SetRow(check, index / 2); Grid.SetColumn(check, 1 + index % 2); include.Children.Add(check);
         }
         panel.Children.Add(include);
         return panel;
@@ -215,11 +241,12 @@ internal sealed class AutomationDialog : DialogWindow
 
     private Control PdfPresentationPanel()
     {
-        var panel = new StackPanel { Spacing = 10 };
-        var advance = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        _advanceSeconds.Width = 70;
-        advance.Children.Add(_advance); advance.Children.Add(_advanceSeconds); advance.Children.Add(Label("Seconds"));
-        panel.Children.Add(advance); panel.Children.Add(_loop); panel.Children.Add(Row("Transition", _transition));
+        var panel = new StackPanel { Spacing = 6 };
+        _advanceSeconds.Width = 56;
+        panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Children = { this.Mnemonic(_advance, 'E'), _advanceSeconds, Label("Seconds") } });
+        panel.Children.Add(this.Mnemonic(_loop, 'L'));
+        _transition.Width = 170; _transition.HorizontalAlignment = HorizontalAlignment.Left;
+        panel.Children.Add(DialogKit.Row("Transition", _transition, 72));
         return panel;
     }
 
@@ -244,64 +271,120 @@ internal sealed class AutomationDialog : DialogWindow
             (PdfTransition)Math.Max(0, _transition.SelectedIndex), captions, _pdfNotes.IsChecked == true);
     }
 
-    private StackPanel SourcesPanel()
+    /// <summary>"Use: Files", the list and its buttons, and what each operation adds under them. PDF Presentation has a check box
+    /// in place of the "Use" row, as Photoshop's does.</summary>
+    private StackPanel SourcesPanel(string? description = null)
     {
-        var panel = new StackPanel { Spacing = 10 };
-        panel.Children.Add(Row("Use", _sourceType));
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,180"), ColumnSpacing = 12 };
-        grid.Children.Add(_list);
-        var buttons = new StackPanel { Spacing = 10 }; Grid.SetColumn(buttons, 1); grid.Children.Add(buttons);
-        buttons.Children.Add(FormDialog.ActionButton("Browse…", () => _ = Browse()));
-        buttons.Children.Add(FormDialog.ActionButton("Remove", () =>
+        var panel = new StackPanel { Spacing = 8 };
+        if (description is not null) panel.Children.Add(new TextBlock { Text = Localize.Text(description), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Foreground = Skin.SecondaryBrush, Margin = new Thickness(0, 0, 0, 8) });
+        if (_kind == AutomationKind.PdfPresentation)
         {
-            var indices = _list.SelectedItems?.Cast<SourceRow>().Select(r => r.Source).ToArray() ?? [];
-            foreach (var item in indices) _sources.Remove(item); RefreshSources();
-        }));
-        var addOpen = FormDialog.ActionButton("Add Open Files", AddOpen); addOpen.IsEnabled = _open.Count > 0; buttons.Children.Add(addOpen);
-        if (_kind == AutomationKind.PdfPresentation) buttons.Children.Add(FormDialog.ActionButton("Duplicate", () =>
-        { if (_list.SelectedItem is SourceRow selected) { _sources.Insert(_sources.IndexOf(selected.Source) + 1, selected.Source); RefreshSources(); } }));
-        buttons.Children.Add(FormDialog.ActionButton("Sort by Name", () => { _sources.Sort((a, b) => StringComparer.CurrentCultureIgnoreCase.Compare(a.Name, b.Name)); RefreshSources(); }));
-        panel.Children.Add(grid); panel.Children.Add(_recursive);
-        if (_kind == AutomationKind.ContactSheet) panel.Children.Add(_groupFolders);
+            var addOpen = this.Mnemonic(Check("Add Open Files", false), 'O');
+            addOpen.IsEnabled = _open.Count > 0;
+            addOpen.IsCheckedChanged += (_, _) => { if (addOpen.IsChecked == true) AddOpen(); else { _sources.RemoveAll(s => _open.Contains(s)); RefreshSources(); } };
+            panel.Children.Add(addOpen);
+        }
+        else
+        {
+            _sourceType.ItemsSource = new[] { Localize.Text("Files"), Localize.Text(DialogKit.FolderWord) }; _sourceType.SelectedIndex = 0;
+            _sourceType.Width = 300; _sourceType.HorizontalAlignment = HorizontalAlignment.Left;
+            panel.Children.Add(DialogKit.Row("Use", _sourceType, 40));
+        }
+        panel.Children.Add(SourceList());
         if (_kind is AutomationKind.LoadLayers or AutomationKind.Statistics or AutomationKind.HdrPro)
         {
             ToolTip.SetTip(_autoAlign, Localize.Text("Aligns translation. Image statistics uses the common overlapping area."));
-            panel.Children.Add(_autoAlign);
+            panel.Children.Add(this.Mnemonic(_autoAlign, 'A'));
         }
-        if (_kind == AutomationKind.LoadLayers) panel.Children.Add(_createSmartObject);
+        if (_kind == AutomationKind.LoadLayers) panel.Children.Add(this.Mnemonic(_createSmartObject, 'C'));
         return panel;
+    }
+
+    private Grid SourceList()
+    {
+        _list.Height = _kind switch { AutomationKind.PdfPresentation => 330, AutomationKind.Photomerge => 450, AutomationKind.ContactSheet => 120, AutomationKind.LensCorrection => 170, _ => 210 };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 14 };
+        grid.Children.Add(new Border { BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(1), Child = _list });
+        var buttons = new StackPanel { Spacing = 10, Width = _kind == AutomationKind.PdfPresentation ? 130 : 180, VerticalAlignment = _kind == AutomationKind.PdfPresentation ? VerticalAlignment.Center : VerticalAlignment.Top }; Grid.SetColumn(buttons, 1); grid.Children.Add(buttons);
+        void Add(Button button, char key) { button.Margin = default; button.HorizontalAlignment = HorizontalAlignment.Stretch; buttons.Children.Add(this.Mnemonic(button, key)); }
+        Add(FormDialog.ActionButton("Browse…", () => _ = Browse()), 'B');
+        if (_kind == AutomationKind.PdfPresentation) Add(_duplicate = FormDialog.ActionButton("Duplicate", () =>
+        { if (_list.SelectedItem is SourceRow selected) { _sources.Insert(_sources.IndexOf(selected.Source) + 1, selected.Source); RefreshSources(); } }), 'D');
+        Add(_remove = FormDialog.ActionButton("Remove", () =>
+        {
+            var indices = _list.SelectedItems?.Cast<SourceRow>().Select(r => r.Source).ToArray() ?? [];
+            foreach (var item in indices) _sources.Remove(item); RefreshSources();
+        }), 'R');
+        if (_kind != AutomationKind.PdfPresentation)
+        {
+            var addOpen = FormDialog.ActionButton("Add Open Files", AddOpen); addOpen.IsEnabled = _open.Count > 0; Add(addOpen, 'F');
+        }
+        if (_kind is not (AutomationKind.Photomerge or AutomationKind.LensCorrection))
+            Add(_sort = FormDialog.ActionButton("Sort by Name", () => { _sources.Sort((a, b) => StringComparer.CurrentCultureIgnoreCase.Compare(a.Name, b.Name)); RefreshSources(); }), 'S');
+        return grid;
+    }
+    private Button? _duplicate, _remove, _sort;
+
+    /// <summary>Contact Sheet's sources: a folder is a path beside Choose, files are a list, and open documents need neither.</summary>
+    private Control ContactSources()
+    {
+        var panel = new StackPanel { Spacing = 8, MinHeight = 196 };
+        _sourceType.Width = 190; _sourceType.HorizontalAlignment = HorizontalAlignment.Left;
+        panel.Children.Add(DialogKit.Row("Use", _sourceType, 90));
+        var choose = FormDialog.ActionButton("Choose…", () => _ = Browse()); choose.Margin = default; choose.Width = 120;
+        Grid.SetColumn(_folderPath, 1);
+        _contactFolder = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8, Children = { choose, _folderPath } };
+        _contactFiles = SourceList();
+        panel.Children.Add(_contactFolder); panel.Children.Add(_contactFiles);
+        panel.Children.Add(_recursive); panel.Children.Add(_groupFolders);
+        _recursive.IsCheckedChanged += (_, _) => { if (_folder is { } folder && _sourceType.SelectedIndex == 1) _ = LoadFolder(folder); };
+        _sourceType.SelectedIndex = 1; _recursive.IsChecked = true;
+        ShowContactSource();
+        return panel;
+    }
+    private Control? _contactFolder, _contactFiles;
+    private string? _folder;
+    private readonly TextBox _folderPath = new() { IsReadOnly = true, Tag = "Contact folder", VerticalAlignment = VerticalAlignment.Center, Text = "[" + Localize.Text("Choose Image Folder") + "]" };
+
+    private void ShowContactSource()
+    {
+        if (_contactFolder is null || _contactFiles is null) return;
+        var use = _sourceType.SelectedIndex;
+        _contactFolder.IsVisible = _recursive.IsVisible = use == 1; _contactFiles.IsVisible = use == 0;
+        _sources.Clear(); if (use == 2) AddOpen(); else if (use == 1 && _folder is { } folder) _ = LoadFolder(folder); else RefreshSources();
+    }
+
+    private async Task LoadFolder(string folder)
+    {
+        _folder = folder; _folderPath.Text = folder;
+        var recursive = _recursive.IsChecked == true;
+        var paths = await Task.Run(() => FileAutomation.EnumerateImages(folder, recursive));
+        _sources.Clear();
+        foreach (var path in paths) _sources.Add(new AutomationSource(Path.GetFileName(path), path));
+        RefreshSources();
     }
 
     private void BuildContactSettings()
     {
-        _sourceType.SelectedIndex = 1; _recursive.IsChecked = true;
-        var document = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 20 };
-        var left = new StackPanel { Spacing = 10 }; var right = new StackPanel { Spacing = 10 }; Grid.SetColumn(right, 1);
-        left.Children.Add(Row("Units", _units)); left.Children.Add(Row("Width", _width)); left.Children.Add(Row("Height", _height));
-        var resolution = new Grid { ColumnDefinitions = new("*,*"), ColumnSpacing = 6 };
-        resolution.Children.Add(_resolution); Grid.SetColumn(_resolutionUnits, 1); resolution.Children.Add(_resolutionUnits);
-        left.Children.Add(Row("Resolution", resolution)); left.Children.Add(Row("Color Profile", _profile));
-        right.Children.Add(_flatten); right.Children.Add(Row("Mode", _mode)); right.Children.Add(Row("Bit Depth", _depth));
-        document.Children.Add(left); document.Children.Add(right); _body.Children.Add(Group("Document", document));
-        var thumbnails = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 20 };
-        var a = new StackPanel { Spacing = 10 }; var b = new StackPanel { Spacing = 10 }; Grid.SetColumn(b, 1);
-        a.Children.Add(Row("Place", _order)); a.Children.Add(Row("Columns", _columns)); a.Children.Add(Row("Rows", _rows)); a.Children.Add(_rotate);
-        Grid SpacingInput(NumericUpDown value, TextBlock unit)
-        {
-            var input = new Grid { ColumnDefinitions = new("*,Auto"), ColumnSpacing = 6 };
-            input.Children.Add(value); Grid.SetColumn(unit, 1); input.Children.Add(unit); return input;
-        }
+        Control Field(Control field, double width) { field.Width = width; field.HorizontalAlignment = HorizontalAlignment.Left; return field; }
+        const double label = 90;
+        var resolution = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { Field(_resolution, 100), Field(_resolutionUnits, 150) } };
+        var documentLeft = new StackPanel { Spacing = 6, Children = { DialogKit.Row("Units", Field(_units, 150), label), DialogKit.Row("Width", Field(_width, 100), label), DialogKit.Row("Height", Field(_height, 100), label), DialogKit.Row("Resolution", resolution, label), DialogKit.Row("Color Profile", Field(_profile, 210), label) } };
+        var documentRight = new StackPanel { Spacing = 6, Children = { _flatten, DialogKit.Row("Mode", Field(_mode, 150), 76), DialogKit.Row("Bit Depth", Field(_depth, 150), 76) } };
+        _body.Children.Add(DialogKit.Group("Document", DialogKit.Columns("*,*", 16, documentLeft, documentRight)));
+        documentLeft.VerticalAlignment = documentRight.VerticalAlignment = VerticalAlignment.Top;
+        Control Spacing(NumericUpDown value, TextBlock unit) => new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { Field(value, 90), unit } };
         _horizontal.Value /= (decimal)UnitFactor(_units.SelectedIndex); _vertical.Value /= (decimal)UnitFactor(_units.SelectedIndex);
-        b.Children.Add(_automatic); b.Children.Add(Row("Vertical", SpacingInput(_vertical, _verticalUnit))); b.Children.Add(Row("Horizontal", SpacingInput(_horizontal, _horizontalUnit)));
-        thumbnails.Children.Add(a); thumbnails.Children.Add(b); _body.Children.Add(Group("Thumbnails", thumbnails));
+        var left = new StackPanel { Spacing = 6, Children = { DialogKit.Row("Place", Field(_order, 150), label), DialogKit.Row("Columns", Field(_columns, 74), label), DialogKit.Row("Rows", Field(_rows, 74), label), _rotate } };
+        var right = new StackPanel { Spacing = 6, Children = { _automatic, DialogKit.Row("Vertical", Spacing(_vertical, _verticalUnit), 76), DialogKit.Row("Horizontal", Spacing(_horizontal, _horizontalUnit), 76) } };
+        _body.Children.Add(DialogKit.Group("Thumbnails", DialogKit.Columns("*,*", 16, left, right)));
+        left.VerticalAlignment = right.VerticalAlignment = VerticalAlignment.Top;
         _font.ItemsSource = FontCatalog.Families;
         _font.SelectionChanged += (_, _) => RefreshCaptionStyles();
         _font.SelectedItem = FontCatalog.Families.FirstOrDefault(name => name == "Arial") ?? FontCatalog.Families.FirstOrDefault();
-        var caption = new Grid { ColumnDefinitions = new("Auto,2*,1.5*,70,Auto"), ColumnSpacing = 8 };
-        _captions.Content = Label("Font");
-        Control[] captionControls = [_captions, _font, _fontStyle, _fontSize, Label("pt")];
-        for (var index = 0; index < captionControls.Length; index++) { Grid.SetColumn(captionControls[index], index); caption.Children.Add(captionControls[index]); }
-        _body.Children.Add(Group("Use Filename as Caption", caption));
+        _captions.Content = null; _captions.MinWidth = 0;
+        var caption = DialogKit.Columns("Auto,Auto,2*,1.4*,56,Auto", 8, _captions, DialogKit.Label("Font"), _font, _fontStyle, _fontSize, Label("pt"));
+        _body.Children.Add(DialogKit.Group("Use Filename as Caption", caption));
         _automatic.IsCheckedChanged += (_, _) => { _horizontal.IsEnabled = _vertical.IsEnabled = _automatic.IsChecked != true; };
         _horizontal.IsEnabled = _vertical.IsEnabled = false;
         _captions.IsCheckedChanged += (_, _) => { _font.IsEnabled = _fontStyle.IsEnabled = _fontSize.IsEnabled = _captions.IsChecked == true; };
@@ -357,6 +440,7 @@ internal sealed class AutomationDialog : DialogWindow
             {
                 var folder = (await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = Localize.Text("Source Images") })).FirstOrDefault()?.TryGetLocalPath();
                 if (folder is null) return;
+                if (_kind == AutomationKind.ContactSheet) { await LoadFolder(folder); return; }
                 var recursive = _recursive.IsChecked == true;
                 paths = await Task.Run(() => FileAutomation.EnumerateImages(folder, recursive));
             }
@@ -371,8 +455,13 @@ internal sealed class AutomationDialog : DialogWindow
     private void AddOpen() { foreach (var source in _open) if (!_sources.Contains(source)) _sources.Add(source); RefreshSources(); }
     private sealed record SourceRow(AutomationSource Source) { public override string ToString() => Source.Name; }
     private void RefreshSources() { _list.ItemsSource = _sources.Select(s => new SourceRow(s)).ToArray(); UpdateAvailability(); }
-    private void UpdateAvailability() => _execute.IsEnabled = !_running && _sources.Count >= (_kind is AutomationKind.Statistics or AutomationKind.Photomerge or AutomationKind.HdrPro ? 2 : 1)
-        && (_kind != AutomationKind.LensCorrection || _destination is not null && (_matchBest.IsChecked == true || _lensProfile.SelectedItem is not null));
+    private void UpdateAvailability()
+    {
+        _execute.IsEnabled = !_running && _sources.Count >= (_kind is AutomationKind.Statistics or AutomationKind.Photomerge or AutomationKind.HdrPro ? 2 : 1)
+            && (_kind != AutomationKind.LensCorrection || _destination is not null && (_matchBest.IsChecked == true || _lensProfile.SelectedItem is not null));
+        var selected = _list.SelectedItems?.Count > 0;
+        if (_remove is not null) _remove.IsEnabled = selected; if (_duplicate is not null) _duplicate.IsEnabled = selected; if (_sort is not null) _sort.IsEnabled = _sources.Count > 1;
+    }
 
     private async Task ChooseDestination()
     {
@@ -383,10 +472,10 @@ internal sealed class AutomationDialog : DialogWindow
 
     /// <summary>Lens Correction's destination, profile and options as the panel shows them.</summary>
     internal LensJob? LensChoices() => _destination is null ? null : new LensJob(_destination,
-        _lensFormat.SelectedIndex switch { 1 => ExportFormat.Tiff, 2 => ExportFormat.Jpeg, 3 => ExportFormat.Png, _ => null },
+        _lensFormat.SelectedIndex switch { 3 => ExportFormat.Tiff, 0 => ExportFormat.Jpeg, 1 => ExportFormat.Png, _ => null },
         _matchBest.IsChecked == true ? null : _lensProfile.SelectedItem as string,
         new Compositor.Core.Document.LensCorrectionOptions(_geometric.IsChecked == true, _aberration.IsChecked == true, _lensVignette.IsChecked == true,
-            _autoScale.IsChecked == true, (Compositor.Core.Document.LensEdge)Math.Max(0, _lensEdge.SelectedIndex)));
+            _autoScale.IsChecked == true, _lensEdge.SelectedIndex switch { 0 => Compositor.Core.Document.LensEdge.EdgeExtension, 2 => Compositor.Core.Document.LensEdge.Black, 3 => Compositor.Core.Document.LensEdge.White, _ => Compositor.Core.Document.LensEdge.Transparency }));
     internal void SetDestination(string folder) { _destination = folder; _lensFolder.Text = folder; UpdateAvailability(); }
     private double ResolutionPpi => Math.Round(Value(_resolution) * (_resolutionUnits.SelectedIndex == 1 ? 2.54 : 1), 8);
     private double UnitFactor(int index) => index switch { 0 => ResolutionPpi, 1 => ResolutionPpi / 2.54, _ => 1 };
@@ -430,24 +519,28 @@ internal sealed class AutomationDialog : DialogWindow
         (PhotomergeLayout)Math.Max(0, Array.FindIndex(_layouts, r => r.IsChecked == true)), _blendImages.IsChecked == true,
         _vignette.IsChecked == true, _distortion.IsChecked == true, _fillTransparent.IsChecked == true);
 
-    /// <summary>A small picture of how each layout lays the photos out, in the theme's accent and surface colors.</summary>
+    /// <summary>A small picture of each layout: how the frame of the merged photo bends around the picture in its middle.</summary>
     private static Control LayoutIcon(string layout)
     {
-        var canvas = new Canvas { Width = 92, Height = 52, Margin = new Thickness(24, 0, 0, 0) };
-        var accent = Skin.AccentBrush; var face = Skin.LabelBrush;
-        string geometry = layout switch
+        var canvas = new Canvas { Width = 92, Height = 60, Margin = new Thickness(26, 0, 0, 6) };
+        Avalonia.Controls.Shapes.Path Shape(string data, Avalonia.Media.IBrush fill) => new() { Data = Avalonia.Media.Geometry.Parse(data), Fill = fill };
+        var back = layout switch
         {
-            "Perspective" => "M0,6 L30,16 L62,16 L92,6 L92,46 L62,36 L30,36 L0,46 Z",
-            "Cylindrical" => "M4,10 Q20,2 46,10 Q72,2 88,10 L88,42 Q72,50 46,42 Q20,50 4,42 Z",
-            "Spherical" => "M2,4 Q46,24 90,4 Q72,26 90,48 Q46,28 2,48 Q20,26 2,4 Z",
-            "Collage" => "M6,14 L60,6 L64,30 L10,38 Z M40,18 L88,22 L86,46 L38,42 Z",
-            "Reposition" => "M4,8 L52,8 L52,34 L4,34 Z M40,18 L88,18 L88,44 L40,44 Z",
-            _ => "M8,10 L84,10 L84,42 L8,42 Z M2,4 L10,4 M2,4 L2,12 M90,4 L82,4 M90,4 L90,12 M2,48 L10,48 M2,48 L2,40 M90,48 L82,48 M90,48 L90,40",
+            "Perspective" => "M0,4 L28,14 L64,14 L92,4 L92,56 L64,46 L28,46 L0,56 Z",
+            "Cylindrical" => "M2,10 Q24,0 46,8 Q68,0 90,10 L90,50 Q68,60 46,52 Q24,60 2,50 Z",
+            "Spherical" => "M2,2 Q46,20 90,2 Q74,30 90,58 Q46,40 2,58 Q18,30 2,2 Z",
+            "Collage" => "M4,16 L34,8 L88,8 L88,36 L60,50 L4,44 Z",
+            "Reposition" => "M2,6 L90,6 L90,54 L66,54 L60,42 L32,42 L26,54 L2,54 Z",
+            _ => "M4,6 L88,6 L88,54 L4,54 Z",
         };
-        canvas.Children.Add(new Avalonia.Controls.Shapes.Path { Data = Avalonia.Media.Geometry.Parse(geometry), Fill = layout == "Auto" ? face : accent, Stroke = layout == "Auto" ? accent : face, StrokeThickness = 1.5, Opacity = .9 });
+        canvas.Children.Add(Shape(back, layout == "Collage" ? Skin.LabelBrush : Skin.AccentBrush));
+        canvas.Children.Add(Shape(layout == "Collage" ? "M18,26 L34,18 L74,18 L74,32 L54,40 L18,36 Z" : "M24,16 L68,16 L68,44 L24,44 Z", layout == "Collage" ? Skin.AccentBrush : Skin.LabelBrush));
+        canvas.Children.Add(Shape("M28,42 L38,28 L44,34 L52,24 L64,42 Z", Skin.ChromeBrush));
+        if (layout == "Auto")
+            foreach (var corner in new[] { "M6,8 L16,8 L6,18 Z", "M86,8 L76,8 L86,18 Z", "M6,52 L16,52 L6,42 Z", "M86,52 L76,52 L86,42 Z" })
+                canvas.Children.Add(Shape(corner, Skin.LabelBrush));
         return canvas;
     }
-
     private void Cancel() { if (_running) { _cancellation?.Cancel(); _cancel.IsEnabled = false; _status.Text = Localize.Text("Canceling…"); } else Close(false); }
     private async Task SaveSettings()
     {
@@ -489,7 +582,7 @@ internal sealed class AutomationDialog : DialogWindow
         Check(!_lensProfile.IsEnabled && _lensProfile.ItemCount > 1000, "The lens profiles were not listed.");
         _matchBest.IsChecked = false; pump();
         Check(_lensProfile.IsEnabled && !_execute.IsEnabled, "Choosing a profile did not wait for one to be selected.");
-        _lensProfile.SelectedIndex = 0; _lensFormat.SelectedIndex = 3; pump();
+        _lensProfile.SelectedIndex = 0; _lensFormat.SelectedIndex = 1; pump();
         Check(LensChoices() is { Format: ExportFormat.Png, Lens: not null }, "The chosen profile or file type did not reach the job.");
         _matchBest.IsChecked = true; pump();
     }
