@@ -1,118 +1,59 @@
 # Compositor for Windows
 
-2026-11-04：当前版本为 **1.6.3.0 Preview**，已合并上游 1.6.3。本版新增减少杂色（滤镜和滤镜图层）、体积光“保持主体清晰”、“视图”菜单的显示额外内容和距离、拖动尺寸标签、状态栏选区尺寸，撤销停在文档起点，图层面板底部分为调整和滤镜两个菜单，编辑面板共用位置；窗口标题栏按 Windows 11 重做，按钮上方不再有隔层，并支持贴靠布局。全部手册归拢到 [`windows/docs`](windows/docs/README.md)。1.5.14.0 的体积光深度、统一图标与 Photoshop 式浮窗见[上一版更新](windows/docs/UPDATES-1.5.14.0.md)。Adobe Bridge 与 Adobe 镜头配置文件不提供；完整 UI 对照基线为 `7f703b4`。
+面向 Windows 10/11 x64 的图像编辑器，图层、蒙版、选区、滤镜工作流与 Photoshop 一致，界面提供简体中文和英文。
 
-[下载 1.6.3.0 Preview](https://github.com/konban47/Compositor/releases/tag/windows-v1.6.3.0)：安装版 `Compositor-Windows-1.6.3.0-x64-setup.exe`、免安装版 `Compositor-Windows-1.6.3.0-x64-portable.zip` 和 `SHA256SUMS.txt`。发行包包含本版手册；[1.5.6.0 历史更新](windows/docs/UPDATES-1.5.6.0.md)及下方旧版本测试数字保留历史含义。
+当前版本：**1.6.4.0 Preview**（2026-11-06，已合并上游 1.6.4）
 
-本版操作与未完成项见[文件工作流手册](windows/docs/FILE-WORKFLOWS.md)。
+[下载安装版和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.6.4.0) · [手册目录](windows/docs/README.md) · [操作速查](windows/docs/QUICK-REFERENCE.md) · [本版更新](windows/docs/UPDATES-1.6.4.0.md)
 
-窗口、浮动面板、工作区与参考线操作见[窗口菜单手册](windows/docs/WINDOW-MENU.md)。
+## 本版更新
 
-源自 [Robbie Tilton 的 Compositor（macOS 原项目）](https://github.com/robbietilton/Compositor)。感谢 Robbie Tilton / Wonder Assembly 以 MIT 许可证开源，也感谢 [chenguisen 的 Windows 移植](https://github.com/chenguisen/Compositor/tree/compositor_win)为本项目提供基础。
+- **文件菜单对话框按 Photoshop 重排**：批处理、创建快捷批处理、图像处理器、PDF 演示文稿、Photomerge、联系表 II、图像统计、载入图层、镜头校正、条件模式更改、限制图像、拾色器、导出为、存储为 Web 所用格式，不再需要滚动才能看全。
+- **浮窗 ≡ 菜单恢复可用**，并补上图层、通道、历史记录等面板自己的命令。
+- **底部停靠区**：时间轴和测量记录默认停靠在画布下方；其他面板首次打开时也按 Photoshop 的分组和位置出现。
+- **左侧工具栏**在窗口变矮时先缩小按钮间距，放不下的工具收进 » 菜单，不再被窗口底边遮住。
+- **窗口大小记忆**：下次启动恢复上次的大小、位置和最大化状态；安装后首次启动以最大化窗口打开。
+- **上游 1.6.4**：选区“扩展／收缩／羽化”按钮和共用数值，羽化可累加，扩展和收缩保持直角，状态栏显示羽化值，色板样式和工具栏重排。
 
-本仓库维护 **Windows 10/11 x64 图像编辑器**，提供简体中文和英文界面，采用熟悉的图层、蒙版、选区和滤镜工作流。Windows 源码位于 `windows/`，默认分支为 `windows-port`。
-
-[下载 Windows 安装包和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.6.3.0) · [使用与构建说明](windows/docs/README.md) · [更新记录](windows/docs/UPDATES-1.6.3.0.md) · [许可证与来源](windows/docs/THIRD-PARTY-NOTICES.md)
-
-全部按钮、工具与 35 个面板折叠图标属于同一图标体系（24 单位网格、1.5 线宽），浮窗按 Photoshop 样式；[图标设计说明](windows/docs/DESIGN.md#统一图标体系1514) · [浮窗与面板菜单](windows/docs/WINDOW-MENU.md#浮窗与面板菜单1514)。
-
-使用说明：[本次更新](windows/docs/UPDATES-1.6.3.0.md) · [时间轴与图层复合](windows/docs/TIMELINE-AND-PRESETS.md) · [颜色管理](windows/docs/COLOR-MANAGEMENT.md)。
-
-现有功能手册：[性能](windows/docs/PERFORMANCE.md) · [取样与修复](windows/docs/UTILITY-RETOUCH.md) · [工具选项](windows/docs/TOOL-OPTIONS.md) · [画笔与 GIF](windows/docs/PAINTING-AND-GIF.md) · [文字与蒙版](windows/docs/TYPE-AND-MASKS.md)。
-
-## 1.5.3.2 钢笔与图层拖动
-
-钢笔、自由钢笔与弯度钢笔补齐路径／形状模式、建立选区／蒙版／形状、布尔操作、对齐分布和排列。靠近起点显示闭环提示，选中节点为实心蓝色，Ctrl+Enter 将路径交给现有选区工具。图层支持左键按住拖动、多选保序、插入提示、边缘自动滚动和落位动画。工作路径随项目保存为 Windows v24。见[钢笔与图层拖动手册](windows/docs/PEN-AND-LAYERS.md)。
-
-## 1.5.3.1 面板与窗口修复
-
-主窗口和弹窗共享 32 DIP 主题标题栏，菜单与 logo 尺寸保持原样。图层面板按筛选、混合模式／不透明度、锁定／填充和图层列表分区；左侧工具栏取消滚动，同快捷键工具自动归组。自定义工具栏为滚动条预留空间。切片选项可直接打开，四个排列图标使用内置 imagegen 生成并随主题着色。见[本版更新](windows/docs/UPDATES-1.5.3.1.md)与[图标来源及提示词](windows/docs/DESIGN-SLICE-ORDER-ICONS.md)。
-
-现有工具选项与能力边界见[选区、裁剪与切片手册](windows/docs/SELECTION-CROP-SLICE.md)。
+完整说明和未验证项见[更新记录](windows/docs/UPDATES-1.6.4.0.md)。
 
 ## 安装
 
-目标系统：Windows 11、Windows 10 22H2（待实机验收），64 位 x64。安装器历史门槛 1809 不代表已通过测试，详见 [兼容性方案](windows/docs/COMPATIBILITY.md)。
+- **安装版**：运行 `Compositor-Windows-1.6.4.0-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.6.4.0-x64-portable.zip`，运行 `Compositor.exe`。
+- 两种发行包都自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包的 `redist/vc_redist.x64.exe`。
+- 中文系统默认使用简体中文，可在“帮助 → 语言”切换，下次启动生效。
 
-- **安装版**：运行 `Compositor-Windows-1.6.3.0-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.6.3.0-x64-portable.zip`，运行 `Compositor.exe`。
-- 两种发行包均自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包 `redist/vc_redist.x64.exe`。
-- 中文系统默认使用简体中文。通过“帮助 → 语言”切换，下次启动生效。
+目标系统是 Windows 11 和 Windows 10 22H2（Windows 10 待实机验收），详见[兼容性方案](windows/docs/COMPATIBILITY.md)。应用和安装包未做商业代码签名。
 
-## 常用操作
+## 主要功能
 
-| 操作 | 使用方式 |
+- **图层**：缩略图、搜索和类型筛选、分组、链接、24 种混合模式、蒙版、调整图层、滤镜图层、图层样式、智能对象、画框和画板。
+- **选区**：选框、套索、魔棒、对象选择、选择主体、选择并遮住、色彩范围、快速蒙版，以及选项栏上的扩展、收缩和羽化。
+- **绘制与修饰**：画笔、橡皮擦、渐变、仿制图章、修复画笔、修补、内容识别移动、红眼、涂抹、液化、历史记录画笔。
+- **文字与路径**：段落和字符面板、钢笔工具组、形状和路径运算、OpenType 特性。
+- **调整与滤镜**：色阶、曲线、色相／饱和度、Camera Raw、减少杂色、模糊、仿色、体积光、边缘光等。
+- **颜色**：ICC 色彩管理、CMYK／Lab／灰度／索引等模式、8／16／32 位通道。
+- **文件**：`.comp` 项目、PSD／PSB、RAW、PDF、GIF 动画、视频帧；批处理、图像处理器、联系表、Photomerge、HDR Pro、镜头校正、Web 导出。
+- **工作区**：浮动和停靠面板、属性、历史记录与快照、自定义工具栏、工作区预设、快捷键、脚本事件和插件。
+
+主体识别默认离线运行；云端主体识别和生成式功能由你配置服务后主动使用。
+
+`.comp` 项目是文件夹，需要保留整个文件夹及其中的 `manifest.json` 和图层资源。本版读取支持字段范围内的 v1–v33 项目，格式说明见 [project-format.md](docs/project-format.md#windows-extension-version-33)。
+
+## 手册
+
+| 主题 | 手册 |
 | --- | --- |
-| 导入图像 | 拖动桌面／资源管理器文件到画布，或“文件 → 导入图像” |
-| 置入图片 | 拖入画布后在顶部或右键调整变换，Enter 置入、Esc 取消；支持透视／扭曲和拆分变形 |
-| 跨文档复制图层 | 无像素选区时 Ctrl+C/X，切换标签后 Ctrl+V；保留组、蒙版、样式和可编辑文字／路径 |
-| 新增修饰与钢笔工具 | S/Y/E/G/O/P/T 切换对应工具组；详见[工具手册](windows/docs/EDITING-TOOLS.md) |
-| 新增选区、辅助与修复工具 | L/W/C/I/J/B 切换对应组，K 图框；见[工具使用说明](windows/docs/PROFESSIONAL-TOOLS.md) |
-| 取样与画笔光标 | 仿制图章／修复画笔 Alt 取样时显示靶心；画笔圆圈随大小和缩放变化，文字使用 I 形光标 |
-| 移动对象 | 按 V，选择图层或单击对象后拖动；支持多选图层变换 |
-| 平移画布 | 按 H，或按住空格，或按住鼠标中键拖动 |
-| 以鼠标为中心缩放 | 滚动鼠标滚轮；Ctrl＋中键上下拖动也可缩放 |
-| 锁定／解锁图层 | 右键“锁定图层”或 Ctrl+\；点击行末锁图标解锁 |
-| 图层样式 | 图层右键“混合选项”、双击缩略图或面板底部 fx；支持预览、预设和重复效果 |
-| 智能对象／画框／画板 | 图层右键菜单；智能对象打开内容后 Ctrl+S 回写，保存父项目保留修改 |
-| 合并可见／快速导出图层 | Ctrl+Shift+E 合并可见；Ctrl+Shift+' 导出选中图层 PNG |
-| 新建组 | Ctrl/Shift 多选图层后右键“新建组”或 Ctrl+G；Ctrl+Shift+G 取消编组 |
-| 查看与编辑通道 | 右侧“通道”标签；Ctrl+2 RGB、Ctrl+3 红、Ctrl+4 绿、Ctrl+5 蓝 |
-| 导出为 | Ctrl+Alt+Shift+W，选择 PNG/JPEG/PDF/TIFF、尺寸、透明度及背景色 |
-| 图像菜单与插件 | 图像菜单中的分组命令；“插件 → 管理增效工具”安装并启用本地插件 |
-| 导航器 | “视图 → 导航器”，任意缩放比例下显示；单击／拖动缩略图定位 |
-| 属性面板 | 右上“属性”或“视图 → 属性”；随图层／蒙版切换；输入数值后按 Enter 或移开焦点应用 |
-| 蒙版链接与删除 | 单击图像与蒙版之间的链条；断开后选中蒙版可独立移动。选中蒙版后点垃圾桶，仅确认删除蒙版 |
-| 历史记录 | 右上“历史记录”或“视图 → 历史记录”；点击状态回退，创建快照或从状态新建文档 |
-| 参考线 | 从标尺拉出，贯穿整个编辑工作区；“视图 → 标尺”切换标尺 |
-| 显示／隐藏图层 | 单击图层名称左侧的眼睛；睁眼显示，闭眼隐藏 |
-| 调整图层上下顺序 | 按住图层名称或图像缩略图拖动，按蓝色插入线放置；多选保序，Esc 取消 |
-| 建立选区 | 使用矩形／椭圆选框、套索、魔棒；Shift 添加，Alt 减去 |
-| 清除局部内容 | 建立选区后按 Delete 或 Backspace，清除当前图层选区内像素 |
-| 局部修饰 | 先建立选区，再使用液化、涂抹、污点修复、仿制图章或画笔 |
-| 重复上次滤镜 | Ctrl+Alt+F；使用上次应用的参数，可撤销 |
-| 首选项 | Ctrl+K；分类／搜索／高级图形设置，详见[首选项手册](windows/docs/PREFERENCES.md) |
-| 搜索命令 | Ctrl+F，可搜索中文或英文名称 |
-| 带工具栏全屏 | F 进入／退出，保留工具栏、选项栏、图层与属性面板；Esc 返回 |
-| 仅显示画布 | Shift+F 进入／退出，Esc 返回 |
-| 自定义工具栏 | “工具 → 自定义工具栏”；拖动工具分组、排序或放入附加工具，支持存储／载入预设 |
-| 旋转视图／缩放 | R 拖动旋转视图，双击复位；Z 单击放大，Alt 单击缩小 |
-| 形状与路径 | U／Shift+U 切换七种形状，A 切换路径选择与直接选择；选项栏设置多边形／星形和自定形状 |
-| 快速蒙版 | Q 进入后用灰度绘制覆盖率，再按 Q 转回选区 |
-| 生成式工作区 | 工具栏底部图像图标或“工具 → 生成式工作区”；配置 API 地址、密钥和模型后生成并导入 |
+| 上手 | [操作速查](windows/docs/QUICK-REFERENCE.md) · [使用与构建说明](windows/docs/README.md) · [工作区](windows/docs/WORKSPACE.md) · [首选项](windows/docs/PREFERENCES.md) |
+| 菜单 | [文件工作流](windows/docs/FILE-WORKFLOWS.md) · [编辑菜单](windows/docs/EDIT-MENU.md) · [图层菜单](windows/docs/LAYER-MENU.md) · [图像与属性](windows/docs/IMAGE-WORKSPACE.md) · [窗口菜单](windows/docs/WINDOW-MENU.md) |
+| 工具 | [工具选项](windows/docs/TOOL-OPTIONS.md) · [选区、裁剪与切片](windows/docs/SELECTION-CROP-SLICE.md) · [编辑工具](windows/docs/EDITING-TOOLS.md) · [专业工具](windows/docs/PROFESSIONAL-TOOLS.md) · [取样与修复](windows/docs/UTILITY-RETOUCH.md) · [钢笔与图层](windows/docs/PEN-AND-LAYERS.md) |
+| 内容 | [图层样式](windows/docs/LAYER-STYLES.md) · [文字与蒙版](windows/docs/TYPE-AND-MASKS.md) · [画笔与 GIF](windows/docs/PAINTING-AND-GIF.md) · [时间轴与图层复合](windows/docs/TIMELINE-AND-PRESETS.md) · [颜色管理](windows/docs/COLOR-MANAGEMENT.md) |
+| 其他 | [插件](windows/docs/PLUGINS.md) · [性能](windows/docs/PERFORMANCE.md) · [设计记录](windows/docs/DESIGN.md) · [第三方许可](windows/docs/THIRD-PARTY-NOTICES.md) |
 
-`.comp` 项目是文件夹，需保留整个文件夹及其中的 `manifest.json` 和图层资源。普通图像可导出 PNG/JPEG/PDF（PDF 为合成图像页面），PSD/PSB 支持导入并显示转换报告。
+## 从源码构建
 
-## 功能
-
-本版统一首选项、设置接入与性能见[首选项手册](windows/docs/PREFERENCES.md)，图层菜单和钢笔辅助线见[图层菜单手册](windows/docs/LAYER-MENU.md)。编辑菜单、选择性粘贴、变形、预设、颜色与首选项见[编辑菜单手册](windows/docs/EDIT-MENU.md)，图标来源见[设计记录](windows/docs/DESIGN.md)。图像模式、计算、变量、分析和属性排版见[图像与属性手册](windows/docs/IMAGE-WORKSPACE.md)，插件安装及接口见[插件说明](windows/docs/PLUGINS.md)。光标、网格、19 个工具及上游 UI 复用见[工具使用说明](windows/docs/PROFESSIONAL-TOOLS.md)。置入、复制、其他工具及按钮／图标说明见[新增编辑工具手册](windows/docs/EDITING-TOOLS.md)。工作区与 API 配置见 [工作区使用说明](windows/docs/WORKSPACE.md)，上游对应关系与验证见 [1.5.2.0 更新说明](windows/docs/UPDATES-1.5.2.0.md)。
-
-- 图层缩略图、搜索和类型筛选、锁定、分组折叠、链接、不透明度与填充；24 种混合模式、蒙版、调整图层和图层样式。
-- RGB 分通道显示与编辑、Alpha 通道新建／复制／重命名／删除、选区存取及灰度绘制。
-- 选区及羽化、画笔／橡皮擦、仿制图章、污点修复、涂抹、液化、文字、形状、渐变和变换。
-- 色阶、曲线、色相／饱和度、Camera Raw、模糊、仿色及其他滤镜。
-- 默认离线选择主体、对象选择和移除背景；可主动选择已配置的云端服务处理主体／人物或生成式扩展。
-- 可调整高度的属性／历史记录面板；蒙版密度、羽化、反相、选择并遮住、色彩范围、矢量选区蒙版和应用蒙版。
-- 多标签页、撤销／重做、历史快照、从状态新建独立文档、异步保存、未保存关闭保护和独立 Windows 更新频道。
-- 中文界面使用 Photoshop 常见术语，提供中文输入法接口、随包中文字体和中文换行。
-
-本版读取支持字段范围内的 v1–v33 项目，链接的智能对象使用 **Windows 扩展格式 v32**；包含上游 v17 GIF 图层；可编辑渐变、路径外观、清晰度和颜色管理元数据使用 v28；仅含动画等旧字段的项目保存为 **Windows 扩展格式 v27**。新版图框、计数组、注释作者/双臂标尺及滤镜调整使用 **Windows 扩展格式 v26**；线条样式和端点使用 **Windows 扩展格式 v25**；工作路径 `workPath` 使用 **Windows 扩展格式 v24**；平滑圆角及扩展切片属性使用 **Windows 扩展格式 v23**；非白色画板背景使用 **Windows 扩展格式 v22**；画板参考线归属使用 **Windows 扩展格式 v21**；文字范围样式、几何、PSD 矢量蒙版孔洞和 ICC 配置使用 **Windows 扩展格式 v20**；新增八类可编辑调整层使用 **Windows 扩展格式 v19**；图像模式／位深、变量／数据组、测量记录及新版文字布局使用 **Windows 扩展格式 v18**；切片、注释、计数、颜色取样点和测量使用 **Windows 扩展格式 v17**；直排文字和开放路径描边使用 **Windows 扩展格式 v16**；新增样式实例、高级混合、颜色标签、画框／画板及内嵌智能对象使用 **Windows 扩展格式 v15**；使用高级 OpenType、小型大写／全部大写／上下标、文字方向、动态文字或矢量字形等新增文字样式，或使用任意轮廓形状时保存为 **Windows 扩展格式 v14**；使用非默认蒙版密度／羽化、矢量蒙版或 v13 文字样式时保存为 v13；仅使用锁定、链接、非默认填充或 Alpha 通道时保存为 v12，其余为 v11。旧版不接受超出其支持范围的版本；上游 macOS 1.5.8 支持至 v17，但 Windows 的 v13–v28 扩展并非同一版本序列；Windows 已支持上游 v16 的三种滤镜调整层（当前为 8 位 CPU 合成）。不能仅修改版本号强行降级。[文件格式与兼容性](docs/project-format.md#windows-extension-version-33)
-
-## 验证与当前状态
-
-当前功能和已执行验证见[1.6.3.0 更新](windows/docs/UPDATES-1.6.3.0.md)。历史 CI 结果不作为本次提交的验收记录；当前提交的 Actions 和安装包见 [Release](https://github.com/konban47/Compositor/releases/tag/windows-v1.6.3.0)。Windows 10 尚未实机验收。
-
-[历史 1.5.3.2 提交 b0bce9c 的云端验证](https://github.com/konban47/Compositor/actions/runs/39230205560)在 Windows Server 2022／2025 均通过文档检查、零警告构建、1200 项核心测试以及 23 组英文／17 组中文界面检查。安装版与免安装版已成功构建；发行程序的 17 组界面检查及临时 Windows Server 2025 环境中的全新安装／卸载均通过。[下载历史 1.5.3.2](https://github.com/konban47/Compositor/releases/tag/windows-v1.5.3.2)。
-
-历史验证：2026-10-17 恢复 Fork 的 GitHub Actions；[发布提交 e3c28db 的云端验证](https://github.com/konban47/Compositor/actions/runs/39028925211)在 Windows Server 2022／2025 均通过文档检查、零警告构建、1184 项核心测试以及 22 组英文／16 组中文界面检查。发行包构建、16 组发行程序界面检查及临时 Windows Server 2025 上的全新安装／卸载也已通过。
-
-[图层样式与右键菜单使用说明](windows/docs/LAYER-STYLES.md)记录每个菜单项、快捷键、格式和 Photoshop 差异。样式使用 CPU 近似渲染；遮住所有对象采用离线显著性连通区域，不是 Adobe 实例识别；智能对象保存本应用图层源，不提供 PSD 智能对象往返。
-
-本机验证环境为 Windows 11；Windows 10 实机、真实输入法候选窗、多显示器和数位板仍需人工验收。使用 Skia GPU 显示、CPU 参考合成与 U²-NetP，渲染、主体识别及 RAW 显影与 Apple 原生实现存在差异；应用和安装包尚未进行商业代码签名。高级 OpenType 特性、小型大写／上下标、动态文字、东亚避头尾与标点挤压、阿拉伯语／希伯来语等中东与复杂文字塑形与从右到左排版、文字转框架与文字转矢量字形、历史记录画笔、非线性历史及矢量路径节点编辑均已提供，用法与兼容范围见下文。[完整已知差异](windows/docs/README.md#已知差异和验收边界)
-
-## 开发
-
-需要 .NET 10 SDK：
+需要 .NET 10 SDK。生成安装包还需要 Inno Setup 6。
 
 ```powershell
 dotnet build windows/Compositor.slnx -c Release -warnaserror
@@ -120,12 +61,10 @@ dotnet test windows/tests/Compositor.Core.Tests -c Release
 ./windows/scripts/package.ps1 -OutputDirectory "$PWD/dist" -Installer
 ```
 
-生成安装包需要 Inno Setup 6。GitHub Actions 可构建自带运行时的安装版与免安装版。
+Windows 源码位于 `windows/`，默认分支是 `windows-port`。GitHub Actions 会构建安装版和免安装版，每次提交的结果见 [Actions](https://github.com/konban47/Compositor/actions/workflows/windows.yml)。
 
-MIT 许可证，见 [LICENSE](LICENSE)。原始 macOS 源码及历史保留在仓库，macOS 的下载、介绍和贡献请访问顶部上游链接。
+## 来源与许可
 
-图 1–24 的图框、吸管、标注、移除、修复画笔、仿制源、修补、内容识别移动及红眼操作见 [辅助与修饰工具](windows/docs/UTILITY-RETOUCH.md)。
+本项目源自 [Robbie Tilton 的 Compositor](https://github.com/robbietilton/Compositor)（macOS 原项目），感谢 Robbie Tilton / Wonder Assembly 以 MIT 许可证开源，也感谢 [chenguisen 的 Windows 移植](https://github.com/chenguisen/Compositor)。原始 macOS 源码及历史保留在本仓库，macOS 版本的下载和介绍请访问上游。
 
-历史记录：[1.5.6.1 更新](windows/docs/UPDATES-1.5.6.1.md)。
-
-相关手册：[画笔与 GIF](windows/docs/PAINTING-AND-GIF.md) · [工具与修饰](windows/docs/UTILITY-RETOUCH.md)。
+以 MIT 许可证发布，见 [LICENSE](LICENSE)。

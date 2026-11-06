@@ -1,12 +1,12 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "7f703b466da83f64c13624739c4ace42ce4b7991",
+  "commit": "3e81af3fb8aeb379173a4efbae5dd0edd95023b8",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
     {
       "path": "Compositor/UI/BrushControls.swift",
-      "sha256": "6e3d5f4eed7fe1bbce3f1a7f4d310c828dfe9a03db576c6b9ceb0fedd86fc3dc"
+      "sha256": "84f8396588d550e6c759e61d568cccef35eb9e2d1da1772d0c24cc725498b679"
     },
     {
       "path": "Compositor/UI/GradientControls.swift",
@@ -14,23 +14,23 @@
     },
     {
       "path": "Compositor/UI/LassoControls.swift",
-      "sha256": "47ce531c074eb188ab75fcdfed0f71cfd025936a0b6acf74700497fca3b01c35"
+      "sha256": "88d90c953988133ea8b7ea8e447cdcaa64d9aaa9f3f712545360755d77671b3e"
     },
     {
       "path": "Compositor/ContentView.swift",
-      "sha256": "5e4728a78a6fca2a5b45763fce93bd54a48e36e8dac57698b5df6aac0c4c4465"
+      "sha256": "efda265e01c6955c51faa5a550ed8608d672edb3c935c3e3c6f48c20dad9198a"
     },
     {
       "path": "Compositor/UI/ToolHeaderStyle.swift",
-      "sha256": "f13d009fcbdd4dd59fc35876c28686fe82ebbf218372b40b42070c8a138cbf91"
+      "sha256": "b95e460ffe16d54c158e47a5b1ee8097715b5ff01ca0737c3c15ae1118250b0d"
     },
     {
       "path": "Compositor/Document/EditorSession.swift",
-      "sha256": "2f938ec5daa00c5d0eec913ded359711a43ca6b80d87913296dacb0563eeb611"
+      "sha256": "9167f42c9040af3a772bab8b237e140b6965e13aff761dcfbf19440eba60b9ca"
     },
     {
       "path": "Compositor/UI/ColorPaletteControls.swift",
-      "sha256": "da5a1d96f04acb1719ac826b5b5d0e4ddc63d3cb523c886573bf0df82d619474"
+      "sha256": "f937a16650c10fcb10ac4d2df9405ee73ee56003afdcbcd3c40a09f80efeb8dc"
     },
     {
       "path": "Compositor/UI/ProjectTabs.swift",
@@ -62,7 +62,7 @@
     },
     {
       "path": "Compositor/UI/ShapeControls.swift",
-      "sha256": "544dbb3b51e6e3564ea482d993bc2e007c2a89c758263f2a79fc5cdb6d0ee253"
+      "sha256": "3ee3e59e8f87c9943c839459e74bf0a6faa4b5a95e7aac166b1134098d70819e"
     },
     {
       "path": "Compositor/UI/NativeLayerList.swift",
@@ -74,7 +74,7 @@
     },
     {
       "path": "Compositor/UI/ToolRail.swift",
-      "sha256": "1cb6c1cf6563323629f5102078af5239c3af7add1acabef17c64df0a0a0c7e96"
+      "sha256": "60997dd917b52cab29f04fd8c1555168e3624872211419347dafd2cd2def89b8"
     },
     {
       "path": "Compositor/UI/GIFTimeline.swift",

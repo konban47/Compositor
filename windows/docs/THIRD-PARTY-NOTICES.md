@@ -91,3 +91,7 @@ The Windows build uses [Depth Anything V2 Small](https://github.com/DepthAnythin
 ## Upstream 1.6.3 merge (Windows 1.6.3.0)
 
 Upstream main `7f703b4f` is merged into this fork's history. Behavior from its 1.6.0–1.6.3 commits that applies to Windows (Reduce Noise and its non-local means, Keep Subject Clear, Show Extras, Distances, drag-out sizes, the status bar's selection size, undo stopping at a document's start, the layers footer's two menus, the shared edit-panel position, the first-launch fill) is reimplemented in C# against the Windows document model under the upstream MIT license.
+
+## Upstream 1.6.4 merge (Windows 1.6.4.0)
+
+Upstream main `3e81af3` is merged into this fork's history. The selection amount controls, additive feather, mitered Expand and Contract, the feather readout, the joined tool bar buttons and the swatch styling are adapted from its 1.6.4 commits under the same MIT license.

@@ -194,7 +194,7 @@ foreach ($license in @('PDFtoImage-LICENSE.txt','PDFium-build-LICENSE.txt','PDFi
     if (!(Test-Path -LiteralPath (Join-Path $repo "windows/licenses/$license"))) { throw "Missing PDF dependency license: $license" }
 }
 
-foreach ($guide in @('PAINTING-AND-GIF.md','UPDATES-1.5.6.0.md','UPDATES-1.5.6.1.md')) {
+foreach ($guide in @('PAINTING-AND-GIF.md')) {
     foreach ($path in @('README.md','windows/docs/README.md')) {
         if (!(Read-Repo $path).Contains($guide)) { throw "$guide missing from $path" }
     }

@@ -1,6 +1,6 @@
 # 钢笔、工作路径与图层拖动
 
-适用于 Windows **1.6.3.0 Preview**。
+适用于 Windows **1.6.4.0 Preview**。
 
 ## 三种钢笔
 
