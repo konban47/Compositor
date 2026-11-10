@@ -6376,17 +6376,21 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private Task ExportJpeg() => ExportAs(ExportFormat.Jpeg);
 
-    private async Task ExportAs(ExportFormat format = ExportFormat.Png)
+    private async Task ExportAs(ExportFormat? format = null)
     {
         if (_document is not { } document) { Say("Nothing to export yet."); return; }
         var exporting = _open;
         try
         {
-            if (await ExportAsDialog.Ask(this, document, format) is not { } result) return;
+            // Export As opens on the format it was last used with, between launches too (upstream 1.6.6).
+            var start = format ?? (Enum.IsDefined(_tools.LastExportFormat) ? _tools.LastExportFormat : ExportFormat.Png);
+            if (await ExportAsDialog.Ask(this, document, start) is not { } result) return;
+            _tools.LastExportFormat = result.Options.Format; _tools.Save(ToolDefaults.DefaultPath);
             var extension = result.Options.Extension;
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                Title = Localize.Text("Export As"), SuggestedFileName = "Compositor export." + extension,
+                Title = Localize.Text("Export As"), SuggestedFileName = Path.GetFileNameWithoutExtension(exporting?.Path ?? exporting?.Name ?? "Compositor export") + "." + extension,
+                SuggestedStartLocation = exporting?.Path is { } source && Path.GetDirectoryName(source) is { } folder ? await StorageProvider.TryGetFolderFromPathAsync(folder) : null,
                 DefaultExtension = extension, FileTypeChoices = [new FilePickerFileType(extension.ToUpperInvariant()) { Patterns = ["*." + extension] }],
             });
             if (file?.TryGetLocalPath() is not { } path) return;

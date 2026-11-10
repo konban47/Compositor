@@ -77,5 +77,5 @@ internal static class DialogKit
         };
         return control;
     }
-    private static string WithKey(string text, char key) => text.EndsWith('…') ? $"{text[..^1]}({key})…" : $"{text}({key})";
+    private static string WithKey(string text, char key) => text.EndsWith('…') ? $"{text[..^1]}({key})…" : text.EndsWith(':') || text.EndsWith('：') ? $"{text[..^1]}({key}){text[^1]}" : $"{text}({key})";
 }

@@ -106,16 +106,14 @@ public sealed partial class MainWindow
         if (_document is not { } doc) return;
         var missing = doc.Layers.Where(l => l.LiveText is not null).SelectMany(l => new[] { l.LiveText!.FontName }.Concat(l.LiveText.FontRuns?.Select(r => r.FontName) ?? []).Concat(l.LiveText.StyleRuns?.Select(r => r.Style.FontName) ?? []))
             .Distinct(StringComparer.OrdinalIgnoreCase).Where(n => !FontCatalog.IsInstalled(n)).ToArray();
-        var dialog = new FormDialog("Manage Missing Fonts", 680, 470); var replacements = new Dictionary<string, ComboBox>();
-        dialog.Description(missing.Length == 0 ? "All requested fonts are installed." : "Choose replacements for missing fonts. Changes apply to every matching character in this document.");
-        var choices = new[] { Localize.Text("Do Not Replace") }.Concat(FontCatalog.Families).ToArray();
-        foreach (var name in missing) { var choice = new ComboBox { ItemsSource = choices, SelectedIndex = 0 }; dialog.Row(name, choice); replacements[name] = choice; }
-        var all = dialog.Check("Replace All Missing Fonts with Default Font", false);
+        var used = doc.Layers.Where(l => l.LiveText is not null).Select(l => l.LiveText!.FontName).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var dialog = new MissingFontsDialog(missing, used); var all = dialog.All;
+        var replacements = dialog.Replacements; var choices = replacements.Values.FirstOrDefault()?.ItemsSource?.Cast<string>().ToArray() ?? [];
         if (!await dialog.ShowDialog<bool>(this) || !ReferenceEquals(doc, _document)) return;
         CommitText();
         Edit("Replace Missing Fonts", () =>
         {
-            string Replace(string font) => replacements.TryGetValue(font, out var choice) ? all.IsChecked == true ? EditorPreferences.Current.DefaultFont : choice.SelectedIndex > 0 ? choices[choice.SelectedIndex] : font : font;
+            string Replace(string font) => replacements.TryGetValue(font, out var choice) ? all.IsChecked == true ? EditorPreferences.Current.DefaultFont : choice.SelectedIndex > 0 ? choice.SelectedIndex == choices.Length - 1 ? EditorPreferences.Current.DefaultFont : choices[choice.SelectedIndex] : font : font;
             var changed = false;
             foreach (var layer in doc.Layers.Where(l => l.LiveText is not null))
             {

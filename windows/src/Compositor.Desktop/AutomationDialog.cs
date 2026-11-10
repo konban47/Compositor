@@ -520,7 +520,7 @@ internal sealed class AutomationDialog : DialogWindow
         _vignette.IsChecked == true, _distortion.IsChecked == true, _fillTransparent.IsChecked == true);
 
     /// <summary>A small picture of each layout: how the frame of the merged photo bends around the picture in its middle.</summary>
-    private static Control LayoutIcon(string layout)
+    internal static Control LayoutIcon(string layout)
     {
         var canvas = new Canvas { Width = 92, Height = 60, Margin = new Thickness(26, 0, 0, 6) };
         Avalonia.Controls.Shapes.Path Shape(string data, Avalonia.Media.IBrush fill) => new() { Data = Avalonia.Media.Geometry.Parse(data), Fill = fill };

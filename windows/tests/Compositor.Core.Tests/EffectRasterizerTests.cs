@@ -8,7 +8,7 @@ namespace Compositor.Core.Tests;
 /// <summary>
 /// The layer-effects rasterizer against hand-worked pixels: a solid square's stroke, its shadow, a color
 /// overlay and the edges of the glows. Expected values come from the formulas the Mac build's CPU renderer
-/// uses — a square dilation for a stroke, a Gaussian tail of a step for anything blurred (x/255 here is the
+/// uses — a round reach for a stroke (upstream #335), a Gaussian tail of a step for anything blurred (x/255 here is the
 /// fraction of the kernel that falls past the shape's edge) — not from a run of this code.
 /// </summary>
 public class EffectRasterizerTests
@@ -161,8 +161,9 @@ public class EffectRasterizerTests
         A(result, 6, 13, 0, 0, 0, 255, 0);
         A(result, 6, 1, 0, 0, 0, 0, 0);
 
-        // The reach is square: a round one would leave this corner clear.
-        A(result, 2, 2, 0, 0, 0, 255, 0);
+        // The reach is round, as upstream's (#335): the corner two pixels out on both axes is only partly covered,
+        // and one further out is clear.
+        Assert.InRange(result.GetPixelSpan()[2 * result.RowBytes + 2 * 4 + 3], 1, 254);
         A(result, 1, 1, 0, 0, 0, 0, 0);
     }
 
@@ -346,7 +347,7 @@ public class EffectRasterizerTests
         Assert.Equal(8 + 6, result.Width);
 
         // The ring hugs the 2×2 block at layer (3,3)–(4,4), not the layer's rectangle.
-        A(result, 5, 5, 0, 0, 0, 255, 0);    // layer (2,2), one pixel out from the block
+        Assert.InRange(result.GetPixelSpan()[5 * result.RowBytes + 5 * 4 + 3], 1, 254);    // layer (2,2), diagonally out from the block: partly covered by a round reach
         A(result, 7, 5, 0, 0, 0, 255, 0);    // layer (4,2), above the block
         A(result, 6, 6, 255, 0, 0, 255, 0);  // layer (3,3), in the block
         A(result, 4, 4, 0, 0, 0, 0, 0);      // layer (1,1), two pixels out

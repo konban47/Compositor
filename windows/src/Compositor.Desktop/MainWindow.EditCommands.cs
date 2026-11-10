@@ -62,34 +62,59 @@ public sealed partial class MainWindow
     private async Task FindReplaceText()
     {
         if (_document is not { } doc) return;
-        var form = new FormDialog("Find and Replace Text", height: 430);
-        var find = form.Text("Find", ""); var replace = form.Text("Replace With", "");
-        var match = form.Check("Match Case", false); var whole = form.Check("Whole Words", false); var all = form.Check("All Text Layers", true);
-        form.Validate = () => string.IsNullOrEmpty(find.Text) ? "Enter text to find." : null;
-        if (!await form.ShowDialog<bool>(this) || !ReferenceEquals(doc, _document)) return;
-        var pattern = Regex.Escape(find.Text!); if (whole.IsChecked == true) pattern = @"\b" + pattern + @"\b";
-        var regex = new Regex(pattern, match.IsChecked == true ? RegexOptions.None : RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
-        var replacements = new List<(Guid ID, LayerTextStyle Style)>();
-        try
+        (Guid Layer, int Index, int Length)? found = null;
+        FindReplaceDialog? dialog = null;
+        List<Guid> Layers() => [.. doc.Layers.Where(l => l.LiveText is not null && LayerProtection.CanPaint(doc, l.ID) && (dialog!.AllLayers.IsChecked == true || l.ID == Selected)).Select(l => l.ID)];
+        string Text(Guid id) => doc.Layers.First(l => l.ID == id).LiveText!.Content;
+        (Guid, int, int)? Next(bool wrapped = false)
         {
-            foreach (var layer in doc.Layers.Where(l => l.LiveText is not null && (all.IsChecked == true || l.ID == Selected)))
+            var layers = Layers(); if (layers.Count == 0 || string.IsNullOrEmpty(dialog!.Find.Text)) return null;
+            var forward = dialog.Forward.IsChecked == true;
+            var start = found is { } at ? layers.IndexOf(at.Layer) : forward ? 0 : layers.Count - 1; if (start < 0) start = 0;
+            for (var step = 0; step <= layers.Count; step++)
             {
-                if (!LayerProtection.CanPaint(doc, layer.ID)) continue;
-                var style = CopyFilterSettings(layer.LiveText!); var result = regex.Replace(style.Content, _ => replace.Text ?? "");
-                if (result == style.Content) continue;
-                if (result.Length > 1_000_000) { Say("That text is too long."); return; }
-                style.Content = result; style.ColorRuns = null; style.FontRuns = null;
-                replacements.Add((layer.ID, style));
+                var index = ((forward ? start + step : start - step) % layers.Count + layers.Count) % layers.Count; var id = layers[index]; var text = Text(id);
+                var from = step == 0 && found is { } current && current.Layer == id ? (forward ? current.Index + Math.Max(1, current.Length) : current.Index - 1) : forward ? 0 : text.Length;
+                if (step == layers.Count && from == 0) break;
+                if (FindReplaceDialog.Next(text, dialog.Find.Text!, Math.Clamp(from, 0, text.Length), forward, dialog.Options, dialog.WholeWord.IsChecked == true) is { } hit) return (id, hit.Index, hit.Length);
             }
+            return null;
         }
-        catch (RegexMatchTimeoutException) { Say("The text search timed out. Try a shorter search."); return; }
-        var changed = 0;
-        Edit("Find and Replace Text", () =>
+        bool Replace((Guid Layer, int Index, int Length) hit)
         {
-            foreach (var (id, style) in replacements) if (TextEdits.SetStyle(doc, id, style)) changed++;
-            return changed > 0;
-        });
-        Say(Localize.Text("Text layers updated") + $": {changed}");
+            var layer = doc.Layers.First(l => l.ID == hit.Layer); var style = CopyFilterSettings(layer.LiveText!);
+            style.Content = style.Content.Remove(hit.Index, hit.Length).Insert(hit.Index, dialog!.Change.Text ?? ""); style.ColorRuns = null; style.FontRuns = null;
+            return style.Content.Length <= 1_000_000 && TextEdits.SetStyle(doc, hit.Layer, style);
+        }
+        void Act(string what)
+        {
+            if (!ReferenceEquals(doc, _document)) { dialog!.Close(); return; }
+            CommitText();
+            if (what is "change" or "change-find" && found is { } hit)
+            {
+                if (Edit("Find and Replace Text", () => Replace(hit))) found = (hit.Layer, hit.Index, (dialog!.Change.Text ?? "").Length);
+                dialog!.Status.Text = Localize.Text("Changed.");
+                if (what == "change") { dialog.Update(false); return; }
+            }
+            if (what == "all")
+            {
+                var count = 0; found = null;
+                Edit("Find and Replace Text", () =>
+                {
+                    var forward = dialog!.Forward.IsChecked; dialog.Forward.IsChecked = true;
+                    try { for (var guard = 0; guard < 100_000 && Next() is { } hit2; guard++) { if (!Replace(hit2)) break; found = (hit2.Item1, hit2.Item2, (dialog.Change.Text ?? "").Length); count++; } }
+                    finally { dialog.Forward.IsChecked = forward; }
+                    return count > 0;
+                });
+                found = null; dialog!.Status.Text = string.Format(Localize.Text("{0} replacements made."), count); dialog.Update(false); return;
+            }
+            found = Next();
+            if (found is { } next) { Reselect(next.Layer); dialog!.Status.Text = string.Format(Localize.Text("Found in “{0}”."), doc.Layers.First(l => l.ID == next.Layer).Name); }
+            else dialog!.Status.Text = Localize.Text("No match was found.");
+            dialog.Update(found is not null);
+        }
+        dialog = new FindReplaceDialog(Act);
+        await dialog.ShowDialog(this);
     }
     private static bool FinishMaskedImage(CanvasDocument doc, ref Guid? made, DocumentSelection selection)
     {
@@ -103,23 +128,32 @@ public sealed partial class MainWindow
     private Task EditStroke() => PaintDialog(true);
     private async Task PaintDialog(bool stroke)
     {
-        if (_document is not { } doc || Selected is not { } id) return;
-        var revision = _history.CurrentRevision; var form = new FormDialog(stroke ? "Stroke" : "Fill", height: 510);
-        var source = stroke ? null : form.Choice("Contents", ["Foreground Color", "Background Color", "Color", "Pattern", "Black", "White", "50% Gray"], 0);
-        var color = form.Text("Color (#RRGGBB)", $"#{BrushColour().Red:X2}{BrushColour().Green:X2}{BrushColour().Blue:X2}");
-        var width = stroke ? form.Number("Width (px)", 3, 1, 250) : null;
-        var location = stroke ? form.Choice("Location", ["Inside", "Center", "Outside"], 1) : null;
-        var opacity = form.Number("Opacity (%)", 100, 0, 100);
-        var modes = new[] { SKBlendMode.SrcOver, SKBlendMode.Multiply, SKBlendMode.Screen, SKBlendMode.Overlay, SKBlendMode.Darken, SKBlendMode.Lighten, SKBlendMode.Difference };
-        var mode = form.Choice("Blending Mode", ["Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten", "Difference"], 0);
-        var preserve = form.Check("Preserve Transparency", false);
-        if (!stroke) form.Fields.Children.Add(FormDialog.ActionButton("Load Pattern…", () => _ = ChoosePattern()));
-        form.Validate = () => !SKColor.TryParse(color.Text, out _) ? "Enter a valid color." : source?.SelectedIndex == 3 && _options.Brush.Pattern is null ? "Load a pattern first." : null;
-        if (!await form.ShowDialog<bool>(this) || !ReferenceEquals(doc, _document) || _history.CurrentRevision != revision) return;
-        SKColor.TryParse(color.Text, out var ink);
-        if (!stroke) ink = source!.SelectedIndex switch { 0 => BrushColour(), 1 => BackgroundColour(), 4 => SKColors.Black, 5 => SKColors.White, 6 => new SKColor(128, 128, 128), _ => ink };
-        Edit(stroke ? "Stroke" : "Fill", () => EditWorkspace.Paint(doc, id, ink, (double)(opacity.Value ?? 100) / 100, modes[mode.SelectedIndex],
-            preserve.IsChecked == true, source?.SelectedIndex == 3 ? _options.Brush.Pattern : null, (double)(width?.Value ?? 0), location?.SelectedIndex ?? 1));
+        if (_document is not { } doc || Selected is not { } id || doc.Layers.FirstOrDefault(l => l.ID == id) is not { IsGroup: false, Adjustment: null } layer) return;
+        var revision = _history.CurrentRevision;
+        var selection = doc.Selection.Path is not null && !doc.Selection.IsEmpty;
+        var dialog = new PaintDialog(stroke, BrushColour(), selection && layer.Asset is not null, false, () => _options.Brush.Pattern is not null) { LoadPattern = ChoosePattern };
+        if (!await dialog.ShowDialog<bool>(this) || !ReferenceEquals(doc, _document) || _history.CurrentRevision != revision) return;
+        var choice = dialog.Result;
+        if (choice.Contents == "ContentAware") { ContentAwareFill(); return; }
+        var ink = choice.Contents switch
+        {
+            "Foreground" => BrushColour(), "Background" => BackgroundColour(), "Black" => SKColors.Black, "White" => SKColors.White, "Gray" => new SKColor(128, 128, 128), _ => choice.Color,
+        };
+        var pattern = choice.Contents == "Pattern" ? _options.Brush.Pattern : null;
+        SKColorF Ink(SKColor c) => new(c.Red / 255f, c.Green / 255f, c.Blue / 255f, c.Alpha / 255f);
+        Func<SKPoint, SKColorF> sample = pattern is null ? _ => Ink(ink)
+            : point => Ink(pattern.GetPixel(((int)Math.Floor(point.X) % pattern.Width + pattern.Width) % pattern.Width, ((int)Math.Floor(point.Y) % pattern.Height + pattern.Height) % pattern.Height));
+        SKBitmap? band = null; Func<SKPoint, float>? reach = null;
+        if (stroke)
+        {
+            var t = layer.Transform;
+            using var outline = selection ? new SKPath(doc.Selection.Path!) : SKPath.ParseSvgPathData(FormattableString.Invariant($"M{t.X} {t.Y} h{t.Width} v{t.Height} h{-t.Width} Z"));
+            band = EditWorkspace.StrokeBand(doc, outline, choice.Width, choice.Location);
+            var strokeBand = band;
+            reach = point => (int)point.X is var x && (int)point.Y is var y && x >= 0 && y >= 0 && x < strokeBand.Width && y < strokeBand.Height ? strokeBand.GetPixelSpan()[y * strokeBand.RowBytes + x] / 255f : 0;
+        }
+        try { Edit(stroke ? "Stroke" : "Fill", () => EditWorkspace.EnsurePixels(doc, layer) && DeepPaint.Paint(doc, layer, sample, choice.Opacity, choice.Mode == PaintBlend.Clear, choice.Mode, choice.Preserve, reach)); }
+        finally { band?.Dispose(); }
     }
     private async Task Purge(string kind)
     {

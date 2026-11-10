@@ -55,17 +55,68 @@ public sealed partial class MainWindow
     }
     private async Task ConvertColorProfile()
     {
+        CommitText(); _stopGifPlayback?.Invoke();
         if (_document is not { } doc) return;
+        var settings = EditorPreferences.Current.ColorSettings; var revision = _history.CurrentRevision;
+        var source = doc.Image.Mode == ImageMode.Lab ? Localize.Text("Lab Color") : IccProfiles.Name(ProfileAssignment.Current(doc.Image) ?? IccProfiles.Resolve(settings.ProfileName(doc.Image.Mode), settings), settings.ProfileName(doc.Image.Mode));
+        CanvasDocument? preview = null; CancellationTokenSource? pending = null; ConvertProfileDialog? dialog = null;
+        async void Show()
+        {
+            pending?.Cancel(); pending = new CancellationTokenSource(); var token = pending.Token;
+            if (dialog!.Preview.IsChecked != true) { _canvas.PreviewDocument = null; _canvas.ColorSettingsChanged(); return; }
+            var (mode, profile) = dialog.Target(settings); var flatten = dialog.Flatten.IsChecked == true;
+            var copy = doc.Clone();
+            var converted = await Task.Run(() => ConvertedTo(copy, mode, profile, flatten) ? copy : null, token).ContinueWith(t => t.IsCompletedSuccessfully ? t.Result : null);
+            if (token.IsCancellationRequested || converted is null || !ReferenceEquals(doc, _document)) { converted?.Dispose(); return; }
+            var old = preview; preview = converted; _canvas.PreviewDocument = preview; _canvas.ColorSettingsChanged(); old?.Dispose();
+        }
+        dialog = new ConvertProfileDialog(source, settings, Show);
+        dialog.Opened += (_, _) => Show();
         try
         {
-            if (await ChooseIcc("Convert and Export ICC TIFF") is not { } profile || !ReferenceEquals(doc, _document)) return;
-            var file = await StorageProvider.SaveFilePickerAsync(new() { SuggestedFileName = "color-managed.tif", DefaultExtension = "tif" });
-            if (file?.TryGetLocalPath() is not { } path) return;
-            using var snapshot = new DocumentLease(doc);
-            await WorkScheduler.Run(_ => { using var composite = DocumentRenderer.RenderDeep(snapshot.Document); using var original = DeepImageCodec.Magick(composite); using var converted = ColorTransforms.Convert(original, ColorProfiles.SRGB.ToByteArray(), profile); converted.Depth = (uint)Math.Max(16, doc.Image.Depth); if (converted.Depth == 32) converted.Settings.SetDefine(MagickFormat.Tiff, "floating-point", "true"); converted.Density = new Density(doc.Resolution, doc.Resolution, DensityUnit.PixelsPerInch); AtomicFile.Write(path, output => converted.Write(output, MagickFormat.Tiff)); return true; });
-            Say("Color-managed TIFF exported.");
+            if (!await dialog.ShowDialog<bool>(this) || !ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
+            var (mode, profile) = dialog.Target(settings); var flatten = dialog.Flatten.IsChecked == true;
+            Edit("Convert to Profile", () => ConvertedTo(doc, mode, profile, flatten));
+            _open.ActiveAlpha = null; _open.VisibleChannels = ColorChannels.RGB; doc.EditChannels = ColorChannels.RGB; Refresh();
         }
         catch (Exception error) { Say(error.Message); }
+        finally { pending?.Cancel(); _canvas.PreviewDocument = null; preview?.Dispose(); _canvas.ColorSettingsChanged(); }
+    }
+    /// <summary>Flatten Image to Preserve Appearance: the layers become the one picture they make.</summary>
+    private static void FlattenForConversion(CanvasDocument doc)
+    {
+        var deep = doc.Image.Depth > 8;
+        var pixels = deep ? DocumentRenderer.RenderDeep(doc) : DocumentRenderer.Render(doc);
+        var name = Localize.Text("Background");
+        var asset = deep ? ImportedImage.CreateDeep(pixels, name, doc.Image.Depth) : ImportedImage.Create(pixels, name);
+        doc.Layers.Clear(); doc.Layers.Add(new ImageLayer(Guid.NewGuid(), asset, new(0, 0, doc.Width, doc.Height), name));
+    }
+    /// <summary>Converts a document so it looks the same in another profile: within RGB the pixels are moved into the new profile, and a
+    /// change of model goes through the document mode conversion with the chosen profile.</summary>
+    private static bool ConvertedTo(CanvasDocument doc, ImageMode mode, byte[]? profile, bool flatten)
+    {
+        var settings = ColorDefaults.Settings;
+        if (mode == ImageMode.RGB && doc.Image.Mode == ImageMode.RGB && profile is not null)
+        {
+            var from = ProfileAssignment.Current(doc.Image) ?? IccProfiles.Resolve(settings.Rgb, settings);
+            if (from.AsSpan().SequenceEqual(profile)) return false;
+            if (flatten && doc.Layers.Count > 1) FlattenForConversion(doc);
+            foreach (var layer in doc.Layers.Where(l => l.Asset is not null && l.Adjustment is null).ToArray())
+            {
+                using var converted = ColorTransforms.Convert(layer.Asset!.WorkingImage, from, profile, settings);
+                using var deep = DeepPixels.From(converted);
+                ImageAdjustments.SetPixels(doc, layer, deep, selection: false);
+            }
+            doc.Image = doc.Image with { ColorProfile = profile.ToArray() }; return true;
+        }
+        if (flatten && doc.Layers.Count > 1) FlattenForConversion(doc);
+        var target = doc.Image with
+        {
+            Mode = mode, Palette = null,
+            ColorProfile = mode is ImageMode.RGB or ImageMode.Grayscale ? profile?.ToArray() : doc.Image.ColorProfile,
+            CmykProfile = mode == ImageMode.CMYK ? profile?.ToArray() : doc.Image.CmykProfile,
+        };
+        return ImageModeEdits.Convert(doc, target);
     }
     private async Task OpenColorIoSettings()
     {

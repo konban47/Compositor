@@ -200,11 +200,50 @@ public static partial class EffectRasterizer
     private static void FillRing(byte[] canvas, float[] shape, float[] work, float[] temp,
                                  int width, int height, StrokeEffect stroke)
     {
-        var reach = Math.Max(1, (int)Math.Round(stroke.Size, MidpointRounding.AwayFromZero));
-        Extreme(shape, work, temp, width, height, reach, smallest: stroke.Inside);
+        // The ring reaches the same distance in every direction, so a circle's stroke is even all the way round
+        // rather than flattened on its sides and thinned on the diagonals by a square reach (upstream #335).
+        var reach = Math.Max(1, (float)stroke.Size);
+        Distances(shape, work, width, height, inside: stroke.Inside);
         for (var i = 0; i < shape.Length; i++)
-            work[i] = stroke.Inside ? Math.Max(0f, shape[i] - work[i]) : Math.Max(0f, work[i] - shape[i]);
+        {
+            var band = Math.Clamp(reach + 1 - work[i], 0f, 1f);
+            work[i] = stroke.Inside ? band * shape[i] : band * (1 - shape[i]);
+        }
         Fill(canvas, work, stroke.Red, stroke.Green, stroke.Blue, stroke.Opacity);
+    }
+
+    /// <summary>Each pixel's Euclidean distance to the shape (or, inside, to what isn't the shape), by two passes of
+    /// the Felzenszwalb–Huttenlocher squared-distance transform.</summary>
+    private static void Distances(float[] shape, float[] result, int width, int height, bool inside)
+    {
+        const float Far = 1e12f;
+        for (var i = 0; i < shape.Length; i++) result[i] = (inside ? shape[i] < .5f : shape[i] >= .5f) ? 0 : Far;
+        var size = Math.Max(width, height);
+        var line = new float[size]; var output = new float[size]; var hulls = new int[size]; var bounds = new float[size + 1];
+        void Pass(int count, Func<int, int> at)
+        {
+            for (var i = 0; i < count; i++) line[i] = result[at(i)];
+            int k = 0; hulls[0] = 0; bounds[0] = float.NegativeInfinity; bounds[1] = float.PositiveInfinity;
+            for (var q = 1; q < count; q++)
+            {
+                float s;
+                while (true)
+                {
+                    var p = hulls[k];
+                    s = (line[q] + q * q - (line[p] + p * p)) / (2f * (q - p));
+                    if (s <= bounds[k] && k > 0) { k--; continue; }
+                    break;
+                }
+                if (s <= bounds[k]) { hulls[0] = q; bounds[0] = float.NegativeInfinity; bounds[1] = float.PositiveInfinity; k = 0; continue; }
+                k++; hulls[k] = q; bounds[k] = s; bounds[k + 1] = float.PositiveInfinity;
+            }
+            k = 0;
+            for (var q = 0; q < count; q++) { while (bounds[k + 1] < q) k++; var d = q - hulls[k]; output[q] = d * d + line[hulls[k]]; }
+            for (var i = 0; i < count; i++) result[at(i)] = output[i];
+        }
+        for (var x = 0; x < width; x++) { var column = x; Pass(height, y => y * width + column); }
+        for (var y = 0; y < height; y++) { var row = y; Pass(width, x => row * width + x); }
+        for (var i = 0; i < result.Length; i++) result[i] = MathF.Sqrt(result[i]);
     }
 
     /// <summary>Paints an effect's color through its coverage at its opacity, source-over.</summary>

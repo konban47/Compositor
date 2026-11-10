@@ -16,7 +16,10 @@ public static class DeepPaint
             float Mix(byte a, byte b) => (float)((a + (b - a) * t) / 255);
             return new SKColorF(Mix(from.Red, to.Red), Mix(from.Green, to.Green), Mix(from.Blue, to.Blue), Mix(from.Alpha, to.Alpha));
         }, opacity, false);
-    public static bool Paint(CanvasDocument doc, ImageLayer layer, Func<SKPoint, SKColorF> sample, double opacity, bool clear, PaintBlend blend = PaintBlend.Normal)
+    /// <param name="preserveAlpha">Photoshop's Preserve Transparency: each pixel keeps the opacity it had.</param>
+    /// <param name="reach">How much of each point is painted, in place of the selection: a stroke's band.</param>
+    public static bool Paint(CanvasDocument doc, ImageLayer layer, Func<SKPoint, SKColorF> sample, double opacity, bool clear, PaintBlend blend = PaintBlend.Normal,
+        bool preserveAlpha = false, Func<SKPoint, float>? reach = null)
     {
         if (layer.Asset is not { } asset || !LayerProtection.CanPaint(doc, layer.ID) || !double.IsFinite(opacity)) return false;
         using var result = DeepPixels.From(asset.WorkingImage); var p = MemoryMarshal.Cast<byte, float>(result.GetPixelSpan());
@@ -25,8 +28,11 @@ public static class DeepPaint
         for (var y = 0; y < result.Height; y++) for (var x = 0; x < result.Width; x++)
         {
             var i = y * result.RowBytes / 4 + x * 4;
-            var point = map.MapPoint(x + .5f, y + .5f); var amount = FillEdits.Amount(coverage, region, point);
+            var point = map.MapPoint(x + .5f, y + .5f); var amount = reach?.Invoke(point) ?? FillEdits.Amount(coverage, region, point);
             if (amount <= 0) continue;
+            var kept = p[i + 3];
+            if (preserveAlpha && kept <= 0) continue;
+            if (preserveAlpha) { Mix(p, i, sample(point), opacity * amount, blend, x + y * result.Width); p[i + 3] = kept; continue; }
             if (clear) { p[i + 3] *= (float)(1 - amount); continue; }
             var color = sample(point);
             if (blend != PaintBlend.Normal)
@@ -43,6 +49,12 @@ public static class DeepPaint
             p[i + 2] = (color.Blue * alpha + p[i + 2] * under * (1 - alpha)) / next; p[i + 3] = next;
         }
         return ImageAdjustments.SetPixels(doc, layer, result, selection: false);
+    }
+    private static void Mix(Span<float> p, int i, SKColorF color, double power, PaintBlend blend, int seed)
+    {
+        if (blend == PaintBlend.Dissolve) power = BrushDabs.Random(1729, seed, 1) < power ? 1 : 0;
+        var mixed = BrushBlending.Composite(new SKColorF(p[i], p[i + 1], p[i + 2], p[i + 3]), color, power, blend == PaintBlend.Dissolve ? PaintBlend.Normal : blend);
+        p[i] = mixed.Red; p[i + 1] = mixed.Green; p[i + 2] = mixed.Blue; p[i + 3] = mixed.Alpha;
     }
     /// <summary>
     /// The layers Convert Layer to 16-Bit / 8-Bit works on: the selected ones and those inside selected groups that

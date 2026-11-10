@@ -33,6 +33,25 @@ public static class EditWorkspace
         }
         document.Selection = DocumentSelection.All; return true;
     }
+    /// <summary>Gives an empty layer the canvas's pixels to paint into, as Fill and Stroke need.</summary>
+    public static bool EnsurePixels(CanvasDocument doc, ImageLayer layer)
+    {
+        if (layer.Asset is not null) return true;
+        if ((long)doc.Width * doc.Height + doc.Layers.Sum(l => (long)(l.Asset?.Width ?? 0) * (l.Asset?.Height ?? 0)) > DocumentLimits.DocumentPixelBudget) return false;
+        var blank = Bitmaps.Allocate(Bitmaps.ColorInfo(doc.Width, doc.Height)); blank.Erase(SKColors.Transparent);
+        layer.Asset = ImportedImage.Create(blank, layer.Name); layer.Transform = new(0, 0, doc.Width, doc.Height); return true;
+    }
+
+    /// <summary>The band a stroke covers, as a picture of the canvas: the selection's outline, or the layer's edge without one.</summary>
+    public static SKBitmap StrokeBand(CanvasDocument doc, SKPath outline, double width, int location)
+    {
+        var band = new SKBitmap(new SKImageInfo(doc.Width, doc.Height, SKColorType.Alpha8, SKAlphaType.Premul)); band.Erase(SKColors.Transparent);
+        using var canvas = new SKCanvas(band);
+        using var paint = new SKPaint { Color = SKColors.White, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)(location == 1 ? width : width * 2), StrokeJoin = SKStrokeJoin.Round };
+        if (location != 1) canvas.ClipPath(outline, location == 0 ? SKClipOperation.Intersect : SKClipOperation.Difference, true);
+        canvas.DrawPath(outline, paint); return band;
+    }
+
     public static bool Paint(CanvasDocument doc, Guid id, SKColor color, double opacity, SKBlendMode mode, bool preserveAlpha,
         SKBitmap? pattern = null, double strokeWidth = 0, int strokeLocation = 1)
     {

@@ -43,16 +43,15 @@ public sealed partial class MainWindow
         var layers = doc.Layers.Where(l => SelectedLayers.Contains(l.ID) && l.Asset is not null && LayerProtection.CanMove(doc, l.ID)).ToArray();
         if (layers.Length < 2) { Say("Select at least two unlocked pixel layers."); return; }
         var revision = _history.CurrentRevision;
-        var form = new FormDialog("Auto-Align Layers", height: 330);
-        form.Description("Translation alignment uses the first selected layer as the reference. Rotation and perspective are not changed.");
-        var range = form.Number("Maximum Shift (px)", Math.Max(doc.Width, doc.Height) / 10, 1, Math.Max(doc.Width, doc.Height) / 2);
+        var form = new AutoLayersDialog(false);
         if (!await form.ShowDialog<bool>(this)) return;
+        var range = Math.Max(doc.Width, doc.Height) / 10;
         try
         {
             using var reference = RenderOne(doc, layers[0]);
             var offsets = new List<(ImageLayer Layer, SKPoint Offset)>();
             foreach (var layer in layers.Skip(1))
-            { using var image = RenderOne(doc, layer); offsets.Add((layer, await Task.Run(() => AdvancedEdit.AlignTranslation(reference, image, (int)(range.Value ?? 100))))); }
+            { using var image = RenderOne(doc, layer); offsets.Add((layer, await Task.Run(() => AdvancedEdit.AlignTranslation(reference, image, range)))); }
             if (!ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
             Edit("Auto-Align Layers", () => { foreach (var (layer, delta) in offsets) TransformEdits.SetPlacement(layer, layer.Transform with { X = layer.Transform.X + delta.X, Y = layer.Transform.Y + delta.Y }); return true; });
         }
@@ -64,15 +63,14 @@ public sealed partial class MainWindow
         var layers = doc.Layers.Where(l => SelectedLayers.Contains(l.ID) && l.Asset is not null).ToArray();
         if (layers.Length < 2) { Say("Select at least two unlocked pixel layers."); return; }
         if ((long)doc.Width * doc.Height * layers.Length > 32_000_000) { Say("Blending is limited to 32 million source pixels per operation."); return; }
-        var revision = _history.CurrentRevision; var form = new FormDialog("Auto-Blend Layers", height: 330);
-        var mode = form.Choice("Method", ["Average Stack", "Focus Stack"], 0);
-        form.Description("Align the layers first. The blend is added as a new layer; source layers remain editable.");
+        var revision = _history.CurrentRevision; var form = new AutoLayersDialog(true);
         if (!await form.ShowDialog<bool>(this)) return;
+        var stack = form.Choice == 1; var seamless = form.Seamless.IsChecked == true; var fill = form.FillTransparent.IsChecked == true;
         var images = new List<SKBitmap>();
         try
         {
             foreach (var layer in layers) images.Add(RenderOne(doc, layer));
-            using var result = await Task.Run(() => AdvancedEdit.Blend(images, mode.SelectedIndex == 1));
+            using var result = await Task.Run(() => AdvancedEdit.Blend(images, stack, seamless));
             if (!ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
             Guid? made = null;
             Edit("Auto-Blend Layers", () =>
@@ -82,6 +80,14 @@ public sealed partial class MainWindow
                 if (made is not { } id) return false;
                 var target = doc.Layers.First(l => l.ID == id); target.Asset = ImportedImage.CreateDeep(result.Copy(), target.Name, 32);
                 foreach (var layer in layers) layer.IsVisible = false;
+                if (fill)
+                {
+                    // The empty corners a panorama leaves are filled from what's around them, as Photoshop's option does.
+                    using var empty = new SKBitmap(new SKImageInfo(preview.Width, preview.Height, SKColorType.Alpha8, SKAlphaType.Premul));
+                    var hole = empty.GetPixelSpan(); var any = false;
+                    for (var y = 0; y < preview.Height; y++) for (var x = 0; x < preview.Width; x++) if (preview.GetPixel(x, y).Alpha < 8) { hole[y * empty.RowBytes + x] = 255; any = true; }
+                    if (any) { var kept = doc.Selection; doc.Selection = DocumentSelection.FromCoverage(empty); ContentFillEdits.Apply(doc, id); doc.Selection = kept; }
+                }
                 return true;
             });
             Reselect(made);
@@ -93,9 +99,32 @@ public sealed partial class MainWindow
     {
         if (_document is not { } doc) return;
         var revision = _history.CurrentRevision;
-        using var reference = DocumentRenderer.Render(doc);
+        var options = new RemoveReflectionsDialog();
+        if (!await options.ShowDialog<bool>(this) || !ReferenceEquals(doc, _document)) return;
+        using var full = DocumentRenderer.Render(doc);
+        var scale = Math.Min(1, (double)options.LongestSide / Math.Max(full.Width, full.Height));
+        using var reference = scale < 1 ? full.Resize(Bitmaps.ColorInfo(Math.Max(1, (int)(full.Width * scale)), Math.Max(1, (int)(full.Height * scale))), new SKSamplingOptions(SKFilterMode.Linear))! : full.Copy();
         var form = new GenerativeDialog(true, reference: PngCodec.Encode(reference), prompt: "Remove glass reflections while preserving the scene behind the glass, framing, colors and all other details. Return the same image dimensions.");
-        if (await form.ShowDialog<GenerativeDialog.Result?>(this) is { } result && ReferenceEquals(doc, _document) && revision == _history.CurrentRevision) ImportGenerated(result);
+        if (await form.ShowDialog<GenerativeDialog.Result?>(this) is not { } result || !ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
+        ImportGenerated(result);
+        if (options.Separate.IsChecked != true) return;
+        // What was taken away, as its own layer: added back over the clean picture with Linear Dodge, it gives the original.
+        using var decoded = SKBitmap.Decode(result.Image.Bytes); if (decoded is null) return;
+        using var clean = decoded.Resize(Bitmaps.ColorInfo(full.Width, full.Height), new SKSamplingOptions(SKFilterMode.Linear)); if (clean is null) return;
+        using var reflection = new SKBitmap(Bitmaps.ColorInfo(full.Width, full.Height));
+        for (var y = 0; y < full.Height; y++) for (var x = 0; x < full.Width; x++)
+        {
+            var a = full.GetPixel(x, y); var b = clean.GetPixel(x, y);
+            reflection.SetPixel(x, y, new SKColor((byte)Math.Max(0, a.Red - b.Red), (byte)Math.Max(0, a.Green - b.Green), (byte)Math.Max(0, a.Blue - b.Blue), 255));
+        }
+        Guid? made = null;
+        Edit("Remove Reflections", () =>
+        {
+            made = LayerPlacement.AddImage(doc, reflection.Copy(), SKRectI.Create(doc.Width, doc.Height), Localize.Text("Reflection"), Selected);
+            if (made is not { } id) return false;
+            var layer = doc.Layers.First(l => l.ID == id); layer.BlendMode = Compositor.Core.Format.LayerBlendMode.LinearDodgeAdd; layer.IsVisible = false; return true;
+        });
+        Reselect(made);
     }
     private async Task SkyReplacement()
     {

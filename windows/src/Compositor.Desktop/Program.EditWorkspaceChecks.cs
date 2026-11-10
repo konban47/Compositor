@@ -60,9 +60,8 @@ public sealed partial class MainWindow
         doc = _document!; layer = doc.Layers.Single(); Copy(); doc.Selection = DocumentSelection.Rectangular(new(30, 30, 90, 90), 400, 300); PasteMasked(false); Pump();
         Check(_document!.Layers.Count == 2 && _document!.Layers.Any(l => l.Mask is not null), "Paste Into did not create a mask."); Undo(); Pump();
         var task = EditPreferences("History"); Pump(); OwnedWindows.OfType<PreferencesDialog>().Single().Close(false); Finish(task);
-        FormDialog form;
         var oldDirectory = EditorPresets.DefaultPath;
-        task = DefinePreset("Brush"); Pump(); form = OwnedWindows.OfType<FormDialog>().Single(); form.Close(true); Finish(task);
+        task = DefinePreset("Brush"); Pump(); OwnedWindows.OfType<PresetNameDialog>().Single().Close(true); Finish(task);
         Check(EditorPresets.Load(oldDirectory).Any(p => p.Kind == "Brush"), "Define Brush did not save a usable preset.");
         var area = _tabDropArea!; var target = area.TranslatePoint(new Point(area.Bounds.Width - 250, area.Bounds.Height / 2), this)!.Value;
         var previous = _open; Check(DropLayersOnTabs(target), "Layer drop outside the tabs was ignored."); Pump();

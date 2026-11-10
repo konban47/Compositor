@@ -12,17 +12,20 @@ public sealed partial class MainWindow
 {
     private async Task DefinePreset(string kind)
     {
-        var form = new FormDialog("Define " + kind + " Preset", height: 310); var name = form.Text("Name", Localize.Text(kind));
-        form.Validate = () => string.IsNullOrWhiteSpace(name.Text) || name.Text.Length > 200 ? "Enter a name (1–200 characters)." : null;
-        if (!await form.ShowDialog<bool>(this)) return;
         try
         {
-            string? image = null, path = null;
+            string? image = null, path = null; SKBitmap? thumbnail = null;
             if (kind == "Shape")
             {
                 path = PropertyLayer?.LiveShape?.Path ?? _document?.Selection.Path?.ToSvgPathData();
                 if (path is null) { Say("Select a vector shape or make a selection first."); return; }
                 path = ShapeTemplates.Normalize(path);
+                using var shape = SKPath.ParseSvgPathData(path);
+                thumbnail = new SKBitmap(96, 96); using var canvas = new SKCanvas(thumbnail); canvas.Clear(SKColors.Transparent);
+                var bounds = shape.Bounds; var scale = 80 / Math.Max(1, Math.Max(bounds.Width, bounds.Height));
+                canvas.Translate(48, 48); canvas.Scale(scale); canvas.Translate(-bounds.MidX, -bounds.MidY);
+                using var fill = new SKPaint { Color = SKColors.White, IsAntialias = true }; using var edge = new SKPaint { Color = SKColors.Black, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 3 / scale };
+                canvas.DrawPath(shape, fill); canvas.DrawPath(shape, edge);
             }
             else if (_document is { } doc)
             {
@@ -33,11 +36,18 @@ public sealed partial class MainWindow
                 if (coverage is not null)
                     for (var y = 0; y < pixels.Height; y++) for (var x = 0; x < pixels.Width; x++)
                     { var c = pixels.GetPixel(x, y); pixels.SetPixel(x, y, c.WithAlpha((byte)(c.Alpha * coverage.GetPixelSpan()[y * coverage.RowBytes + x] / 255))); }
-                image = Convert.ToBase64String(PngCodec.Encode(pixels));
+                image = Convert.ToBase64String(PngCodec.Encode(pixels)); thumbnail = pixels.Copy();
             }
             if (kind == "Pattern" && image is null) { Say("Open an image to define a pattern."); return; }
-            var preset = new EditorPreset(Guid.NewGuid(), name.Text!.Trim(), kind, _options.Brush.Diameter, _options.Brush.Hardness, _options.Brush.Opacity, image, path);
-            EditorPresets.Save(EditorPresets.DefaultPath, EditorPresets.Load(EditorPresets.DefaultPath).Append(preset)); ApplyPreset(preset);
+            var existing = EditorPresets.Load(EditorPresets.DefaultPath);
+            var number = existing.Count(p => p.Kind == kind) + 1;
+            var title = kind switch { "Shape" => "Shape Name", "Pattern" => "Pattern Name", _ => "Brush Name" };
+            var defaultName = kind == "Brush" ? $"{Localize.Text("Sampled Brush")} {number}" : $"{Localize.Text(kind)} {number}";
+            var dialog = new PresetNameDialog(title, defaultName, thumbnail, kind == "Brush" && thumbnail is not null ? Math.Max(thumbnail.Width, thumbnail.Height).ToString(System.Globalization.CultureInfo.InvariantCulture) : null);
+            var accepted = await dialog.ShowDialog<bool>(this); thumbnail?.Dispose();
+            if (!accepted) return;
+            var preset = new EditorPreset(Guid.NewGuid(), dialog.PresetName, kind, _options.Brush.Diameter, _options.Brush.Hardness, _options.Brush.Opacity, image, path);
+            EditorPresets.Save(EditorPresets.DefaultPath, existing.Append(preset)); ApplyPreset(preset);
         }
         catch (Exception error) { Say(error.Message); }
     }

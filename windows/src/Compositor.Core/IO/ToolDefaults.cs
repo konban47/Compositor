@@ -41,6 +41,8 @@ public sealed class ToolDefaults
     public double? WindowX { get; set; }
     public double? WindowY { get; set; }
     public bool WindowMaximized { get; set; }
+    /// <summary>The format Export As last saved in, which it opens on next time.</summary>
+    public ExportFormat LastExportFormat { get; set; }
     /// <summary>The colors added to the Swatches panel, as #RRGGBB.</summary>
     public List<string> Swatches { get; set; } = [];
 
@@ -110,6 +112,7 @@ public sealed class ToolDefaults
         WindowX = WindowX is { } x && double.IsFinite(x) ? x : null,
         WindowY = WindowY is { } y && double.IsFinite(y) ? y : null,
         WindowMaximized = WindowMaximized,
+        LastExportFormat = Enum.IsDefined(LastExportFormat) ? LastExportFormat : ExportFormat.Png,
         Swatches = Swatches?.Where(s => s is { Length: 7 } && s[0] == '#').Distinct(StringComparer.OrdinalIgnoreCase).Take(512).ToList() ?? [],
     };
 }
