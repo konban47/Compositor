@@ -34,7 +34,7 @@ public sealed partial class MainWindow
             Command("Clear", ClearPixels), new Separator(),
             Run("_Find Command…", FindCommand, "Find Command"), Run("Check Spelling…", CheckSpelling), Run("Find and Replace Text…", FindReplaceText),
             new Separator(), Run("Fill…", EditFill, "Fill Dialog"), Run("Stroke…", EditStroke),
-            Command("_Content-Aware Fill…", ContentAwareFill, "Content-Aware Fill"), Run("Generative Fill…", GenerativeFill), Run("Generate Image…", OpenGenerativeWorkspace),
+            Command("_Content-Aware Fill…", () => _ = ContentAwareFillWorkspace(), "Content-Aware Fill"), Run("Generative Fill…", GenerativeFill), Run("Generate Image…", OpenGenerativeWorkspace),
             Run("Remove Reflections…", RemoveReflections), new Separator(),
             Run("Content-Aware Scale…", ContentAwareScale, "Content-Aware Scale"), Command("Puppet Warp", BeginPuppetWarp), Command("Perspective Warp", () => BeginEditTransform("Perspective")),
             Command("Free Transform", () => BeginEditTransform("Scale"), "Free Transform"), transform, Command("Rotate Object", () => BeginEditTransform("Rotate")),
@@ -61,7 +61,7 @@ public sealed partial class MainWindow
                 else if (title is "Auto-Align Layers…" or "Auto-Blend Layers…") item.IsEnabled = SelectedLayers.Count >= 2;
                 else if (title is "Check Spelling…" or "Find and Replace Text…") item.IsEnabled = _document?.Layers.Exists(l => l.LiveText is not null) == true;
                 else if (title is "Fade…" or "Cu_t" or "_Copy" or "Copy _Merged" or "Clear" or "Fill…" or "Stroke…" or "Content-Aware Scale…" or "Puppet Warp" or "Perspective Warp" or "Free Transform" or "Rotate Object") item.IsEnabled = PropertyLayer is not null;
-                else if (title is "Generative Fill…" or "Paste Into" or "Paste Outside" or "Sky Replacement…") item.IsEnabled = _document?.Selection.Path is not null && _document.Selection.IsEmpty == false;
+                else if (title is "Generative Fill…" or "Paste Into" or "Paste Outside") item.IsEnabled = _document?.Selection.Path is not null && _document.Selection.IsEmpty == false;
             }
             foreach (var child in item.Items.OfType<MenuItem>()) Visit(child);
         }

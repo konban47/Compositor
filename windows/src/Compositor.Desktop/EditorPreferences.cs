@@ -39,6 +39,7 @@ internal sealed class EditorPreferences
     public ColorManagementSettings ColorSettings { get; set; } = new();
     public OcioSettings Ocio { get; set; } = new();
     public HashSet<string> HiddenMenus { get; set; } = [];
+    public Dictionary<string, string> MenuColors { get; set; } = [];
     public string Language { get; set; } = "";
     public bool LockWorkspace { get; set; }
     public string ActiveWorkspace { get; set; } = "Essentials";
@@ -123,7 +124,7 @@ internal sealed class EditorPreferences
         foreach (var styles in new[] { CharacterStyles, ParagraphStyles }) foreach (var key in styles.Keys.ToArray())
             if (styles[key] is not { IsValid: true } || key.Length > 100 || styles.Count > 200) styles.Remove(key);
         if (DefaultTypeStyle is not null && !DefaultTypeStyle.IsValid) DefaultTypeStyle = null;
-        HiddenMenus ??= []; FavoriteFonts ??= []; FavoriteFonts = FavoriteFonts.Where(f => !string.IsNullOrWhiteSpace(f) && f.Length <= 200).Take(500).ToHashSet(); FontPreviewSize = Math.Clamp(FontPreviewSize, 0, 5);
+        HiddenMenus ??= []; MenuColors = (MenuColors ?? []).Where(p => p.Key.Length <= 1000 && p.Value != "None" && MenuLook.Palette.Contains(p.Value)).Take(2000).ToDictionary(p => p.Key, p => p.Value); FavoriteFonts ??= []; FavoriteFonts = FavoriteFonts.Where(f => !string.IsNullOrWhiteSpace(f) && f.Length <= 200).Take(500).ToHashSet(); FontPreviewSize = Math.Clamp(FontPreviewSize, 0, 5);
         LayerThumbnailSize = LayerThumbnailSize is 0 or 32 or 48 or 64 ? LayerThumbnailSize : 32;
         MaskOverlayColor = Color(MaskOverlayColor, "#FF0000"); MaskOverlayOpacity = Finite(MaskOverlayOpacity, 0, 100, 50);
     }

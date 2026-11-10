@@ -23,7 +23,9 @@ internal sealed class ExportAsDialog : DialogWindow
     private readonly NumericUpDown _canvasWidth = Number(1, 1, DocumentLimits.MaxSide), _canvasHeight = Number(1, 1, DocumentLimits.MaxSide);
     private readonly Slider _quality = new() { Minimum = 1, Maximum = 100, Value = 90, Width = 170, Tag = "export-quality" };
     private readonly TextBlock _qualityValue = new() { VerticalAlignment = VerticalAlignment.Center, Width = 28, TextAlignment = TextAlignment.Right };
-    private readonly Control _qualityRow, _qualityScale;
+    private readonly Control _qualityRow, _qualityScale, _pdfRow;
+    private readonly ComboBox _pdfPreset = new() { Width = 200, Tag = "export-pdf-preset" };
+    private readonly IReadOnlyList<PdfPreset> _pdfPresets = PdfPresets.All();
     private readonly CheckBox _transparent = new() { Content = Localize.Text("Transparency"), IsChecked = true, Tag = "export-transparency" };
     private readonly ComboBox _background = new() { ItemsSource = new[] { Localize.Text("White"), Localize.Text("Black") }, SelectedIndex = 0, Width = 150 };
     private readonly ComboBox _colorSpace = new() { ItemsSource = new[] { "RGB", "CMYK", Localize.Text("Document Mode (TIFF)") }, SelectedIndex = 0, Width = 150 };
@@ -102,7 +104,10 @@ internal sealed class ExportAsDialog : DialogWindow
         var low = new TextBlock { Text = Localize.Text("Low"), Foreground = Skin.SecondaryBrush }; var high = new TextBlock { Text = Localize.Text("High"), Foreground = Skin.SecondaryBrush, HorizontalAlignment = HorizontalAlignment.Right };
         _qualityRow = Row("Quality", new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _quality, _qualityValue } });
         _qualityScale = new Grid { Margin = new Thickness(92, 0, 36, 0), ColumnDefinitions = new ColumnDefinitions("*,*"), Children = { low, new Border { [Grid.ColumnProperty] = 1, Child = high } } };
-        var settings = new StackPanel { Spacing = 6, Children = { Row("Format", _format), _qualityRow, _qualityScale } };
+        _pdfPreset.ItemsSource = _pdfPresets.Select(p => p.BuiltIn ? Localize.Text(p.Name) : p.Name).ToArray(); _pdfPreset.SelectedIndex = 0;
+        _pdfPreset.SelectionChanged += (_, _) => { if (SelectedPdf is { ColorConversion: PdfColorConversion.WorkingCmyk }) _colorSpace.SelectedIndex = 1; Queue(); };
+        _pdfRow = Row("PDF Preset", _pdfPreset);
+        var settings = new StackPanel { Spacing = 6, Children = { Row("Format", _format), _qualityRow, _qualityScale, _pdfRow } };
         var imageSize = new StackPanel
         {
             Spacing = 6,
@@ -180,8 +185,9 @@ internal sealed class ExportAsDialog : DialogWindow
         return new(Format, width, height, (int)_quality.Value, _transparent.IsChecked == true, _background.SelectedIndex == 1 ? SKColors.Black : SKColors.White, pdf ? EditorPreferences.Current.PdfResolution : _document.Resolution,
             _colorSpace.SelectedIndex == 1 && Format is ExportFormat.Jpeg or ExportFormat.Pdf or ExportFormat.Tiff ? _document.Image.CmykProfile ?? CmykColor.DefaultProfile : null,
             _colorSpace.SelectedIndex == 2 && Format == ExportFormat.Tiff, noMetadata || _metaNone.IsChecked == true ? MetadataPolicy.None : MetadataPolicy.CopyrightAndContact,
-            canvasWidth == width && canvasHeight == height ? 0 : canvasWidth, canvasWidth == width && canvasHeight == height ? 0 : canvasHeight, _resample.SelectedIndex);
+            canvasWidth == width && canvasHeight == height ? 0 : canvasWidth, canvasWidth == width && canvasHeight == height ? 0 : canvasHeight, _resample.SelectedIndex, pdf ? SelectedPdf : null);
     }
+    private PdfPreset? SelectedPdf => _pdfPresets.ElementAtOrDefault(_pdfPreset.SelectedIndex);
     private void DimensionChanged(bool width)
     {
         if (_changing) return;
@@ -196,7 +202,7 @@ internal sealed class ExportAsDialog : DialogWindow
         if (_closed || _export is null) return;
         var format = Format;
         _colorSpace.IsEnabled = format is ExportFormat.Jpeg or ExportFormat.Pdf or ExportFormat.Tiff; if (!_colorSpace.IsEnabled || _colorSpace.SelectedIndex == 2 && format != ExportFormat.Tiff) _colorSpace.SelectedIndex = 0;
-        _revision++; _export.IsEnabled = false; _qualityRow.IsVisible = _qualityScale.IsVisible = format == ExportFormat.Jpeg;
+        _revision++; _export.IsEnabled = false; _qualityRow.IsVisible = _qualityScale.IsVisible = format == ExportFormat.Jpeg; _pdfRow.IsVisible = format == ExportFormat.Pdf;
         _transparent.IsEnabled = _colorSpace.SelectedIndex == 0 && format is ExportFormat.Png or ExportFormat.Tiff or ExportFormat.Exr or ExportFormat.Gif;
         _background.IsEnabled = format is not (ExportFormat.Png or ExportFormat.Tiff or ExportFormat.Exr) || _transparent.IsChecked != true;
         _metaNone.IsEnabled = _metaCopyright.IsEnabled = format is not (ExportFormat.Pdf or ExportFormat.Exr);

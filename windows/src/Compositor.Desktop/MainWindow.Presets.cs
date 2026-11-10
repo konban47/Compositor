@@ -78,7 +78,7 @@ public sealed partial class MainWindow
         }
         catch (Exception error) { Say(error.Message); }
     }
-    private Task PdfPresets() => EditPreferences("Export");
+    private async Task PdfPresets() => await new PdfPresetsDialog().ShowDialog(this);
     private async Task RemoteConnections()
     {
         var form = new FormDialog("Remote Connections", 580, 360);

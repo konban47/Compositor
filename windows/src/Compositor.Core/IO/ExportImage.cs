@@ -7,14 +7,14 @@ namespace Compositor.Core.IO;
 public enum ExportFormat { Png, Jpeg, Pdf, Tiff, Exr, Gif, Psd }
 public sealed record ExportOptions(ExportFormat Format, int Width, int Height, int Quality = 90,
     bool Transparency = true, SKColor? Background = null, double Resolution = 72, byte[]? CmykProfile = null, bool NativeColorMode = false,
-    MetadataPolicy Metadata = MetadataPolicy.None, int CanvasWidth = 0, int CanvasHeight = 0, int Resample = -1)
+    MetadataPolicy Metadata = MetadataPolicy.None, int CanvasWidth = 0, int CanvasHeight = 0, int Resample = -1, PdfPreset? Pdf = null)
 {
     public string Extension => Format switch { ExportFormat.Jpeg => "jpg", ExportFormat.Pdf => "pdf", ExportFormat.Tiff => "tif", ExportFormat.Exr => "exr", ExportFormat.Gif => "gif", ExportFormat.Psd => "psd", _ => "png" };
     public bool IsValid => (CmykProfile is null || CmykColor.IsProfile(CmykProfile) && Format is ExportFormat.Jpeg or ExportFormat.Tiff or ExportFormat.Pdf) && Enum.IsDefined(Format) && Width > 0 && Height > 0
         && Width <= DocumentLimits.MaxSide && Height <= DocumentLimits.MaxSide
         && (long)Width * Height <= DocumentLimits.MaxSurfacePixels && Quality is >= 1 and <= 100
         && double.IsFinite(Resolution) && Resolution is >= 1 and <= 9600 && Enum.IsDefined(Metadata)
-        && (Metadata == MetadataPolicy.None || Format is ExportFormat.Png or ExportFormat.Jpeg or ExportFormat.Tiff or ExportFormat.Gif);
+        && (Metadata == MetadataPolicy.None || Format is ExportFormat.Png or ExportFormat.Jpeg or ExportFormat.Tiff or ExportFormat.Gif) && Pdf?.IsValid != false;
 }
 
 public sealed class ExportResult(byte[] bytes, SKBitmap preview) : IDisposable
@@ -43,6 +43,18 @@ public static class ExportImage
         return framed;
     }
 
+    private static SKBitmap? Downsampled(SKBitmap pixels, ref ExportOptions options)
+    {
+        if (options.Format != ExportFormat.Pdf || options.Pdf is not { } preset) return null;
+        var (width, height) = preset.Downsampled(pixels.Width, pixels.Height, options.Resolution);
+        options = options with { Quality = preset.ImageQuality };
+        if (width == pixels.Width && height == pixels.Height) return null;
+        var sampling = preset.Downsample == PdfDownsample.Average ? new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear) : new SKSamplingOptions(SKCubicResampler.Mitchell);
+        var smaller = pixels.Resize(new SKImageInfo(width, height, pixels.ColorType, pixels.AlphaType, pixels.ColorSpace), sampling) ?? throw new IOException("The image could not be resized.");
+        options = options with { Resolution = options.Resolution * width / pixels.Width };
+        return smaller;
+    }
+
     public static ExportResult Encode(CanvasDocument document, ExportOptions options)
     {
         if (!options.IsValid) throw new ArgumentOutOfRangeException(nameof(options));
@@ -61,6 +73,10 @@ public static class ExportImage
             using var paint = new SKPaint { Color = options.Background ?? SKColors.White, BlendMode = SKBlendMode.DstOver };
             canvas.DrawPaint(paint);
         }
+        // A PDF preset brings an image above its threshold down to its resolution, keeping the page the same size.
+        var pageWidth = (float)(pixels.Width * 72 / options.Resolution); var pageHeight = (float)(pixels.Height * 72 / options.Resolution);
+        using var downsampled = Downsampled(pixels, ref options);
+        if (downsampled is not null) pixels = downsampled;
         byte[] bytes;
         using var image = SKImage.FromBitmap(pixels);
         if (options.CmykProfile is not null) bytes = CmykColor.Encode(pixels, options);
@@ -75,12 +91,12 @@ public static class ExportImage
         else if (options.Format == ExportFormat.Pdf)
         {
             using var stream = new MemoryStream();
-            using (var pdf = SKDocument.CreatePdf(stream))
+            var metadata = SKDocumentPdfMetadata.Default;
+            metadata.Creator = "Compositor"; metadata.EncodingQuality = options.Pdf?.EncodingQuality ?? 101; metadata.PdfA = options.Pdf?.Standard == PdfStandard.PdfA2b;
+            using (var pdf = SKDocument.CreatePdf(stream, metadata))
             {
-                var width = (float)(options.Width * 72 / options.Resolution);
-                var height = (float)(options.Height * 72 / options.Resolution);
-                var page = pdf.BeginPage(width, height);
-                page.DrawImage(image, SKRect.Create(width, height), new SKSamplingOptions(SKFilterMode.Linear)); pdf.EndPage(); pdf.Close();
+                var page = pdf.BeginPage(pageWidth, pageHeight);
+                page.DrawImage(image, SKRect.Create(pageWidth, pageHeight), new SKSamplingOptions(SKFilterMode.Linear)); pdf.EndPage(); pdf.Close();
             }
             bytes = stream.ToArray();
         }

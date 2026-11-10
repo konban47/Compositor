@@ -24,6 +24,7 @@ public sealed partial class MainWindow
 
     private bool CanvasActionPressed(SKPoint at, KeyModifiers modifiers, int clicks)
     {
+        if (SkyPressed(at, modifiers)) return true;
         if (_placementTab is not null) return PlacementPressed(at, modifiers);
         if (RemovePressed(at, modifiers)) return true;
         if (ArtboardPressed(at, modifiers)) return true;
@@ -63,6 +64,7 @@ public sealed partial class MainWindow
     }
     private void CanvasActionMoved(SKPoint at, KeyModifiers modifiers)
     {
+        if (SkyMoved(at, modifiers)) return;
         if (PathEditorMoved(at, modifiers)) return;
         if (_placementTab is not null) { PlacementMoved(at, modifiers); return; }
         if (RemoveMoved(at)) return;
@@ -78,6 +80,7 @@ public sealed partial class MainWindow
     }
     private void CanvasActionReleased()
     {
+        if (SkyReleased()) return;
         if (PathEditorReleased()) return;
         if (RemoveReleased()) return;
         if (ArtboardReleased()) return;

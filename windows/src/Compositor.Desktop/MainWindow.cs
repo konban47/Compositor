@@ -1068,7 +1068,7 @@ public sealed partial class MainWindow : Window
         Does("Content-Aware Scale", () => _ = ContentAwareScale());
         Does("Fill with Foreground Color", () => FillPixels(BrushColour(), "Fill"));
         Does("Fill with Background Color", () => FillPixels(BackgroundColour(), "Fill"));
-        Does("Content-Aware Fill", ContentAwareFill);
+        Does("Content-Aware Fill", () => _ = ContentAwareFillWorkspace());
         Does("Select All", () => Change("Select All", SelectionEdits.SelectAll));
         Does("Deselect", Deselect);
         Does("Inverse Selection", () => Change("Inverse", SelectionEdits.Invert));
@@ -1372,7 +1372,9 @@ public sealed partial class MainWindow : Window
     /// <summary>Edit ▸ Keyboard Shortcuts…: the list and the recorder, and a table that passes the check.</summary>
     private async Task KeyboardShortcuts()
     {
-        if (await ShortcutDialog.Show(this, _shortcutSettings.Overrides) is not { } chosen) return;
+        var (picked, look) = await ShortcutDialog.Show(this, _shortcutSettings.Overrides, MenuTree(), CurrentMenuLook(), 0);
+        if (picked is not { } chosen) return;
+        KeepMenuLook(look);
         _shortcutSettings.Overrides = chosen;
         _shortcutSettings.Save(ShortcutDefaults.DefaultPath);
         ShowKeys();

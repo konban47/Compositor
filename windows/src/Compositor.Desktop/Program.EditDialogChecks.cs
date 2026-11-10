@@ -69,19 +69,66 @@ public sealed partial class MainWindow
         Open("define-shape", () => DefinePreset("Shape"));
         Open("define-brush", () => DefinePreset("Brush"));
         Open("pdf-presets", PdfPresets);
+        Open("edit-pdf-preset", () => new PdfPresetDialog(Compositor.Core.IO.PdfPresets.BuiltIn[0] with { Name = "Custom", BuiltIn = false }, new HashSet<string>()).ShowDialog<bool>(this));
         Open("preset-manager", PresetManager);
         Open("color-settings", ColorSettings);
+        Open("custom-rgb", () => new CustomRgbDialog().ShowDialog<bool>(this));
+        Open("custom-cmyk", () => new CustomCmykDialog().ShowDialog<bool>(this));
+        Open("custom-dot-gain", () => new GrayProfileDialog(true).ShowDialog<bool>(this));
+        Open("custom-gray-gamma", () => new GrayProfileDialog(false).ShowDialog<bool>(this));
+        Open("ink-colors", () => new InkColorsDialog(CustomColorProfiles.InkSets[5]).ShowDialog<bool>(this));
+        void Accept(Window dialog) { Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(dialog).OfType<Button>().First(b => Equals(b.Content, Localize.Text("OK"))).RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Pump(); }
+        var press = new CustomCmykDialog(); var pressing = press.ShowDialog<bool>(this); Pump(); Accept(press); for (var i = 0; i < 200 && !pressing.IsCompleted; i++) { Pump(); Thread.Sleep(5); }
+        Check(pressing.Result && press.ProfileBytes is { } cmyk && IccProfiles.Model(cmyk) == "CMYK", "Custom CMYK did not build a CMYK profile.");
+        var display = new CustomRgbDialog(); var displaying = display.ShowDialog<bool>(this); Pump(); Accept(display); for (var i = 0; i < 200 && !displaying.IsCompleted; i++) { Pump(); Thread.Sleep(5); }
+        Check(displaying.Result && display.ProfileBytes is { } rgb && IccProfiles.Model(rgb) == "RGB", "Custom RGB did not build an RGB profile.");
         Open("convert-profile", ConvertColorProfile);
         Open("assign-profile", AssignColorProfile);
         Open("ocio-settings", OpenColorIoSettings);
         Open("keyboard-shortcuts", KeyboardShortcuts);
         Open("menus", CustomizeMenus);
+        // Hiding and coloring a row in the Menus tab reaches the menu itself, which then offers Show All Menu Items.
+        var sample = MenuTree().SelectMany(m => m.Children).First(c => c.CanHide && c.Children.Count == 0);
+        var menus = CustomizeMenus(); Pump(); var sheet = OwnedWindows.OfType<ShortcutDialog>().Single();
+        sheet.ToggleHidden(sample.Path); sheet.ColorRow(sample.Path, "Blue"); sheet.SetLegacyUndo(true); Pump();
+        Check(sheet.Draft["Menus:Undo"] == new ShortcutChord("Z", ShortcutModifiers.Control | ShortcutModifiers.Alt) && sheet.CanSave, "Legacy undo shortcuts did not swap Undo and Toggle Last State.");
+        sheet.SetLegacyUndo(false); Capture(sheet, "menus-edited"); sheet.Accept(); for (var i = 0; i < 200 && !menus.IsCompleted; i++) { Pump(); Thread.Sleep(5); }
+        var top = _mainMenu!.Items.OfType<MenuItem>().First(m => sample.Path.StartsWith(MenuPath(m, "") + "/", StringComparison.Ordinal));
+        Check(EditorPreferences.Current.HiddenMenus.Contains(sample.Path) && EditorPreferences.Current.MenuColors.GetValueOrDefault(sample.Path) == "Blue", "Menus did not keep the hidden and colored row.");
+        Check(top.Items.OfType<MenuItem>().Any(i => Equals(i.Tag, ShowAllTag) && i.IsVisible), "A menu with a hidden row does not offer Show All Menu Items.");
+        EditorPreferences.Current.HiddenMenus.Clear(); EditorPreferences.Current.MenuColors.Clear(); ApplyHiddenMenus();
         Open("toolbar", CustomizeToolbar);
         Open("missing-fonts", ManageMissingFonts);
         _layers.SelectAll(); Pump();
         Open("auto-align", AutoAlignLayers);
         Open("auto-blend", AutoBlendLayers);
-        Check(shown.Count == 19, "Not every Edit dialog was shown.");
+        // The Content-Aware Fill workspace previews the fill, and Apply adds it on a new layer as its default output.
+        var stripes = new SKBitmap(Bitmaps.ColorInfo(240, 160));
+        for (var y = 0; y < 160; y++) for (var x = 0; x < 240; x++) stripes.SetPixel(x, y, (x / 12) % 2 == 0 ? new SKColor(214, 168, 72) : new SKColor(56, 104, 150));
+        var striped = new CanvasDocument(Guid.NewGuid(), 240, 160); striped.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(stripes, "Stripes"), new LayerTransform(0, 0, 240, 160), "Stripes"));
+        AdoptImported(striped, "Stripes"); Reselect(striped.Layers[0].ID); SelectionEdits.Select(_document!, SKRectI.Create(90, 60, 50, 40)); Pump();
+        var workspaceRun = ContentAwareFillWorkspace(); Pump(); var workspace = OwnedWindows.OfType<ContentAwareFillWindow>().Single();
+        for (var i = 0; i < 3000 && !workspace.PreviewReady; i++) { Pump(); Thread.Sleep(10); }
+        Check(workspace.PreviewReady, "The Content-Aware Fill workspace did not preview the fill: " + workspace.ErrorText);
+        Capture(workspace, "content-aware-fill"); var layersBefore = _document!.Layers.Count; workspace.ApplyForCheck(); Pump();
+        var fillLayer = _document!.Layers.FirstOrDefault(l => l.Name.StartsWith(Localize.Text("Content-Aware Fill"), StringComparison.Ordinal));
+        Check(_document.Layers.Count == layersBefore + 1 && fillLayer?.Asset?.Image.GetPixel(115, 80).Alpha == 255 && fillLayer.Asset.Image.GetPixel(5, 5).Alpha == 0, $"Apply did not add the fill on a new layer: {workspace.ErrorText} ({_document.Layers.Count} layers, {layersBefore} before).");
+        workspace.Close(false); for (var i = 0; i < 300 && !workspaceRun.IsCompleted; i++) { Pump(); Thread.Sleep(5); }
+        shown.Add("content-aware-fill");
+        // Sky Replacement on a landscape: the dialog finds the sky and loads a default sky, and OK adds Photoshop's layer group.
+        var landscape = new SKBitmap(Bitmaps.ColorInfo(240, 160));
+        for (var y = 0; y < 160; y++) for (var x = 0; x < 240; x++) landscape.SetPixel(x, y, y < 64 ? new SKColor((byte)(110 + y), (byte)(170 + y / 2), 235) : new SKColor(40, (byte)(90 + (x * 7 + y * 3) % 20), 35));
+        var land = new CanvasDocument(Guid.NewGuid(), 240, 160); land.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(landscape, "Landscape"), new LayerTransform(0, 0, 240, 160), "Landscape"));
+        AdoptImported(land, "Landscape"); Reselect(land.Layers[0].ID); Pump();
+        var replacing = SkyReplacement();
+        for (var i = 0; i < 3000 && (_sky?.Mask is null || _sky.Dialog.Sky is null || _sky.Preview is null); i++) { Pump(); Thread.Sleep(10); }
+        Check(_sky is { Mask: not null, Preview: not null } && _sky.Dialog.Sky is not null, $"Sky Replacement did not find the sky, load a sky or preview it: mask {_sky?.Mask is not null}, sky {_sky?.Dialog.Sky is not null}, preview {_sky?.Preview is not null}.");
+        var skyDialog = _sky!.Dialog; Capture(skyDialog, "sky-replacement"); Capture(this, "sky-preview"); Accept(skyDialog);
+        for (var i = 0; i < 300 && !replacing.IsCompleted; i++) { Pump(); Thread.Sleep(10); }
+        var skyGroup = _document!.Layers.FirstOrDefault(l => l.Name == Localize.Text("Sky Replacement Group"));
+        Check(skyGroup is not null && _document.Layers.Count(l => l.ParentID == skyGroup.ID) == 3, "Sky Replacement did not add its layer group.");
+        shown.Add("sky-replacement");
+        Check(shown.Count == 27, "Not every Edit dialog was shown.");
     }
     private void TypeText(string text) => Avalonia.Headless.HeadlessWindowExtensions.KeyTextInput(this, text);
 }

@@ -28,26 +28,36 @@ internal sealed class PresetManagerDialog : DialogWindow
         var left = new Grid { RowDefinitions = new("Auto,*"), Margin = new Thickness(12) };
         var header = new Grid { ColumnDefinitions = new("Auto,*,Auto"), Margin = new Thickness(0, 0, 0, 14) };
         header.Children.Add(new TextBlock { Text = Localize.Text("Preset Type") + ":", Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
-        _kind.ItemsSource = PresetCatalog.Kinds.Select(k => Localize.Text(k == "Contour" ? "Contours" : k)).ToArray(); _kind.SelectedIndex = Math.Max(0, Array.IndexOf(PresetCatalog.Kinds, kind));
+        _kind.ItemsSource = PresetCatalog.Kinds;
+        _kind.ItemTemplate = new FuncDataTemplate<string>((k, _) => new Grid { ColumnDefinitions = new("*,Auto"), MinWidth = 150, Children = { new TextBlock { Text = Localize.Text(Plural(k ?? "")) }, new TextBlock { Text = "Ctrl+" + (Array.IndexOf(PresetCatalog.Kinds, k) + 1), [Grid.ColumnProperty] = 1, Foreground = Skin.SecondaryBrush, Margin = new Thickness(18, 0, 0, 0) } } });
+        _kind.SelectionBoxItemTemplate = new FuncDataTemplate<string>((k, _) => new TextBlock { Text = Localize.Text(Plural(k ?? "")) }); _kind.SelectedIndex = Math.Max(0, Array.IndexOf(PresetCatalog.Kinds, kind));
         Grid.SetColumn(_kind, 1); header.Children.Add(_kind);
-        var menu = new Button { Content = "⚙", Tag = "preset-manager-menu" }; Grid.SetColumn(menu, 2); header.Children.Add(menu); menu.Click += (_, _) => SettingsMenu(menu);
+        var menu = new Button { Tag = "preset-manager-menu", Background = Brushes.Transparent, Padding = new Thickness(4, 2), Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, Children = { new Avalonia.Controls.Shapes.Path { Data = Geometry.Parse(GearIcon), Fill = Skin.LabelBrush, Width = 16, Height = 16, Stretch = Stretch.Uniform }, new Avalonia.Controls.Shapes.Path { Data = Geometry.Parse("M0,0 L6,0 L3,3 Z"), Fill = Skin.LabelBrush, Width = 6, Height = 3, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Bottom } } } };
+        ToolTip.SetTip(menu, Localize.Text("Preset Manager options")); Grid.SetColumn(menu, 2); header.Children.Add(menu); menu.Click += (_, _) => SettingsMenu(menu);
         left.Children.Add(header); Grid.SetRow(_list, 1); left.Children.Add(_list);
         root.Children.Add(new Border { BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(1), Child = left });
         var actions = new StackPanel { Spacing = 16, Margin = new Thickness(24, 8, 0, 0) }; Grid.SetColumn(actions, 1); root.Children.Add(actions);
-        Button Action(string title, Action handler) { var button = FormDialog.ActionButton(title, handler); button.HorizontalAlignment = HorizontalAlignment.Stretch; actions.Children.Add(button); return button; }
+        Button Action(string title, Action handler, char? key = null) { var button = FormDialog.ActionButton(title, handler); if (key is { } letter) this.Mnemonic(button, letter); button.HorizontalAlignment = HorizontalAlignment.Stretch; actions.Children.Add(button); return button; }
         Action("Done", () => Close());
-        var load = Action("Load…", () => _ = Import(false)); load.Margin = new Thickness(0, 20, 0, 0);
-        _save = Action("Save Set…", () => _ = Export());
-        _rename = Action("Rename…", () => _ = Rename()); _rename.Margin = new Thickness(0, 20, 0, 0);
-        _delete = Action("Delete", Delete);
+        var load = Action("Load…", () => _ = Import(false), 'L'); load.Margin = new Thickness(0, 20, 0, 0);
+        _save = Action("Save Set…", () => _ = Export(), 'S');
+        _rename = Action("Rename…", () => _ = Rename(), 'R'); _rename.Margin = new Thickness(0, 20, 0, 0);
+        _delete = Action("Delete", Delete, 'D');
         Grid.SetRow(_error, 1); Grid.SetColumnSpan(_error, 2); root.Children.Add(_error); Content = root;
         _list.SelectionChanged += (_, _) => UpdateActions();
         _list.Styles.Add(new Style(s => s.OfType<ListBoxItem>()) { Setters = { new Setter(PaddingProperty, new Thickness(2)), new Setter(MarginProperty, new Thickness(0)), new Setter(MinHeightProperty, 0d) } });
         _kind.SelectionChanged += (_, _) => { _error.Text = ""; Load(); };
         _list.KeyDown += (_, e) => { if (e.Key == Key.Delete) { Delete(); e.Handled = true; } if (e.Key == Key.F2) { _ = Rename(); e.Handled = true; } };
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
+        KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape) Close();
+            // Ctrl+1 to Ctrl+5 switch the preset type, as the type menu shows.
+            if (e.KeyModifiers == KeyModifiers.Control && e.Key is >= Key.D1 and <= Key.D9 && e.Key - Key.D1 < PresetCatalog.Kinds.Length) { _kind.SelectedIndex = e.Key - Key.D1; e.Handled = true; }
+        };
         Load();
     }
+    private const string GearIcon = "M10.3,1 H13.7 L14.2,3.6 A8.5,8.5 0 0 1 16.4,4.9 L18.9,4 L20.6,7 L18.6,8.7 A8.5,8.5 0 0 1 18.6,11.3 L20.6,13 L18.9,16 L16.4,15.1 A8.5,8.5 0 0 1 14.2,16.4 L13.7,19 H10.3 L9.8,16.4 A8.5,8.5 0 0 1 7.6,15.1 L5.1,16 L3.4,13 L5.4,11.3 A8.5,8.5 0 0 1 5.4,8.7 L3.4,7 L5.1,4 L7.6,4.9 A8.5,8.5 0 0 1 9.8,3.6 Z M12,7 A3,3 0 1 0 12.01,7 Z";
+    internal static string Plural(string kind) => kind switch { "Brush" => "Brushes", "Pattern" => "Patterns", "Gradient" => "Gradients", "Shape" => "Shapes", _ => "Contours" };
     private void Guard(Action action) { try { action(); _error.Text = ""; } catch (Exception e) { _error.Text = Localize.Text(e.Message); } }
     private void Load() => Guard(() => { _items = PresetCatalog.Load(Kind); Reload(); });
     private PresetItem[] Selected => _list.SelectedItems?.OfType<PresetItem>().ToArray() ?? [];
@@ -72,9 +82,34 @@ internal sealed class PresetManagerDialog : DialogWindow
     private async Task Rename()
     {
         if (Selected is not [var item]) return;
-        var dialog = new FormDialog("Rename Preset", 430, 230); var name = dialog.Text("Name", item.Name);
-        dialog.Validate = () => string.IsNullOrWhiteSpace(name.Text) || name.Text.Length > 200 ? "Enter a name (1–200 characters)." : null;
-        if (await dialog.ShowDialog<bool>(this)) Commit(_items.Select(p => p.ID == item.ID ? p.Rename(name.Text!.Trim()) : p).ToList(), [item.ID]);
+        // The name dialog Photoshop shows for the type, with the preset drawn beside the name.
+        using var thumbnail = Thumbnail(item);
+        var dialog = new PresetNameDialog(Kind switch { "Brush" => "Brush Name", "Pattern" => "Pattern Name", "Gradient" => "Gradient Name", "Shape" => "Shape Name", _ => "Contour Name" }, item.Name, thumbnail);
+        if (await dialog.ShowDialog<bool>(this)) Commit(_items.Select(p => p.ID == item.ID ? p.Rename(dialog.PresetName) : p).ToList(), [item.ID]);
+    }
+    /// <summary>Puts the default presets back, after asking whether they replace the current ones or are appended to them.</summary>
+    private async Task Reset()
+    {
+        var ask = new FormDialog("Preset Manager", 480, 200); ask.Description(string.Format(Localize.Text("Replace current {0} with the default {0}?"), Localize.Text(Plural(Kind)).ToLower(System.Globalization.CultureInfo.CurrentCulture)));
+        var append = false; ask.Fields.Children.Add(FormDialog.ActionButton("Append", () => { append = true; ask.Close(true); }));
+        if (!await ask.ShowDialog<bool>(this)) return;
+        Commit(append ? PresetCatalog.Append(_items, PresetCatalog.Defaults(Kind)) : PresetCatalog.Defaults(Kind));
+    }
+    private static SkiaSharp.SKBitmap? Thumbnail(PresetItem item)
+    {
+        var bitmap = new SkiaSharp.SKBitmap(64, 64); using var canvas = new SkiaSharp.SKCanvas(bitmap); canvas.Clear(new SkiaSharp.SKColor(0x30, 0x30, 0x30));
+        if (item.Preset?.Contour is { } samples)
+        {
+            using var path = SkiaSharp.SKPath.ParseSvgPathData("M0,64 " + string.Join(" ", Enumerable.Range(0, 65).Select(x => FormattableString.Invariant($"L{x},{64 * (1 - ContourLibrary.Evaluate(samples, x / 64d)):0.##}"))) + " L64,64 Z");
+            using var paint = new SkiaSharp.SKPaint { Color = SkiaSharp.SKColors.White, IsAntialias = true }; canvas.DrawPath(path, paint); return bitmap;
+        }
+        if (item.Gradient is { } gradient)
+        {
+            using var shader = SkiaSharp.SKShader.CreateLinearGradient(new(0, 32), new(64, 32), gradient.Stops.Select(s => new SkiaSharp.SKColor(s.Color)).ToArray(), gradient.Stops.Select(s => (float)s.Position).ToArray(), SkiaSharp.SKShaderTileMode.Clamp);
+            using var paint = new SkiaSharp.SKPaint { Shader = shader }; canvas.DrawRect(0, 0, 64, 64, paint); return bitmap;
+        }
+        if (item.Preset is { } preset) { bitmap.Dispose(); try { return PresetThumbnailPixels.Render(preset); } catch (InvalidDataException) { return null; } }
+        return bitmap;
     }
     private async Task Import(bool replace)
     {
@@ -103,9 +138,9 @@ internal sealed class PresetManagerDialog : DialogWindow
         var names = new[] { "Text Only", "Small Thumbnails", "Large Thumbnails", "Small List", "Large List" };
         for (var i = 0; i < names.Length; i++) { var index = i; Action(names[i], () => { var ids = Selected.Select(p => p.ID).ToArray(); _display = index; Reload(ids); }, i == _display); }
         menu.Items.Add(new Separator());
-        Action(Kind == "Contour" ? "Reset Contours…" : "Reset Presets…", () => Commit(PresetCatalog.Defaults(Kind)));
-        Action(Kind == "Contour" ? "Replace Contours…" : "Replace Presets…", () => _ = Import(true));
-        menu.Items.Add(new Separator()); Action(Kind == "Contour" ? "Contours" : "Append Default Presets", () => Commit(PresetCatalog.Append(_items, PresetCatalog.Defaults(Kind))));
+        Action("Reset " + Plural(Kind) + "…", () => _ = Reset());
+        Action("Replace " + Plural(Kind) + "…", () => _ = Import(true));
+        menu.Items.Add(new Separator()); Action(Plural(Kind), () => _ = Reset());
         menu.Open(anchor);
     }
 }

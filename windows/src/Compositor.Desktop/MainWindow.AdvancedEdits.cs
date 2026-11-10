@@ -126,25 +126,4 @@ public sealed partial class MainWindow
         });
         Reselect(made);
     }
-    private async Task SkyReplacement()
-    {
-        if (_document is not { } doc || doc.Selection.Path is null || doc.Selection.IsEmpty) { Say("Select the sky before choosing its replacement."); return; }
-        var selection = doc.Selection; var revision = _history.CurrentRevision;
-        var picked = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = Localize.Text("Choose Sky Image"), FileTypeFilter = [FilePickerFileTypes.ImageAll] });
-        if (picked.FirstOrDefault()?.TryGetLocalPath() is not { } path || !ReferenceEquals(doc, _document)) return;
-        try
-        {
-            using var image = SKBitmap.Decode(path); if (image is null) return;
-            using var sky = image.Resize(Bitmaps.ColorInfo(doc.Width, doc.Height), new SKSamplingOptions(SKFilterMode.Linear));
-            if (sky is null || revision != _history.CurrentRevision) return;
-            Guid? made = null;
-            Edit("Sky Replacement", () =>
-            {
-                made = LayerPlacement.AddImage(doc, sky.Copy(), SKRectI.Create(doc.Width, doc.Height), Localize.Text("Sky Replacement"), Selected);
-                return FinishMaskedImage(doc, ref made, selection);
-            });
-            Reselect(made); _options.PaintOnMask = true; Refresh();
-        }
-        catch (Exception error) { Say(error.Message); }
-    }
 }
