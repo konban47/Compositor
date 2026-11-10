@@ -1,20 +1,20 @@
 {
   "upstream": "https://github.com/robbietilton/Compositor",
-  "commit": "3e81af3fb8aeb379173a4efbae5dd0edd95023b8",
+  "commit": "02e53989dc499d749d83f33023ff249de1c7b4eb",
   "license": "MIT, copyright 2026 Wonder Assembly LLC",
   "hashEncoding": "UTF-8 with LF line endings",
   "files": [
     {
       "path": "Compositor/UI/BrushControls.swift",
-      "sha256": "84f8396588d550e6c759e61d568cccef35eb9e2d1da1772d0c24cc725498b679"
+      "sha256": "c2720904a739944d63ec2ed5bdea6056394f96cf5719dcce69492fbcde359680"
     },
     {
       "path": "Compositor/UI/GradientControls.swift",
-      "sha256": "7ccc03c97a42894585f480315016d1f79754d80f50233aefa99766f389eeb722"
+      "sha256": "7c45e115661aa0b5c2998e10e44294d4a128dbe1ca71e66db9e66e268ff63e27"
     },
     {
       "path": "Compositor/UI/LassoControls.swift",
-      "sha256": "88d90c953988133ea8b7ea8e447cdcaa64d9aaa9f3f712545360755d77671b3e"
+      "sha256": "5c9a7134441195f8e79e66ff462ab16ef2e959f1a3c21940cfa861316fb1bdc3"
     },
     {
       "path": "Compositor/ContentView.swift",
@@ -22,11 +22,11 @@
     },
     {
       "path": "Compositor/UI/ToolHeaderStyle.swift",
-      "sha256": "b95e460ffe16d54c158e47a5b1ee8097715b5ff01ca0737c3c15ae1118250b0d"
+      "sha256": "8d4355a54a7988bff3ba9c55d78978748db99243df998253fb414c65f1b0ee7e"
     },
     {
       "path": "Compositor/Document/EditorSession.swift",
-      "sha256": "9167f42c9040af3a772bab8b237e140b6965e13aff761dcfbf19440eba60b9ca"
+      "sha256": "4c9f0025fac5085f0e2250b73e4d4dbfb480a4131340c9e056417a108d893b9f"
     },
     {
       "path": "Compositor/UI/ColorPaletteControls.swift",
@@ -54,7 +54,7 @@
     },
     {
       "path": "Compositor/UI/KeyboardShortcuts.swift",
-      "sha256": "e5dec023740f95aa24ecb2fc0815dfac1ecbc38ddea29577fa46e8fc196153a9"
+      "sha256": "a38364e9ad758512a1ad68ad159c6dd8ad7d6b642699dcd5732d6b8b78efd1bf"
     },
     {
       "path": "Compositor/Document/ShapeTool.swift",
@@ -62,7 +62,7 @@
     },
     {
       "path": "Compositor/UI/ShapeControls.swift",
-      "sha256": "3ee3e59e8f87c9943c839459e74bf0a6faa4b5a95e7aac166b1134098d70819e"
+      "sha256": "ae91493cc51d2f64725f2a7ce293b6df6887819bdf90bb0da21f00995883ea82"
     },
     {
       "path": "Compositor/UI/NativeLayerList.swift",

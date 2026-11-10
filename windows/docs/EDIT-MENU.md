@@ -1,6 +1,6 @@
 # 编辑菜单与首选项
 
-适用于 Windows **1.6.4.0 Preview**。本次截图展示的是 Photoshop 的“编辑”菜单；原有“图像”菜单保留在 [图像与属性手册](IMAGE-WORKSPACE.md)。以下说明实际行为及平台边界。
+适用于 Windows **1.6.6.0 Preview**。本次截图展示的是 Photoshop 的“编辑”菜单；原有“图像”菜单保留在 [图像与属性手册](IMAGE-WORKSPACE.md)。以下说明实际行为及平台边界。
 
 ## 历史与粘贴
 
@@ -54,3 +54,7 @@ EXR／Radiance HDR 导入和 EXR 导出保留支持路径中的高光；HDR 转 
 - [Adobe：变换图像、形状和路径](https://helpx.adobe.com/photoshop/desktop/crop-resize-transform/resize-adjust-resolution/transform-images-shapes-and-paths.html)
 - [ImageMagick Liquid Rescale](https://imagemagick.org/command-line-options/#liquid-rescale)
 - [OpenColorIO 使用指南](https://opencolorio.readthedocs.io/en/stable/guides/using_ocio/using_ocio.html)
+
+## 1.6.6.0 对话框
+
+填充、描边、查找和替换文本、图案／形状／画笔名称、去除反射、自动对齐和自动混合图层、转换为配置文件按 Photoshop 截图重排，详见[更新记录](UPDATES-1.6.6.0.md)。填充和描边支持 Photoshop 的全部 29 种混合模式；查找和替换支持忽略重音和全字匹配；转换为配置文件就地转换文档。

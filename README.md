@@ -2,25 +2,21 @@
 
 面向 Windows 10/11 x64 的图像编辑器，图层、蒙版、选区、滤镜工作流与 Photoshop 一致，界面提供简体中文和英文。
 
-当前版本：**1.6.4.0 Preview**（2026-11-06，已合并上游 1.6.4）
+当前版本：**1.6.6.0 Preview**（2026-11-10，已合并上游 1.6.6）
 
-[下载安装版和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.6.4.0) · [手册目录](windows/docs/README.md) · [操作速查](windows/docs/QUICK-REFERENCE.md) · [本版更新](windows/docs/UPDATES-1.6.4.0.md)
+[下载安装版和免安装版](https://github.com/konban47/Compositor/releases/tag/windows-v1.6.6.0) · [手册目录](windows/docs/README.md) · [操作速查](windows/docs/QUICK-REFERENCE.md) · [本版更新](windows/docs/UPDATES-1.6.6.0.md)
 
 ## 本版更新
 
-- **文件菜单对话框按 Photoshop 重排**：批处理、创建快捷批处理、图像处理器、PDF 演示文稿、Photomerge、联系表 II、图像统计、载入图层、镜头校正、条件模式更改、限制图像、拾色器、导出为、存储为 Web 所用格式，不再需要滚动才能看全。
-- **浮窗 ≡ 菜单恢复可用**，并补上图层、通道、历史记录等面板自己的命令。
-- **底部停靠区**：时间轴和测量记录默认停靠在画布下方；其他面板首次打开时也按 Photoshop 的分组和位置出现。
-- **左侧工具栏**在窗口变矮时先缩小按钮间距，放不下的工具收进 » 菜单，不再被窗口底边遮住。
-- **窗口大小记忆**：下次启动恢复上次的大小、位置和最大化状态；安装后首次启动以最大化窗口打开。
-- **上游 1.6.4**：选区“扩展／收缩／羽化”按钮和共用数值，羽化可累加，扩展和收缩保持直角，状态栏显示羽化值，色板样式和工具栏重排。
+- **编辑菜单对话框按 Photoshop 重排**：填充、描边（Photoshop 全部 29 种混合模式）、查找和替换文本（查找下一个、更改、更改全部）、图案／形状／画笔名称（带缩略图）、去除反射、自动对齐和自动混合图层（带示意图，全景图接缝渐隐）、管理缺失字体、转换为配置文件（改为就地转换）。
+- **上游 1.6.6**：图层样式的描边各方向等宽；导出为记住上次的格式，存储时以文档名和所在文件夹开始。
+- 内容识别填充工作区、天空替换、颜色设置、键盘快捷键和菜单、PDF 预设尚未按截图重做，见更新记录。
 
-完整说明和未验证项见[更新记录](windows/docs/UPDATES-1.6.4.0.md)。
-
+上一版（1.6.4.0）的文件菜单、浮窗和工具栏改动见[1.6.4.0 更新](windows/docs/UPDATES-1.6.4.0.md)。
 ## 安装
 
-- **安装版**：运行 `Compositor-Windows-1.6.4.0-x64-setup.exe`，按中文或英文向导安装。
-- **免安装版**：完整解压 `Compositor-Windows-1.6.4.0-x64-portable.zip`，运行 `Compositor.exe`。
+- **安装版**：运行 `Compositor-Windows-1.6.6.0-x64-setup.exe`，按中文或英文向导安装。
+- **免安装版**：完整解压 `Compositor-Windows-1.6.6.0-x64-portable.zip`，运行 `Compositor.exe`。
 - 两种发行包都自带 .NET 运行时。免安装版如缺少 Visual C++ x64 运行库，可运行随包的 `redist/vc_redist.x64.exe`。
 - 中文系统默认使用简体中文，可在“帮助 → 语言”切换，下次启动生效。
 

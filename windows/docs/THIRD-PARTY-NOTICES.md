@@ -95,3 +95,6 @@ Upstream main `7f703b4f` is merged into this fork's history. Behavior from its 1
 ## Upstream 1.6.4 merge (Windows 1.6.4.0)
 
 Upstream main `3e81af3` is merged into this fork's history. The selection amount controls, additive feather, mitered Expand and Contract, the feather readout, the joined tool bar buttons and the swatch styling are adapted from its 1.6.4 commits under the same MIT license.
+## Upstream 1.6.6 merge (Windows 1.6.6.0)
+
+Upstream main `02e5398` is merged into this fork's history. The even stroke-effect reach and Export As remembering its format are adapted from its 1.6.5–1.6.6 commits under the same MIT license.
