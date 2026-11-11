@@ -39,7 +39,8 @@ public sealed partial class MainWindow
         var boards = doc.Layers.Where(l => l.Container == LayerContainer.Artboard).Reverse().ToArray(); if (boards.Length == 0) return;
         foreach (var id in SelectedLayers)
         {
-            if (doc.Layers.FirstOrDefault(l => l.ID == id) is not { } layer || layer.Container == LayerContainer.Artboard) continue;
+            // Prevent Auto-Nesting keeps a layer where it is in the stack.
+            if (doc.Layers.FirstOrDefault(l => l.ID == id) is not { } layer || layer.Container == LayerContainer.Artboard || layer.Locks.HasFlag(LayerLocks.Nesting)) continue;
             if (layer.ParentID is { } parent && doc.Layers.FirstOrDefault(l => l.ID == parent)?.Container != LayerContainer.Artboard) continue;
             var descendants = doc.Descendants(layer.ID);
             var bounds = layer.IsGroup ? TransformEdits.GroupBox(doc, [layer.ID]) ?? layer.Transform : layer.Transform;

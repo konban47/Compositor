@@ -83,4 +83,47 @@ public sealed partial class MainWindow
         }
         catch (Exception error) { Say($"Could not package: {error.Message}"); }
     }
+
+    private void EmbedAllLinked()
+    {
+        if (_document is not { } document) return;
+        Edit("Embed All Linked", () => SmartObjectLinks.Embed(document, document.Layers.Select(l => l.ID).ToArray()));
+    }
+
+    /// <summary>Reveal in Explorer: the linked file selected in a File Explorer window.</summary>
+    private void RevealLinkedFile()
+    {
+        if (PropertyLayer?.SmartObject?.LinkedPath is not { } path) return;
+        if (!File.Exists(path)) { Say(string.Format(Localize.Text("Linked files not found: {0}"), Path.GetFileName(path))); return; }
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe") { ArgumentList = { "/select," + path } }); }
+        catch (Exception error) { Say(error.Message); }
+    }
+
+    /// <summary>Convert to Linked…: the embedded contents written out as a PNG, then the smart object made to follow that file.</summary>
+    private async Task ConvertToLinked()
+    {
+        if (_document is not { } document || PropertyLayer is not { SmartObject: { LinkedPath: null } smart } layer) return;
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = Localize.Text("Convert to Linked…"), SuggestedFileName = layer.Name + ".png", DefaultExtension = "png",
+            FileTypeChoices = [new FilePickerFileType("PNG") { Patterns = ["*.png"] }],
+        });
+        if (file?.TryGetLocalPath() is not { } path || !ReferenceEquals(document, _document)) return;
+        try
+        {
+            using (var contents = smart.Open().ToDocument())
+            using (var rendered = SmartObjectStacks.Render(contents, smart.StackMode))
+            using (var data = rendered.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100))
+            using (var stream = File.Create(path)) data.SaveTo(stream);
+            Edit("Convert to Linked…", () => SmartObjectLinks.Link(document, layer.ID, path));
+        }
+        catch (Exception error) { Say(error.Message); }
+    }
+
+    /// <summary>Smart Objects ▸ Stack Mode: the contents' layers combined pixel by pixel, null for the ordinary composite.</summary>
+    private void SetStackMode(string? mode)
+    {
+        if (_document is not { } document || Selected is not { } id) return;
+        Edit("Stack Mode", () => SmartObjectStacks.Apply(document, id, mode));
+    }
 }

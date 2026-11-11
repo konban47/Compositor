@@ -14,6 +14,8 @@ public sealed class SmartObjectData
     /// read; null for an embedded one.</summary>
     public string? LinkedPath { get; init; }
     public string? LinkedHash { get; init; }
+    /// <summary>Version 34: the Stack Mode its layers are combined with, as <see cref="Document.SmartObjectStacks.Modes"/> names them; null composites them normally.</summary>
+    public string? StackMode { get; init; }
     public SmartObjectData(Guid id, byte[] package)
     {
         if (id == Guid.Empty || package.Length is < 22 or > MaxBytes) throw new ProjectException(ProjectError.Invalid);
@@ -72,7 +74,7 @@ public sealed class SmartObjectData
                 if (layer.ImageFile is { } image) result.Images[layer.ID] = Asset(image, layer.Name, false);
                 if (layer.MaskFile is { } mask) result.Masks[layer.ID] = Asset(mask, layer.Name, true);
                 if (layer.SmartObjectFile is { } nested) result.SmartObjects[layer.ID] = new SmartObjectData(layer.SmartObjectID!.Value, Read(nested, MaxBytes))
-                    { LinkedPath = layer.SmartObjectLink, LinkedHash = layer.SmartObjectLinkHash };
+                    { LinkedPath = layer.SmartObjectLink, LinkedHash = layer.SmartObjectLinkHash, StackMode = layer.SmartObjectStackMode };
             }
             foreach (var channel in manifest.Channels ?? [])
             {

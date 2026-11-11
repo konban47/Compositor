@@ -4,7 +4,12 @@ using SkiaSharp;
 namespace Compositor.Core.Model;
 
 [Flags]
-public enum LayerLocks { None = 0, Transparency = 1, Pixels = 2, Position = 4, All = 8 }
+public enum LayerLocks
+{
+    None = 0, Transparency = 1, Pixels = 2, Position = 4, All = 8,
+    /// <summary>Version 34: Prevent Auto-Nesting, so moving the layer onto an artboard does not put it in it.</summary>
+    Nesting = 16,
+}
 
 /// <summary>Shared by pointer editing, menus and history, so a lock cannot be bypassed by another tool.</summary>
 public static class LayerProtection

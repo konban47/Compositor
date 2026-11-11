@@ -21,7 +21,7 @@ internal static partial class Program
     private static int LayerStyleChecks(string output)
     {
         BuildHeadless().SetupWithoutStarting();
-        try { var window = new MainWindow(); window.Show(); window.LayerStyleSelfCheck(output); Console.WriteLine("PASS: layer-style preview/cancel/apply/undo, all effect panels, duplicate instances, Alt-split Blend If, context menu commands, smart contents save, labels, native SVG, Chinese labels."); return 0; }
+        try { var window = new MainWindow(); window.Show(); window.LayerStyleSelfCheck(output); Console.WriteLine("PASS: layer-style preview/cancel/apply/undo, all effect panels, duplicate instances, Alt-split Blend If, context menu commands, smart contents save, labels, native SVG, Chinese labels, Layer menu structure and its dialogs."); return 0; }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
     }
 }
@@ -53,7 +53,7 @@ public sealed partial class MainWindow
         foreach (var kind in Enum.GetValues<StyleEffectKind>())
         {
             Click(dialog, LayerStyleDialog.NameFor(kind));
-            var enabled = dialog.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Content?.ToString() == Localize.Text("Enable Effect")); enabled.IsChecked = true; Pump(180);
+            var enabled = dialog.GetVisualDescendants().OfType<CheckBox>().First(c => Equals(c.Tag, "enable " + LayerStyleDialog.NameFor(kind))); enabled.IsChecked = true; Pump(180); Save(dialog, "effect-" + kind);
             using var rendered = DocumentRenderer.Render(doc); Check(rendered.GetPixelSpan().Length > 0, "Effect preview failed: " + kind);
         }
         Click(dialog, "Bevel & Emboss"); Save(dialog, "bevel");
@@ -77,6 +77,7 @@ public sealed partial class MainWindow
         Edit("Rasterize Layer", () => LayerWorkflow.Rasterize(doc, [smart.ID])); Check(doc.Layers[0].SmartObject is null && LayerProtection.CanPaint(doc, smart.ID), "Rasterize did not unlock pixel edits.");
         Undo(); Pump(); Check(doc.Layers[0].SmartObject is not null, "Rasterize lost undo source.");
         if (Localize.IsChinese) Check(Localize.Text("Blending Options") == "混合选项" && Localize.Text("Mask All Objects") == "遮住所有对象", "New labels are not Chinese.");
+        LayerMenuSelfCheck(output);
         Save(this, "final"); using var final = this.CaptureRenderedFrame(); final!.Save(output, new PngBitmapEncoderOptions());
     }
 }

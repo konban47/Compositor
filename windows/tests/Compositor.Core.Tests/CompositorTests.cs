@@ -305,6 +305,9 @@ public class CompositorTests
             LayerBlendMode.Hue => "Hue",
             LayerBlendMode.Saturation => "Saturation",
             LayerBlendMode.Color => "Color",
+            LayerBlendMode.Dissolve => "Dissolve",
+            LayerBlendMode.DarkerColor => "Darker Color",
+            LayerBlendMode.LighterColor => "Lighter Color",
             _ => "Luminosity",
         };
     }

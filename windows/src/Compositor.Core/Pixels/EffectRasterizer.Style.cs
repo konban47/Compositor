@@ -66,6 +66,8 @@ public static partial class EffectRasterizer
                 case StyleEffectKind.DropShadow:
                     SpreadShape(e, smallest: false); Shift(work, temp, width, height, dx, dy);
                     temp.CopyTo(work, 0); Blur(work, work, temp, width, height, e.Size * (1 - e.Spread / 100));
+                    // Layer Knocks Out Drop Shadow: nothing of the shadow is left under the layer itself.
+                    if (e.KnocksOut == true) for (var i = 0; i < count; i++) work[i] *= 1 - shape[i];
                     break;
                 case StyleEffectKind.InnerShadow:
                     SpreadShape(e, smallest: true); Shift(work, temp, width, height, dx, dy);
@@ -73,11 +75,11 @@ public static partial class EffectRasterizer
                     for (var i = 0; i < count; i++) work[i] = shape[i] * (1 - work[i]);
                     break;
                 case StyleEffectKind.OuterGlow:
-                    SpreadShape(e, smallest: false); Blur(work, work, temp, width, height, e.Size * (1 - e.Spread / 100));
+                    GlowShape(e, smallest: false);
                     for (var i = 0; i < count; i++) work[i] *= 1 - shape[i];
                     break;
                 case StyleEffectKind.InnerGlow:
-                    SpreadShape(e, smallest: true); Blur(work, work, temp, width, height, e.Size * (1 - e.Spread / 100));
+                    GlowShape(e, smallest: true);
                     for (var i = 0; i < count; i++) work[i] = shape[i] * (e.CenterSource ? work[i] : 1 - work[i]);
                     break;
                 case StyleEffectKind.Stroke:
@@ -100,9 +102,12 @@ public static partial class EffectRasterizer
                     Bevel(e, angle); return;
                 default: shape.CopyTo(work, 0); break;
             }
+            // Range aims the glow's contour at its inner or outer part; 50 leaves it as drawn.
+            if (e.Range is { } range && range != 50 && e.Kind is StyleEffectKind.OuterGlow or StyleEffectKind.InnerGlow)
+                for (var i = 0; i < count; i++) if (work[i] > 0) work[i] = (float)Math.Clamp(work[i] * 50 / range, 0, 1);
             if (e.ContourEnabled && e.Kind != StyleEffectKind.BevelEmboss)
-                for (var i = 0; i < count; i++) if (work[i] > 0) work[i] = (float)(e.ContourSamples is { } samples ? IO.ContourLibrary.Evaluate(samples, work[i]) : Contour(e.Contour, work[i]));
-            Paint(e, work, e.BlendMode, e.Opacity);
+                for (var i = 0; i < count; i++) if (work[i] > 0) work[i] = (float)ContourValue(e, work[i]);
+            Paint(e, work, e.Kind == StyleEffectKind.Stroke && e.Overprint == false && e.Position != StrokePosition.Outside ? LayerBlendMode.Normal : e.BlendMode, e.Opacity);
         }
         void SpreadShape(StyleEffect e, bool smallest)
         {
@@ -110,15 +115,31 @@ public static partial class EffectRasterizer
             if (spread > 0) Extreme(shape, work, temp, width, height, spread, smallest);
             else shape.CopyTo(work, 0);
         }
+        // Softer blurs the glow over its whole size; Precise grows it the full size first and blurs only its edge.
+        void GlowShape(StyleEffect e, bool smallest)
+        {
+            if (e.Technique == 1)
+            {
+                var reach = (int)Math.Round(e.Size * Math.Max(e.Spread, 75) / 100);
+                if (reach > 0) Extreme(shape, work, temp, width, height, reach, smallest); else shape.CopyTo(work, 0);
+                Blur(work, work, temp, width, height, e.Size * .25);
+                return;
+            }
+            SpreadShape(e, smallest); Blur(work, work, temp, width, height, e.Size * (1 - e.Spread / 100));
+        }
         void Bevel(StyleEffect e, double angle)
         {
             if (e.Size <= 0) return;
             using var texture = e.TextureEnabled && e.Pattern == StylePattern.Image && e.PatternPng is { } encodedTexture ? DecodePattern(encodedTexture) : null;
             var heights = new float[count];
             Blur(shape, heights, temp, width, height, Math.Max(1, e.Size));
+            // With a gloss contour set, the Contour item shapes the bevel's edge, as Photoshop's does; the gloss shapes its shading.
+            if (e.GlossSamples is not null && e.ContourEnabled)
+                for (var i = 0; i < count; i++) heights[i] = (float)ContourValue(e, heights[i]);
             if (e.Soften > 0) Blur(heights, heights, temp, width, height, e.Soften);
             var highlights = new float[count]; var shadows = new float[count];
-            var rad = angle * Math.PI / 180; var altitude = e.Altitude * Math.PI / 180;
+            var rad = angle * Math.PI / 180;
+            var altitude = (e.UseGlobalLight && effects.GlobalLightAltitude is { } global ? global : e.Altitude) * Math.PI / 180;
             for (var y = 1; y < height - 1; y++)
             for (var x = 1; x < width - 1; x++)
             {
@@ -133,9 +154,14 @@ public static partial class EffectRasterizer
                 };
                 if (e.Bevel == BevelKind.PillowEmboss && shape[i] < 0.5f) slope = -slope;
                 if (e.Technique > 0) slope = Math.Sign(slope) * Math.Pow(Math.Abs(slope), e.Technique == 1 ? 0.45 : 0.75);
-                if (e.TextureEnabled && shape[i] > 0) slope += Pattern(e, x - inset, y - inset, texture) * e.TextureDepth / 200 * shape[i];
+                if (e.TextureEnabled && shape[i] > 0)
+                {
+                    var bump = Pattern(e, x - inset, y - inset, texture); if (e.TextureInvert == true) bump = 1 - bump;
+                    slope += bump * e.TextureDepth / 200 * shape[i];
+                }
                 var amount = Math.Clamp(Math.Abs(slope), 0, 1);
-                if (e.ContourEnabled) amount = e.ContourSamples is { } samples ? IO.ContourLibrary.Evaluate(samples, amount) : Contour(e.Contour, amount);
+                if (e.GlossSamples is { } gloss) amount = Smoothed(e, v => IO.ContourLibrary.Evaluate(gloss, v), amount);
+                else if (e.ContourEnabled) amount = ContourValue(e, amount);
                 if (slope > 0) highlights[i] = (float)(amount * coverage); else shadows[i] = (float)(amount * coverage);
             }
             Paint(e, highlights, e.HighlightMode, e.HighlightOpacity * e.Opacity, second: true);
@@ -145,6 +171,8 @@ public static partial class EffectRasterizer
         {
             var plane = new byte[canvas.Length];
             var fill = e.Kind == StyleEffectKind.GradientOverlay ? 1 : e.Kind == StyleEffectKind.PatternOverlay ? 2 : e.Kind == StyleEffectKind.Stroke ? e.FillType : 0;
+            // A glow set to a gradient runs it from the edge outward (inward for Inner Glow), each pixel's place shaken by Jitter.
+            var glowGradient = e.Kind is StyleEffectKind.OuterGlow or StyleEffectKind.InnerGlow && e.FillType == 1;
             using var pattern = fill == 2 && e.Pattern == StylePattern.Image && e.PatternPng is { } encoded ? DecodePattern(encoded) : null;
             for (var y = 0; y < height; y++)
             for (var x = 0; x < width; x++)
@@ -152,11 +180,20 @@ public static partial class EffectRasterizer
                 var i = y * width + x; var at = i * 4;
                 var alpha = Math.Clamp(coverage[i] * opacity / (interiorPass && shape[i] > 0 ? shape[i] : 1), 0, 1);
                 if (alpha <= 0) continue;
-                if (e.Noise > 0) alpha *= 1 - e.Noise / 100 * ((unchecked((uint)(x * 73856093 ^ y * 19349663)) % 1024) / 1023.0);
+                var hash = (unchecked((uint)(x * 73856093 ^ y * 19349663)) % 1024) / 1023.0;
+                if (e.Noise > 0) alpha *= 1 - e.Noise / 100 * hash;
                 var t = second ? 1.0 : 0.0;
                 if (fill == 1) t = Gradient(e, x - inset, y - inset, pixels.Width, pixels.Height);
                 if (fill == 2) t = Pattern(e, x - inset, y - inset, pattern);
+                if (glowGradient) t = Math.Clamp(1 - coverage[i] + ((e.Jitter ?? 0) / 100) * (hash - .5), 0, 1);
+                if (fill == 1 && e.Dither == true) t = Math.Clamp(t + (hash - .5) / 255, 0, 1);
                 var r = e.Red + (e.Red2 - e.Red) * t; var g = e.Green + (e.Green2 - e.Green) * t; var b = e.Blue + (e.Blue2 - e.Blue) * t;
+                if ((fill == 1 || glowGradient) && e.GradientStops is not null)
+                {
+                    var stop = e.GradientAt(t); r = stop.Red; g = stop.Green; b = stop.Blue;
+                    alpha *= glowGradient ? stop.Alpha * Math.Min(1, coverage[i] * 4) / Math.Max(1e-6, coverage[i]) : stop.Alpha;
+                    alpha = Math.Clamp(alpha, 0, 1);
+                }
                 if (fill == 2 && pattern is not null)
                 {
                     var p = PatternColor(e, x - inset, y - inset, pattern); r = p.Red / 255.0; g = p.Green / 255.0; b = p.Blue / 255.0; alpha *= p.Alpha / 255.0;
@@ -178,6 +215,11 @@ public static partial class EffectRasterizer
         }
     }
 
+    /// <summary>The effect's contour at <paramref name="value"/>, its corners smoothed when Anti-aliased is on.</summary>
+    private static double ContourValue(StyleEffect e, double value) =>
+        Smoothed(e, v => e.ContourSamples is { } samples ? IO.ContourLibrary.Evaluate(samples, v) : Contour(e.Contour, v), value);
+    private static double Smoothed(StyleEffect e, Func<double, double> curve, double value) =>
+        e.AntiAlias == true ? (curve(Math.Clamp(value - .02, 0, 1)) + 2 * curve(value) + curve(Math.Clamp(value + .02, 0, 1))) / 4 : curve(value);
     public static double Contour(StyleContour contour, double value)
     {
         var t = Math.Clamp(value, 0, 1);

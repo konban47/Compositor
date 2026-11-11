@@ -52,6 +52,8 @@ public sealed class ProjectLayerRecord
     /// <summary>Windows v32: the file a linked smart object follows, and its SHA-256 when last read.</summary>
     public string? SmartObjectLink { get; set; }
     public string? SmartObjectLinkHash { get; set; }
+    /// <summary>Version 34: the smart object's Stack Mode.</summary>
+    public string? SmartObjectStackMode { get; set; }
 
     /// <summary>A folder has no image file.</summary>
     public bool IsGroupValue => IsGroup ?? false;

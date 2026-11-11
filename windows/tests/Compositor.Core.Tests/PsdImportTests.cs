@@ -47,7 +47,8 @@ public partial class PsdImportTests : IDisposable
         var import = PsdImporter.Read(Write($"Layered{version}.psd", LayeredFile(version)));
 
         var manifest = import.Manifest;
-        Assert.Equal(11, manifest.Version);
+        // Its Dissolve layer needs format 34.
+        Assert.Equal(34, manifest.Version);
         Assert.Equal(CanvasWidth, manifest.Width);
         Assert.Equal(CanvasHeight, manifest.Height);
         Assert.Equal(300.0, manifest.Resolution ?? 0, 6);
@@ -77,7 +78,8 @@ public partial class PsdImportTests : IDisposable
         // Photoshop's clipping flag becomes the id of the layer below.
         var clipped = manifest.Layers[1];
         Assert.Equal(background.ID, clipped.MaskSourceID);
-        Assert.Equal(LayerBlendMode.Normal, clipped.BlendModeValue);
+        // Dissolve is read as itself since format 34.
+        Assert.Equal(LayerBlendMode.Dissolve, clipped.BlendModeValue);
         Assert.Equal(LayerMask.ExpectedImageFile(clipped.ID), clipped.ImageFile);
         Assert.Equal(0, (int)clipped.Transform.Origin.X);
         Assert.Equal(2, (int)clipped.Transform.Size.Width);
@@ -109,10 +111,9 @@ public partial class PsdImportTests : IDisposable
         Assert.False(hidden.IsVisible);
         Assert.Equal(128 / 255.0, hidden.OpacityValue, 6);
 
-        Assert.Equal(2, import.Notes.Count);
-        Assert.Equal(new[] { "Clipped", "Folder 1" }, import.Notes.Select(note => note.Layer).ToList());
-        Assert.Contains("Blend mode \"diss\"", import.Notes[0].What, StringComparison.Ordinal);
-        Assert.Contains("Folder blend mode \"mul \"", import.Notes[1].What, StringComparison.Ordinal);
+        Assert.Single(import.Notes);
+        Assert.Equal(new[] { "Folder 1" }, import.Notes.Select(note => note.Layer).ToList());
+        Assert.Contains("Folder blend mode \"mul \"", import.Notes[0].What, StringComparison.Ordinal);
         ProjectStore.Validate(manifest);
     }
 

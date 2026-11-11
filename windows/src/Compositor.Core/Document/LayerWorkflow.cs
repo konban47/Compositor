@@ -180,7 +180,10 @@ public static class LayerWorkflow
     {
         var layers = document.Layers.Where(l => l.SmartObject?.ID == smartID).ToArray();
         if (layers.Length == 0 || !Editable(document, layers.Select(l => l.ID))) return false;
-        var smart = SmartObjectData.FromDocument(source, smartID); using var rendered = DocumentRenderer.Render(source);
+        // New contents keep the smart object's Stack Mode, and are shown through it.
+        var mode = layers[0].SmartObject!.StackMode;
+        var smart = mode is null ? SmartObjectData.FromDocument(source, smartID) : new SmartObjectData(smartID, SmartObjectData.FromDocument(source, smartID).Package) { StackMode = mode };
+        using var rendered = SmartObjectStacks.Render(source, mode);
         foreach (var layer in layers) { layer.SmartObject = smart; layer.Asset = ImportedImage.Create(rendered.Copy(), layer.Name); }
         return true;
     }

@@ -45,7 +45,7 @@ public sealed partial class MainWindow
             if (made is null) return false;
             var board = doc.Layers.Single(l => l.ID == made); board.ArtboardBackground = _optionsBar.Artboard.Background;
             if (EditorPreferences.Current.ArtboardAutoNest)
-                foreach (var layer in doc.Layers.Where(l => l.ID != made && l.ParentID is null && l.Container != LayerContainer.Artboard && LayerProtection.CanMove(doc, l.ID)))
+                foreach (var layer in doc.Layers.Where(l => l.ID != made && l.ParentID is null && l.Container != LayerContainer.Artboard && !l.Locks.HasFlag(LayerLocks.Nesting) && LayerProtection.CanMove(doc, l.ID)))
                     if (board.Transform.Contains(layer.Transform.Point(.5, .5))) layer.ParentID = made;
             if (EditorPreferences.Current.ArtboardAutoCanvas) FitArtboardCanvas(doc, false);
             return true;

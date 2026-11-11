@@ -206,6 +206,7 @@ public sealed class CanvasDocument : IDisposable
         SmartObjectID = layer.SmartObject?.ID,
         SmartObjectLink = layer.SmartObject?.LinkedPath,
         SmartObjectLinkHash = layer.SmartObject?.LinkedHash,
+        SmartObjectStackMode = layer.SmartObject?.StackMode,
         Text = layer.LiveText,
     };
 

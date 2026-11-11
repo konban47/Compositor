@@ -11,15 +11,16 @@ public sealed partial class MainWindow
     private readonly List<(MenuItem Item, Func<bool> Ready)> _layerMenuAvailability = [];
     private MenuItem BuildLayerMenu()
     {
-        MenuItem Group(string name, params Control[] children) { var item = new MenuItem { Header = Localize.Text(name), Tag = name }; foreach (var child in children) item.Items.Add(child); return item; }
+        // Names carry Photoshop's access keys; tags, command events and menu customizations use the name without them.
+        MenuItem Group(string name, params Control[] children) { var item = new MenuItem { Header = Localize.Text(name), Tag = name.Replace("_", "") }; foreach (var child in children) item.Items.Add(child); return item; }
         MenuItem Item(string name, Action action, string? key = null, Func<bool>? ready = null)
         {
-            var item = Command(name, action, key);
+            var item = Command(name.Replace("_", ""), action, key); item.Header = Localize.Text(name);
             _layerMenuAvailability.Add((item, ready ?? (() => _document is not null && SelectedLayers.Count > 0)));
             return item;
         }
         MenuItem Missing(string name, string reason)
-        { var item = new MenuItem { Header = Localize.Text(name), Tag = name, IsEnabled = false }; ToolTip.SetTip(item, Localize.Text(reason)); return item; }
+        { var item = new MenuItem { Header = Localize.Text(name), Tag = name.Replace("_", ""), IsEnabled = false }; ToolTip.SetTip(item, Localize.Text(reason)); return item; }
         bool Document() => _document is not null;
         bool Editable() => _document is { } d && SelectedLayers.Count > 0 && LayerWorkflow.Editable(d, SelectedLayers);
         bool Pixels() => Editable() && PropertyLayer?.Asset is not null;
@@ -27,113 +28,147 @@ public sealed partial class MainWindow
         bool NewMask() => Editable() && PropertyLayer?.Mask is null;
         bool Mask() => Editable() && PropertyLayer?.Mask is not null;
         var menu = new MenuItem { Header = Localize.Text("_Layer"), Tag = "Layer" };
-        menu.Items.Add(Group("New",
-            Item("Layer…", () => _ = NewNamedLayer(), "New Blank Layer", Document),
-            Item("Background from Layer", MakeBackground, ready: Pixels),
-            Item("Group…", () => _ = NewNamedGroup(), ready: Document),
-            Item("Group from Layers…", () => _ = GroupFromLayers(), ready: Editable),
+        menu.Items.Add(Group("_New",
+            Item("_Layer…", () => _ = NewNamedLayer(), "New Blank Layer", Document),
+            Item("_Background from Layer", MakeBackground, ready: Pixels),
+            Item("_Group…", () => _ = NewNamedGroup(), ready: Document),
+            Item("Group from L_ayers…", () => _ = GroupFromLayers(), ready: Editable),
             Item("Artboard…", () => _ = MakeLayerContainer(LayerContainer.Artboard, false), ready: Document),
-            Item("Artboard from Group…", () => _ = MakeLayerContainer(LayerContainer.Artboard, true), ready: () => Editable() && PropertyLayer is { IsGroup: true }),
+            Item("Artboard from Group", () => _ = MakeLayerContainer(LayerContainer.Artboard, true), ready: () => Editable() && PropertyLayer is { IsGroup: true }),
             Item("Artboard from Layers…", () => _ = MakeLayerContainer(LayerContainer.Artboard, true), ready: Editable),
             Item("Frame from Layers…", () => _ = MakeLayerContainer(LayerContainer.Frame, true), ready: Editable),
-            Item("Convert to Frame…", () => _ = MakeLayerContainer(LayerContainer.Frame, true), ready: Editable), new Separator(),
+            Item("Convert to Frame", () => _ = MakeLayerContainer(LayerContainer.Frame, true), ready: () => Pixels() && PropertyLayer is { IsGroup: false }), new Separator(),
             Item("Layer via Copy", () => LayerViaSelection(false), "Layer via Copy", Pixels),
             Item("Layer via Cut", () => LayerViaSelection(true), "Layer via Cut", () => Pixels() && _document!.Selection.Path is not null)));
         menu.Items.Add(Item("Copy CSS", () => _ = CopyLayerMarkup(false)));
         menu.Items.Add(Item("Copy SVG", () => _ = CopyLayerMarkup(true)));
-        menu.Items.Add(Item("Duplicate Layer…", () => _ = DuplicateNamedLayer(), "Duplicate Layer"));
-        menu.Items.Add(Group("Delete", Item("Layer", DeleteLayer, "Delete Layer", Editable), Item("Hidden Layers", () => _ = CleanLayers("Hidden"), ready: Document)));
+        menu.Items.Add(Item("_Duplicate Layer…", () => _ = DuplicateNamedLayer(), "Duplicate Layer"));
+        menu.Items.Add(Group("Delete", Item("_Layer", DeleteLayer, "Delete Layer", Editable), Item("_Hidden Layers", () => _ = CleanLayers("Hidden"), ready: Document)));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Quick Export as PNG", () => _ = ExportSelectedLayers(true), "Quick Export Layers PNG"));
-        menu.Items.Add(Item("Export Layers As…", () => _ = ExportSelectedLayers(false), "Export Layers As"));
+        menu.Items.Add(Item("Export As…", () => _ = ExportSelectedLayers(false), "Export Layers As"));
         menu.Items.Add(new Separator()); menu.Items.Add(Item("Rename Layer…", () => _ = RenameLayer(), "Rename Layer", Editable));
-        _effectsMenu.Header = Localize.Text("Layer Style");
-        _effectsMenu.Items.Add(Item("Copy Layer Style", CopyLayerStyle));
-        _effectsMenu.Items.Add(Item("Paste Layer Style", PasteLayerStyle, ready: () => Editable() && _copiedStyle is not null));
-        _effectsMenu.Items.Add(Item("Clear Layer Style", ClearSelectedStyles, ready: Editable));
+        _effectsMenu.Header = Localize.Text("La_yer Style"); _effectsMenu.Tag = "Layer Style";
+        _effectsMenu.Items.Add(Item("_Copy Layer Style", CopyLayerStyle, ready: () => Editable() && PropertyLayer?.Effects is not null));
+        _effectsMenu.Items.Add(Item("_Paste Layer Style", PasteLayerStyle, ready: () => Editable() && _copiedStyle is not null));
+        _effectsMenu.Items.Add(Item("Cle_ar Layer Style", ClearSelectedStyles, ready: () => Editable() && PropertyLayer?.Effects is not null));
         _effectsMenu.Items.Add(new Separator());
-        _effectsMenu.Items.Add(Item("Global Light…", () => _ = GlobalLight(), ready: Document));
-        _effectsMenu.Items.Add(Missing("Create Layers", "Separating style effects into independent layers is not supported. Rasterize Layer Style bakes the appearance."));
-        _effectsMenu.Items.Add(Item("Show / Hide Layer Effects", ToggleEffects, ready: Editable));
-        _effectsMenu.Items.Add(Item("Scale Effects…", () => _ = ScaleLayerEffects(), ready: () => Editable() && PropertyLayer?.Effects is not null));
+        _effectsMenu.Items.Add(Item("Global _Light…", () => _ = GlobalLight(), ready: Document));
+        _effectsMenu.Items.Add(Missing("C_reate Layers", "Separating style effects into independent layers is not supported. Rasterize Layer Style bakes the appearance."));
+        _effectsMenu.Items.Add(Item("_Hide All Effects", ToggleEffects, ready: () => Editable() && PropertyLayer?.Effects is not null));
+        _effectsMenu.Items.Add(Item("Scale E_ffects…", () => _ = ScaleLayerEffects(), ready: () => Editable() && PropertyLayer?.Effects is not null));
         menu.Items.Add(_effectsMenu);
-        menu.Items.Add(Missing("Smart Filters", "Editable filter stacks are not supported by this document engine."));
+        const string NoSmartFilters = "Filters are applied to pixels or kept as filter layers; editable smart-filter stacks on smart objects are not supported.";
+        menu.Items.Add(Group("Smart Filters", Missing("Disable Smart Filters", NoSmartFilters), new Separator(), Missing("Delete Filter Mask", NoSmartFilters),
+            Missing("Disa_ble Filter Mask", NoSmartFilters), new Separator(), Missing("Clear Smart Filters", NoSmartFilters)));
         menu.Items.Add(new Separator());
-        menu.Items.Add(Group("New Fill Layer", Item("Solid Color…", () => _ = NewFillLayer(StyleEffectKind.ColorOverlay), ready: Document),
-            Item("Gradient…", () => _ = NewFillLayer(StyleEffectKind.GradientOverlay), ready: Document), Item("Pattern…", () => _ = NewFillLayer(StyleEffectKind.PatternOverlay), ready: Document)));
-        var adjustment = Group("New Adjustment Layer");
-        void Advanced(ImageAdjustmentKind kind) => adjustment.Items.Add(Item(ImageAdjustmentTitle(kind), () => _ = ExtendedImageAdjustment(kind, adjustmentLayer: true), ready: Document));
-        void Existing(string name, AdjustmentKind kind) => adjustment.Items.Add(Item(name, () => _ = NewAdjustment(kind), ready: Document));
-        Advanced(ImageAdjustmentKind.Vibrance);
-        adjustment.Items.Add(Missing("Clarity / Dehaze…", "Clarity and dehaze are available in Camera Raw; a separate adjustment-layer operator is not implemented."));
-        Existing("Grain…", AdjustmentKind.Grain); adjustment.Items.Add(new Separator());
-        Advanced(ImageAdjustmentKind.BrightnessContrast); Existing("Levels…", AdjustmentKind.Levels); Existing("Curves…", AdjustmentKind.Curves); Existing("Exposure…", AdjustmentKind.Exposure);
-        adjustment.Items.Add(new Separator()); Existing("Hue/Saturation…", AdjustmentKind.HueSaturation); Existing("Color Balance…", AdjustmentKind.ColorBalance);
-        Existing("Black & White…", AdjustmentKind.BlackWhite); Advanced(ImageAdjustmentKind.PhotoFilter); Advanced(ImageAdjustmentKind.ChannelMixer);
-        Advanced(ImageAdjustmentKind.ColorLookup); Advanced(ImageAdjustmentKind.SelectiveColor); adjustment.Items.Add(new Separator());
-        Existing("Invert", AdjustmentKind.Invert); Advanced(ImageAdjustmentKind.Posterize); Advanced(ImageAdjustmentKind.Threshold); Existing("Gradient Map…", AdjustmentKind.GradientMap);
+        menu.Items.Add(Group("Ne_w Fill Layer", Item("S_olid Color…", () => _ = NewFillLayer(StyleEffectKind.ColorOverlay), ready: Document),
+            Item("_Gradient…", () => _ = NewFillLayer(StyleEffectKind.GradientOverlay), ready: Document), Item("Patte_rn…", () => _ = NewFillLayer(StyleEffectKind.PatternOverlay), ready: Document)));
+        var adjustment = Group("New Ad_justment Layer");
+        // Every adjustment asks for the new layer's name, color, mode and opacity first, as Photoshop's New Layer dialog does.
+        void Advanced(string title, ImageAdjustmentKind kind) => adjustment.Items.Add(Item(title, () => _ = NewAdjustmentLayer(title.Replace("_", ""), () => ExtendedImageAdjustment(kind, adjustmentLayer: true)), ready: Document));
+        void Existing(string title, AdjustmentKind kind) => adjustment.Items.Add(Item(title, () => _ = NewAdjustmentLayer(title.Replace("_", ""), () => NewAdjustment(kind)), ready: Document));
+        Advanced("Vib_rance…", ImageAdjustmentKind.Vibrance); Advanced("_Clarity and Dehaze…", ImageAdjustmentKind.ClarityDehaze); Existing("_Grain…", AdjustmentKind.Grain); adjustment.Items.Add(new Separator());
+        Advanced("Brightness/_Contrast…", ImageAdjustmentKind.BrightnessContrast); Existing("_Levels…", AdjustmentKind.Levels); Existing("Cur_ves…", AdjustmentKind.Curves); Existing("_Exposure…", AdjustmentKind.Exposure);
+        adjustment.Items.Add(new Separator()); Existing("_Hue/Saturation…", AdjustmentKind.HueSaturation); Existing("Color _Balance…", AdjustmentKind.ColorBalance);
+        Existing("Blac_k & White…", AdjustmentKind.BlackWhite); Advanced("Photo _Filter…", ImageAdjustmentKind.PhotoFilter); Advanced("Channel Mi_xer…", ImageAdjustmentKind.ChannelMixer);
+        Advanced("Color Lookup…", ImageAdjustmentKind.ColorLookup); Advanced("_Selective Color…", ImageAdjustmentKind.SelectiveColor); adjustment.Items.Add(new Separator());
+        Existing("_Invert…", AdjustmentKind.Invert); Advanced("_Posterize…", ImageAdjustmentKind.Posterize); Advanced("_Threshold…", ImageAdjustmentKind.Threshold); Existing("Gradient _Map…", AdjustmentKind.GradientMap);
         adjustment.Items.Add(new Separator()); Existing("Reduce Noise…", AdjustmentKind.ReduceNoise); Existing("Add Noise…", AdjustmentKind.AddNoise); Existing("Gaussian Blur…", AdjustmentKind.GaussianBlur); Existing("Motion Blur…", AdjustmentKind.MotionBlur);
         menu.Items.Add(adjustment);
-        menu.Items.Add(Item("Layer Content Options…", () => _ = EditLayerContents(), ready: () => Editable() && PropertyLayer is { } l && (l.Adjustment is not null || l.Effects is not null || l.LiveText is not null || l.LiveShape is not null)));
+        menu.Items.Add(Missing("Harmonize", "Harmonize is Photoshop's generative compositing service; Compositor has no equivalent."));
+        menu.Items.Add(Item("Layer Content _Options…", () => _ = EditLayerContents(), ready: () => Editable() && PropertyLayer is { } l && (l.Adjustment is not null || l.Effects is not null || l.LiveText is not null || l.LiveShape is not null)));
         menu.Items.Add(new Separator());
-        menu.Items.Add(Group("Layer Mask",
-            Item("Reveal All", () => LayerMaskCommand("Reveal"), ready: NewMask), Item("Hide All", () => LayerMaskCommand("Hide"), ready: NewMask),
-            Item("Reveal Selection", () => LayerMaskCommand("Selection"), ready: () => NewMask() && _document!.Selection.Path is not null),
-            Item("Hide Selection", () => LayerMaskCommand("Inverse"), ready: () => NewMask() && _document!.Selection.Path is not null),
-            Item("From Transparency", () => LayerMaskCommand("Transparency"), ready: () => Pixels() && PropertyLayer!.Mask is null), new Separator(),
-            Item("Delete", DeleteMask, ready: Mask), Item("Apply", () => LayerMaskCommand("Apply"), ready: () => Mask() && Pixels()), new Separator(), _maskToggle, _maskLink));
-        menu.Items.Add(Group("Vector Mask",
-            Item("Reveal All", () => VectorMaskCommand("Reveal"), ready: NewMask), Item("Hide All", () => VectorMaskCommand("Hide"), ready: NewMask),
-            Item("Current Path", () => VectorMaskCommand("Path"), ready: () => NewMask() && (_pen is not null || _pathNodes is not null)), new Separator(),
-            Item("Delete", DeleteMask, ready: () => Mask() && PropertyLayer!.Mask!.VectorPath is not null),
-            Item("Enable / Disable", () => LayerMaskCommand("Toggle"), ready: () => Mask() && PropertyLayer!.Mask!.VectorPath is not null),
-            Item("Link / Unlink", () => LayerMaskCommand("Link"), ready: () => Mask() && PropertyLayer!.Mask!.VectorPath is not null)));
+        menu.Items.Add(Group("Layer _Mask",
+            Item("_Reveal All", () => LayerMaskCommand("Reveal"), ready: NewMask), Item("_Hide All", () => LayerMaskCommand("Hide"), ready: NewMask),
+            Item("Re_veal Selection", () => LayerMaskCommand("Selection"), ready: () => NewMask() && _document!.Selection.Path is not null),
+            Item("Hi_de Selection", () => LayerMaskCommand("Inverse"), ready: () => NewMask() && _document!.Selection.Path is not null),
+            Item("From _Transparency", () => LayerMaskCommand("Transparency"), ready: () => Pixels() && PropertyLayer!.Mask is null), new Separator(),
+            Item("D_elete", DeleteMask, ready: Mask), Item("_Apply", () => LayerMaskCommand("Apply"), ready: () => Mask() && Pixels()), new Separator(), _maskToggle, _maskLink));
+        menu.Items.Add(Group("_Vector Mask",
+            Item("_Reveal All", () => VectorMaskCommand("Reveal"), ready: NewMask), Item("_Hide All", () => VectorMaskCommand("Hide"), ready: NewMask),
+            Item("C_urrent Path", () => VectorMaskCommand("Path"), ready: () => NewMask() && (_pen is not null || _pathNodes is not null)), new Separator(),
+            Item("_Delete", DeleteMask, ready: () => Mask() && PropertyLayer!.Mask!.VectorPath is not null), new Separator(),
+            Item("Ena_ble / Disable", () => LayerMaskCommand("Toggle"), ready: () => Mask() && PropertyLayer!.Mask!.VectorPath is not null),
+            Item("_Link / Unlink", () => LayerMaskCommand("Link"), ready: () => Mask() && PropertyLayer!.Mask!.VectorPath is not null)));
         menu.Items.Add(_clipping); menu.Items.Add(Item("Mask All Objects", () => _ = MaskAllObjects(), ready: Pixels)); menu.Items.Add(new Separator());
+        bool Linked() => Smart() && PropertyLayer?.SmartObject?.LinkedPath is not null;
+        var stack = Group("Stack Mode");
+        foreach (var mode in SmartObjectStacks.Modes.Prepend(null))
+        {
+            var chosen = mode; var item = Item(mode ?? "None", () => SetStackMode(chosen), ready: Smart);
+            item.ToggleType = MenuItemToggleType.Radio; stack.Items.Add(item);
+            if (mode is null) stack.Items.Add(new Separator());
+        }
+        stack.SubmenuOpened += (_, _) => { var current = PropertyLayer?.SmartObject?.StackMode; foreach (var item in stack.Items.OfType<MenuItem>()) item.IsChecked = Equals(item.Tag, current ?? "None"); };
         menu.Items.Add(Group("Smart Objects",
-            Item("Convert to Smart Object", ConvertToSmartObject, ready: Editable), Item("New Smart Object via Copy", IndependentSmartCopy, ready: Smart), new Separator(),
-            Item("Edit Contents", EditSmartContents, ready: Smart), Item("Reset Transform", ResetSmartTransform, ready: Smart),
-            Item("Replace Contents…", () => _ = ReplaceSmartContents(), ready: Smart), Item("Export Contents…", () => _ = ExportSmartContents(), ready: Smart),
-            Item("Convert to Layers", UnpackSmartObject, ready: Smart),
-            new Separator(),
-            Item("Update Modified Content", () => UpdateLinked(true), ready: () => Smart() && PropertyLayer?.SmartObject?.LinkedPath is not null),
-            Item("Update All Modified Content", () => UpdateLinked(false), ready: () => _document?.Layers.Any(l => l.SmartObject?.LinkedPath is not null) == true),
-            Item("Relink to File…", () => _ = RelinkSmartObject(), ready: Smart),
-            Item("Embed Linked", EmbedLinked, ready: () => Smart() && PropertyLayer?.SmartObject?.LinkedPath is not null),
-            Missing("Stack Mode", "Statistical smart-object stack modes are not supported."), Item("Rasterize", () => RasterizeSelected("Smart"), ready: Smart)));
-        menu.Items.Add(Missing("Video Layers", "This editor has no video timeline or frame decoder. Video layers cannot be imported or edited."));
-        menu.Items.Add(Group("Rasterize",
-            Item("Type", () => RasterizeSelected("Type"), ready: () => Editable() && PropertyLayer?.LiveText is not null),
-            Item("Shape", () => RasterizeSelected("Shape"), ready: () => Editable() && PropertyLayer?.LiveShape is not null),
-            Item("Fill Content", () => RasterizeSelected("Effects"), ready: () => Editable() && PropertyLayer?.Effects is not null),
-            Item("Vector Mask", () => LayerMaskCommand("Rasterize"), ready: () => Mask() && PropertyLayer!.Mask!.VectorPath is not null),
-            Item("Smart Object", () => RasterizeSelected("Smart"), ready: Smart),
-            Missing("3D", "This editor has no 3D scene engine."), Item("Layer Style", () => RasterizeSelected("Effects"), ready: () => Editable() && PropertyLayer?.Effects is not null),
-            new Separator(), Item("Layer", () => RasterizeSelected("Layer"), ready: Editable), Item("All Layers", () => RasterizeSelected("All"), ready: Document)));
+            Item("Convert to _Smart Object", ConvertToSmartObject, ready: Editable), Item("New Smart Object via _Copy", IndependentSmartCopy, ready: Smart), new Separator(),
+            Item("Reveal in Explorer", RevealLinkedFile, ready: Linked), new Separator(),
+            Item("_Update Modified Content", () => UpdateLinked(true), ready: Linked),
+            Item("Update _All Modified Content", () => UpdateLinked(false), ready: () => _document?.Layers.Any(l => l.SmartObject?.LinkedPath is not null) == true), new Separator(),
+            Item("_Edit Contents", EditSmartContents, ready: Smart), Item("Reset Transform", ResetSmartTransform, ready: Smart),
+            Item("Relink to _File…", () => _ = RelinkSmartObject(), ready: Smart),
+            Missing("Relink to _Library Graphic…", "Creative Cloud Libraries are not available in Compositor."),
+            Item("_Replace Contents…", () => _ = ReplaceSmartContents(), ready: Smart), Item("E_xport Contents…", () => _ = ExportSmartContents(), ready: Smart), new Separator(),
+            Item("Embed Linked", EmbedLinked, ready: Linked),
+            Item("Embed All Linked", EmbedAllLinked, ready: () => _document?.Layers.Any(l => l.SmartObject?.LinkedPath is not null) == true),
+            Item("Convert to Linked…", () => _ = ConvertToLinked(), ready: () => Smart() && PropertyLayer?.SmartObject?.LinkedPath is null),
+            Item("Convert to Layers", UnpackSmartObject, ready: Smart), new Separator(),
+            stack, Item("Rasterize", () => RasterizeSelected("Smart"), ready: Smart)));
+        const string NoVideo = "Video layers need a video timeline; Compositor imports video as frames instead.";
+        menu.Items.Add(Group("Video Layers",
+            Item("New Video Layer from File…", () => _ = ImportVideoFrames(), ready: Document), new Separator(),
+            Missing("New Blank Video Layer", NoVideo), Missing("Insert Blank Frame", NoVideo), Missing("Duplicate Frame", NoVideo), Missing("Delete Frame", NoVideo), new Separator(),
+            Missing("Replace Footage…", NoVideo), Missing("Interpret Footage…", NoVideo), new Separator(), Missing("Show Altered Video", NoVideo), new Separator(),
+            Missing("Restore Frame", NoVideo), Missing("Restore All Frames", NoVideo), new Separator(), Missing("Reload Frame", NoVideo), new Separator(), Missing("Rasterize", NoVideo)));
+        menu.Items.Add(Group("Rasteri_ze",
+            Item("_Type", () => RasterizeSelected("Type"), ready: () => Editable() && PropertyLayer?.LiveText is not null),
+            Item("_Shape", () => RasterizeSelected("Shape"), ready: () => Editable() && PropertyLayer?.LiveShape is not null),
+            Item("_Fill Content", () => RasterizeSelected("Effects"), ready: () => Editable() && PropertyLayer?.Effects is not null),
+            Item("_Vector Mask", () => LayerMaskCommand("Rasterize"), ready: () => Mask() && PropertyLayer!.Mask!.VectorPath is not null),
+            Item("Smart _Object", () => RasterizeSelected("Smart"), ready: Smart),
+            Missing("_Generative", "Generative layers are not part of Compositor."), Missing("Vi_deo", NoVideo), Missing("_3D", "This editor has no 3D scene engine."),
+            Item("Layer Style", () => RasterizeSelected("Effects"), ready: () => Editable() && PropertyLayer?.Effects is not null),
+            new Separator(), Item("_Layer", () => RasterizeSelected("Layer"), ready: Editable), Item("_All Layers", () => RasterizeSelected("All"), ready: Document)));
         menu.Items.Add(Item("Convert Layer to 16-Bit", () => ConvertSelectedDepth(16), ready: () => Editable() && DeepPaint.CanConvertLayers(_document!, SelectedLayers, 16)));
         menu.Items.Add(Item("Convert Layer to 8-Bit", () => ConvertSelectedDepth(8), ready: () => Editable() && DeepPaint.CanConvertLayers(_document!, SelectedLayers, 8)));
-        menu.Items.Add(new Separator()); menu.Items.Add(Item("New Layer Based Slice", LayerSlice));
-        menu.Items.Add(new Separator()); menu.Items.Add(Item("Group Layers", GroupSelected, "Group Layers", Editable));
-        menu.Items.Add(Item("Ungroup Layers", UngroupSelected, "Ungroup Layers", Editable)); menu.Items.Add(Item("Hide / Show Layers", ToggleSelectedVisibility, "Hide Layers"));
+        menu.Items.Add(new Separator()); menu.Items.Add(Item("New Layer _Based Slice", LayerSlice));
+        menu.Items.Add(new Separator()); menu.Items.Add(Item("_Group Layers", GroupSelected, "Group Layers", Editable));
+        menu.Items.Add(Item("_Ungroup Layers", UngroupSelected, "Ungroup Layers", () => Editable() && PropertyLayer is { IsGroup: true })); menu.Items.Add(Item("Hide Laye_rs", ToggleSelectedVisibility, "Hide Layers"));
         menu.Items.Add(new Separator());
-        menu.Items.Add(Group("Arrange", Item("Bring to Front", () => ArrangeLayers("Front"), "Bring to Front", Editable),
-            Item("Bring Forward", () => ArrangeLayers("Forward"), "Move Layer Up", Editable), Item("Send Backward", () => ArrangeLayers("Backward"), "Move Layer Down", Editable),
-            Item("Send to Back", () => ArrangeLayers("Back"), "Send to Back", Editable), Item("Reverse", () => ArrangeLayers("Reverse"), ready: () => Editable() && SelectedLayers.Count > 1)));
-        var shapes = Group("Combine Shapes");
-        foreach (var (label, op) in new[] { ("Unite Shapes", SKPathOp.Union), ("Subtract Front Shape", SKPathOp.Difference), ("Intersect Shape Areas", SKPathOp.Intersect), ("Exclude Overlapping Shapes", SKPathOp.Xor) })
-            shapes.Items.Add(Item(label, () => CombineLayerShapes(op), ready: () => _document is { } doc && LayerMenuEdits.CanCombineShapes(doc, SelectedLayers)));
+        menu.Items.Add(Group("_Arrange", Item("Bring to _Front", () => ArrangeLayers("Front"), "Bring to Front", Editable),
+            Item("Bring For_ward", () => ArrangeLayers("Forward"), "Move Layer Up", Editable), Item("Send Bac_kward", () => ArrangeLayers("Backward"), "Move Layer Down", Editable),
+            Item("Send to _Back", () => ArrangeLayers("Back"), "Send to Back", Editable), new Separator(), Item("_Reverse", () => ArrangeLayers("Reverse"), ready: () => Editable() && SelectedLayers.Count > 1)));
+        var shapes = Group("Combine S_hapes");
+        foreach (var (label, op) in new[] { ("Unite Shapes", SKPathOp.Union), ("Subtract Front Shape", SKPathOp.Difference), ("Unite Shapes at Overlap", SKPathOp.Intersect), ("Subtract Shapes at Overlap", SKPathOp.Xor) })
+        { var item = Item(label, () => CombineLayerShapes(op), ready: () => _document is { } doc && LayerMenuEdits.CanCombineShapes(doc, SelectedLayers)); item.Icon = new ShapeOperationGlyph(op); shapes.Items.Add(item); }
         menu.Items.Add(shapes);
-        foreach (var (label, operations) in new[] { ("Align", new[] { "Align Top", "Align V Center", "Align Bottom", "Align Left", "Align H Center", "Align Right" }),
-            ("Distribute", new[] { "Distribute Top", "Distribute Vertically", "Distribute Bottom", "Distribute Left", "Distribute Horizontally", "Distribute Right", "Distribute Horizontal Spacing", "Distribute Vertical Spacing" }) })
+        menu.Items.Add(new Separator());
+        var align = Group("Al_ign");
+        foreach (var (operation, title) in new[] { ("Align Top", "_Top Edges"), ("Align V Center", "_Vertical Centers"), ("Align Bottom", "_Bottom Edges"), ("", ""), ("Align Left", "_Left Edges"), ("Align H Center", "_Horizontal Centers"), ("Align Right", "_Right Edges") })
         {
-            var group = Group(label); foreach (var operation in operations) group.Items.Add(Item(operation, () => AlignProperties(operation), ready: () => Editable() && (label == "Align" || SelectedLayers.Count >= 3)));
-            menu.Items.Add(group);
+            if (operation.Length == 0) { align.Items.Add(new Separator()); continue; }
+            var op = operation; var item = Item(title, () => AlignProperties(op), ready: () => Editable() && (SelectedLayers.Count > 1 || _document!.Selection.Path is not null)); item.Icon = new InspectorGlyph(op); align.Items.Add(item);
         }
-        menu.Items.Add(new Separator()); menu.Items.Add(Item("Lock Layers…", () => _ = LayerLocksDialog(), "Lock Layers Dialog"));
-        menu.Items.Add(Item("Link / Unlink Layers", LinkLayers, ready: Editable)); menu.Items.Add(Item("Select Linked Layers", SelectLinkedLayers));
-        menu.Items.Add(new Separator()); menu.Items.Add(_merge); menu.Items.Add(Item("Merge Visible", () => MergeAll(false), "Merge Visible", Document)); menu.Items.Add(Item("Flatten Image", () => _ = FlattenImage(), ready: Document));
+        menu.Items.Add(align);
+        var distribute = Group("Dis_tribute");
+        foreach (var (operation, title) in new[] { ("Distribute Top", "_Top Edges"), ("Distribute Vertically", "_Vertical Centers"), ("Distribute Bottom", "_Bottom Edges"), ("", ""),
+            ("Distribute Left", "_Left Edges"), ("Distribute Horizontally", "_Horizontal Centers"), ("Distribute Right", "_Right Edges"), ("", ""),
+            ("Distribute Horizontal Spacing", "H_orizontal"), ("Distribute Vertical Spacing", "Verti_cal") })
+        {
+            if (operation.Length == 0) { distribute.Items.Add(new Separator()); continue; }
+            var op = operation; var item = Item(title, () => AlignProperties(op), ready: () => Editable() && SelectedLayers.Count >= 3); item.Icon = new InspectorGlyph(op); distribute.Items.Add(item);
+        }
+        menu.Items.Add(distribute);
+        // With a selection, Photoshop's Align becomes Align Layers to Selection.
+        menu.SubmenuOpened += (_, _) => align.Header = Localize.Text(_document?.Selection.Path is not null ? "Align Layers to Select_ion" : "Al_ign");
+        menu.Items.Add(new Separator()); menu.Items.Add(Item("_Lock Layers…", () => _ = LayerLocksDialog(), "Lock Layers Dialog"));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Item("Lin_k Layers", LinkLayers, ready: () => Editable() && SelectedLayers.Count > 1)); menu.Items.Add(Item("_Select Linked Layers", SelectLinkedLayers, ready: () => PropertyLayer?.LinkID is not null));
+        menu.Items.Add(new Separator()); menu.Items.Add(_merge); menu.Items.Add(Item("Merge Visible", () => MergeAll(false), "Merge Visible", Document)); menu.Items.Add(Item("_Flatten Image", () => _ = FlattenImage(), ready: Document));
         menu.Items.Add(new Separator()); menu.Items.Add(Group("Matting",
-            Item("Color Decontaminate…", () => _ = DefringeLayer(true), ready: Pixels), Item("Defringe…", () => _ = DefringeLayer(false), ready: Pixels),
-            Item("Remove Black Matte", () => RemoveMatte(false), ready: Pixels), Item("Remove White Matte", () => RemoveMatte(true), ready: Pixels)));
+            Item("_Color Decontaminate…", () => _ = DefringeLayer(true), ready: Pixels), Item("_Defringe…", () => _ = DefringeLayer(false), ready: Pixels),
+            Item("Remove _Black Matte", () => RemoveMatte(false), ready: Pixels), Item("Remove _White Matte", () => RemoveMatte(true), ready: Pixels)));
         menu.SubmenuOpened += (_, _) => { foreach (var (item, ready) in _layerMenuAvailability) item.IsEnabled = ready(); };
         return menu;
     }

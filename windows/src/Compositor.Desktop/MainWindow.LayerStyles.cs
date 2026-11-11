@@ -126,19 +126,6 @@ public sealed partial class MainWindow
         }
         menu.Items.Add(colors);
     }
-    private async Task NewNamedLayer()
-    {
-        if (_document is not { } doc) return;
-        var name = await TextPrompt.Ask(this, "New Layer", "Name", Localize.Text("Layer"));
-        if (string.IsNullOrWhiteSpace(name)) return;
-        Guid? made = null; Edit("New Blank Layer", () => { made = LayerPlacement.AddBlank(doc, Selected); if (made is null) return false; doc.Layers.Single(l => l.ID == made).Name = name.Trim(); return true; }); Reselect(made);
-    }
-    private async Task GroupFromLayers()
-    {
-        if (_document is not { } doc) return; var ids = SelectedLayers;
-        var name = await TextPrompt.Ask(this, "New Group from Layers", "Name", Localize.Text("Group")); if (string.IsNullOrWhiteSpace(name)) return;
-        Guid? made = null; Edit("Group Layers", () => { made = LayerPlacement.GroupSelected(doc, ids); if (made is null) return false; doc.Layers.Single(l => l.ID == made).Name = name.Trim(); return true; }); Reselect(made);
-    }
     /// <summary>Convert Layer to 16-Bit / 8-Bit for every selected layer and those in selected groups, as one step.</summary>
     private void ConvertSelectedDepth(int depth)
     {
@@ -163,27 +150,6 @@ public sealed partial class MainWindow
         if (_document is not { } doc) return;
         if (doc.Layers.Any(l => !l.IsVisible) && !await ConfirmDialog.Ask(this, "Flatten Image", "Discard hidden layers and flatten the image onto a white background?", "Flatten", "Cancel")) return;
         MergeAll(true);
-    }
-    private async Task LayerLocksDialog()
-    {
-        if (_document is not { } doc || doc.Layers.FirstOrDefault(l => l.ID == Selected) is not { } layer) return;
-        var ids = SelectedLayers; if (await LayerOperationDialog.Locks(this, layer.Locks) is not { } locks) return;
-        Edit("Layer Locks", () => LayerProtection.Set(doc, ids, locks)); ShowLayers(doc);
-    }
-    private async Task MakeLayerContainer(LayerContainer kind, bool selected)
-    {
-        if (_document is not { } doc) return; IReadOnlyCollection<Guid> ids = selected ? SelectedLayers : [];
-        var bounds = selected ? LayerWorkflow.Bounds(doc, ids) : SKRect.Create(doc.Width, doc.Height);
-        var title = kind == LayerContainer.Frame ? "Frame from Layers" : selected ? "Artboard from Layers" : "New Artboard";
-        if (await LayerOperationDialog.Container(this, title, Localize.Text(kind == LayerContainer.Frame ? "Frame" : "Artboard"), bounds, kind == LayerContainer.Frame) is not { } asked) return;
-        Guid? made = null;
-        Edit(title, () =>
-        {
-            made = LayerWorkflow.MakeContainer(doc, ids, kind, asked.Name, asked.Bounds, asked.Ellipse);
-            if (made is null) return false;
-            if (kind == LayerContainer.Artboard) { CanvasEdits.Resize(doc, Math.Max(doc.Width, (int)Math.Ceiling(asked.Bounds.Right)), Math.Max(doc.Height, (int)Math.Ceiling(asked.Bounds.Bottom)), 0); }
-            return true;
-        }); Reselect(made);
     }
     private async Task EditContainer(Guid id)
     {

@@ -22,14 +22,6 @@ internal sealed class LayerOperationDialog : DialogWindow
         cancel.Click += (_, _) => Close(); _body.Children.Add(error);
         _body.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 10, Children = { cancel, ok } });
     }
-    internal static async Task<LayerLocks?> Locks(Window owner, LayerLocks initial)
-    {
-        var dialog = new LayerOperationDialog("Lock Layers"); var boxes = new Dictionary<LayerLocks, CheckBox>();
-        foreach (var (flag, title) in new[] { (LayerLocks.Transparency, "Lock Transparent Pixels"), (LayerLocks.Pixels, "Lock Image Pixels"), (LayerLocks.Position, "Lock Position"), (LayerLocks.All, "Lock All") })
-        { var box = new CheckBox { Content = Localize.Text(title), IsChecked = initial.HasFlag(flag) }; boxes[flag] = box; dialog._body.Children.Add(box); }
-        dialog.Buttons(); await dialog.ShowDialog(owner);
-        return dialog._accepted ? boxes.Where(p => p.Value.IsChecked == true).Aggregate(LayerLocks.None, (a, p) => a | p.Key) : null;
-    }
     internal static async Task<ContainerResult?> Container(Window owner, string title, string name, SKRect bounds, bool frame)
     {
         var dialog = new LayerOperationDialog(title); var text = new TextBox { Text = name };

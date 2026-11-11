@@ -359,9 +359,10 @@ public class PixelAdjustmentTests
     }
 
     [Fact]
-    public void TheEightHandRolledModesAreTheOnesSkiaCannotDraw()
+    public void TheElevenHandRolledModesAreTheOnesSkiaCannotDraw()
     {
-        Assert.Equal(8, BlendModes.All.Count(BlendModes.IsHandRolled));
+        Assert.Equal(11, BlendModes.All.Count(BlendModes.IsHandRolled));
+        Assert.True(BlendModes.IsHandRolled(BlendMode.Dissolve) && BlendModes.IsHandRolled(BlendMode.DarkerColor) && BlendModes.IsHandRolled(BlendMode.LighterColor));
         Assert.True(BlendModes.IsHandRolled(BlendMode.LinearBurn));
         Assert.True(BlendModes.IsHandRolled(BlendMode.Divide));
         Assert.False(BlendModes.IsHandRolled(BlendMode.Multiply));

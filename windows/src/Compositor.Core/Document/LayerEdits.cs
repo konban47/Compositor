@@ -12,13 +12,13 @@ public static class LayerEdits
     /// <summary>
     /// The modes in the groups the Mac build lists them in — normal, then the darkening, lightening, contrast,
     /// comparative and component modes — with a rule drawn between the groups wherever they are offered. It
-    /// holds every mode the format defines, once each, in the enum's own order.
+    /// holds every mode the format defines, once each, in Photoshop's order (the three version 34 added sit in their groups).
     /// </summary>
     public static readonly LayerBlendMode[][] BlendGroups =
     [
-        [LayerBlendMode.Normal],
-        [LayerBlendMode.Darken, LayerBlendMode.Multiply, LayerBlendMode.ColorBurn, LayerBlendMode.LinearBurn],
-        [LayerBlendMode.Lighten, LayerBlendMode.Screen, LayerBlendMode.ColorDodge, LayerBlendMode.LinearDodgeAdd],
+        [LayerBlendMode.Normal, LayerBlendMode.Dissolve],
+        [LayerBlendMode.Darken, LayerBlendMode.Multiply, LayerBlendMode.ColorBurn, LayerBlendMode.LinearBurn, LayerBlendMode.DarkerColor],
+        [LayerBlendMode.Lighten, LayerBlendMode.Screen, LayerBlendMode.ColorDodge, LayerBlendMode.LinearDodgeAdd, LayerBlendMode.LighterColor],
         [
             LayerBlendMode.Overlay, LayerBlendMode.SoftLight, LayerBlendMode.HardLight, LayerBlendMode.VividLight,
             LayerBlendMode.LinearLight, LayerBlendMode.PinLight, LayerBlendMode.HardMix,

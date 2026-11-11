@@ -52,13 +52,17 @@ internal static class Localize
         if (value is null) return "";
         if (!IsChinese) return value;
         var clean = value.Replace("_", "");
-        if (Chinese.TryGetValue(clean, out var translation))
+        // Photoshop puts the access key before the ellipsis: 图层(L)…
+        string Keyed(string translation)
         {
             var accelerator = value.IndexOf('_');
-            return accelerator >= 0 && accelerator + 1 < value.Length ? translation + "(_" + char.ToUpperInvariant(value[accelerator + 1]) + ")" : translation;
+            if (accelerator < 0 || accelerator + 1 >= value.Length) return translation;
+            var key = "(_" + char.ToUpperInvariant(value[accelerator + 1]) + ")";
+            return translation.EndsWith('…') ? translation[..^1] + key + "…" : translation + key;
         }
+        if (Chinese.TryGetValue(clean, out var translation)) return Keyed(translation);
         var suffix = clean.EndsWith('…') ? "…" : clean.EndsWith("...") ? "..." : "";
-        if (suffix.Length > 0 && Chinese.TryGetValue(clean[..^suffix.Length], out translation)) return translation + "…";
+        if (suffix.Length > 0 && Chinese.TryGetValue(clean[..^suffix.Length], out translation)) return Keyed(translation + "…");
         foreach (var (pattern, translated) in Templates.Value)
         {
             // Accelerator underscores belong to menu labels, not interpolated file names or user text.

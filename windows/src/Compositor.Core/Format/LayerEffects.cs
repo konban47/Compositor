@@ -144,6 +144,9 @@ public sealed partial class LayerEffects
     public List<StyleEffect>? Items { get; set; }
     public bool Enabled { get; set; } = true;
     public double GlobalLightAngle { get; set; } = 120;
+    /// <summary>Version 34: the global light's altitude, which Bevel and Emboss uses with Use Global Light; missing means each bevel's own.</summary>
+    public double? GlobalLightAltitude { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore] public bool NeedsVersion34 => GlobalLightAltitude is not null || Items?.Any(e => e.NeedsVersion34) == true;
 
     public StrokeEffect? Stroke { get; set; }
     public ShadowEffect? Shadow { get; set; }
@@ -176,6 +179,6 @@ public sealed partial class LayerEffects
 
     public bool IsValid =>
         (Items is null || Items.Count <= 40 && Items.All(item => item is { IsValid: true }))
-        && StyleEffect.In(GlobalLightAngle, -360, 360) && (Stroke?.IsValid ?? true) && (Shadow?.IsValid ?? true) && (ColorOverlay?.IsValid ?? true)
+        && StyleEffect.In(GlobalLightAngle, -360, 360) && (GlobalLightAltitude is null || StyleEffect.In(GlobalLightAltitude.Value, 0, 90)) && (Stroke?.IsValid ?? true) && (Shadow?.IsValid ?? true) && (ColorOverlay?.IsValid ?? true)
         && (InnerShadow?.IsValid ?? true) && (OuterGlow?.IsValid ?? true) && (InnerGlow?.IsValid ?? true);
 }

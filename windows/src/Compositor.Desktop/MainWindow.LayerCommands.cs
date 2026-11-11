@@ -29,18 +29,6 @@ public sealed partial class MainWindow
             doc.Layers.Remove(layer); doc.Layers.Insert(0, layer); return true;
         });
     }
-    private async Task NewNamedGroup()
-    {
-        if (_document is not { } doc) return;
-        var name = await TextPrompt.Ask(this, "New Group", "Name", Localize.Text("Group")); if (string.IsNullOrWhiteSpace(name)) return;
-        Guid? made = null; Edit("New Group", () => { made = LayerPlacement.AddFolder(doc, Selected); if (made is null) return false; doc.Layers.First(l => l.ID == made).Name = name.Trim(); return true; }); Reselect(made);
-    }
-    private async Task DuplicateNamedLayer()
-    {
-        if (_document is not { } doc || PropertyLayer is not { } layer) return;
-        var name = await TextPrompt.Ask(this, "Duplicate Layer", "Name", layer.Name + " " + Localize.Text("Copy")); if (string.IsNullOrWhiteSpace(name)) return;
-        Guid? made = null; Edit("Duplicate Layer", () => { made = LayerEdits.Duplicate(doc, layer.ID); if (made is null) return false; doc.Layers.First(l => l.ID == made).Name = name.Trim(); return true; }); Reselect(made);
-    }
     private void LayerViaSelection(bool cut)
     {
         if (_document is not { } doc || Selected is not { } id) return;
@@ -55,28 +43,45 @@ public sealed partial class MainWindow
             if (made is null) doc.Adopt(before); return made is not null;
         }); Reselect(made);
     }
-    private async Task GlobalLight()
-    {
-        if (_document is not { } doc) return;
-        var form = new FormDialog("Global Light", 420, 240); var angle = form.Number("Angle", PropertyLayer?.Effects?.GlobalLightAngle ?? 120, -360, 360);
-        if (!await form.ShowDialog<bool>(this)) return;
-        Edit("Global Light", () => { var changed = false; foreach (var l in doc.Layers.Where(l => l.Effects is not null && LayerWorkflow.Editable(doc, [l.ID]))) { l.Effects = l.Effects!.Scaled(1); l.Effects.GlobalLightAngle = (double)(angle.Value ?? 120); changed = true; } return changed; });
-    }
     private async Task NewFillLayer(StyleEffectKind kind)
     {
         if (_document is not { } doc || doc.Layers.Count >= LayerPlacement.MaxLayers || doc.Layers.Sum(l => (long)(l.Asset?.Width ?? 0) * (l.Asset?.Height ?? 0)) + (long)doc.Width * doc.Height > DocumentLimits.DocumentPixelBudget) return;
-        var name = kind == StyleEffectKind.ColorOverlay ? "Solid Color Fill" : kind == StyleEffectKind.GradientOverlay ? "Gradient Fill" : "Pattern Fill";
+        // Photoshop names them Color Fill 1, Gradient Fill 1 and Pattern Fill 1, and asks for the layer's options first.
+        var prefix = kind == StyleEffectKind.ColorOverlay ? "Color Fill" : kind == StyleEffectKind.GradientOverlay ? "Gradient Fill" : "Pattern Fill";
+        if (await LayerOptionsDialog.Ask(this, "New Layer", NextLayerName(doc, Localize.Text(prefix)), LayerOptionsDialog.LayerOptionsKind.Content) is not { } options || !ReferenceEquals(doc, _document)) return;
         using var image = Bitmaps.Allocate(Bitmaps.ColorInfo(doc.Width, doc.Height)); image.Erase(SKColors.White);
-        using var temporary = new CanvasDocument(Guid.NewGuid(), doc.Width, doc.Height);
-        var layer = new ImageLayer(Guid.NewGuid(), ImportedImage.Create(image.Copy(), name), new LayerTransform(0, 0, doc.Width, doc.Height), Localize.Text(name))
-            { Effects = new LayerEffects { Items = [StyleEffect.Default(kind)] } };
-        temporary.Layers.Add(layer);
-        var result = await LayerStyleDialog.Ask(this, layer, _ => { }, kind); if (result is null || !ReferenceEquals(doc, _document)) return;
+        LayerStylePreset style;
+        if (kind == StyleEffectKind.ColorOverlay)
+        {
+            // Solid Color goes straight to the Color Picker, as Photoshop's does.
+            var effect = StyleEffect.PhotoshopDefault(kind); effect.Red = _options.Brush.Red; effect.Green = _options.Brush.Green; effect.Blue = _options.Brush.Blue;
+            var cancelled = false; var picked = (effect.Red, effect.Green, effect.Blue);
+            if (WindowsColorDialog.Chosen) { if (WindowsColorDialog.Pick(this, picked) is { } chosen) picked = chosen; else cancelled = true; }
+            else
+            {
+                var picker = new ColorPickerDialog(Localize.Text("Color Picker (Solid Color)"), picked);
+                picker.Moved += c => picked = c; picker.Cancelled += () => cancelled = true; await picker.ShowDialog(this);
+            }
+            if (cancelled || !ReferenceEquals(doc, _document)) return;
+            (effect.Red, effect.Green, effect.Blue) = picked;
+            style = new LayerStylePreset { Effects = new LayerEffects { Items = [effect] }, Blending = new() };
+        }
+        else
+        {
+            using var temporary = new CanvasDocument(Guid.NewGuid(), doc.Width, doc.Height);
+            var layer = new ImageLayer(Guid.NewGuid(), ImportedImage.Create(image.Copy(), options.Name), new LayerTransform(0, 0, doc.Width, doc.Height), options.Name)
+                { Effects = new LayerEffects { Items = [StyleEffect.PhotoshopDefault(kind)] } };
+            temporary.Layers.Add(layer);
+            var result = await LayerStyleDialog.Ask(this, layer, _ => { }, kind); if (result is null || !ReferenceEquals(doc, _document)) return;
+            style = result.Value.Style;
+        }
         Guid? made = null;
         Edit("New Fill Layer", () =>
         {
-            made = LayerPlacement.AddImage(doc, image.Copy(), SKRectI.Create(doc.Width, doc.Height), result.Value.Name, Selected);
-            if (made is null) return false; LayerStyleDialog.Apply(doc.Layers.First(l => l.ID == made), result.Value.Style); return true;
+            made = LayerPlacement.AddImage(doc, image.Copy(), SKRectI.Create(doc.Width, doc.Height), options.Name, Selected);
+            if (made is null) return false;
+            var layer = doc.Layers.First(l => l.ID == made); LayerStyleDialog.Apply(layer, style);
+            ApplyLayerOptions(doc, layer, options); return true;
         }); Reselect(made);
     }
     private async Task EditLayerContents()

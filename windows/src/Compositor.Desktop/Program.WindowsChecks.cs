@@ -56,7 +56,7 @@ public sealed partial class MainWindow
         {
             Check(_mainMenu!.Items.OfType<MenuItem>().First().Header!.ToString()!.StartsWith("文件"), "File menu was not translated.");
             Check(Localize.Text("Saved 测试.comp") == "已保存 测试.comp", "Translated status template lost the filename.");
-            Check(Localize.Text("_Hue/Saturation…") == "色相／饱和度…", "Photoshop terminology is missing.");
+            Check(Localize.Text("_Hue/Saturation…") == "色相／饱和度(_H)…", "Photoshop terminology is missing.");
         }
         var dimensions = (_document!.Width, _document.Height);
         RotateCanvas(true); Check(_document.Width == dimensions.Height, "Rotate Canvas did not run.");

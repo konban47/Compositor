@@ -36,7 +36,7 @@ internal static class PsdDocumentBuilder
 
         var manifest = new ProjectManifest
         {
-            Version = document.CmykProfile is not null || records.Any(l => l.MaskVectorEvenOdd is not null || l.Text?.StyleRuns is not null) ? 20 : records.Any(l => l.Text is not null) ? 18 : 11,
+            Version = records.Any(l => l.BlendModeValue >= LayerBlendMode.Dissolve) ? 34 : document.CmykProfile is not null || records.Any(l => l.MaskVectorEvenOdd is not null || l.Text?.StyleRuns is not null) ? 20 : records.Any(l => l.Text is not null) ? 18 : 11,
             ImageSettings = document.CmykProfile is null ? null : new ImageSettings { CmykProfile = document.CmykProfile },
             DocumentID = Guid.NewGuid(),
             Width = document.Width,

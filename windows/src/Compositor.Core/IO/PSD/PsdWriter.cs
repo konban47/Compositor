@@ -208,6 +208,7 @@ public static class PsdWriter
         Format.LayerBlendMode.LinearDodgeAdd => "lddg", Format.LayerBlendMode.HardLight => "hLit", Format.LayerBlendMode.VividLight => "vLit",
         Format.LayerBlendMode.LinearLight => "lLit", Format.LayerBlendMode.PinLight => "pLit", Format.LayerBlendMode.HardMix => "hMix",
         Format.LayerBlendMode.Exclusion => "smud", Format.LayerBlendMode.Subtract => "fsub", Format.LayerBlendMode.Divide => "fdiv",
+        Format.LayerBlendMode.Dissolve => "diss", Format.LayerBlendMode.DarkerColor => "dkCl", Format.LayerBlendMode.LighterColor => "lgCl",
         _ => null,
     };
 

@@ -14,6 +14,8 @@ public enum BlendMode
     Overlay, SoftLight, HardLight, VividLight, LinearLight, PinLight, HardMix,
     Difference, Exclusion, Subtract, Divide,
     Hue, Saturation, Color, Luminosity,
+    // Appended so the modes before them keep their numbers; All lists them where Photoshop does.
+    Dissolve, DarkerColor, LighterColor,
 }
 
 /// <summary>
@@ -31,9 +33,9 @@ public static class BlendModes
     /// <summary>Every mode, in the blend menu's order.</summary>
     public static readonly BlendMode[] All =
     {
-        BlendMode.Normal,
-        BlendMode.Darken, BlendMode.Multiply, BlendMode.ColorBurn, BlendMode.LinearBurn,
-        BlendMode.Lighten, BlendMode.Screen, BlendMode.ColorDodge, BlendMode.LinearDodgeAdd,
+        BlendMode.Normal, BlendMode.Dissolve,
+        BlendMode.Darken, BlendMode.Multiply, BlendMode.ColorBurn, BlendMode.LinearBurn, BlendMode.DarkerColor,
+        BlendMode.Lighten, BlendMode.Screen, BlendMode.ColorDodge, BlendMode.LinearDodgeAdd, BlendMode.LighterColor,
         BlendMode.Overlay, BlendMode.SoftLight, BlendMode.HardLight, BlendMode.VividLight,
         BlendMode.LinearLight, BlendMode.PinLight, BlendMode.HardMix,
         BlendMode.Difference, BlendMode.Exclusion, BlendMode.Subtract, BlendMode.Divide,
@@ -49,6 +51,7 @@ public static class BlendModes
         "Overlay", "Soft Light", "Hard Light", "Vivid Light", "Linear Light", "Pin Light", "Hard Mix",
         "Difference", "Exclusion", "Subtract", "Divide",
         "Hue", "Saturation", "Color", "Luminosity",
+        "Dissolve", "Darker Color", "Lighter Color",
     };
 
     /// <summary>The mode's Photoshop name, spelled the way the app's UI spells it.</summary>
@@ -67,7 +70,8 @@ public static class BlendModes
     public static bool IsHandRolled(BlendMode mode) => mode switch
     {
         BlendMode.LinearBurn or BlendMode.LinearDodgeAdd or BlendMode.VividLight or BlendMode.LinearLight
-            or BlendMode.PinLight or BlendMode.HardMix or BlendMode.Subtract or BlendMode.Divide => true,
+            or BlendMode.PinLight or BlendMode.HardMix or BlendMode.Subtract or BlendMode.Divide
+            or BlendMode.Dissolve or BlendMode.DarkerColor or BlendMode.LighterColor => true,
         _ => false,
     };
 
@@ -100,6 +104,9 @@ public static class BlendModes
         Format.LayerBlendMode.Hue => BlendMode.Hue,
         Format.LayerBlendMode.Saturation => BlendMode.Saturation,
         Format.LayerBlendMode.Color => BlendMode.Color,
+        Format.LayerBlendMode.Dissolve => BlendMode.Dissolve,
+        Format.LayerBlendMode.DarkerColor => BlendMode.DarkerColor,
+        Format.LayerBlendMode.LighterColor => BlendMode.LighterColor,
         _ => BlendMode.Luminosity,
     };
 
@@ -154,6 +161,7 @@ public static class BlendModes
             int s = y * sourceStride, b = y * backdropStride, d = y * destinationStride;
             for (int x = 0; x < width; ++x)
             {
+                if (mode == BlendMode.Dissolve) { DissolvePixel(source.Slice(s + x * 4, 4), backdrop.Slice(b + x * 4, 4), destination.Slice(d + x * 4, 4), x, y); continue; }
                 CompositePixel(mode, source.Slice(s + x * 4, 4), backdrop.Slice(b + x * 4, 4),
                                destination.Slice(d + x * 4, 4));
             }
@@ -189,12 +197,22 @@ public static class BlendModes
             destination.Slice(0, 4).Clear();
             return;
         }
+        // Darker Color and Lighter Color are not separable: the whole color with the lower (higher) luminosity is kept.
+        bool? keepSource = null;
+        if (mode is BlendMode.DarkerColor or BlendMode.LighterColor && sa > 0.0f && da > 0.0f)
+        {
+            float Lum(ReadOnlySpan<byte> p, float a) => (0.3f * p[0] + 0.59f * p[1] + 0.11f * p[2]) / (255.0f * a);
+            var sourceDarker = Lum(source, sa) < Lum(backdrop, da);
+            keepSource = mode == BlendMode.DarkerColor ? sourceDarker : !sourceDarker;
+        }
+        if (mode == BlendMode.Dissolve) mode = BlendMode.Normal;
         for (int c = 0; c < 3; ++c)
         {
             float sc = source[c] / 255.0f;
             float dc = backdrop[c] / 255.0f;
             float blended = sa > 0.0f && da > 0.0f
-                ? BlendChannel(mode, Clamp01(dc / da), Clamp01(sc / sa))
+                ? keepSource is { } keep ? (keep ? Clamp01(sc / sa) : Clamp01(dc / da))
+                : mode == BlendMode.Normal ? Clamp01(sc / sa) : BlendChannel(mode, Clamp01(dc / da), Clamp01(sc / sa))
                 : 0.0f;
             float value = (1.0f - sa) * dc + (1.0f - da) * sc + sa * da * blended;
             destination[c] = (byte)MathF.Round(Clamp01(value) * 255.0f, MidpointRounding.AwayFromZero);
@@ -203,6 +221,20 @@ public static class BlendModes
     }
 
     private static float Clamp01(float v) => v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
+
+    /// <summary>
+    /// Dissolve: each pixel is either the source at full strength or not there at all, the chance of it being there
+    /// its coverage, so a translucent layer turns into a scatter of opaque dots, as Photoshop's does.
+    /// </summary>
+    private static void DissolvePixel(ReadOnlySpan<byte> source, ReadOnlySpan<byte> backdrop, Span<byte> destination, int x, int y)
+    {
+        var chance = (unchecked((uint)(x * 73856093 ^ y * 19349663 ^ 0x5bd1e995)) % 65521) / 65521.0f;
+        if (source[3] == 0 || chance >= source[3] / 255.0f) { backdrop.Slice(0, 4).CopyTo(destination); return; }
+        Span<byte> solid = stackalloc byte[4];
+        for (int c = 0; c < 3; ++c) solid[c] = (byte)Math.Clamp((int)MathF.Round(source[c] * 255.0f / source[3]), 0, 255);
+        solid[3] = 255;
+        solid.CopyTo(destination);
+    }
 
     /// <summary>
     /// The separable blend function B(Cb, Cs) of the eight hand-rolled modes, on straight channel values

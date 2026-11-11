@@ -79,15 +79,16 @@ public static class ProjectStore
                 throw new ProjectException(ProjectError.Invalid);
             if (layer.FrameStyle is { } frame && (version < 26 || !frame.IsValid || layer.IsGroup != true || layer.Container != LayerContainer.Frame)) throw new ProjectException(ProjectError.Invalid);
             if ((layer.Blending is not null && (!layer.Blending.IsValid || version < 15))
-                || (layer.Effects is not null && (!layer.Effects.IsValid || version < 15 && (layer.Effects.Items is not null || !layer.Effects.Enabled)))
+                || (layer.Effects is not null && (!layer.Effects.IsValid || version < 34 && layer.Effects.NeedsVersion34 || version < 15 && (layer.Effects.Items is not null || !layer.Effects.Enabled)))
                 || (layer.Label is { } label && (version < 15 || !Enum.IsDefined(label)))
                 || (layer.Container is { } container && (version < 15 || !Enum.IsDefined(container) || layer.IsGroup != true))
                 || (layer.SmartObjectFile is not null && (version < 15 || layer.SmartObjectFile != Model.SmartObjectData.FileName(layer.ID)
                     || layer.SmartObjectID is null || layer.ImageFile is null || layer.IsGroup == true))
                 || (layer.SmartObjectFile is null && layer.SmartObjectID is not null)
+            || layer.SmartObjectStackMode is { } stack && (version < 34 || layer.SmartObjectFile is null || !Document.SmartObjectStacks.Modes.Contains(stack))
             || (layer.SmartObjectLink is not null || layer.SmartObjectLinkHash is not null) && (version < 32 || layer.SmartObjectFile is null
                 || !Model.SmartObjectLinks.ValidLink(layer.SmartObjectLink, layer.SmartObjectLinkHash))) throw new ProjectException(ProjectError.Invalid);
-            if ((layer.Locks is { } locks && (locks < 0 || locks > 15))
+            if ((layer.Locks is { } locks && (locks < 0 || locks > (version >= 34 ? 31 : 15)))
                 || (layer.FillOpacity is { } fill && (!double.IsFinite(fill) || fill < 0 || fill > 1))
                 || (version < 12 && (layer.Locks is not null || layer.FillOpacity is not null || layer.LinkID is not null)))
                 throw new ProjectException(ProjectError.Invalid);
@@ -138,7 +139,7 @@ public static class ProjectStore
             var opacity = layer.Opacity ?? 1;
             var blend = layer.BlendMode ?? LayerBlendMode.Normal;
             if (!double.IsFinite(opacity) || opacity is < 0 or > 1
-                || (version < 3 && (opacity != 1 || blend != LayerBlendMode.Normal))
+                || (version < 3 && (opacity != 1 || blend != LayerBlendMode.Normal)) || blend >= LayerBlendMode.Dissolve && version < 34
                 || (layer.IsGroup == true && (version < 15 && blend != LayerBlendMode.Normal || version < 8 && opacity != 1)))
             {
                 throw new ProjectException(ProjectError.Invalid);
@@ -441,7 +442,7 @@ public static class ProjectStore
                 var bytes = File.ReadAllBytes(ResolveAsset(package, $"{ImagesName}/{layer.SmartObjectFile}", Model.SmartObjectData.MaxBytes));
                 embeddedBytes += bytes.Length;
                 if (embeddedBytes > Model.SmartObjectData.MaxBytes) throw new ProjectException(ProjectError.TooLarge);
-                snapshot.SmartObjects[layer.ID] = new Model.SmartObjectData(layer.SmartObjectID!.Value, bytes) { LinkedPath = layer.SmartObjectLink, LinkedHash = layer.SmartObjectLinkHash };
+                snapshot.SmartObjects[layer.ID] = new Model.SmartObjectData(layer.SmartObjectID!.Value, bytes) { LinkedPath = layer.SmartObjectLink, LinkedHash = layer.SmartObjectLinkHash, StackMode = layer.SmartObjectStackMode };
             }
             foreach (var channel in manifest.Channels ?? [])
             {

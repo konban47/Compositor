@@ -1,3 +1,5 @@
+using Compositor.Core.Format;
+using LayerTransform = Compositor.Core.Model.LayerTransform;
 using Compositor.Core.Document;
 using Compositor.Core.Model;
 using SkiaSharp;
@@ -140,5 +142,67 @@ public sealed class ContentFillQualityTests
         double error = 0; var image = layer.Asset!.Image;
         for (var y = 24; y < 48; y++) for (var x = 36; x < 60; x++) { var a = image.GetPixel(x, y); var b = Stripe(x, y); error += Math.Abs(a.Red - b.Red) + Math.Abs(a.Green - b.Green) + Math.Abs(a.Blue - b.Blue); }
         Assert.InRange(error / (24 * 24 * 3), 0, 30);
+    }
+}
+
+public sealed class PhotoshopModeAndStackTests
+{
+    private static byte[] Pixel(byte r, byte g, byte b, byte a) => [r, g, b, a];
+
+    [Fact]
+    public void DarkerAndLighterColorKeepTheWholeColorWithLowerOrHigherLuminosity()
+    {
+        var source = Pixel(255, 0, 0, 255); var backdrop = Pixel(0, 0, 255, 255); var result = new byte[4];
+        Compositor.Core.Pixels.BlendModes.CompositePixel(Compositor.Core.Pixels.BlendMode.DarkerColor, source, backdrop, result);
+        Assert.Equal(new byte[] { 0, 0, 255, 255 }, result);
+        Compositor.Core.Pixels.BlendModes.CompositePixel(Compositor.Core.Pixels.BlendMode.LighterColor, source, backdrop, result);
+        Assert.Equal(new byte[] { 255, 0, 0, 255 }, result);
+    }
+
+    [Fact]
+    public void DissolveTurnsHalfCoverageIntoOpaqueDotsAboutHalfTheTime()
+    {
+        const int size = 64; var source = new byte[size * size * 4]; var backdrop = new byte[size * size * 4]; var output = new byte[size * size * 4];
+        for (var i = 0; i < size * size; i++) { source[i * 4] = 128; source[i * 4 + 3] = 128; backdrop[i * 4 + 2] = 255; backdrop[i * 4 + 3] = 255; }
+        Compositor.Core.Pixels.BlendModes.Composite(Compositor.Core.Pixels.BlendMode.Dissolve, source, backdrop, output, size, size, size * 4);
+        var red = 0;
+        for (var i = 0; i < size * size; i++) { Assert.True(output[i * 4] == 255 && output[i * 4 + 2] == 0 || output[i * 4] == 0 && output[i * 4 + 2] == 255); if (output[i * 4] == 255) red++; }
+        Assert.InRange(red, size * size * 35 / 100, size * size * 65 / 100);
+    }
+
+    [Fact]
+    public void StackModesComputeTheirStatisticPerPixel()
+    {
+        Assert.Equal(20, SmartObjectStacks.Statistic("Median", new double[] { 10, 20, 250 }));
+        Assert.Equal(40, SmartObjectStacks.Statistic("Mean", new double[] { 10, 20, 90 }));
+        Assert.Equal(80, SmartObjectStacks.Statistic("Range", new double[] { 10, 20, 90 }));
+        Assert.Equal(90, SmartObjectStacks.Statistic("Maximum", new double[] { 10, 20, 90 }));
+        // Median of three exposures drops the one that differs: a passer-by is removed.
+        using var contents = new CanvasDocument(Guid.NewGuid(), 4, 4);
+        foreach (var value in new byte[] { 50, 50, 250 })
+        {
+            var pixels = new SKBitmap(Bitmaps.ColorInfo(4, 4)); pixels.Erase(new SKColor(value, value, value));
+            contents.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(pixels, "Shot"), new LayerTransform(0, 0, 4, 4), "Shot"));
+        }
+        using var median = SmartObjectStacks.Render(contents, "Median");
+        Assert.Equal(50, median.GetPixel(2, 2).Red);
+    }
+
+    [Fact]
+    public void ANewStyleOptionOrModeNeedsFormat34AndRoundTrips()
+    {
+        var effect = StyleEffect.PhotoshopDefault(StyleEffectKind.OuterGlow);
+        Assert.True(effect.NeedsVersion34 && effect.IsValid);
+        var stops = effect.GradientAt(0.5); Assert.InRange(stops.Alpha, 0.45, 0.55);
+        var (document, layer) = (new CanvasDocument(Guid.NewGuid(), 8, 8), (ImageLayer?)null);
+        using var _ = document;
+        var pixels = new SKBitmap(Bitmaps.ColorInfo(8, 8)); pixels.Erase(SKColors.Red);
+        layer = new ImageLayer(Guid.NewGuid(), ImportedImage.Create(pixels, "L"), new LayerTransform(0, 0, 8, 8), "L") { BlendMode = LayerBlendMode.DarkerColor, Effects = new LayerEffects { Items = [effect] } };
+        document.Layers.Add(layer);
+        var snapshot = Compositor.Core.IO.ProjectSnapshot.FromDocument(document);
+        Assert.Equal(34, snapshot.Manifest.Version);
+        Compositor.Core.IO.ProjectStore.Validate(snapshot.Manifest);
+        snapshot.Manifest.Version = 33;
+        Assert.Throws<Compositor.Core.IO.ProjectException>(() => Compositor.Core.IO.ProjectStore.Validate(snapshot.Manifest));
     }
 }

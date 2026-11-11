@@ -107,8 +107,9 @@ internal static class PsdBlendMode
         "smud" => Format.LayerBlendMode.Exclusion,
         "fsub" => Format.LayerBlendMode.Subtract,
         "fdiv" => Format.LayerBlendMode.Divide,
-        // Dissolve, Darker Color and Lighter Color are deliberately absent: Compositor has no equivalent,
-        // so they fall through to Normal and say so in the conversion report.
+        "diss" => Format.LayerBlendMode.Dissolve,
+        "dkCl" => Format.LayerBlendMode.DarkerColor,
+        "lgCl" => Format.LayerBlendMode.LighterColor,
         _ => null,
     };
 

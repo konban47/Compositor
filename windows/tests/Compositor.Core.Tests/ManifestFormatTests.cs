@@ -242,9 +242,10 @@ public class ManifestFormatTests : ProjectTestBase
             "Normal", "Darken", "Multiply", "Color Burn", "Linear Burn", "Lighten", "Screen", "Color Dodge",
             "Linear Dodge (Add)", "Overlay", "Soft Light", "Hard Light", "Vivid Light", "Linear Light", "Pin Light",
             "Hard Mix", "Difference", "Exclusion", "Subtract", "Divide", "Hue", "Saturation", "Color", "Luminosity",
+            "Dissolve", "Darker Color", "Lighter Color",
         ];
         var values = Enum.GetValues<LayerBlendMode>();
-        Assert.Equal(24, values.Length);
+        Assert.Equal(27, values.Length);
         Assert.Equal(blends, values.Select(RawEnum));
 
         string[] kinds =

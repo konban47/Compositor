@@ -155,12 +155,11 @@ public sealed partial class MainWindow : Window
     private LayerTransform? _distortBox;
     private List<Guid>? _distortLayers;
 
-    /// <summary>The blend modes in the order the menu lists them, which is the order the enum declares.</summary>
-    private static readonly LayerBlendMode[] BlendModes = Enum.GetValues<LayerBlendMode>();
+    /// <summary>The blend modes in the order the menu lists them.</summary>
+    private static readonly LayerBlendMode[] BlendModes = [.. LayerEdits.BlendGroups.SelectMany(g => g)];
     private readonly MenuItem _adjustmentMenu = new() { Header = Localize.Text("New _Adjustment Layer") };
     private readonly MenuItem _effectsMenu = new() { Header = Localize.Text("Layer _Effects") };
     private MenuItem _adjustmentSettings = new();
-    private MenuItem _clearEffects = new();
     private readonly MenuItem _clipping = new();
     private readonly MenuItem _addMask = new() { Header = Localize.Text("Add _Mask") };
     private readonly MenuItem _maskToggle = new();
@@ -4267,12 +4266,16 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void BuildEffectsMenu()
     {
-        _effectsMenu.Items.Add(LayerCommand("Blending Options…", () => _ = EditLayerStyle(), "Layer Style"));
-        foreach (var kind in Enum.GetValues<StyleEffectKind>())
-            _effectsMenu.Items.Add(LayerCommand(LayerStyleDialog.NameFor(kind) + "…", () => _ = EditLayerStyle(kind), null));
+        MenuItem Keyed(MenuItem item, string header) { item.Header = Localize.Text(header); return item; }
+        _effectsMenu.Items.Add(Keyed(LayerCommand("Blending Options…", () => _ = EditLayerStyle(), "Layer Style"), "Ble_nding Options…"));
         _effectsMenu.Items.Add(new Separator());
-        _clearEffects = LayerCommand("_Clear Effects", ClearEffects, null, (_, layer) => layer.Effects is not null);
-        _effectsMenu.Items.Add(_clearEffects);
+        // Photoshop's access keys, in its order (the enum's).
+        var keys = new Dictionary<StyleEffectKind, string> { [StyleEffectKind.BevelEmboss] = "_Bevel & Emboss…", [StyleEffectKind.Stroke] = "Stro_ke…", [StyleEffectKind.InnerShadow] = "_Inner Shadow…",
+            [StyleEffectKind.InnerGlow] = "Inner Glo_w…", [StyleEffectKind.Satin] = "Sa_tin…", [StyleEffectKind.ColorOverlay] = "Color O_verlay…", [StyleEffectKind.GradientOverlay] = "_Gradient Overlay…",
+            [StyleEffectKind.PatternOverlay] = "Pattern Overla_y…", [StyleEffectKind.OuterGlow] = "_Outer Glow…", [StyleEffectKind.DropShadow] = "_Drop Shadow…" };
+        foreach (var kind in Enum.GetValues<StyleEffectKind>())
+            _effectsMenu.Items.Add(Keyed(LayerCommand(LayerStyleDialog.NameFor(kind) + "…", () => _ = EditLayerStyle(kind), null), keys[kind]));
+        _effectsMenu.Items.Add(new Separator());
     }
 
     /// <summary>One effect's panel, with the layer's own effect as it starts out.</summary>

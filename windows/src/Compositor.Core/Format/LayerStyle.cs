@@ -58,8 +58,34 @@ public sealed class StyleEffect
     public double ShadowOpacity { get; set; } = 0.75;
     public LayerBlendMode HighlightMode { get; set; } = LayerBlendMode.Screen;
     public LayerBlendMode ShadowMode { get; set; } = LayerBlendMode.Multiply;
+    // Version 34: the rest of Photoshop's Layer Style options. Missing means the behavior older files were drawn with.
+    /// <summary>Smooths the contour's corners.</summary>
+    public bool? AntiAlias { get; set; }
+    /// <summary>Glows: which part of the glow the contour is aimed at, 1–100 (50 leaves it as it is).</summary>
+    public double? Range { get; set; }
+    /// <summary>Glows drawn with a gradient: how far each pixel's place along it is shaken, 0–100.</summary>
+    public double? Jitter { get; set; }
+    /// <summary>Gradient Overlay: noise added so the gradient does not band.</summary>
+    public bool? Dither { get; set; }
+    /// <summary>0 Perceptual, 1 Linear, 2 Classic, 3 Smooth, 4 Stripes: how a gradient's stops are run into each other.</summary>
+    public int? GradientMethod { get; set; }
+    /// <summary>The gradient's stops, colors as 0xAARRGGBB; missing means the two colors above, fully opaque.</summary>
+    public List<StyleGradientStop>? GradientStops { get; set; }
+    /// <summary>Stroke: blended into the layer with its blend mode; off, it covers the layer normally.</summary>
+    public bool? Overprint { get; set; }
+    /// <summary>Drop Shadow: the shadow is cut away under the layer, so a translucent fill does not show it.</summary>
+    public bool? KnocksOut { get; set; }
+    /// <summary>Bevel and Emboss: the gloss contour that shapes its shading; with it set, Contour shapes the bevel's edge instead.</summary>
+    public double[]? GlossSamples { get; set; }
+    /// <summary>Bevel and Emboss texture: the pattern's light and dark swapped.</summary>
+    public bool? TextureInvert { get; set; }
+    [JsonIgnore] public bool NeedsVersion34 => BlendMode >= LayerBlendMode.Dissolve || HighlightMode >= LayerBlendMode.Dissolve || ShadowMode >= LayerBlendMode.Dissolve || AntiAlias is not null || Range is not null || Jitter is not null || Dither is not null || GradientMethod is not null
+        || GradientStops is not null || Overprint is not null || KnocksOut is not null || GlossSamples is not null || TextureInvert is not null;
 
     [JsonIgnore] public bool IsValid => Enum.IsDefined(Kind) && Enum.IsDefined(BlendMode)
+        && (Range is null || In(Range.Value, 1, 100)) && (Jitter is null || In(Jitter.Value, 0, 100)) && GradientMethod is null or (>= 0 and <= 4)
+        && (GradientStops is null || GradientStops.Count is >= 2 and <= 64 && GradientStops.All(s => s is not null && In(s.Position, 0, 1)))
+        && (GlossSamples is null || IO.ContourLibrary.Valid(GlossSamples))
         && (ContourSamples is null || IO.ContourLibrary.Valid(ContourSamples)) && Enum.IsDefined(Contour) && Enum.IsDefined(Position) && Enum.IsDefined(Gradient) && Enum.IsDefined(Pattern)
         && Enum.IsDefined(Bevel) && Enum.IsDefined(HighlightMode) && Enum.IsDefined(ShadowMode)
         && In(Opacity, 0, 1) && Color.IsValid(Red, Green, Blue) && Color.IsValid(Red2, Green2, Blue2)
@@ -93,7 +119,50 @@ public sealed class StyleEffect
         Opacity = kind is StyleEffectKind.DropShadow or StyleEffectKind.InnerShadow or StyleEffectKind.Satin ? 0.5 : 1,
         UseGlobalLight = kind is StyleEffectKind.BevelEmboss or StyleEffectKind.DropShadow or StyleEffectKind.InnerShadow,
     };
+    /// <summary>Photoshop's own starting values for a new effect, as Reset to Default restores them.</summary>
+    public static StyleEffect PhotoshopDefault(StyleEffectKind kind)
+    {
+        var e = Default(kind);
+        switch (kind)
+        {
+            case StyleEffectKind.BevelEmboss: e.Size = 7; e.HighlightOpacity = .5; e.ShadowOpacity = .5; e.Red2 = e.Green2 = e.Blue2 = 1; e.Altitude = 30; break;
+            case StyleEffectKind.Stroke: e.Size = 1; e.Position = StrokePosition.Inside; e.Overprint = false; break;
+            case StyleEffectKind.InnerShadow: e.Opacity = .35; e.Distance = 3; e.Size = 7; e.Angle = 30; break;
+            case StyleEffectKind.DropShadow: e.Opacity = .35; e.Distance = 3; e.Size = 7; e.Angle = 30; e.KnocksOut = true; break;
+            case StyleEffectKind.InnerGlow or StyleEffectKind.OuterGlow:
+                e.Opacity = .35; e.Size = 7; e.Range = 50; e.Jitter = 0; e.Red = e.Green = e.Blue = 1;
+                e.GradientStops = [new(0, 0xFFFFFFFF), new(1, 0x00FFFFFF)]; break;
+            case StyleEffectKind.Satin: e.Opacity = .5; e.Angle = 90; e.Distance = 50; e.Size = 80; e.Invert = true; e.AntiAlias = true; break;
+            case StyleEffectKind.ColorOverlay: e.Red = e.Green = e.Blue = 0.506; break;
+            case StyleEffectKind.GradientOverlay: e.Angle = 90; e.Red = e.Green = e.Blue = 0.8; e.GradientMethod = 3; e.Dither = false; break;
+        }
+        return e;
+    }
+    /// <summary>The gradient's color and alpha at <paramref name="t"/> (0–1), its stops run as <see cref="GradientMethod"/> says.</summary>
+    public (double Red, double Green, double Blue, double Alpha) GradientAt(double t)
+    {
+        t = Math.Clamp(t, 0, 1);
+        static (double, double, double, double) Split(uint c) => (((c >> 16) & 255) / 255.0, ((c >> 8) & 255) / 255.0, (c & 255) / 255.0, (c >> 24) / 255.0);
+        if (GradientStops is not { Count: >= 2 } stops) return (Red + (Red2 - Red) * t, Green + (Green2 - Green) * t, Blue + (Blue2 - Blue) * t, 1);
+        var ordered = stops.OrderBy(s => s.Position).ToList();
+        if (t <= ordered[0].Position) return Split(ordered[0].Color);
+        if (t >= ordered[^1].Position) return Split(ordered[^1].Color);
+        var right = ordered.FindIndex(s => s.Position >= t); var a = ordered[right - 1]; var b = ordered[right];
+        var u = b.Position - a.Position <= 1e-9 ? 1 : (t - a.Position) / (b.Position - a.Position);
+        u = GradientMethod switch { 3 => u * u * (3 - 2 * u), 4 => u < .5 ? 0 : 1, _ => u };
+        var (r1, g1, b1, a1) = Split(a.Color); var (r2, g2, b2, a2) = Split(b.Color);
+        if (GradientMethod == 1)
+        {
+            static double Lin(double v) => v <= .04045 ? v / 12.92 : Math.Pow((v + .055) / 1.055, 2.4);
+            static double Gam(double v) => v <= .0031308 ? v * 12.92 : 1.055 * Math.Pow(v, 1 / 2.4) - .055;
+            return (Gam(Lin(r1) + (Lin(r2) - Lin(r1)) * u), Gam(Lin(g1) + (Lin(g2) - Lin(g1)) * u), Gam(Lin(b1) + (Lin(b2) - Lin(b1)) * u), a1 + (a2 - a1) * u);
+        }
+        return (r1 + (r2 - r1) * u, g1 + (g2 - g1) * u, b1 + (b2 - b1) * u, a1 + (a2 - a1) * u);
+    }
 }
+
+/// <summary>One stop of a layer style's gradient: where it sits, 0–1, and its color as 0xAARRGGBB.</summary>
+public sealed record StyleGradientStop(double Position, uint Color);
 
 /// <summary>Split sliders: black fade-in and white fade-out, in the unpremultiplied 0–255 range.</summary>
 public sealed class BlendRange

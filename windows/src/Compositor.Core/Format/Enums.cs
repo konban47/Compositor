@@ -29,6 +29,10 @@ public enum LayerBlendMode
     Saturation,
     Color,
     Luminosity,
+    // Version 34: the three modes Photoshop lists that older Windows builds lacked. Appended, so the others keep their numbers.
+    Dissolve,
+    [JsonStringEnumMemberName("Darker Color")] DarkerColor,
+    [JsonStringEnumMemberName("Lighter Color")] LighterColor,
 }
 
 public enum LayerSampling

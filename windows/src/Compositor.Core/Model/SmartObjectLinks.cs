@@ -51,7 +51,7 @@ public static class SmartObjectLinks
         using var source = ImageImporter.NewDocument(ImageImporter.Decode(full));
         if (!LayerWorkflow.UpdateSmartObject(document, smart.ID, source)) return false;
         foreach (var layer in document.Layers.Where(l => l.SmartObject?.ID == smart.ID).ToArray())
-            layer.SmartObject = new SmartObjectData(layer.SmartObject!.ID, layer.SmartObject.Package) { LinkedPath = full, LinkedHash = hash };
+            layer.SmartObject = new SmartObjectData(layer.SmartObject!.ID, layer.SmartObject.Package) { LinkedPath = full, LinkedHash = hash, StackMode = layer.SmartObject.StackMode };
         return true;
     }
 
@@ -75,7 +75,7 @@ public static class SmartObjectLinks
         var changed = false;
         foreach (var smartID in document.Layers.Where(l => ids.Contains(l.ID) && l.SmartObject?.LinkedPath is not null).Select(l => l.SmartObject!.ID).Distinct().ToArray())
             foreach (var layer in document.Layers.Where(l => l.SmartObject?.ID == smartID))
-            { layer.SmartObject = new SmartObjectData(smartID, layer.SmartObject!.Package); changed = true; }
+            { layer.SmartObject = new SmartObjectData(smartID, layer.SmartObject!.Package) { StackMode = layer.SmartObject.StackMode }; changed = true; }
         return changed;
     }
 
@@ -98,7 +98,7 @@ public static class SmartObjectLinks
             if (!string.Equals(Path.GetFullPath(path), target, StringComparison.OrdinalIgnoreCase)) File.Copy(path, target, true);
             var hash = Hash(target);
             foreach (var layer in document.Layers.Where(l => l.SmartObject?.ID == smartID))
-                layer.SmartObject = new SmartObjectData(smartID, layer.SmartObject!.Package) { LinkedPath = target, LinkedHash = hash };
+                layer.SmartObject = new SmartObjectData(smartID, layer.SmartObject!.Package) { LinkedPath = target, LinkedHash = hash, StackMode = layer.SmartObject!.StackMode };
             copied.Add(target);
         }
         return (copied, missing);

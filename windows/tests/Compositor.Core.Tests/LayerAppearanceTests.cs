@@ -127,7 +127,8 @@ public class LayerAppearanceTests
     public void TheBlendGroupsHoldEveryModeOnceInTheMenusOrder()
     {
         var listed = LayerEdits.BlendGroups.SelectMany(group => group).ToList();
-        Assert.Equal(Enum.GetValues<LayerBlendMode>(), listed);
+        Assert.Equal(Enum.GetValues<LayerBlendMode>().Order(), listed.Order());
+        Assert.Equal(Compositor.Core.Pixels.BlendModes.All, listed.Select(Compositor.Core.Pixels.BlendModes.From));
         Assert.Equal(listed.Count, listed.Distinct().Count());
         Assert.All(LayerEdits.BlendGroups, group => Assert.NotEmpty(group));
     }
