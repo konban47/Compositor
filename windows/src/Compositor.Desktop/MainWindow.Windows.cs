@@ -23,7 +23,7 @@ public sealed partial class MainWindow
         if (_canvasOnly) { ToggleCanvasOnly(); return; }
         if (!_editingFullscreen) { _beforeEditingFullscreen = WindowState; WindowState = WindowState.FullScreen; }
         else WindowState = _beforeEditingFullscreen;
-        _editingFullscreen = !_editingFullscreen;
+        _editingFullscreen = !_editingFullscreen; _canvas.FullScreenWithMenus = _editingFullscreen; _canvas.InvalidateVisual();
         _canvas.Focus();
     }
     private void ExitScreenMode()

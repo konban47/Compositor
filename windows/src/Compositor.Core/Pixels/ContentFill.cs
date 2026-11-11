@@ -213,8 +213,89 @@ public static class ContentFill
             queue[tail++] = scan;
             queued[scan] = 1;
         }
+        Refine(pixels, stride, target, chosen, donors, usableIn, valid, width, height, ref seed);
         if (colorAdaptation > 0) Adapt(pixels, stride, target, chosen, donors, width, height, colorAdaptation);
         return 1;
+    }
+
+    /// <summary>
+    /// After the onion-peel pass every hole pixel has a donor, but each was chosen against a half-filled neighbourhood. Two rounds of
+    /// PatchMatch improve that: each pixel tries its neighbours' offsets and a shrinking random search, now matching whole patches,
+    /// and then every pixel becomes the average of what the patches overlapping it say it should be, which removes the seams and
+    /// lone mismatched pixels the greedy pass leaves.
+    /// </summary>
+    private static void Refine(Span<byte> pixels, int stride, byte[] target, int[] chosen, byte[][] donors, byte[][] usable, byte[][] valid,
+                               int width, int height, ref uint seed)
+    {
+        int n = width * height; const int radius = 2;
+        var holes = new List<int>(); for (var p = 0; p < n; p++) if (target[p] != 0 && chosen[p] >= 0) holes.Add(p);
+        if (holes.Count == 0 || holes.Count > 4_000_000) return;
+        double Cost(Span<byte> image, int p, int q)
+        {
+            int px = p % width, py = p / width, image2 = q / n, qp = q % n, qx = qp % width, qy = qp / width, count = 0; double sum = 0;
+            var donor = donors[image2]; var open = usable[image2];
+            for (var dy = -radius; dy <= radius; dy++)
+                for (var dx = -radius; dx <= radius; dx++)
+                {
+                    int x = px + dx, y = py + dy, sx = qx + dx, sy = qy + dy;
+                    if (x < 0 || y < 0 || x >= width || y >= height || sx < 0 || sy < 0 || sx >= width || sy >= height || open[sy * width + sx] == 0) continue;
+                    int a = y * stride + x * 4, b = (sy * width + sx) * 4;
+                    for (var c = 0; c < 4; c++) { int d = image[a + c] - donor[b + c]; sum += d * d; }
+                    count++;
+                }
+            return count < 9 ? double.MaxValue : sum / count;
+        }
+        bool Valid(int q) => q >= 0 && q < donors.Length * n && valid[q / n][q % n] != 0;
+        var votes = new float[holes.Count * 4];
+        for (var round = 0; round < 2; round++)
+        {
+            // Search: forward on even rounds, backward on odd ones, so offsets spread both ways.
+            for (var k = 0; k < holes.Count; k++)
+            {
+                var p = holes[round % 2 == 0 ? k : holes.Count - 1 - k]; int x = p % width, y = p / width;
+                var best = chosen[p]; var score = Cost(pixels, p, best);
+                var step = round % 2 == 0 ? -1 : 1;
+                foreach (var t in new[] { x + step >= 0 && x + step < width ? p + step : -1, y + step >= 0 && y + step < height ? p + step * width : -1 })
+                {
+                    if (t < 0 || chosen[t] < 0) continue;
+                    var position = chosen[t] % n + (p - t); if (position < 0 || position >= n) continue;
+                    var q = chosen[t] / n * n + position; if (!Valid(q)) continue;
+                    var s = Cost(pixels, p, q); if (s < score) { score = s; best = q; }
+                }
+                for (var r = Math.Max(width, height) / 2; r >= 1; r /= 2)
+                {
+                    int image = best / n, at = best % n;
+                    int qx = at % width + (int)(NextRandom(ref seed) % (uint)(2 * r + 1)) - r, qy = at / width + (int)(NextRandom(ref seed) % (uint)(2 * r + 1)) - r;
+                    if (qx < 0 || qy < 0 || qx >= width || qy >= height) continue;
+                    var q = image * n + qy * width + qx; if (!Valid(q)) continue;
+                    var s = Cost(pixels, p, q); if (s < score) { score = s; best = q; }
+                }
+                chosen[p] = best;
+            }
+            // Vote: each hole pixel takes the mean of what every overlapping patch's donor holds at its place.
+            Array.Clear(votes);
+            for (var k = 0; k < holes.Count; k++)
+            {
+                int p = holes[k], x = p % width, y = p / width, count = 0; float r0 = 0, g0 = 0, b0 = 0, a0 = 0;
+                for (var dy = -radius; dy <= radius; dy++)
+                    for (var dx = -radius; dx <= radius; dx++)
+                    {
+                        int nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                        var q = ny * width + nx; if (target[q] == 0 || chosen[q] < 0) continue;
+                        int image = chosen[q] / n, from = chosen[q] % n, fx = from % width - dx, fy = from / width - dy;
+                        if (fx < 0 || fy < 0 || fx >= width || fy >= height || usable[image][fy * width + fx] == 0) continue;
+                        var at = (fy * width + fx) * 4; var donor = donors[image];
+                        r0 += donor[at]; g0 += donor[at + 1]; b0 += donor[at + 2]; a0 += donor[at + 3]; count++;
+                    }
+                if (count == 0) { var own = y * stride + x * 4; votes[k * 4] = pixels[own]; votes[k * 4 + 1] = pixels[own + 1]; votes[k * 4 + 2] = pixels[own + 2]; votes[k * 4 + 3] = pixels[own + 3]; continue; }
+                votes[k * 4] = r0 / count; votes[k * 4 + 1] = g0 / count; votes[k * 4 + 2] = b0 / count; votes[k * 4 + 3] = a0 / count;
+            }
+            for (var k = 0; k < holes.Count; k++)
+            {
+                var at = holes[k] / width * stride + holes[k] % width * 4;
+                for (var c = 0; c < 4; c++) pixels[at + c] = (byte)Math.Clamp(Math.Round(votes[k * 4 + c]), 0, 255);
+            }
+        }
     }
 
     /// <summary>

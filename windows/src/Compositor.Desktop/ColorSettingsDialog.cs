@@ -129,7 +129,7 @@ internal sealed class ColorSettingsDialog : DialogWindow
         foreach (var row in rows)
         {
             if (row is null) { box.Items.Add(new ComboBoxItem { IsEnabled = false, Height = 9, MinHeight = 0, Padding = new Thickness(0), Content = new Separator { Margin = new Thickness(0) } }); continue; }
-            var item = new ComboBoxItem { Content = translate || !row.Enabled ? Localize.Text(row.Label) : row.Label, Tag = row.Enabled ? row.Key : null, IsEnabled = row.Enabled };
+            var item = new ComboBoxItem { Content = translate || !row.Key.StartsWith("p:", StringComparison.Ordinal) ? Localize.Text(row.Label) : row.Label, Tag = row.Enabled ? row.Key : null, IsEnabled = row.Enabled };
             if (!row.Enabled) item.Foreground = Skin.SecondaryBrush;
             if (row.Description is { } text) Describe(item, text);
             box.Items.Add(item); if (row.Enabled && row.Key == selected) box.SelectedItem = item;

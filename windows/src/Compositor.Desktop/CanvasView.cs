@@ -42,7 +42,16 @@ public sealed partial class CanvasView : Control
     private const long ViewportPixelLimit = 32L * 1024 * 1024;
 
     // Every colour the canvas draws with comes from Skin, which takes them from the Mac's own canvas.
-    private static IBrush Backdrop => Skin.PasteboardBrush;
+    private IBrush Backdrop => ScreenMode switch
+    {
+        1 => Skin.Shade(EditorPreferences.Current.FullMenusPreset, EditorPreferences.Current.FullMenusCustom),
+        2 => Skin.Shade(EditorPreferences.Current.FullPreset, EditorPreferences.Current.FullCustom),
+        3 => Skin.Shade(EditorPreferences.Current.ArtboardPreset, EditorPreferences.Current.ArtboardCustom),
+        _ => Skin.PasteboardBrush,
+    };
+    internal bool FullScreenWithMenus { get; set; }
+    /// <summary>Interface preferences' screen modes: Standard, Full Screen with Menus, Full Screen, and a document with artboards.</summary>
+    private int ScreenMode => CanvasOnly ? 2 : FullScreenWithMenus ? 1 : _document?.Layers.Any(l => l.Container == Format.LayerContainer.Artboard) == true ? 3 : 0;
     /// <summary>What shows through a transparent picture: the checkerboard, as the Mac's canvas draws it.</summary>
     public bool ShowsTransparency { get; set; } = true;
     public int GuideLineStyle { get; set; }
@@ -508,7 +517,8 @@ public sealed partial class CanvasView : Control
             {
                 case Key.Escape:
                     _toolZoomStart = null;
-                    if (e.KeyModifiers.HasFlag(KeyModifiers.Control)) TextCancelled?.Invoke(); else TextCommitted?.Invoke();
+                    // Type preferences: with Use ESC Key to Commit Text off, Escape throws the edit away, as Ctrl+Escape always does.
+                    if (e.KeyModifiers.HasFlag(KeyModifiers.Control) || !EditorPreferences.Current.EscapeCommitsText) TextCancelled?.Invoke(); else TextCommitted?.Invoke();
                     e.Handled = true;
                     return;
                 case Key.Enter or Key.Return when e.KeyModifiers.HasFlag(KeyModifiers.Control):
@@ -677,6 +687,9 @@ public sealed partial class CanvasView : Control
         base.InvalidateVisual();
         ViewportChanged?.Invoke();
     }
+    /// <summary>Zoom Clicked Point to Center: after a zoom, the point zoomed at is brought to the middle of the view.</summary>
+    private void CenterOn(Point at)
+    { if (EditorPreferences.Current.ZoomToCenter) PanScreenBy(Bounds.Width / 2 - at.X, Bounds.Height / 2 - at.Y); }
     internal void PanScreenBy(double x, double y)
     {
         var start = Unrotate(default); var end = Unrotate(new Point(x, y));
@@ -708,7 +721,7 @@ public sealed partial class CanvasView : Control
     public override void Render(DrawingContext context)
     {
         var size = Bounds.Size;
-        context.DrawRectangle(CanvasOnly ? Brushes.Black : Backdrop, null, new Rect(0, 0, size.Width, size.Height));
+        context.DrawRectangle(Backdrop, null, new Rect(0, 0, size.Width, size.Height));
         // What is drawn is the preview while a panel is showing one, and the document itself otherwise.
         if ((PreviewDocument ?? _document) is not { } document) return;
 
@@ -741,7 +754,12 @@ public sealed partial class CanvasView : Control
         try
         {
         using var rotation = context.PushTransform(ViewRotation);
-        DrawPaperShadow(context, destination);
+        // The border Interface preferences give this screen mode: a line, the drop shadow, or nothing.
+        switch (EditorPreferences.Current.ScreenBorders[ScreenMode])
+        {
+            case 0: context.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromArgb(0x80, 0, 0, 0)), 1), destination.Inflate(.5)); break;
+            case 1: DrawPaperShadow(context, destination); break;
+        }
         // The checkerboard under the picture, so transparent pixels show through it as they do on the Mac.
         context.DrawRectangle(Paper, null, destination);
         if (_displayScene is { } scene) context.Custom(new SceneDrawOperation(scene, new Rect(Bounds.Size), _origin, _zoom));
@@ -902,7 +920,11 @@ public sealed partial class CanvasView : Control
             var extent = Math.Sqrt(Bounds.Width * Bounds.Width + Bounds.Height * Bounds.Height);
             if (guide.Axis == Format.GuideAxis.Vertical) { y1 = -extent; y2 = extent; }
             else { x1 = -extent; x2 = extent; }
-            var guidePen = new Pen(SelectedGuides.Contains(guide.ID) ? Skin.AccentBrush : Skin.GuidePen.Brush, 1) { DashStyle = GuideLineStyle == 0 ? null : GuideLineStyle == 1 ? DashStyle.Dash : DashStyle.Dot };
+            // A guide that belongs to an artboard takes the Artboard color and style Guides, Grid and Slices gives it.
+            var onArtboard = guide.ArtboardID is { } board && _document?.Layers.Any(l => l.ID == board) == true;
+            var style = onArtboard ? EditorPreferences.Current.ArtboardGuideStyle : GuideLineStyle;
+            var color = onArtboard ? new SolidColorBrush(Color.Parse(EditorPreferences.Current.ArtboardGuideColor)) : Skin.GuidePen.Brush;
+            var guidePen = new Pen(SelectedGuides.Contains(guide.ID) ? Skin.AccentBrush : color, 1) { DashStyle = style == 0 ? null : style == 1 ? DashStyle.Dash : DashStyle.Dot };
             context.DrawLine(guidePen, new Point(x1, y1), new Point(x2, y2));
         }
     }
@@ -1624,6 +1646,15 @@ public sealed partial class CanvasView : Control
             InvalidateVisual();
             return;
         }
+        // The Move tool pressed inside a selection carries the selected pixels of the layer, as Photoshop's does, rather than the
+        // whole layer; outside the selection, or with no selection, it moves the layer as before.
+        if (TransformEnabled && properties.IsLeftButtonPressed && PixelsGrabbed?.Invoke(ToDocument(e.GetPosition(this))) == true)
+        {
+            _pixelsFrom = ToDocument(e.GetPosition(this));
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
         if (TransformEnabled && properties.IsLeftButtonPressed)
             MoveTargetPressed?.Invoke(ToDocument(e.GetPosition(this)), e.KeyModifiers);
         if (TransformEnabled && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
@@ -2174,7 +2205,10 @@ public sealed partial class CanvasView : Control
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         if (EditorPreferences.Current.WheelZoom || e.KeyModifiers.HasFlag(KeyModifiers.Control))
-            ZoomAt(Math.Pow(1.15, Math.Clamp(e.Delta.Y, -20, 20)), EditorPreferences.Current.ZoomAtPointer ? e.GetPosition(this) : new Point(Bounds.Width / 2, Bounds.Height / 2));
+        {
+            var at = EditorPreferences.Current.ZoomAtPointer || EditorPreferences.Current.ZoomToCenter ? e.GetPosition(this) : new Point(Bounds.Width / 2, Bounds.Height / 2);
+            ZoomAt(Math.Pow(1.15, Math.Clamp(e.Delta.Y, -20, 20)), at); CenterOn(at);
+        }
         else { _origin = new SKPoint(_origin.X - (float)(e.Delta.X * 40 / Zoom), _origin.Y - (float)(e.Delta.Y * 40 / Zoom)); Moved(); }
         e.Handled = true;
         base.OnPointerWheelChanged(e);

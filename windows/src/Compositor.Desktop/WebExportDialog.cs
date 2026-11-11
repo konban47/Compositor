@@ -24,7 +24,7 @@ internal sealed partial class WebExportDialog : DialogWindow
     private readonly ComboBox _palette = Choice(["Perceptual", "Selective", "Adaptive", "Restrictive", "Custom", "Black - White", "Grayscale", "Mac OS", "Windows"], 1);
     private readonly ComboBox _dither = Choice(["No Dither", "Diffusion", "Pattern", "Noise"], 1);
     private readonly ComboBox _alphaDither = Choice(["No Transparency Dither", "Diffusion Transparency Dither", "Pattern Transparency Dither", "Noise Transparency Dither"]);
-    private readonly ComboBox _resample = Choice(["Nearest Neighbor", "Bilinear", "Bicubic", "Bicubic Smoother", "Bicubic Sharper"], 2);
+    private readonly ComboBox _resample = Choice(["Nearest Neighbor", "Bilinear", "Bicubic", "Bicubic Smoother", "Bicubic Sharper"], EditorPreferences.DefaultResample);
     private readonly ComboBox _metadata = Choice(["None", "Copyright", "Copyright and Contact", "All Except Camera Information", "All"], 2);
     private readonly ComboBox _view = Choice(["Original", "Optimized", "2-Up", "4-Up"], 0);
     private readonly ComboBox _saveAs = Choice(["Images Only", "HTML and Images", "HTML Only"]);

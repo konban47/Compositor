@@ -16,7 +16,7 @@ internal static class ToolCatalog
         Tool.SelectionBrush => "Paint a selection; Shift adds, Alt subtracts, Shift+Alt intersects.",
         Tool.QuickSelection => "Brush over color regions to grow an edge-bounded selection; Alt subtracts.",
         Tool.MagneticLasso => "Click to start, follow an edge, then Enter or double-click to close; Backspace removes points, Alt bypasses snapping.",
-        Tool.PerspectiveCrop => "Drag a frame, adjust its four corners, then Enter to rectify and crop; Esc cancels.",
+        Tool.PerspectiveCrop => "Drag a frame or click its four corners one by one, adjust them, then Enter to rectify and crop; Esc cancels.",
         Tool.Slice => "Drag a slice; use the options bar to divide, name or export PNG slices.",
         Tool.SliceSelect => "Select or drag a slice; drag its bottom-right corner to resize; double-click for properties.",
         Tool.Frame => "Drag a rectangular or elliptical frame, then place an image to fit inside it.",

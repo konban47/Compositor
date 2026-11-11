@@ -45,6 +45,8 @@ public sealed partial class MainWindow
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
                 Title = Localize.Text("Save Compositor project folder"), SuggestedFileName = path is null ? "Untitled.comp" : Path.GetFileName(path),
+                // File Handling's Save As to Original Folder: the picker opens where the project already is.
+                SuggestedStartLocation = EditorPreferences.Current.SaveToOriginalFolder && path is not null && Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(path)) is { } folder ? await StorageProvider.TryGetFolderFromPathAsync(folder) : null,
                 DefaultExtension = "comp", ShowOverwritePrompt = true,
             });
             if (file?.TryGetLocalPath() is not { } picked) return;
@@ -130,15 +132,23 @@ public sealed partial class MainWindow
             if (colorWarning is not null && !await ConfirmDialog.Ask(this, "Color Profile", Localize.Text(colorWarning), "Import", "Cancel")) return;
             var image = await Task.Run(() => ImageImporter.Decode(path, fitting));
             var openCameraRaw = false;
-            if (ImageImporter.IsRaw(path))
+            // Camera Raw Preferences: a raw file is developed first unless Prefer Camera Raw is off, and a JPEG or TIFF is
+            // when its File Handling says to open all supported ones; what is developed then follows the Workflow options.
+            var raw = EditorPreferences.Current.CameraRaw; var suffix = Path.GetExtension(path).ToLowerInvariant();
+            var develop = ImageImporter.IsRaw(path) ? raw.PreferForRaw
+                : suffix is ".jpg" or ".jpeg" or ".jpe" ? raw.JpegHandling == 2 : suffix is ".tif" or ".tiff" && raw.TiffHandling == 2;
+            if (develop)
             {
                 var developed = await RawDevelopDialog.Develop(this, image);
                 if (developed is null) { image.Dispose(); return; }
                 image = developed.Image; openCameraRaw = developed.OpenCameraRaw;
+                var workflow = raw.Workflow.Copy(); image = await Task.Run(() => RawDevelopDialog.Finish(image, workflow));
+                forceSmartObject |= workflow.SmartObject;
             }
             if (newTab || target.Document is null)
             {
                 var imported = ImageImporter.NewDocument(image);
+                if (develop) imported.Resolution = raw.Workflow.ResolutionPerInch;
                 try
                 {
                     if (forceSmartObject) LayerWorkflow.ConvertToSmartObject(imported, imported.Layers.Select(layer => layer.ID).ToArray());

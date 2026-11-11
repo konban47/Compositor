@@ -120,7 +120,7 @@ internal sealed class NewDocumentDialog : DialogWindow
     internal NewDocumentDialog()
     {
         Title = Localize.Text("New Project");
-        _resolution.Text = EditorPreferences.Current.NewResolution.ToString(System.Globalization.CultureInfo.CurrentCulture);
+        _resolution.Text = EditorPreferences.Current.ScreenResolutionPerInch.ToString(System.Globalization.CultureInfo.CurrentCulture);
         Width = 460;
         SizeToContent = SizeToContent.Height;
         CanResize = false;
@@ -221,7 +221,8 @@ internal sealed class NewDocumentDialog : DialogWindow
         {
             _units.SelectedIndex = 0;
             _previousUnit = 0;
-            _resolution.Text = _preset.SelectedIndex >= 8 ? "300" : "72";
+            // Units and Rulers' New Document Preset Resolutions: print presets take the Print one, the rest the Screen one.
+            _resolution.Text = (_preset.SelectedIndex >= 8 ? EditorPreferences.Current.PrintResolutionPerInch : EditorPreferences.Current.ScreenResolutionPerInch).ToString(System.Globalization.CultureInfo.CurrentCulture);
             _width.Text = width.ToString();
             _height.Text = height.ToString();
         }

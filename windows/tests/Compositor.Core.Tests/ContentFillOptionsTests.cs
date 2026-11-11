@@ -124,3 +124,21 @@ public sealed class ContentFillSamplingShapeTests
         Assert.Equal(0, raster[80 * 240 + 5]); Assert.Equal(255, raster[80 * 240 + 70]); Assert.Equal(0, raster[80 * 240 + 100]);
     }
 }
+
+public sealed class ContentFillQualityTests
+{
+    [Fact]
+    public void AHoleInRegularStripesIsFilledCloseToTheStripesThatWereThere()
+    {
+        static SKColor Stripe(int x, int y) => (x / 6 + y / 9) % 2 == 0 ? new SKColor(210, 170, 70) : new SKColor(50, 100, 150);
+        var pixels = new SKBitmap(Bitmaps.ColorInfo(96, 72));
+        for (var y = 0; y < 72; y++) for (var x = 0; x < 96; x++) pixels.SetPixel(x, y, Stripe(x, y));
+        using var document = new CanvasDocument(Guid.NewGuid(), 96, 72);
+        var layer = new ImageLayer(Guid.NewGuid(), ImportedImage.Create(pixels, "Stripes"), new LayerTransform(0, 0, 96, 72), "Stripes"); document.Layers.Add(layer);
+        SelectionEdits.Select(document, SKRectI.Create(36, 24, 24, 24));
+        Assert.True(ContentFillEdits.Apply(document, layer.ID, new ContentFillOptions()));
+        double error = 0; var image = layer.Asset!.Image;
+        for (var y = 24; y < 48; y++) for (var x = 36; x < 60; x++) { var a = image.GetPixel(x, y); var b = Stripe(x, y); error += Math.Abs(a.Red - b.Red) + Math.Abs(a.Green - b.Green) + Math.Abs(a.Blue - b.Blue); }
+        Assert.InRange(error / (24 * 24 * 3), 0, 30);
+    }
+}

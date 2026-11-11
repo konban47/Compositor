@@ -30,7 +30,8 @@ public static class CmykColor
         using var image = DeepImageCodec.Magick(flat); image.Alpha(AlphaOption.Remove);
         return ColorTransforms.Convert(image, ColorProfiles.SRGB.ToByteArray(), profile);
     }
-    public static SKBitmap Proof(SKBitmap source, byte[] profile, bool proof = true, bool warning = false)
+    /// <remarks>Out-of-gamut pixels take <paramref name="warningColor"/> (mid gray when none is given) at <paramref name="warningOpacity"/>.</remarks>
+    public static SKBitmap Proof(SKBitmap source, byte[] profile, bool proof = true, bool warning = false, SKColor? warningColor = null, double warningOpacity = 1)
     {
         using var image = Convert(source, profile, SKColors.White); using var converted = ColorTransforms.Convert(image, profile, ColorProfiles.SRGB.ToByteArray());
         using var deep = AdvancedEdit.Pixels(converted); var simulated = DeepPixels.Preview(deep);
@@ -39,7 +40,12 @@ public static class CmykColor
         {
             var a = y * source.RowBytes + x * 4; var b = y * simulated.RowBytes + x * 4;
             var outside = Math.Max(Math.Abs(src[a] - dst[b]), Math.Max(Math.Abs(src[a + 1] - dst[b + 1]), Math.Abs(src[a + 2] - dst[b + 2]))) > 12;
-            if (warning && outside && src[a + 3] > 0) dst[b] = dst[b + 1] = dst[b + 2] = 128;
+            if (warning && outside && src[a + 3] > 0)
+            {
+                var mark = warningColor ?? new SKColor(128, 128, 128); var keep = 1 - Math.Clamp(warningOpacity, 0, 1);
+                if (!proof) for (var channel = 0; channel < 3; channel++) dst[b + channel] = src[a + channel];
+                dst[b] = (byte)Math.Round(dst[b] * keep + mark.Red * (1 - keep)); dst[b + 1] = (byte)Math.Round(dst[b + 1] * keep + mark.Green * (1 - keep)); dst[b + 2] = (byte)Math.Round(dst[b + 2] * keep + mark.Blue * (1 - keep));
+            }
             else if (!proof) for (var channel = 0; channel < 3; channel++) dst[b + channel] = src[a + channel];
             dst[b + 3] = src[a + 3];
         }

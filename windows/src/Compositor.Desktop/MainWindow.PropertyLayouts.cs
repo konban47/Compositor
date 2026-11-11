@@ -48,7 +48,7 @@ public sealed partial class MainWindow
         grids.Children.Add(PropertyToggle("Ruler", "Rulers", _rulersVisible, _ => ShowRulers()));
         grids.Children.Add(PropertyToggle("grid", "Grid", _gridVisible, _ => ShowGrid()));
         grids.Children.Add(PropertyToggle("transparency", "Transparency Grid", _canvas.ShowsTransparency, on => { _canvas.ShowsTransparency = on; _canvas.InvalidateVisual(); }));
-        var units = PropertyChoice("Ruler Units", ["Pixels", "Inches", "Centimeters", "Points"], _propertyRulerUnit, i => { _propertyRulerUnit = i; EditorPreferences.Current.RulerUnit = i; SavePreferenceChanges(); UpdateRulers(); });
+        var units = PropertyChoice("Ruler Units", RulerUnits.Names, RulerUnits.Index(_propertyRulerUnit), i => { _propertyRulerUnit = RulerUnits.Code(i); EditorPreferences.Current.RulerUnit = _propertyRulerUnit; SavePreferenceChanges(); UpdateRulers(); });
         Section("Rulers and Grids", PropertyPair(grids, units), MoreProperties("Grids", PropertyAction("Grid Settings…", () => _ = GridSettings())));
         var guides = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         guides.Children.Add(PropertyToggle("guides", "Show Guides", _guidesVisible, _ => ShowGuides()));

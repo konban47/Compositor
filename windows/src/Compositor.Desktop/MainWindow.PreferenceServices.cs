@@ -9,7 +9,9 @@ public sealed partial class MainWindow
     private bool _recovering;
     private readonly Dictionary<Tab, (Guid Document, Guid Revision)> _recovered = [];
     private static string RecoveryPath(Tab tab, Guid document) => Path.Combine(RecoveryFolder, $"{document:N}-{tab.RecoveryID:N}.comp");
-    private static string RecoveryFolder => Path.Combine(AppPaths.SettingsDirectory, "recovery");
+    /// <summary>Recovery copies go to the first active scratch disk Scratch Disks preferences list, or the settings folder.</summary>
+    private static string RecoveryFolder => EditorPreferences.Current.ScratchDisks.FirstOrDefault(d => Directory.Exists(d)) is { } disk
+        ? Path.Combine(disk, "Compositor Scratch", "recovery") : Path.Combine(AppPaths.SettingsDirectory, "recovery");
     private void ConfigureRecovery()
     {
         _recoveryTimer?.Stop();
@@ -46,17 +48,24 @@ public sealed partial class MainWindow
         try { Directory.CreateDirectory(RecoveryFolder); System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(RecoveryFolder) { UseShellExecute = true }); }
         catch (Exception error) { Say(error.Message); }
     }
+    /// <summary>History preferences' Edit Log Items: Sessions Only writes no commands, Concise each command, Detailed adds who made it.</summary>
     private static void RecordHistoryLog(string command)
+    { if (EditorPreferences.Current.HistoryLogDetail > 0) WriteHistoryLog(command); }
+    private static void WriteHistoryLog(string entry)
     {
-        if (!EditorPreferences.Current.HistoryLog) return;
+        var p = EditorPreferences.Current;
+        if (!p.HistoryLog) return;
         try
         {
-            Directory.CreateDirectory(AppPaths.SettingsDirectory); var path = Path.Combine(AppPaths.SettingsDirectory, "history.log");
+            var path = HistoryLogFile; Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             if (File.Exists(path) && new FileInfo(path).Length > 4 * 1024 * 1024) File.Move(path, path + ".previous", true);
-            File.AppendAllText(path, $"{DateTimeOffset.Now:O}\t{command.Replace('\r', ' ').Replace('\n', ' ')}{Environment.NewLine}");
+            var who = p.HistoryLogDetail == 2 ? $"\t{Environment.UserName}@{Environment.MachineName}" : "";
+            File.AppendAllText(path, $"{DateTimeOffset.Now:O}\t{entry.Replace('\r', ' ').Replace('\n', ' ')}{who}{Environment.NewLine}");
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { System.Diagnostics.Trace.WriteLine(error.Message); }
     }
+    /// <summary>The text file History preferences chose, or history.log in the settings folder.</summary>
+    internal static string HistoryLogFile => EditorPreferences.Current.HistoryLogPath is { Length: > 0 } chosen ? chosen : Path.Combine(AppPaths.SettingsDirectory, "history.log");
     private void SavePreferenceChanges() { try { EditorPreferences.Current.Save(); } catch (Exception error) { Say(error.Message); } }
     private void ResetWorkspace()
     {

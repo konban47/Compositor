@@ -53,6 +53,7 @@ internal sealed class ColorPickerDialog : DialogWindow
     public static async Task Pick(Window owner, string title, (double Red, double Green, double Blue) start,
         Action<(double Red, double Green, double Blue)> changed)
     {
+        if (WindowsColorDialog.Chosen) { changed(WindowsColorDialog.Pick(owner, start) ?? start); return; }
         var picker = new ColorPickerDialog(title, start);
         picker.Moved += changed;
         picker.Cancelled += () => changed(start);

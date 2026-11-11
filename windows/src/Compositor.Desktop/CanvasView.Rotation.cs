@@ -68,7 +68,7 @@ public sealed partial class CanvasView
     private bool ViewToolRelease(PointerReleasedEventArgs e)
     {
         if (_toolZoomStart is not { } anchor) return false;
-        if (!_toolZoomMoved) ZoomAt(_toolZoomOut ? .8 : 1.25, anchor);
+        if (!_toolZoomMoved) { ZoomAt(_toolZoomOut ? .8 : 1.25, anchor); CenterOn(anchor); }
         else if (!ScrubbyZoom)
         {
             var end = e.GetPosition(this); var size = end - anchor;

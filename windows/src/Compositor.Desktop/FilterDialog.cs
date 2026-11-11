@@ -88,7 +88,7 @@ internal sealed class FilterDialog : DialogWindow
                         Add(lensGroup, "Threshold", 50, 100, start.Lens.Threshold, 90, (s,v) => s.Lens.Threshold=v);
                         Add(lensGroup, "Amount", 0, 100, start.Lens.StarAmount, 50, (s,v) => s.Lens.StarAmount=v);
                         Add(lensGroup, "Length (%)", 2, 40, start.Lens.StarLength, 12, (s,v) => s.Lens.StarLength=v);
-                        Choice(lensGroup, "Points", ["4", "6", "8", "12", "14"], Array.IndexOf(new[]{4,6,8,12,14}, start.Lens.StarPoints), 1, (s,v) => s.Lens.StarPoints=new[]{4,6,8,12,14}[v]);
+                        Choice(lensGroup, "Star Points", ["4", "6", "8", "12", "14"], Array.IndexOf(new[]{4,6,8,12,14}, start.Lens.StarPoints), 1, (s,v) => s.Lens.StarPoints=new[]{4,6,8,12,14}[v]);
                         Add(lensGroup, "Angle, degrees", -180, 180, start.Lens.StarAngle, 15, (s,v) => s.Lens.StarAngle=v); break;
                     case LensEffect.Mist:
                         Add(lensGroup, "Strength", 0, 100, start.Lens.MistStrength, 50, (s,v) => s.Lens.MistStrength=v);

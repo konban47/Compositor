@@ -78,8 +78,18 @@ public sealed partial class CanvasView
         if (SourceTargetShowing) Target(pointer, true);
         else if (BrushOutlineShowing)
         {
-            if (PreciseBrushCursor) { Target(pointer, false); return; }
+            // Cursors preferences: Standard draws a small brush, Precise the crosshair, Normal Brush Tip the half-strength edge
+            // of a soft tip and Full Size Brush Tip its whole reach; Show Only Crosshair While Painting trades the circle for it.
+            var mode = EditorPreferences.Current.PaintingCursor;
+            if (PreciseBrushCursor || mode == 1 || _painting && EditorPreferences.Current.CrosshairWhilePainting) { Target(pointer, false); return; }
+            if (mode == 0)
+            {
+                using var translate = context.PushTransform(Matrix.CreateTranslation(pointer.X, pointer.Y - 18));
+                context.DrawGeometry(Brushes.White, new Pen(Brushes.Black, 1.4), StreamGeometry.Parse("M0,18 C1,14 3,13 5,13 L15,1 L18,3 L7,15 C7,17 5,19 0,18 Z"));
+                return;
+            }
             var radius = Math.Max(.5, OutlineDiameter / 2);
+            if (mode == 2) radius = Math.Max(.5, radius * (.5 + Math.Clamp(Brush.Hardness, 0, 1) / 2));
             context.DrawEllipse(null, new Pen(Brushes.Black, EditorPreferences.Current.BrushOutlineWidth + 2), pointer, radius, radius);
             context.DrawEllipse(null, new Pen(Brushes.White, EditorPreferences.Current.BrushOutlineWidth), pointer, radius, radius);
             if (EditorPreferences.Current.BrushCrosshair) Target(pointer, false);

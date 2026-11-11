@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Compositor.Core.Document;
 using Compositor.Core.IO;
 
 namespace Compositor.Desktop;
@@ -10,17 +11,27 @@ public sealed partial class MainWindow
         var menu = new MenuItem { Header = Localize.Text("Preferences") };
         foreach (var name in PreferencesDialog.Categories)
             menu.Items.Add(Command(name + "…", () => _ = EditPreferences(name), name == "General" ? "Preferences" : null));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Command("Camera Raw…", () => _ = CameraRawPreferences()));
         return menu;
     }
     private async Task EditPreferences(string category)
     {
-        var dialog = new PreferencesDialog(category, EditorPreferences.Current);
+        // The grid is kept with the View switches; the page shows it in pixels until another unit is chosen there.
+        var start = EditorPreferences.Current.Copy();
+        if (start.GridUnit == 0) { start.GridEvery = _grid.Spacing; start.GridSubdivisions = _grid.Subdivisions; }
+        var dialog = new PreferencesDialog(category, start);
         if (!await dialog.ShowDialog<bool>(this)) return;
         try { EditorPreferences.Commit(dialog.Draft); if (dialog.Draft.Language.Length > 0) Localize.SaveLanguage(dialog.Draft.Language); }
         catch (Exception error) { Say(error.Message); return; }
-        ApplyPreferences(); Refresh();
+        var p = EditorPreferences.Current; var ppi = _document?.Resolution ?? 72;
+        var spacing = (int)Math.Round(p.GridEvery * RulerUnits.Pixels(p.GridUnit, ppi, _document?.Width ?? 100));
+        _grid = new LayoutGrid(Math.Clamp(spacing, LayoutGrid.LeastSpacing, LayoutGrid.MostSpacing), Math.Clamp(p.GridSubdivisions, 1, LayoutGrid.MostSubdivisions));
+        if (_gridVisible) _canvas.Grid = _grid;
+        KeepSwitches(); ApplyPreferences(); Refresh();
         switch (dialog.RelatedAction)
         {
+            case "Camera Raw Preferences…": await CameraRawPreferences(); break;
             case "Customize Toolbar…": await CustomizeToolbar(); break;
             case "Grid Settings…": await GridSettings(); break;
             case "Manage Plugins…": await ManagePlugins(); break;
@@ -32,14 +43,23 @@ public sealed partial class MainWindow
             case "Open Recovery Folder": OpenRecoveryFolder(); break;
         }
     }
+    /// <summary>Edit ▸ Preferences ▸ Camera Raw…, and File Handling's Camera Raw Preferences… button.</summary>
+    private async Task CameraRawPreferences()
+    {
+        var dialog = new CameraRawPreferencesDialog(EditorPreferences.Current.CameraRaw);
+        if (!await dialog.ShowDialog<bool>(this)) return;
+        var p = EditorPreferences.Current.Copy(); p.CameraRaw = dialog.Draft;
+        try { EditorPreferences.Commit(p); } catch (Exception error) { Say(error.Message); }
+    }
     private bool _preferencesReady;
     private void ApplyPreferences()
     {
         var p = EditorPreferences.Current;
+        if (!_preferencesReady) WriteHistoryLog("Session started");
         ColorDefaults.Settings = p.ColorSettings; ColorDefaults.Ocio = p.Ocio; _canvas.ColorSettingsChanged();
         if (Avalonia.Application.Current is DesktopApp app) app.RefreshAppearance();
         foreach (var visual in Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(this)) visual.InvalidateVisual();
-        foreach (var tab in _tabs) { tab.History.Configure(p.HistorySteps, p.HistoryMB * 1024 * 1024, tab.Document); tab.History.AllowNonLinear = p.NonLinearHistory; }
+        foreach (var tab in _tabs) { tab.History.Configure(p.HistorySteps, p.HistoryBytes, tab.Document); tab.History.AllowNonLinear = p.NonLinearHistory; }
         _canvas.PreciseBrushCursor = p.PreciseCursor; _canvas.ShowsTransparency = p.ShowTransparency; _canvas.UpdateToolCursor();
         _options.ShowsSampleRing = p.SampleRing; _options.Brush = _options.Brush with { Smoothing = p.BrushSmoothing };
         _propertyRulerUnit = p.RulerUnit; UpdateRulers(); ApplyHiddenMenus();
@@ -95,7 +115,7 @@ public sealed partial class MainWindow
             {
                 var path = MenuPath(item, prefix); var hidden = preferences.HiddenMenus.Contains(path) && !Equals(item.Tag, "Menus…") && item.Header?.ToString() != Localize.Text("Menus…");
                 any |= hidden; item.IsVisible = !hidden || showing;
-                if (preferences.MenuColors.TryGetValue(path, out var color) && MenuLook.Tint(color) is { } tint) item.Background = new Avalonia.Media.SolidColorBrush(tint, .45);
+                if (preferences.ShowMenuColors && preferences.MenuColors.TryGetValue(path, out var color) && MenuLook.Tint(color) is { } tint) item.Background = new Avalonia.Media.SolidColorBrush(tint, .45);
                 else item.ClearValue(MenuItem.BackgroundProperty);
                 foreach (var child in item.Items.OfType<MenuItem>().Where(c => !Equals(c.Tag, ShowAllTag)).ToArray()) Walk(child, path);
             }
@@ -122,5 +142,20 @@ public sealed partial class MainWindow
         if (picked is not { } chosen) return;
         KeepMenuLook(look);
         _shortcutSettings.Overrides = chosen; _shortcutSettings.Save(ShortcutDefaults.DefaultPath); ShowKeys();
+    }
+}
+
+/// <summary>Units and Rulers' units, in the order Photoshop lists them; the saved number keeps the order older versions used.</summary>
+internal static class RulerUnits
+{
+    internal static readonly string[] Names = ["Pixels", "Inches", "Centimeters", "Millimeters", "Points", "Picas", "Percent"];
+    private static readonly int[] Codes = [0, 1, 2, 4, 3, 5, 6];
+    internal static int Index(int code) => Math.Max(0, Array.IndexOf(Codes, code));
+    internal static int Code(int index) => Codes[Math.Clamp(index, 0, Codes.Length - 1)];
+    /// <summary>How many document pixels one unit is; a percentage is of <paramref name="extent"/>, and a point follows Point/Pica Size.</summary>
+    internal static double Pixels(int code, double ppi, double extent)
+    {
+        var point = ppi / (EditorPreferences.Current.TraditionalPoints ? 72.27 : 72);
+        return code switch { 1 => ppi, 2 => ppi / 2.54, 3 => point, 4 => ppi / 25.4, 5 => point * 12, 6 => Math.Max(1, extent) / 100, _ => 1 };
     }
 }

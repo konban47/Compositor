@@ -29,7 +29,7 @@ internal sealed class ExportAsDialog : DialogWindow
     private readonly CheckBox _transparent = new() { Content = Localize.Text("Transparency"), IsChecked = true, Tag = "export-transparency" };
     private readonly ComboBox _background = new() { ItemsSource = new[] { Localize.Text("White"), Localize.Text("Black") }, SelectedIndex = 0, Width = 150 };
     private readonly ComboBox _colorSpace = new() { ItemsSource = new[] { "RGB", "CMYK", Localize.Text("Document Mode (TIFF)") }, SelectedIndex = 0, Width = 150 };
-    private readonly ComboBox _resample = new() { ItemsSource = new[] { "Nearest Neighbor", "Bilinear", "Bicubic", "Bicubic Smoother", "Bicubic Sharper" }.Select(Localize.Text).ToArray(), SelectedIndex = 2, Width = 170 };
+    private readonly ComboBox _resample = new() { ItemsSource = new[] { "Nearest Neighbor", "Bilinear", "Bicubic", "Bicubic Smoother", "Bicubic Sharper" }.Select(Localize.Text).ToArray(), SelectedIndex = EditorPreferences.DefaultResample, Width = 170 };
     private readonly RadioButton _metaNone = new() { Content = Localize.Text("None"), GroupName = "export-metadata" }, _metaCopyright = new() { Content = Localize.Text("Copyright and Contact"), GroupName = "export-metadata", IsChecked = true };
     private readonly Image _preview = new() { Stretch = Stretch.Uniform }, _before = new() { Stretch = Stretch.Uniform };
     private readonly Border _beforePane = new() { Background = Skin.Checker, IsVisible = false };

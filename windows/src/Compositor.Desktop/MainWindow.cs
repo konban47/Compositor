@@ -218,7 +218,7 @@ public sealed partial class MainWindow : Window
         /// disposes them and the snapshot is dropped rather than disposed.</summary>
         public CanvasDocument? Document { get; set; }
 
-        public DocumentHistory History { get; } = new(EditorPreferences.Current.HistorySteps, EditorPreferences.Current.HistoryMB * 1024 * 1024) { AllowNonLinear = EditorPreferences.Current.NonLinearHistory, Committed = RecordHistoryLog };
+        public DocumentHistory History { get; } = new(EditorPreferences.Current.HistorySteps, EditorPreferences.Current.HistoryBytes) { AllowNonLinear = EditorPreferences.Current.NonLinearHistory, Committed = RecordHistoryLog };
         public int SnapshotNumber { get; set; }
         public Task<bool>? Saving { get; set; }
         public Task<bool>? Recovering { get; set; }
@@ -1224,7 +1224,8 @@ public sealed partial class MainWindow : Window
     private bool PixelsTaken(SKPoint at)
     {
         if (_document is not { } document || Selected is not { } id) return false;
-        if (_open.ActiveAlpha is not null || !LayerProtection.CanMove(document, id) || !LayerProtection.CanPaint(document, id)) return false;
+        // With the mask as the target a drag moves the mask, as the Move tool always has; only the layer's own pixels are lifted.
+        if (_open.ActiveAlpha is not null || MaskTarget || !LayerProtection.CanMove(document, id) || !LayerProtection.CanPaint(document, id)) return false;
         if (document.Selection.Path is not { } path || !path.Contains(at.X, at.Y)) return false;
         if (SelectionEdits.LiftPixels(document, id) is not { } floating)
         {
@@ -3713,6 +3714,11 @@ public sealed partial class MainWindow : Window
         var start = foreground
             ? (_options.Brush.Red, _options.Brush.Green, _options.Brush.Blue)
             : _options.GradientBackground;
+        if (WindowsColorDialog.Chosen)
+        {
+            if (WindowsColorDialog.Pick(this, start) is { } chosen) TakeColour(foreground, toBackground, chosen);
+            return;
+        }
         var picker = new ColorPickerDialog(
             foreground ? "Color Picker (Foreground Color)" : "Color Picker (Background Color)", start);
         picker.Applied += colour => TakeColour(foreground, toBackground, colour);
@@ -4910,7 +4916,8 @@ public sealed partial class MainWindow : Window
     {
         UpdateCanvasScrollbars();
         var ppi = _document?.Resolution ?? 72;
-        _rulerAcross.PixelsPerUnit = _rulerDown.PixelsPerUnit = _propertyRulerUnit switch { 1 => ppi, 2 => ppi / 2.54, 3 => ppi / 72, _ => 1 };
+        _rulerAcross.PixelsPerUnit = RulerUnits.Pixels(_propertyRulerUnit, ppi, _document?.Width ?? 100);
+        _rulerDown.PixelsPerUnit = RulerUnits.Pixels(_propertyRulerUnit, ppi, _document?.Height ?? 100);
         _rulerAcross.Scale = _canvas.Zoom;
         _rulerAcross.Origin = _canvas.OriginX;
         _rulerDown.Scale = _canvas.Zoom;
@@ -4923,7 +4930,7 @@ public sealed partial class MainWindow : Window
     private async Task GridSettings()
     {
         if (await GridSettingsDialog.Ask(this, _grid) is not { } asked) return;
-        _grid = asked;
+        _grid = asked; var p = EditorPreferences.Current; p.GridUnit = 0; p.GridEvery = asked.Spacing; p.GridSubdivisions = asked.Subdivisions; SavePreferenceChanges();
         if (_gridVisible) _canvas.Grid = _grid;
         KeepSwitches();
         _canvas.InvalidateVisual();
@@ -5434,6 +5441,13 @@ public sealed partial class MainWindow : Window
         // A carriage return arrives with Enter as well as the key press, and one newline is enough.
         typed = typed.Replace("\r", "");
         if (typed.Length == 0) return;
+        // Type preferences: Use Smart Quotes turns a straight quote into an opening one after a space or the start, and a closing one otherwise.
+        if (EditorPreferences.Current.SmartQuotes && typed is "\"" or "'")
+        {
+            var before = session.SelectionStart > 0 ? session.Content[session.SelectionStart - 1] : ' ';
+            var opening = char.IsWhiteSpace(before) || before is '(' or '[' or '{' or '“' or '‘';
+            typed = typed == "\"" ? (opening ? "“" : "”") : (opening ? "‘" : "’");
+        }
         if (!session.Type(document, typed))
         {
             Say("That text could not be drawn: its box is too big for one surface");
@@ -6429,6 +6443,8 @@ public sealed partial class MainWindow : Window
     private void Say(string message = "")
     {
         if (message.Length > 0) _message = message;
+        // General preferences' Beep When Done: a save or an export that finished.
+        if (EditorPreferences.Current.BeepWhenDone && (message.StartsWith("Saved ", StringComparison.Ordinal) || message.StartsWith("Exported ", StringComparison.Ordinal))) SystemSound.Done();
         _status.Text = Localize.Text(_message);
         var limit = _canvas.ZoomedOutAsFarAsItGoes ? "    as far out as one screenful can be drawn" : "";
         _showExtras.IsChecked = ExtrasShown;

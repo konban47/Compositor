@@ -48,14 +48,31 @@ internal sealed class ContentAwareFillWindow : DialogWindow
     private readonly ComboBox _color = SideDialog.Grouped([[("0", "None"), ("1", "Default"), ("2", "High"), ("3", "Very High")]], "1", 120);
     private readonly ComboBox _rotation = SideDialog.Grouped([[("0", "None"), ("1", "Low"), ("2", "Medium"), ("3", "High"), ("4", "Full")]], "0", 120);
     private readonly ComboBox _output = SideDialog.Grouped([[("0", "Current Layer"), ("1", "New Layer"), ("2", "Duplicate Layer")]], "1", 150);
-    private readonly NumericUpDown _brushSize = new() { Minimum = 1, Maximum = 2000, Value = 120, Width = 80, Height = 26, MinHeight = 0, ShowButtonSpinner = false, FormatString = "0" };
-    private readonly ToggleButton _addMode = new() { Width = 28, Height = 26, Padding = new Thickness(4), IsChecked = true }, _subtractMode = new() { Width = 28, Height = 26, Padding = new Thickness(4) };
+    private readonly NumericUpDown _brushSize = new() { Minimum = 1, Maximum = 2000, Value = 120, Width = 64, Height = 26, MinHeight = 0, ShowButtonSpinner = false, FormatString = "0", Tag = "brush-size" };
+    private readonly ToggleButton _addMode = new() { Width = 30, Height = 28, Padding = new Thickness(4), IsChecked = true, Tag = "brush-add" }, _subtractMode = new() { Width = 30, Height = 28, Padding = new Thickness(4), Tag = "brush-subtract" };
+    // The lasso's options: the four selection modes, feather, anti-alias, and Expand or Contract by an amount.
+    private readonly ToggleButton[] _lassoModes = new[] { "new", "add", "subtract", "intersect" }.Select(m => new ToggleButton { Width = 30, Height = 28, Padding = new Thickness(5), Tag = "lasso-" + m, IsChecked = m == "new" }).ToArray();
+    private readonly NumericUpDown _feather = new() { Minimum = 0, Maximum = 250, Value = 0, Width = 56, Height = 26, MinHeight = 0, ShowButtonSpinner = false, FormatString = "0", Tag = "lasso-feather" };
+    private readonly NumericUpDown _amount = new() { Minimum = 1, Maximum = 500, Value = 3, Width = 56, Height = 26, MinHeight = 0, ShowButtonSpinner = false, FormatString = "0", Tag = "lasso-amount" };
+    private readonly CheckBox _antiAlias = new() { Content = Localize.Text("Anti-alias"), IsChecked = true, Tag = "lasso-antialias" };
+    // The zoom tool's options.
+    private readonly ToggleButton _zoomIn = new() { Width = 30, Height = 28, Padding = new Thickness(5), IsChecked = true, Tag = "zoom-in" }, _zoomOut = new() { Width = 30, Height = 28, Padding = new Thickness(5), Tag = "zoom-out" };
+    private readonly CheckBox _scrubby = new() { Content = Localize.Text("Scrubby Zoom"), IsChecked = true, Tag = "scrubby-zoom" };
+    private readonly ContentControl _optionsHost = new();
+    private readonly Dictionary<string, Control> _optionBars = [];
+    private readonly byte[] _startingFill;
     private readonly List<ToggleButton> _tools = [];
     private readonly TextBlock _error = new() { Foreground = Brushes.OrangeRed, TextWrapping = TextWrapping.Wrap };
     private CancellationTokenSource? _pending;
     private int _wave;
     internal string Tool { get; private set; } = "brush";
+    // Alt held while painting or drawing turns adding into taking away, as it does in Photoshop.
     internal bool Subtracting => _subtractMode.IsChecked == true;
+    internal string LassoMode => _lassoModes.First(m => m.IsChecked == true).Tag is string tag ? tag[6..] : "new";
+    internal bool ZoomingOut => _zoomOut.IsChecked == true;
+    internal bool Scrubby => _scrubby.IsChecked == true;
+    internal bool AntiAlias => _antiAlias.IsChecked == true;
+    internal double Feather => (double)(_feather.Value ?? 0);
     internal bool PreviewReady { get; private set; }
 
     internal ContentAwareFillWindow(CanvasDocument document, Guid layer, byte[] fill, Func<SKBitmap> render, Func<ContentFillRequest, bool> apply)
@@ -65,25 +82,18 @@ internal sealed class ContentAwareFillWindow : DialogWindow
         Title = Localize.Text("Content-Aware Fill"); Width = 1440; Height = 900; MinWidth = 1080; MinHeight = 640; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _view = new FillView(this);
 
-        // Options bar: the tool, add or subtract, and the brush size.
-        _addMode.Content = Glyph("M12,5 V19 M5,12 H19 M12,2 A10,10 0 1 1 11.99,2 Z"); _subtractMode.Content = Glyph("M5,12 H19 M12,2 A10,10 0 1 1 11.99,2 Z");
-        ToolTip.SetTip(_addMode, Localize.Text("Add to Area")); ToolTip.SetTip(_subtractMode, Localize.Text("Subtract from Area"));
-        _addMode.Click += (_, _) => { _addMode.IsChecked = true; _subtractMode.IsChecked = false; }; _subtractMode.Click += (_, _) => { _subtractMode.IsChecked = true; _addMode.IsChecked = false; };
-        var options = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(10, 4), Children = { _addMode, _subtractMode, new TextBlock { Text = Localize.Text("Size") + ":", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) }, _brushSize } };
+        _startingFill = (byte[])fill.Clone();
+        BuildOptionBars();
+        var options = new Border { Child = _optionsHost, Margin = new Thickness(6, 3), MinHeight = 32 };
 
         var toolStrip = new StackPanel { Spacing = 4, Margin = new Thickness(4, 6), Width = 36 };
-        foreach (var (key, tip, data) in new[]
-        {
-            ("brush", "Sampling Brush Tool (B)", "M3,21 C3,17 6,15 8,15 C10,15 11,17 10,19 C9,21 5,22 3,21 Z M10,15 L20,3 L22,5 L12,17"),
-            ("lasso", "Lasso Tool (L)", "M12,4 C18,4 21,7 21,10 C21,13 17,15 12,15 C7,15 3,13 3,10 C3,7 6,4 12,4 Z M7,14 C6,17 7,19 9,19 C10,19 10,21 8,22"),
-            ("hand", "Hand Tool (H)", "M7,12 V5 A1.5,1.5 0 0 1 10,5 V11 M10,10 V3.5 A1.5,1.5 0 0 1 13,3.5 V11 M13,10 V4.5 A1.5,1.5 0 0 1 16,4.5 V12 M16,11 V7 A1.5,1.5 0 0 1 19,7 V15 C19,19 16,22 12,22 C9,22 7,20 5,17 L3,13 A1.5,1.5 0 0 1 6,12 L7,14"),
-            ("zoom", "Zoom Tool (Z)", "M10,3 A7,7 0 1 1 9.99,3 Z M15,15 L21,21"),
-        })
+        foreach (var (key, tip, data) in ToolGlyphs)
         {
             var button = new ToggleButton { Width = 32, Height = 30, Padding = new Thickness(5), Tag = "fill-tool-" + key, IsChecked = key == Tool, Content = Glyph(data) };
             ToolTip.SetTip(button, Localize.Text(tip)); var chosen = key; button.Click += (_, _) => PickTool(chosen); _tools.Add(button); toolStrip.Children.Add(button);
         }
         KeyDown += (_, e) => { if (e.KeyModifiers == KeyModifiers.None && e.Source is not TextBox && e.Key switch { Key.B => "brush", Key.L => "lasso", Key.H => "hand", Key.Z => "zoom", _ => null } is { } key) { PickTool(key); e.Handled = true; } };
+        KeyDown += (_, e) => _view.Modifiers(e.KeyModifiers); KeyUp += (_, e) => _view.Modifiers(e.KeyModifiers);
 
         // Preview panel.
         _previewPercent.Width = 60; _previewPercent.Text = "100%";
@@ -133,9 +143,9 @@ internal sealed class ContentAwareFillWindow : DialogWindow
         var ok = FormDialog.ActionButton("OK", () => { if (Fill()) Close(true); }); ok.IsDefault = true;
         var applyButton = FormDialog.ActionButton("Apply", () => { if (Fill()) Rebase(); });
         var cancel = FormDialog.ActionButton("Cancel", () => Close(false)); cancel.IsCancel = true;
-        foreach (var button in new[] { ok, applyButton, cancel }) button.Width = 84;
+        foreach (var button in new[] { ok, applyButton, cancel }) button.Width = 80;
         var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(10), Children = { reset, ok, applyButton, cancel } };
-        var panel = new DockPanel { Width = 330, Children =
+        var panel = new DockPanel { Width = 380, Children =
         {
             new Border { Background = Skin.TabStripBrush, Padding = new Thickness(10, 6), Child = new TextBlock { Text = Localize.Text("Content-Aware Fill") }, [DockPanel.DockProperty] = Dock.Top },
             new Border { Child = footer, [DockPanel.DockProperty] = Dock.Bottom }, new Border { Child = _error, Margin = new Thickness(10, 0), [DockPanel.DockProperty] = Dock.Bottom },
@@ -149,7 +159,7 @@ internal sealed class ContentAwareFillWindow : DialogWindow
     }
 
     private static Control Glyph(string data) => new AvaloniaPath { Data = Geometry.Parse(data), Stroke = Skin.LabelBrush, StrokeThickness = 1.5, Stretch = Stretch.Uniform };
-    private static ToggleButton Segment(string text) => new() { Content = Localize.Text(text), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Height = 26, MinHeight = 0, Padding = new Thickness(4, 0), Tag = "sampling-" + text };
+    private static ToggleButton Segment(string text) => new() { Content = new TextBlock { Text = Localize.Text(text), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center }, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Height = 28, MinHeight = 0, Padding = new Thickness(0), Tag = "sampling-" + text };
     private static TextBlock Label(string text) => new() { Text = Localize.Text(text), VerticalAlignment = VerticalAlignment.Center, Foreground = Skin.SecondaryBrush };
     private static Button ResetButton(Action action)
     {
@@ -166,7 +176,93 @@ internal sealed class ContentAwareFillWindow : DialogWindow
         return new StackPanel { Children = { header, content } };
     }
     private static void Select(ComboBox box, string key) => box.SelectedItem = box.Items.OfType<ComboBoxItem>().FirstOrDefault(i => Equals(i.Tag, key));
-    private void PickTool(string key) { Tool = key; foreach (var button in _tools) button.IsChecked = Equals(button.Tag, "fill-tool-" + key); _view.UpdateCursor(); }
+    private static readonly (string Key, string Tip, string Data)[] ToolGlyphs =
+    [
+        ("brush", "Sampling Brush Tool (B)", "M3,21 C3,17 6,15 8,15 C10,15 11,17 10,19 C9,21 5,22 3,21 Z M10,15 L20,3 L22,5 L12,17"),
+        ("lasso", "Lasso Tool (L)", "M12,4 C18,4 21,7 21,10 C21,13 17,15 12,15 C7,15 3,13 3,10 C3,7 6,4 12,4 Z M7,14 C6,17 7,19 9,19 C10,19 10,21 8,22"),
+        ("hand", "Hand Tool (H)", "M7,12 V5 A1.5,1.5 0 0 1 10,5 V11 M10,10 V3.5 A1.5,1.5 0 0 1 13,3.5 V11 M13,10 V4.5 A1.5,1.5 0 0 1 16,4.5 V12 M16,11 V7 A1.5,1.5 0 0 1 19,7 V15 C19,19 16,22 12,22 C9,22 7,20 5,17 L3,13 A1.5,1.5 0 0 1 6,12 L7,14"),
+        ("zoom", "Zoom Tool (Z)", "M10,3 A7,7 0 1 1 9.99,3 Z M15,15 L21,21"),
+    ];
+    /// <summary>The options bar of each tool, as Photoshop's: the tool's own icon, then its settings, with rules between the groups.</summary>
+    private void BuildOptionBars()
+    {
+        StackPanel Bar(string tool, params Control[] items)
+        {
+            var bar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Tag = "options-" + tool };
+            var data = ToolGlyphs.First(t => t.Key == tool).Data;
+            bar.Children.Add(new Border { Width = 36, Height = 28, Padding = new Thickness(6, 4), Child = Glyph(data), Opacity = .7 });
+            foreach (var item in items) { item.VerticalAlignment = VerticalAlignment.Center; bar.Children.Add(item); }
+            return bar;
+        }
+        static Control Rule() => new Border { Width = 1, Height = 22, Background = Skin.BorderControlBrush, Margin = new Thickness(4, 0) };
+        static TextBlock Caption(string text) => new() { Text = Localize.Text(text), Foreground = Skin.SecondaryBrush };
+        static Control Unit(NumericUpDown box, string unit) => new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { box, new TextBlock { Text = Localize.Text(unit), VerticalAlignment = VerticalAlignment.Center } } };
+        Button Action(string text, Action act, string tag) { var button = new Button { Content = Localize.Text(text), Height = 28, MinHeight = 0, Padding = new Thickness(14, 0), VerticalContentAlignment = VerticalAlignment.Center, Tag = tag }; button.Click += (_, _) => act(); return button; }
+        void Exclusive(ToggleButton[] group) { foreach (var b in group) b.Click += (_, _) => { foreach (var other in group) other.IsChecked = other == b; }; }
+
+        // Sampling Brush: add or subtract, and the size with a slider under its arrow.
+        _addMode.Content = Glyph("M12,7 V17 M7,12 H17 M12,2 A10,10 0 1 1 11.99,2 Z"); _subtractMode.Content = Glyph("M7,12 H17 M12,2 A10,10 0 1 1 11.99,2 Z");
+        ToolTip.SetTip(_addMode, Localize.Text("Add to Area")); ToolTip.SetTip(_subtractMode, Localize.Text("Subtract from Area")); Exclusive([_addMode, _subtractMode]);
+        var sizeSlider = new Slider { Minimum = 1, Maximum = 500, Value = 120, Width = 280, Margin = new Thickness(12, 4) };
+        var sizePopup = new Popup { IsLightDismissEnabled = true, Placement = PlacementMode.Bottom, Child = new Border { Background = Skin.ChromeBrush, BorderBrush = Skin.BorderControlBrush, BorderThickness = new Thickness(1), Child = sizeSlider } };
+        var sizeArrow = new Button { Width = 22, Height = 26, MinHeight = 0, Padding = new Thickness(5, 8), Content = Glyph("M0,0 L4,4 L8,0"), Tag = "brush-size-menu" };
+        sizeArrow.Click += (_, _) => sizePopup.IsOpen = true; sizePopup.PlacementTarget = _brushSize;
+        sizeSlider.ValueChanged += (_, _) => { if ((double)(_brushSize.Value ?? 0) != Math.Round(sizeSlider.Value)) _brushSize.Value = (decimal)Math.Round(sizeSlider.Value); };
+        _brushSize.ValueChanged += (_, _) => { if (_brushSize.Value is { } v && v <= 500) sizeSlider.Value = (double)v; _view.InvalidateVisual(); };
+        var size = new StackPanel { Orientation = Orientation.Horizontal, Children = { _brushSize, sizeArrow, sizePopup } };
+        _optionBars["brush"] = Bar("brush", Rule(), _addMode, _subtractMode, Rule(), Caption("Size"), size);
+
+        // Lasso: New, Add, Subtract, Intersect; Feather and Anti-alias; Expand or Contract the fill area; Reset.
+        string[] lassoTips = ["New Selection", "Add to Selection", "Subtract from Selection", "Intersect with Selection"];
+        string[] lassoIcons = ["M5,5 H19 V19 H5 Z", "M3,3 H14 V14 H3 Z M10,10 H21 V21 H10 Z", "M3,3 H14 V14 H3 Z M10,10 H21 V21 H10 Z M10,10 H14 V14 H10 Z", "M3,3 H14 V14 H3 Z M10,10 H21 V21 H10 Z"];
+        for (var i = 0; i < 4; i++) { _lassoModes[i].Content = Glyph(lassoIcons[i]); ToolTip.SetTip(_lassoModes[i], Localize.Text(lassoTips[i])); }
+        Exclusive(_lassoModes);
+        var reset = new Button { Width = 30, Height = 28, MinHeight = 0, Padding = new Thickness(5), Content = Glyph("M4,12 A8,8 0 1 0 7,5.5 M4,4 V9 H9"), Tag = "lasso-reset" };
+        ToolTip.SetTip(reset, Localize.Text("Reset the fill area")); reset.Click += (_, _) => { FillArea = (byte[])_startingFill.Clone(); Edited(sampling: false); };
+        _optionBars["lasso"] = Bar("lasso", Rule(), _lassoModes[0], _lassoModes[1], _lassoModes[2], _lassoModes[3], Rule(), Caption("Feather"), Unit(_feather, "px"), _antiAlias, Rule(),
+            Action("Expand", () => Grow(true), "fill-expand"), Action("Contract", () => Grow(false), "fill-contract"), Caption("Amount"), Unit(_amount, "px"), Rule(), reset);
+
+        // Hand and Zoom: 100%, Fit Screen, Fill Screen; Zoom adds In or Out and Scrubby Zoom.
+        Control[] View() => [Action("100%", () => _view.ZoomTo(1), "view-actual"), Action("Fit Screen", () => _view.Fit(), "view-fit"), Action("Fill Screen", () => _view.FillScreen(), "view-fill")];
+        _optionBars["hand"] = Bar("hand", [Rule(), .. View()]);
+        _zoomIn.Content = Glyph("M10,3 A7,7 0 1 1 9.99,3 Z M15,15 L21,21 M7,10 H13 M10,7 V13"); _zoomOut.Content = Glyph("M10,3 A7,7 0 1 1 9.99,3 Z M15,15 L21,21 M7,10 H13");
+        ToolTip.SetTip(_zoomIn, Localize.Text("Zoom In")); ToolTip.SetTip(_zoomOut, Localize.Text("Zoom Out")); Exclusive([_zoomIn, _zoomOut]);
+        _optionBars["zoom"] = Bar("zoom", [Rule(), _zoomIn, _zoomOut, _scrubby, .. View()]);
+        _optionsHost.Content = _optionBars[Tool];
+    }
+    /// <summary>Expand or Contract: the fill area grows or shrinks by the amount, measured as a distance from its edge.</summary>
+    private void Grow(bool expand)
+    {
+        int width = _document.Width, height = _document.Height; var by = (double)(_amount.Value ?? 3);
+        var inside = new bool[FillArea.Length]; for (var i = 0; i < inside.Length; i++) inside[i] = FillArea[i] > 127 != !expand;
+        var distance = Distances(inside, width, height);
+        for (var i = 0; i < FillArea.Length; i++)
+            if (expand) { if (distance[i] <= by) FillArea[i] = 255; }
+            else if (distance[i] <= by) FillArea[i] = 0;
+        Edited(sampling: false);
+    }
+    /// <summary>A two-pass chamfer distance from the nearest marked pixel.</summary>
+    internal static float[] Distances(bool[] marked, int width, int height)
+    {
+        var d = new float[marked.Length]; const float straight = 1, diagonal = 1.4142f;
+        for (var i = 0; i < d.Length; i++) d[i] = marked[i] ? 0 : float.MaxValue / 4;
+        for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
+        {
+            var i = y * width + x; var v = d[i];
+            if (x > 0) v = Math.Min(v, d[i - 1] + straight);
+            if (y > 0) { v = Math.Min(v, d[i - width] + straight); if (x > 0) v = Math.Min(v, d[i - width - 1] + diagonal); if (x + 1 < width) v = Math.Min(v, d[i - width + 1] + diagonal); }
+            d[i] = v;
+        }
+        for (var y = height - 1; y >= 0; y--) for (var x = width - 1; x >= 0; x--)
+        {
+            var i = y * width + x; var v = d[i];
+            if (x + 1 < width) v = Math.Min(v, d[i + 1] + straight);
+            if (y + 1 < height) { v = Math.Min(v, d[i + width] + straight); if (x + 1 < width) v = Math.Min(v, d[i + width + 1] + diagonal); if (x > 0) v = Math.Min(v, d[i + width - 1] + diagonal); }
+            d[i] = v;
+        }
+        return d;
+    }
+    private void PickTool(string key) { Tool = key; foreach (var button in _tools) button.IsChecked = Equals(button.Tag, "fill-tool-" + key); _optionsHost.Content = _optionBars[key]; _view.UpdateCursor(); }
     private void PickSampling(ToggleButton chosen)
     {
         foreach (var segment in new[] { _auto, _rectangular, _custom }) segment.IsChecked = segment == chosen;
@@ -273,22 +369,34 @@ internal sealed class ContentAwareFillWindow : DialogWindow
     /// <summary>After Apply the document has changed under the workspace: it is drawn again and the preview starts over.</summary>
     private void Rebase() { var old = _composite; _composite = _render(); old.Dispose(); var alone = _alone; _alone = LayerAlone(_document, _layer); alone.Dispose(); _view.Rebase(); Changed(); }
     internal void ApplyForCheck() => Fill();
+    internal void PickToolForCheck(string key) => PickTool(key);
+    internal void HoverForCheck() => _view.HoverForCheck(new Point(_view.Bounds.Width / 2, _view.Bounds.Height / 2));
+    internal Control OptionsBar => (Control)_optionsHost.Content!;
+    internal void LassoForCheck(IReadOnlyList<SKPoint> points, string mode) { _view.Lasso(points, mode); Edited(sampling: false); }
+    internal void GrowForCheck(bool expand) => Grow(expand);
     internal string ErrorText => _error.Text + " / " + _previewNote.Text;
 
     /// <summary>The document as the workspace shows it, with the sampling overlay and the fill area's outline, and the tools on it.</summary>
     private sealed class FillView(ContentAwareFillWindow owner) : Control
     {
         private Bitmap? _picture, _overlay; private double _scale = 1, _zoom = 1; private Point _origin; private Geometry? _outline;
-        private Point? _panFrom; private readonly List<SKPoint> _lasso = []; private bool _painting, _erasing;
+        private Point? _panFrom, _hover, _zoomFrom; private double _zoomStart; private readonly List<SKPoint> _lasso = []; private bool _painting, _erasing, _alt;
         private double DisplayScale => Math.Min(1, 2048d / Math.Max(owner._document.Width, owner._document.Height));
+        internal double Zoom => _zoom;
         internal void Rebase() { _picture?.Dispose(); _picture = null; Refresh(); }
         internal void Fit()
         {
             if (Bounds.Width <= 0) return;
-            _zoom = Math.Min(Bounds.Width / owner._document.Width, Bounds.Height / owner._document.Height) * .92;
-            _origin = new Point((Bounds.Width - owner._document.Width * _zoom) / 2, (Bounds.Height - owner._document.Height * _zoom) / 2); Refresh();
+            _zoom = Math.Min(Bounds.Width / owner._document.Width, Bounds.Height / owner._document.Height) * .92; Center(); Refresh();
         }
-        internal void UpdateCursor() => Cursor = new Cursor(owner.Tool switch { "hand" => StandardCursorType.Hand, "zoom" => StandardCursorType.Cross, _ => StandardCursorType.Cross });
+        /// <summary>Fill Screen: the picture covers the whole view, its longer side running off it.</summary>
+        internal void FillScreen() { if (Bounds.Width <= 0) return; _zoom = Math.Max(Bounds.Width / owner._document.Width, Bounds.Height / owner._document.Height); Center(); InvalidateVisual(); }
+        internal void ZoomTo(double zoom) { _zoom = zoom; Center(); InvalidateVisual(); }
+        private void Center() => _origin = new Point((Bounds.Width - owner._document.Width * _zoom) / 2, (Bounds.Height - owner._document.Height * _zoom) / 2);
+        /// <summary>The Sampling Brush hides the arrow and draws its own cursor, a circle the size of the dab with + or − in it.</summary>
+        internal void UpdateCursor() { Cursor = new Cursor(owner.Tool switch { "hand" => StandardCursorType.Hand, "brush" => StandardCursorType.None, _ => StandardCursorType.Cross }); InvalidateVisual(); }
+        internal void Modifiers(KeyModifiers modifiers) { var alt = modifiers.HasFlag(KeyModifiers.Alt); if (alt != _alt) { _alt = alt; InvalidateVisual(); } }
+        internal void HoverForCheck(Point at) { _hover = at; InvalidateVisual(); }
         /// <summary>Redraws the overlay and the outline at the display size, which is at most 2048 pixels across.</summary>
         internal void Refresh()
         {
@@ -330,7 +438,19 @@ internal sealed class ContentAwareFillWindow : DialogWindow
             if (_lasso.Count > 1)
             {
                 var geometry = new StreamGeometry(); using (var g = geometry.Open()) { g.BeginFigure(View(_lasso[0]), false); foreach (var p in _lasso.Skip(1)) g.LineTo(View(p)); g.EndFigure(false); }
-                context.DrawGeometry(null, new Pen(Brushes.White, 1, new DashStyle([3, 3], 0)), geometry);
+                context.DrawGeometry(null, new Pen(Brushes.Black, 1), geometry); context.DrawGeometry(null, new Pen(Brushes.White, 1, new DashStyle([3, 3], 0)), geometry);
+            }
+            if (owner.Tool == "brush" && _hover is { } at)
+            {
+                // The dab's own circle, drawn twice so it shows on light and dark pixels, with + or − in the middle.
+                var radius = Math.Max(3, owner.BrushSize / 2d * _zoom); var subtract = owner.Subtracting ^ _alt;
+                context.DrawEllipse(null, new Pen(Brushes.Black, 2.2), at, radius, radius); context.DrawEllipse(null, new Pen(Brushes.White, 1), at, radius, radius);
+                var arm = Math.Clamp(radius * .35, 3, 7);
+                foreach (var (brush, thick) in new[] { ((IBrush)Brushes.Black, 3.2), (Brushes.White, 1.4) })
+                {
+                    var pen = new Pen(brush, thick); context.DrawLine(pen, new Point(at.X - arm, at.Y), new Point(at.X + arm, at.Y));
+                    if (!subtract) context.DrawLine(pen, new Point(at.X, at.Y - arm), new Point(at.X, at.Y + arm));
+                }
             }
         }
         private Point View(SKPoint p) => new(_origin.X + p.X * _zoom, _origin.Y + p.Y * _zoom);
@@ -343,26 +463,46 @@ internal sealed class ContentAwareFillWindow : DialogWindow
         }
         protected override void OnPointerPressed(PointerPressedEventArgs e)
         {
-            var point = e.GetCurrentPoint(this); var at = point.Position; e.Pointer.Capture(this); e.Handled = true;
+            var point = e.GetCurrentPoint(this); var at = point.Position; e.Pointer.Capture(this); e.Handled = true; Modifiers(e.KeyModifiers);
             if (point.Properties.IsMiddleButtonPressed || owner.Tool == "hand") { _panFrom = at; return; }
-            if (owner.Tool == "zoom") { ZoomAt(at, e.KeyModifiers.HasFlag(KeyModifiers.Alt) ? 1 / 1.5 : 1.5); return; }
-            _erasing = owner.Subtracting ^ e.KeyModifiers.HasFlag(KeyModifiers.Alt);
-            if (owner.Tool == "brush") { _painting = true; Paint(Document(at)); Refresh(); }
+            if (owner.Tool == "zoom")
+            {
+                var outward = owner.ZoomingOut ^ e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+                // A click steps the zoom once; with Scrubby Zoom, dragging left or right keeps zooming from there.
+                ZoomAt(at, outward ? 1 / 1.5 : 1.5);
+                if (owner.Scrubby) { _zoomFrom = at; _zoomStart = _zoom; }
+                return;
+            }
+            if (owner.Tool == "brush") { _erasing = owner.Subtracting ^ e.KeyModifiers.HasFlag(KeyModifiers.Alt); _painting = true; Paint(Document(at)); Refresh(); }
             else if (owner.Tool == "lasso") { _lasso.Clear(); _lasso.Add(Document(at)); }
         }
         protected override void OnPointerMoved(PointerEventArgs e)
         {
-            var at = e.GetPosition(this);
+            var at = e.GetPosition(this); _hover = at; Modifiers(e.KeyModifiers);
             if (_panFrom is { } from) { _origin += at - from; _panFrom = at; InvalidateVisual(); return; }
+            if (_zoomFrom is { } start)
+            {
+                var before = Document(start); _zoom = Math.Clamp(_zoomStart * Math.Pow(1.01, at.X - start.X), .02, 32);
+                _origin = new Point(start.X - before.X * _zoom, start.Y - before.Y * _zoom); InvalidateVisual(); return;
+            }
             if (_painting) { Paint(Document(at)); Refresh(); }
             else if (_lasso.Count > 0) { _lasso.Add(Document(at)); InvalidateVisual(); }
+            else if (owner.Tool == "brush") InvalidateVisual();
         }
+        protected override void OnPointerExited(PointerEventArgs e) { _hover = null; InvalidateVisual(); }
         protected override void OnPointerReleased(PointerReleasedEventArgs e)
         {
             e.Pointer.Capture(null);
             if (_panFrom is not null) { _panFrom = null; return; }
+            if (_zoomFrom is not null) { _zoomFrom = null; return; }
             if (_painting) { _painting = false; owner.Edited(sampling: true); return; }
-            if (_lasso.Count > 2) { Lasso(_lasso, _erasing); _lasso.Clear(); owner.Edited(sampling: false); }
+            if (_lasso.Count > 2)
+            {
+                // Alt takes away, Shift adds and both intersect, whatever the options bar says, as Photoshop's lasso does.
+                var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt); var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                var mode = alt && shift ? "intersect" : alt ? "subtract" : shift ? "add" : owner.LassoMode;
+                Lasso(_lasso, mode); _lasso.Clear(); owner.Edited(sampling: false);
+            }
             else _lasso.Clear();
         }
         /// <summary>The Sampling Brush: a round dab added to (or, with Alt or Subtract, taken from) the sampling area.</summary>
@@ -373,13 +513,19 @@ internal sealed class ContentAwareFillWindow : DialogWindow
                 for (var x = (int)Math.Max(0, at.X - radius); x < Math.Min(width, at.X + radius); x++)
                     if ((x + .5 - at.X) * (x + .5 - at.X) + (y + .5 - at.Y) * (y + .5 - at.Y) <= radius * radius) owner.SamplingArea[y * width + x] = (byte)(_erasing ? 0 : 255);
         }
-        /// <summary>The Lasso: the outline drawn is added to (or taken from) the area to fill.</summary>
-        private void Lasso(IReadOnlyList<SKPoint> points, bool erase)
+        /// <summary>The Lasso: the outline drawn, feathered and anti-aliased as the options bar says, replaces, adds to, takes from or intersects the area to fill.</summary>
+        internal void Lasso(IReadOnlyList<SKPoint> points, string mode)
         {
             using var shape = new SKBitmap(new SKImageInfo(owner._document.Width, owner._document.Height, SKColorType.Alpha8, SKAlphaType.Premul));
-            using (var canvas = new SKCanvas(shape)) using (var path = SelectionEdits.Lasso(points)) using (var paint = new SKPaint { IsAntialias = true, Color = SKColors.White }) { canvas.Clear(SKColors.Transparent); canvas.DrawPath(path, paint); }
-            var span = shape.GetPixelSpan();
-            for (var i = 0; i < owner.FillArea.Length; i++) owner.FillArea[i] = erase ? (byte)(owner.FillArea[i] * (255 - span[i]) / 255) : Math.Max(owner.FillArea[i], span[i]);
+            using (var canvas = new SKCanvas(shape)) using (var path = SelectionEdits.Lasso(points))
+            using (var paint = new SKPaint { IsAntialias = owner.AntiAlias, Color = SKColors.White, MaskFilter = owner.Feather > 0 ? SKMaskFilter.CreateBlur(SKBlurStyle.Normal, (float)(owner.Feather / 2)) : null })
+            { canvas.Clear(SKColors.Transparent); canvas.DrawPath(path, paint); }
+            var span = shape.GetPixelSpan(); var fill = owner.FillArea;
+            for (var i = 0; i < fill.Length; i++)
+                fill[i] = mode switch
+                {
+                    "new" => span[i], "add" => Math.Max(fill[i], span[i]), "subtract" => (byte)(fill[i] * (255 - span[i]) / 255), _ => Math.Min(fill[i], span[i]),
+                };
         }
     }
 }

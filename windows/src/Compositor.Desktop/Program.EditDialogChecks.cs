@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media.Imaging;
@@ -110,7 +111,15 @@ public sealed partial class MainWindow
         var workspaceRun = ContentAwareFillWorkspace(); Pump(); var workspace = OwnedWindows.OfType<ContentAwareFillWindow>().Single();
         for (var i = 0; i < 3000 && !workspace.PreviewReady; i++) { Pump(); Thread.Sleep(10); }
         Check(workspace.PreviewReady, "The Content-Aware Fill workspace did not preview the fill: " + workspace.ErrorText);
-        Capture(workspace, "content-aware-fill"); var layersBefore = _document!.Layers.Count; workspace.ApplyForCheck(); Pump();
+        workspace.HoverForCheck(); Capture(workspace, "content-aware-fill");
+        // Each tool brings its own options bar; the lasso takes from the fill area and Expand grows it.
+        foreach (var tool in new[] { "lasso", "hand", "zoom", "brush" }) { workspace.PickToolForCheck(tool); Pump(); Check(Equals(workspace.OptionsBar.Tag, "options-" + tool), "The options bar did not follow the " + tool + " tool."); Capture(workspace, "content-aware-fill-" + tool); }
+        var filledBefore = workspace.FillArea.Count(b => b > 127);
+        workspace.LassoForCheck([new(90, 60), new(115, 60), new(115, 100), new(90, 100)], "subtract"); var afterLasso = workspace.FillArea.Count(b => b > 127);
+        workspace.GrowForCheck(true); var afterGrow = workspace.FillArea.Count(b => b > 127);
+        Check(afterLasso < filledBefore && afterGrow > afterLasso, $"Lasso subtract or Expand did not change the fill area ({filledBefore}, {afterLasso}, {afterGrow}).");
+        workspace.LassoForCheck([new(90, 60), new(140, 60), new(140, 100), new(90, 100)], "new"); Pump();
+        for (var i = 0; i < 3000 && !workspace.PreviewReady; i++) { Pump(); Thread.Sleep(10); } var layersBefore = _document!.Layers.Count; workspace.ApplyForCheck(); Pump();
         var fillLayer = _document!.Layers.FirstOrDefault(l => l.Name.StartsWith(Localize.Text("Content-Aware Fill"), StringComparison.Ordinal));
         Check(_document.Layers.Count == layersBefore + 1 && fillLayer?.Asset?.Image.GetPixel(115, 80).Alpha == 255 && fillLayer.Asset.Image.GetPixel(5, 5).Alpha == 0, $"Apply did not add the fill on a new layer: {workspace.ErrorText} ({_document.Layers.Count} layers, {layersBefore} before).");
         workspace.Close(false); for (var i = 0; i < 300 && !workspaceRun.IsCompleted; i++) { Pump(); Thread.Sleep(5); }
@@ -128,6 +137,21 @@ public sealed partial class MainWindow
         var skyGroup = _document!.Layers.FirstOrDefault(l => l.Name == Localize.Text("Sky Replacement Group"));
         Check(skyGroup is not null && _document.Layers.Count(l => l.ParentID == skyGroup.ID) == 3, "Sky Replacement did not add its layer group.");
         shown.Add("sky-replacement");
+        // The Move tool pressed inside a selection carries the selected pixels within the same layer.
+        var moveSource = new SKBitmap(Bitmaps.ColorInfo(120, 80)); moveSource.Erase(SKColors.White);
+        using (var paintCanvas = new SKCanvas(moveSource)) using (var red = new SKPaint { Color = SKColors.Red }) paintCanvas.DrawRect(10, 10, 20, 20, red);
+        var moveDoc = new CanvasDocument(Guid.NewGuid(), 120, 80); moveDoc.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(moveSource, "Move"), new LayerTransform(0, 0, 120, 80), "Move"));
+        AdoptImported(moveDoc, "Move"); Reselect(moveDoc.Layers[0].ID); SelectionEdits.Select(_document!, SKRectI.Create(10, 10, 20, 20)); SetTool(Tool.Move); Pump();
+        Avalonia.Point OnScreen(SKPoint p) => ((Avalonia.Visual)_canvas).TranslatePoint(_canvas.ToScreen(p), this)!.Value;
+        this.MouseDown(OnScreen(new(20, 20)), Avalonia.Input.MouseButton.Left); this.MouseMove(OnScreen(new(60, 20)), Avalonia.Input.RawInputModifiers.LeftMouseButton); this.MouseUp(OnScreen(new(60, 20)), Avalonia.Input.MouseButton.Left); Pump();
+        using (var after = Compositor.Core.Rendering.DocumentRenderer.Render(_document!))
+            Check(_document!.Layers.Count == 1 && after.GetPixel(55, 20).Red > 200 && after.GetPixel(55, 20).Green < 60 && after.GetPixel(15, 20) is not { Red: > 200, Green: < 60, Alpha: 255 }, "The Move tool did not carry the selected pixels within the layer.");
+        // Perspective Crop placed by four clicks, then Enter, crops to the frame the clicks made.
+        SelectionEdits.Deselect(_document!); SetTool(Tool.PerspectiveCrop); Pump();
+        foreach (var corner in new SKPoint[] { new(20, 10), new(100, 14), new(96, 70), new(18, 66) }) { this.MouseDown(OnScreen(corner), Avalonia.Input.MouseButton.Left); this.MouseUp(OnScreen(corner), Avalonia.Input.MouseButton.Left); Pump(); }
+        Check(_perspectiveQuad is { Length: 4 } placed && SKPoint.Distance(placed[2], new SKPoint(96, 70)) < 1.5f && _perspectiveClicks.Count == 0, "Perspective Crop did not take four clicked corners.");
+        Capture(this, "perspective-clicks"); FinishProfessionalDraft(); Pump();
+        Check(_document!.Width is > 60 and < 100 && _document.Height is > 40 and < 70, $"Perspective Crop from clicked corners did not crop ({_document.Width}x{_document.Height}).");
         Check(shown.Count == 27, "Not every Edit dialog was shown.");
     }
     private void TypeText(string text) => Avalonia.Headless.HeadlessWindowExtensions.KeyTextInput(this, text);

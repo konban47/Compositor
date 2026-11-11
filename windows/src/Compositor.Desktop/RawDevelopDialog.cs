@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Compositor.Core.Document;
 using Compositor.Core.Model;
+using Compositor.Core.Pixels;
 using SkiaSharp;
 
 namespace Compositor.Desktop;
@@ -86,6 +87,28 @@ internal sealed class RawDevelopDialog : DialogWindow
         document.Layers[0].Asset = RawDevelop.Apply(_document.Layers[0].Asset!, Settings);
         _preview.Document = document;
         _preview.InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Camera Raw Preferences' Workflow: the developed picture at the size, depth and output sharpening it asks for. Sharpening
+    /// works on 8 bits/channel pixels, so a 16-bit result keeps its depth unsharpened.
+    /// </summary>
+    internal static ImportedImage Finish(ImportedImage image, CameraRawWorkflow workflow)
+    {
+        var (width, height) = workflow.Fit(image.Width, image.Height);
+        var resized = width != image.Width || height != image.Height;
+        var eight = workflow.Depth == 0 || image.Deep is null;
+        if (!resized && !(eight && (image.Deep is not null || workflow.Sharpen))) return image;
+        ImportedImage result;
+        if (!eight) result = ImportedImage.CreateDeep(Bitmaps.Scale(image.Deep!, width, height), image.Name, image.BitDepth);
+        else
+        {
+            var pixels = Bitmaps.Scale(image.Image, width, height);
+            if (workflow.Sharpen) SharpenPixels.Apply(pixels, workflow.SharpenAmount switch { 0 => 30, 2 => 90, _ => 60 }, workflow.SharpenFor switch { 1 => 1.0, 2 => 1.4, _ => .6 });
+            result = ImportedImage.Create(pixels, image.Name);
+        }
+        result.Metadata = image.Metadata; result.ColorProfile = image.ColorProfile;
+        image.Dispose(); return result;
     }
 
     internal static async Task<Result?> Develop(Window owner, ImportedImage image)

@@ -17,6 +17,8 @@ public sealed partial class MainWindow
 {
     private readonly List<SKPoint> _proPoints = [];
     private SKPoint[]? _perspectiveQuad;
+    /// <summary>Corners placed one click at a time, as Photoshop's Perspective Crop allows, until the fourth closes the frame.</summary>
+    private readonly List<SKPoint> _perspectiveClicks = [];
     private SKBitmap? _magneticSample;
     private SKPoint _proStart, _proEnd;
     private int _proGrab = -1;
@@ -43,6 +45,14 @@ public sealed partial class MainWindow
             if (_tool is Tool.Object or Tool.SelectionBrush or Tool.QuickSelection) { _proPoints.Clear(); _proPoints.Add(at); _proMode = ProMode(keys); return true; }
             if (_tool == Tool.PerspectiveCrop)
             {
+                // Placing corners by clicking: each click adds one, and the fourth makes the frame.
+                if (_perspectiveClicks.Count > 0)
+                {
+                    _proGrab = -2; _perspectiveClicks.Add(at);
+                    if (_perspectiveClicks.Count == 4) { _perspectiveQuad = [.. _perspectiveClicks]; _perspectiveClicks.Clear(); Say("Drag the four corners, then press Enter to crop. Zero dimensions use automatic size."); }
+                    else Say(string.Format(Localize.Text("Click to place corner {0} of 4."), _perspectiveClicks.Count + 1));
+                    _canvas.InvalidateVisual(); return true;
+                }
                 if (_perspectiveQuad is { } quad)
                 { var closest = quad.Select((p, i) => (i, distance: SKPoint.Distance(p, at))).MinBy(p => p.distance); if (closest.distance < 14 / _canvas.Zoom) _proGrab = closest.i; }
                 if (_proGrab < 0) _perspectiveQuad = [at, at, at, at]; return true;
@@ -110,7 +120,7 @@ public sealed partial class MainWindow
         if (_tool == Tool.PerspectiveCrop && _perspectiveQuad is { } quad)
         {
             if (_proGrab >= 0) quad[_proGrab] = at;
-            else { var box = ProBox(); _perspectiveQuad = [new(box.Left, box.Top), new(box.Right, box.Top), new(box.Right, box.Bottom), new(box.Left, box.Bottom)]; }
+            else if (_proGrab == -1) { var box = ProBox(); _perspectiveQuad = [new(box.Left, box.Top), new(box.Right, box.Top), new(box.Right, box.Bottom), new(box.Left, box.Bottom)]; }
         }
         if (_markBefore is { } mark && _document is { } doc && _markHistory)
         {
@@ -143,7 +153,12 @@ public sealed partial class MainWindow
                 : SelectionBrushEdits.Quick(doc, Pro.SampleAll ? null : Selected, _proPoints, _options.Brush.Diameter, _options.Wand.Tolerance, _proMode, _options.Selection.BrushAngle, _options.Selection.EnhanceEdge, _options.Brush.Hardness));
             _proPoints.Clear();
         }
-        else if (_tool == Tool.PerspectiveCrop) Say("Drag the four corners, then press Enter to crop. Zero dimensions use automatic size.");
+        else if (_tool == Tool.PerspectiveCrop)
+        {
+            // A click that did not drag starts placing corners one at a time; the click is the first of them.
+            if (_proGrab == -1 && SKPoint.Distance(_proStart, _proEnd) < 3 / _canvas.Zoom) { _perspectiveQuad = null; _perspectiveClicks.Clear(); _perspectiveClicks.Add(_proStart); Say(string.Format(Localize.Text("Click to place corner {0} of 4."), 2)); _canvas.InvalidateVisual(); }
+            else if (_perspectiveClicks.Count == 0) Say("Drag the four corners, then press Enter to crop. Zero dimensions use automatic size.");
+        }
         else if (_tool == Tool.Frame && ProBox() is { Width: > 1, Height: > 1 } frame)
         {
             Guid? made = null; Edit("Frame Tool", () => { made = LayerWorkflow.MakeContainer(doc, SelectedLayers, LayerContainer.Frame, Localize.Text("Frame"), frame, Pro.EllipseFrame); return made is { } id && FrameEdits.Apply(doc.Layers.Single(l => l.ID == id), CurrentFrameStyle()); }); Reselect(made);
@@ -200,14 +215,14 @@ public sealed partial class MainWindow
     }
     private bool CancelProfessionalDraft()
     {
-        var had = _proPoints.Count > 0 || _perspectiveQuad is not null || _proGesture;
+        var had = _proPoints.Count > 0 || _perspectiveQuad is not null || _perspectiveClicks.Count > 0 || _proGesture;
         if (_markHistory && _document is { } doc)
         {
             if (_sliceMoveOriginals is { } originals) foreach (var original in originals) { var i = doc.Marks.FindIndex(m => m.ID == original.ID); if (i >= 0) doc.Marks[i] = original; }
             if (_markBefore is { } before) { var index = doc.Marks.FindIndex(m => m.ID == before.ID); if (index >= 0) doc.Marks[index] = before; }
             _history.End(doc, Selected); _markHistory = false;
         }
-        _proPoints.Clear(); _perspectiveQuad = null; _magneticSample?.Dispose(); _magneticSample = null; _proGesture = false; _markBefore = null; _sliceMoveOriginals = null; _canvas.InvalidateVisual(); return had;
+        _proPoints.Clear(); _perspectiveQuad = null; _perspectiveClicks.Clear(); _magneticSample?.Dispose(); _magneticSample = null; _proGesture = false; _markBefore = null; _sliceMoveOriginals = null; _canvas.InvalidateVisual(); return had;
     }
     private bool ProfessionalKey(KeyEventArgs e)
     {
@@ -330,7 +345,7 @@ public sealed partial class MainWindow
                 if (!AnnotationVisible(mark)) continue;
                 var group = mark.Kind == MarkKind.Count ? doc.CountGroups.FirstOrDefault(g => g.Name == mark.Group) : null;
                 var at = screen(new SKPoint((float)mark.X, (float)mark.Y)); var end = screen(new SKPoint((float)(mark.X + mark.Width), (float)(mark.Y + mark.Height)));
-                var brush = new SolidColorBrush(Color.FromUInt32(group?.Color ?? mark.Color)); var stroke = new Pen(brush, mark.ID == _selectedMark || _selectedSlices.Contains(mark.ID) ? 2 : 1);
+                var brush = mark.Kind == MarkKind.Slice ? new SolidColorBrush(Color.Parse(EditorPreferences.Current.SliceColor)) : new SolidColorBrush(Color.FromUInt32(group?.Color ?? mark.Color)); var stroke = new Pen(brush, mark.ID == _selectedMark || _selectedSlices.Contains(mark.ID) ? 2 : 1);
                 if (mark.Kind == MarkKind.Slice)
                 {
                     var points = new[] { at, screen(new SKPoint((float)(mark.X + mark.Width), (float)mark.Y)), end, screen(new SKPoint((float)mark.X, (float)(mark.Y + mark.Height))) };
@@ -356,6 +371,10 @@ public sealed partial class MainWindow
                 using var path = new SKPath(selected); var matrix = new SKMatrix((float)_canvas.Zoom, 0, (float)screen(default).X, 0, (float)_canvas.Zoom, (float)screen(default).Y, 0, 0, 1); path.Transform(matrix);
                 context.DrawGeometry(new SolidColorBrush(Color.FromUInt32((_options.Selection.OverlayColor & 0xffffff) | 0x50000000)), null, StreamGeometry.Parse(path.ToSvgPathData()));
             }
+        }
+        if (_perspectiveClicks.Count > 0)
+        {
+            for (var i = 0; i < _perspectiveClicks.Count; i++) { if (i > 0) context.DrawLine(pen, screen(_perspectiveClicks[i - 1]), screen(_perspectiveClicks[i])); context.DrawEllipse(Skin.ChromeBrush, pen, screen(_perspectiveClicks[i]), 5, 5); }
         }
         if (_perspectiveQuad is { } quad)
         {

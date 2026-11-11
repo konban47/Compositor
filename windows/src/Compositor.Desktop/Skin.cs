@@ -105,6 +105,8 @@ internal static class Skin
     public static readonly IBrush RulerFaceBrush = new SolidColorBrush(RulerFace);
     public static readonly IBrush ChromeBrush = new SolidColorBrush(Chrome);
     public static IBrush PasteboardBrush => new SolidColorBrush(EditorPreferences.Current.PasteboardPreset == "Default" ? Tone(0x28, 0x45, 0xA0, 0xC0) : Color.Parse(EditorPreferences.Current.Pasteboard));
+    /// <summary>The pasteboard one of Interface preferences' named shades paints, "Default" being the theme's own.</summary>
+    public static IBrush Shade(string preset, string custom) => new SolidColorBrush(preset == "Default" ? Tone(0x28, 0x45, 0xA0, 0xC0) : Color.Parse(EditorPreferences.ShadeColor(preset, custom)));
     public static readonly IBrush SurfaceDarkBrush = new SolidColorBrush(SurfaceDark);
     public static readonly IBrush SurfaceControlBrush = new SolidColorBrush(SurfaceControl);
     public static readonly IBrush SurfaceControlHoverBrush = new SolidColorBrush(SurfaceControlHover);
@@ -141,8 +143,10 @@ internal static class Skin
     public static readonly IPen PictureEdgePen = new Pen(new SolidColorBrush(PictureEdge), 1);
     public static IPen GuidePen => new Pen(new SolidColorBrush(Color.Parse(EditorPreferences.Current.GuideColor)), 1);
     public static readonly IPen SnapPen = new Pen(new SolidColorBrush(Accent), 1);
-    public static IPen GridPen => new Pen(new SolidColorBrush(Color.Parse(EditorPreferences.Current.GridColor), .45), 1);
-    public static IPen GridFinePen => new Pen(new SolidColorBrush(Color.Parse(EditorPreferences.Current.GridColor), .28), 1);
+    public static IPen GridPen => new Pen(new SolidColorBrush(Color.Parse(EditorPreferences.Current.GridColor), .45), 1) { DashStyle = GridDash };
+    public static IPen GridFinePen => new Pen(new SolidColorBrush(Color.Parse(EditorPreferences.Current.GridColor), .28), 1) { DashStyle = GridDash };
+    /// <summary>Guides, Grid and Slices: the grid as lines, dashed lines or dots.</summary>
+    private static IDashStyle? GridDash => EditorPreferences.Current.GridStyle switch { 1 => DashStyle.Dash, 2 => DashStyle.Dot, _ => null };
     public static readonly IPen PixelGridPen = new Pen(new SolidColorBrush(PixelGrid), 1);
     public static readonly IBrush CropDimBrush = new SolidColorBrush(CropDim);
 

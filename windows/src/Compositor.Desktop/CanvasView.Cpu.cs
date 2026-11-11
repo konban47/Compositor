@@ -60,7 +60,7 @@ public sealed partial class CanvasView
             {
                 if (proof || gamut)
                 {
-                    using var converted = Compositor.Core.IO.CmykColor.Proof(tile, snapshot.Document.Image.CmykProfile ?? Compositor.Core.IO.CmykColor.DefaultProfile, proof, gamut);
+                    using var converted = Compositor.Core.IO.CmykColor.Proof(tile, snapshot.Document.Image.CmykProfile ?? Compositor.Core.IO.CmykColor.DefaultProfile, proof, gamut, SKColor.Parse(EditorPreferences.Current.GamutColor), EditorPreferences.Current.GamutOpacity / 100);
                     converted.GetPixelSpan().CopyTo(tile.GetPixelSpan());
                 }
                 ChannelEdits.View(tile, channels, alpha is null);

@@ -144,6 +144,12 @@ public partial class MainWindow
         }
         finally { foreach (var image in images) image.Dispose(); }
     }
+    /// <summary>The name Save a Copy suggests: the project's own, with " copy" unless File Handling says not to append it.</summary>
+    private string CopyName()
+    {
+        var name = _open.Path is { } source ? Path.GetFileNameWithoutExtension(Path.TrimEndingDirectorySeparator(source)) : "Untitled";
+        return (EditorPreferences.Current.NoCopySuffix ? name : name + " " + Localize.Text("copy")) + ".comp";
+    }
     private async Task SaveCopy()
     {
         FinishPlacement(true); FinishPen(); CommitText();
@@ -151,7 +157,8 @@ public partial class MainWindow
         using var lease = new DocumentLease(_document);
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = Localize.Text("Save a Copy…"), SuggestedFileName = "Copy.comp", DefaultExtension = "comp", ShowOverwritePrompt = true,
+            Title = Localize.Text("Save a Copy…"), SuggestedFileName = CopyName(), DefaultExtension = "comp", ShowOverwritePrompt = true,
+            SuggestedStartLocation = EditorPreferences.Current.SaveToOriginalFolder && _open.Path is { } source && Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(source)) is { } folder ? await StorageProvider.TryGetFolderFromPathAsync(folder) : null,
             FileTypeChoices = [new FilePickerFileType(Localize.Text("Compositor Project")) { Patterns = ["*.comp"] }, new FilePickerFileType("Photoshop") { Patterns = ["*.psd"] }],
         });
         if (file?.TryGetLocalPath() is not { } path) return;
