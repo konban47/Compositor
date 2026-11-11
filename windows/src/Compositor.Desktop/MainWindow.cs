@@ -2289,41 +2289,34 @@ public sealed partial class MainWindow : Window
         DragIn(curvePanel, curve,
             new Point(curve.Bounds.Width / 2, curve.Bounds.Height / 2),
             new Point(curve.Bounds.Width / 2, curve.Bounds.Height / 4));
-        ScrollToEnd(curvePanel);
-        PressIn(curvePanel, "Apply");
+        PressIn(curvePanel, "OK");
         Dispatcher.UIThread.RunJobs();
         if (!adjusting.IsCompletedSuccessfully) throw new InvalidOperationException("the Curves verb never finished");
         var inkedAfterCurve = InkOf(document.Layers.First(one => one.ID == target.ID).Asset!.Image);
-        report.Add($"the curve editor dragged and its Apply pressed: the layer's ink "
+        report.Add($"the curve editor dragged and its OK pressed: the layer's ink "
             + $"{inkedForCurve} → {inkedAfterCurve}, one \"{_history.UndoName}\" step");
         if (inkedAfterCurve == inkedForCurve) throw new InvalidOperationException("the curve changed nothing");
         if (_history.UndoName != "Curves") throw new InvalidOperationException($"the curve made a \"{_history.UndoName}\" step");
 
-        // The Gradient Map's two ends are swatches over the bar they make, and each opens the picker: the same
-        // path as the panels', inside a different dialog, so it is driven the same way.
+        // The Gradient Map, as Photoshop's: its Reverse box clicked turns the black-to-white map over, and OK applies it.
         Reselect(target.ID);
         var inkedForMap = InkOf(document.Layers.First(one => one.ID == target.ID).Asset!.Image);
         var mapping = ImageAdjustment(AdjustmentKind.GradientMap);
         var mapPanel = OwnedWindows.OfType<AdjustmentDialog>().FirstOrDefault()
             ?? throw new InvalidOperationException("the Image menu's Gradient Map opened no panel");
         mapPanel.UpdateLayout();
-        if (mapPanel.GetVisualDescendants().OfType<ColorSwatch>().FirstOrDefault() is not { } shadows)
+        if (mapPanel.GetVisualDescendants().OfType<CheckBox>().FirstOrDefault(box => Equals(box.Tag, "Reverse")) is not { } reverse)
         {
-            throw new InvalidOperationException("the Gradient Map panel has no swatches");
+            throw new InvalidOperationException("the Gradient Map panel has no Reverse box");
         }
-        ClickIn(mapPanel, shadows, 0.5);
-        var mapPicker = mapPanel.OwnedWindows.OfType<ColorPickerDialog>().FirstOrDefault()
-            ?? throw new InvalidOperationException("the Gradient Map panel's swatch opened no picker");
-        mapPicker.UpdateLayout();
-        Press(mapPicker, At(mapPicker, mapPicker.Field, 0.9, 0.15));
-        Press(mapPicker, At(mapPicker, mapPicker.Ok, 0.5));
+        ClickIn(mapPanel, reverse, 0.5);
         Dispatcher.UIThread.RunJobs();
-        ScrollToEnd(mapPanel);
-        PressIn(mapPanel, "Apply");
+        if (mapPanel.Work.GradientMap.Reversed != true) throw new InvalidOperationException("the Gradient Map's Reverse did not take the click");
+        PressIn(mapPanel, "OK");
         Dispatcher.UIThread.RunJobs();
         if (!mapping.IsCompletedSuccessfully) throw new InvalidOperationException("the Gradient Map verb never finished");
         var inkedAfterMap = InkOf(document.Layers.First(one => one.ID == target.ID).Asset!.Image);
-        report.Add($"the Gradient Map's shadows swatch opened the picker and its Apply pressed: the layer's ink "
+        report.Add($"the Gradient Map's Reverse clicked and its OK pressed: the layer's ink "
             + $"{inkedForMap} → {inkedAfterMap}, one \"{_history.UndoName}\" step");
         if (inkedAfterMap == inkedForMap) throw new InvalidOperationException("the gradient map changed nothing");
         if (_history.UndoName != "Gradient Map") throw new InvalidOperationException($"the map made a \"{_history.UndoName}\" step");
