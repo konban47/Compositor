@@ -1,4 +1,4 @@
-# Compositor project format, macOS versions 1–21 and Windows extensions 12–33
+# Compositor project format, macOS versions 1–21 and Windows extensions 12–34
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
@@ -359,3 +359,15 @@ Windows **1.6.3.0 Preview** reads versions 1–32 and writes the lowest version 
 ## Windows extension version 33
 
 Windows **1.6.3.0 Preview** reads versions 1–33 and writes the lowest version required by document contents. A layer's `adjustment.kind` may be `Reduce Noise`, its settings in the `reduceNoise` object inside `filterLayerSettings` that upstream macOS version 21 defines: `strength`, `details` and `color`, each 0–100. Windows reads such a layer from a file declaring 33 or upstream's 21, and rejects it from any other. Earlier Windows builds reject v33.
+
+## Windows extension version 34
+
+Windows **1.6.6.3 Preview** reads versions 1–34 and writes the lowest version required by document contents. Version 34 is required by any of the following, and earlier Windows builds reject it:
+
+- Layer `blendMode` (and a style effect's `blendMode`, `highlightMode` or `shadowMode`) may be `Dissolve`, `Darker Color` or `Lighter Color`. Dissolve keeps or drops each pixel by its opacity with a fixed per-pixel pattern; Darker and Lighter Color keep whichever of the two colors has the lower or higher luminosity. PSD `diss`, `dkCl` and `lgCl` import to these modes and are written back with the same keys.
+- Layer `locks` accepts 16 for Prevent Auto-Nesting (0–31 in v34). A layer with it is never moved into an artboard or frame by dragging or by the Move tool's auto-nesting.
+- A smart-object layer may carry `smartObjectStackMode`, one of `Standard Deviation`, `Range`, `Variance`, `Kurtosis`, `Skewness`, `Mean`, `Entropy`, `Median`, `Summation`, `Maximum` or `Minimum`, only together with `smartObjectFile`. The layer's cached image is then the per-pixel statistic of the contents' visible layers instead of their composite; omitted means None. Every layer sharing the smart object's ID carries the same mode.
+- Layer effects may carry `globalLightAltitude` (0–90 degrees) beside `globalLightAngle`.
+- A style effect may carry Photoshop's further options, each optional and omitted meaning the earlier behavior: `antiAlias` (smooths the contour), `range` (1–100, the part of a glow's contour used) and `jitter` (0–100, random variation of a glow gradient), `dither` (gradient overlay and glow gradients), `gradientMethod` (0 Perceptual, 1 Linear, 2 Classic, 3 Smooth, 4 Stripes), `gradientStops` (2–64 `{position, color}` entries, position 0–1 and color as a 32-bit ARGB integer, which replace the two end colors), `overprint` (false draws an inside or center stroke with Normal under the fill), `knocksOut` (a drop shadow hidden under the layer's own opaque pixels), `glossSamples` (65 samples 0–1 of the bevel's Gloss Contour) and `textureInvert` (inverts the bevel texture).
+
+This extends the independent Windows format; it does not change upstream macOS format compatibility.
