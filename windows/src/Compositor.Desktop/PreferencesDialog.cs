@@ -378,8 +378,9 @@ internal sealed class PreferencesDialog : DialogWindow
         group.Unavailable(group.Choice("Type", ["Pixels", "Points", "Millimeters"], 0, _ => { }, 150), "Type sizes are set in document pixels.");
         group = page.Group("Column Size");
         string[] columnUnits = ["Inches", "Centimeters", "Millimeters", "Points", "Picas"];
-        group.Unavailable(group.Line(PreferenceGroup.Label("Width", 'W'), group.NumberBox("Column Width", p.ColumnWidth, .04, 5000, _ => { }, 80), PreferenceGroup.Combo("Column Width Unit", columnUnits, p.ColumnUnit, 120)), "Compositor sizes documents in pixels, inches, centimeters and points; it has no column unit.");
-        group.Unavailable(group.Line(PreferenceGroup.Label("Gutter", 'T'), group.NumberBox("Column Gutter", p.ColumnGutter, 0, 5000, _ => { }, 80), PreferenceGroup.Combo("Column Gutter Unit", columnUnits, p.GutterUnit, 120)), "Compositor has no column unit.");
+        // Image ▸ Image Size can measure a width in columns of this size, with this gutter between them.
+        group.Line(PreferenceGroup.Label("Width", 'W'), group.NumberBox("Column Width", p.ColumnWidth, .04, 5000, v => p.ColumnWidth = v, 80), group.Combo2("Column Width Unit", columnUnits, p.ColumnUnit, v => p.ColumnUnit = v, 120));
+        group.Line(PreferenceGroup.Label("Gutter", 'T'), group.NumberBox("Column Gutter", p.ColumnGutter, 0, 5000, v => p.ColumnGutter = v, 80), group.Combo2("Column Gutter Unit", columnUnits, p.GutterUnit, v => p.GutterUnit = v, 120));
         group = page.Group("New Document Preset Resolutions");
         string[] perUnit = ["Pixels/Inch", "Pixels/Centimeter"];
         group.Line(PreferenceGroup.Label("Print Resolution", 'I'), group.NumberBox("Print Resolution", p.PrintResolution, 1, 9600, v => p.PrintResolution = v, 80),

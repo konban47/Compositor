@@ -96,9 +96,10 @@ public static class ImageAdjustments
         using var work = DeepPixels.From(asset.WorkingImage);
         var data = MemoryMarshal.Cast<byte, float>(work.GetPixelSpan());
         var stats = Statistics(work);
-        double[][]? equal = settings.Kind == ImageAdjustmentKind.Equalize ? Equalization(work) : null;
+        double[][]? equal = settings.Kind == ImageAdjustmentKind.Equalize || settings.Kind == ImageAdjustmentKind.HdrToning && (int)settings.Get("Method", 3) == 2
+            ? Equalization(work) : null;
         float[]? local = settings.Kind is ImageAdjustmentKind.ShadowsHighlights or ImageAdjustmentKind.HdrToning
-            ? LocalLuminance(work, Math.Clamp((int)settings.Get("Radius", 30), 1, 250)) : null;
+            ? LocalLuminance(work, Math.Clamp((int)(settings.Get("Radius", 30) * (settings.Get("Smooth") != 0 ? 1.5 : 1)), 1, 500)) : null;
         for (var y = 0; y < work.Height; y++) for (var x = 0; x < work.Width; x++)
         {
             var i = y * work.RowBytes / 4 + x * 4;
@@ -106,7 +107,7 @@ public static class ImageAdjustments
             var result = Adjust(color, settings, stats.Mean, stats.Deviation, equal, local?[y * work.Width + x] ?? color.Luma);
             data[i] = (float)result.R; data[i + 1] = (float)result.G; data[i + 2] = (float)result.B;
         }
-        return SetPixels(document, layer, work);
+        return SetPixels(document, layer, work, settings.Get("IgnoreSelection") == 0);
     }
 
     public static bool SetPixels(CanvasDocument document, ImageLayer layer, SKBitmap result, bool selection = true)
@@ -150,6 +151,13 @@ public static class ImageAdjustments
             case ImageAdjustmentKind.ClarityDehaze:
                 var haze = V("Dehaze", 15) / 100; result = (c - new Color3(.12, .12, .12) * haze) * (1 / Math.Max(.1, 1 - .55 * haze)); break;
             case ImageAdjustmentKind.BrightnessContrast:
+                if (V("Legacy") != 0)
+                {
+                    // Use Legacy: brightness shifts every level by the same amount and contrast stretches about the middle,
+                    // so highlights and shadows clip as Photoshop's older command did.
+                    var legacy = V("Contrast") >= 0 ? 1 / Math.Max(.01, 1 - V("Contrast") / 100) : 1 + V("Contrast") / 100;
+                    result = (c + new Color3(1, 1, 1) * (V("Brightness") / 255) - new Color3(.5, .5, .5)) * legacy + new Color3(.5, .5, .5); break;
+                }
                 var contrast = Math.Pow(2, V("Contrast") / 100); result = (c - new Color3(.5, .5, .5)) * contrast + new Color3(.5, .5, .5) + new Color3(1, 1, 1) * (V("Brightness") / 150); break;
             case ImageAdjustmentKind.Vibrance:
                 var range = Math.Max(c.R, Math.Max(c.G, c.B)) - Math.Min(c.R, Math.Min(c.G, c.B));
@@ -185,25 +193,119 @@ public static class ImageAdjustments
                 result = c + (new Color3(1, 1, 1) - c) * shadows - c * highlights;
                 var mid = 1 + V("Midtone Contrast") / 100; result = (result - new Color3(.5, .5, .5)) * mid + new Color3(.5, .5, .5); break;
             case ImageAdjustmentKind.HdrToning:
-                var exposure = Math.Pow(2, V("Exposure")); var detail = 1 + (c.Luma - local) * V("Detail", 30) / 100;
-                double Tone(double a) => Math.Pow(Math.Max(0, a * exposure * detail) / (1 + Math.Max(0, a * exposure * detail)), 1 / Math.Max(.1, V("Gamma", 1))) * 2;
-                result = new(Tone(c.R), Tone(c.G), Tone(c.B)); var l = new Color3(result.Luma, result.Luma, result.Luma);
-                result = l + (result - l) * (1 + V("Saturation") / 100); break;
+                result = HdrTone(c, s, equal, local); break;
             case ImageAdjustmentKind.Desaturate:
                 var lightness = (Math.Max(c.R, Math.Max(c.G, c.B)) + Math.Min(c.R, Math.Min(c.G, c.B))) / 2; result = new(lightness, lightness, lightness); break;
             case ImageAdjustmentKind.MatchColor:
-                if (mean is null || deviation is null || s.ReferenceMean is null || s.ReferenceDeviation is null) break;
-                double Match(double a, int ch) => (a - mean[ch]) * s.ReferenceDeviation![ch] / Math.Max(.001, deviation[ch]) + s.ReferenceMean![ch];
-                result = Color3.Mix(new(Match(c.R, 0), Match(c.G, 1), Match(c.B, 2)), c, V("Fade") / 100);
+                // With no source chosen only Luminance, Color Intensity and Neutralize act, as Photoshop's does.
+                var matched = c;
+                if (mean is not null && deviation is not null && s.ReferenceMean is not null && s.ReferenceDeviation is not null)
+                {
+                    double Match(double a, int ch) => (a - mean[ch]) * s.ReferenceDeviation![ch] / Math.Max(.001, deviation[ch]) + s.ReferenceMean![ch];
+                    matched = new(Match(c.R, 0), Match(c.G, 1), Match(c.B, 2));
+                }
+                if (V("Neutralize") != 0 && mean is not null)
+                {
+                    // Neutralize: the cast the channel means give the picture is taken out, leaving their average.
+                    var average = (mean[0] + mean[1] + mean[2]) / 3; matched -= new Color3(mean[0] - average, mean[1] - average, mean[2] - average);
+                }
+                result = Color3.Mix(matched, c, V("Fade") / 100);
                 result *= V("Luminance", 100) / 100; var g = new Color3(result.Luma, result.Luma, result.Luma); result = g + (result - g) * (V("Color Intensity", 100) / 100); break;
             case ImageAdjustmentKind.ReplaceColor:
-                var delta = c - Color3.From(s.Color); var distance = Math.Sqrt(delta.R * delta.R + delta.G * delta.G + delta.B * delta.B) / Math.Sqrt(3);
-                var weight = Math.Clamp(1 - distance / Math.Max(1.0 / 255, V("Fuzziness", 40) / 255), 0, 1);
+                var weight = ReplaceWeight(c, s);
+                if (V("Shift") != 0)
+                {
+                    // Photoshop's Replace Color: the chosen colors' hue, saturation and lightness are moved by the amounts given.
+                    result = Color3.Mix(c, ShiftHsl(c, V("Hue"), V("Saturation"), V("Lightness")), weight); break;
+                }
                 result = Color3.Mix(c, Color3.From(s.Replacement) + new Color3(1, 1, 1) * (c.Luma - Color3.From(s.Color).Luma), weight); break;
             case ImageAdjustmentKind.Equalize:
                 if (equal is not null) result = new(equal[0][Math.Clamp((int)(c.R * 4095), 0, 4095)], equal[1][Math.Clamp((int)(c.G * 4095), 0, 4095)], equal[2][Math.Clamp((int)(c.B * 4095), 0, 4095)]); break;
         }
         return s.Kind == ImageAdjustmentKind.HdrToning ? result : result.Clamp();
+    }
+
+    /// <summary>How much of <paramref name="c"/> Replace Color takes: 1 at the sampled color, falling to 0 at the
+    /// fuzziness. Its dialog draws this as the selection preview.</summary>
+    public static double ReplaceWeight(Color3 c, ImageAdjustmentSettings s)
+    {
+        var delta = c - Color3.From(s.Color); var distance = Math.Sqrt(delta.R * delta.R + delta.G * delta.G + delta.B * delta.B) / Math.Sqrt(3);
+        return Math.Clamp(1 - distance / Math.Max(1.0 / 255, s.Get("Fuzziness", 40) / 255), 0, 1);
+    }
+
+    /// <summary>A color with its hue turned by <paramref name="hue"/> degrees and its saturation and lightness moved by
+    /// −100…100, each toward its end as Hue/Saturation moves them.</summary>
+    public static Color3 ShiftHsl(Color3 c, double hue, double saturation, double lightness)
+    {
+        var max = Math.Max(c.R, Math.Max(c.G, c.B)); var min = Math.Min(c.R, Math.Min(c.G, c.B));
+        var l = (max + min) / 2; var d = max - min; double h = 0, s = 0;
+        if (d > 1e-9)
+        {
+            s = l > .5 ? d / Math.Max(1e-9, 2 - max - min) : d / Math.Max(1e-9, max + min);
+            h = max == c.R ? (c.G - c.B) / d + (c.G < c.B ? 6 : 0) : max == c.G ? (c.B - c.R) / d + 2 : (c.R - c.G) / d + 4;
+            h *= 60;
+        }
+        h = ((h + hue) % 360 + 360) % 360;
+        s = Math.Clamp(saturation >= 0 ? s + (1 - s) * saturation / 100 : s * (1 + saturation / 100), 0, 1);
+        l = Math.Clamp(lightness >= 0 ? l + (1 - l) * lightness / 100 : l * (1 + lightness / 100), 0, 1);
+        if (s <= 0) return new(l, l, l);
+        var q = l < .5 ? l * (1 + s) : l + s - l * s; var p = 2 * l - q;
+        double Channel(double t)
+        {
+            t = (t % 1 + 1) % 1;
+            return t < 1 / 6.0 ? p + (q - p) * 6 * t : t < .5 ? q : t < 2 / 3.0 ? p + (q - p) * (2 / 3.0 - t) * 6 : p;
+        }
+        return new(Channel(h / 360 + 1 / 3.0), Channel(h / 360), Channel(h / 360 - 1 / 3.0));
+    }
+
+    /// <summary>
+    /// HDR Toning's four methods, as Photoshop names them: Exposure and Gamma, Highlight Compression, Equalize Histogram
+    /// and Local Adaptation (the default), then the toning curve when one has been drawn. Local Adaptation reads the
+    /// neighborhood brightness <paramref name="local"/> over the Edge Glow radius.
+    /// </summary>
+    private static Color3 HdrTone(Color3 c, ImageAdjustmentSettings s, double[][]? equal, double local)
+    {
+        double V(string key, double fallback = 0) => s.Get(key, fallback);
+        Color3 result;
+        switch ((int)V("Method", 3))
+        {
+            case 0:
+                var gain = Math.Pow(2, V("Exposure")); var gamma = Math.Max(.1, V("Gamma", 1));
+                double Exposed(double a) => Math.Pow(Math.Max(0, a * gain), 1 / gamma);
+                result = new Color3(Exposed(c.R), Exposed(c.G), Exposed(c.B)).Clamp(); break;
+            case 1:
+                // Highlight Compression: the brightness curve 2L/(1+L) keeps black and white and folds the highlights in.
+                var luma = c.Luma; result = luma > 1e-9 ? (c * (2 / (1 + luma))).Clamp() : c; break;
+            case 2:
+                result = equal is null ? c : new(equal[0][Math.Clamp((int)(c.R * 4095), 0, 4095)], equal[1][Math.Clamp((int)(c.G * 4095), 0, 4095)],
+                    equal[2][Math.Clamp((int)(c.B * 4095), 0, 4095)]); break;
+            default:
+                var exposure = Math.Pow(2, V("Exposure"));
+                var detail = 1 + (c.Luma - local) * V("Detail", 30) / 100 * Math.Max(.1, V("Strength", .52)) / .52;
+                double Tone(double a) => Math.Pow(Math.Max(0, a * exposure * detail) / (1 + Math.Max(0, a * exposure * detail)), 1 / Math.Max(.1, V("Gamma", 1))) * 2;
+                result = new(Tone(c.R), Tone(c.G), Tone(c.B));
+                // Shadow and Highlight lift or hold back the dark and bright neighborhoods.
+                result += (new Color3(1, 1, 1) - result) * (V("Shadow") / 100 * Math.Pow(1 - local, 2));
+                result += (V("Highlight") >= 0 ? new Color3(1, 1, 1) - result : result) * (V("Highlight") / 100 * Math.Pow(local, 2));
+                var range = Math.Max(result.R, Math.Max(result.G, result.B)) - Math.Min(result.R, Math.Min(result.G, result.B));
+                var l = new Color3(result.Luma, result.Luma, result.Luma);
+                result = l + (result - l) * (1 + V("Saturation", 20) / 100 + V("Vibrance") / 100 * (1 - Math.Clamp(range, 0, 1))); break;
+        }
+        var count = (int)V("CurveCount");
+        if (count is >= 2 and <= 32)
+        {
+            // The toning curve, input and output in percent, joined by straight lines as the dialog draws it.
+            var points = Enumerable.Range(0, count).Select(i => (X: V($"Curve{i}X") / 100, Y: V($"Curve{i}Y") / 100)).OrderBy(p => p.X).ToArray();
+            double Curve(double a)
+            {
+                if (a <= points[0].X) return points[0].Y;
+                for (var i = 1; i < points.Length; i++)
+                    if (a <= points[i].X) return points[i - 1].Y + (points[i].Y - points[i - 1].Y) * (a - points[i - 1].X) / Math.Max(1e-9, points[i].X - points[i - 1].X);
+                return points[^1].Y;
+            }
+            result = new(Curve(result.R), Curve(result.G), Curve(result.B));
+        }
+        return result;
     }
 
     public static (double[] Mean, double[] Deviation) Statistics(SKBitmap bitmap)

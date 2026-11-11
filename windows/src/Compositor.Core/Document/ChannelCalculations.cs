@@ -7,7 +7,7 @@ using SkiaSharp;
 namespace Compositor.Core.Document;
 
 public enum ImageChannel { RGB, Red, Green, Blue, Alpha, Gray }
-public enum ChannelBlend { Normal, Multiply, Screen, Overlay, Darken, Lighten, Difference, Exclusion, Add, Subtract, Divide, ColorBurn, ColorDodge, HardLight, SoftLight }
+public enum ChannelBlend { Normal, Multiply, Screen, Overlay, Darken, Lighten, Difference, Exclusion, Add, Subtract, Divide, ColorBurn, ColorDodge, HardLight, SoftLight, LinearBurn, DarkerColor, LinearDodge, LighterColor, VividLight, LinearLight, PinLight, HardMix }
 public sealed record ChannelSource(CanvasDocument Document, Guid? Layer, ImageChannel Channel, bool Invert = false, Guid? Alpha = null);
 public sealed record CalculationSettings(ChannelBlend Blend = ChannelBlend.Multiply, double Opacity = 1, double Scale = 1, double Offset = 0, bool PreserveTransparency = true);
 
@@ -41,12 +41,14 @@ public static class ChannelCalculations
             return result;
         }
     }
-    public static SKBitmap Calculate(ChannelSource first, ChannelSource second, CalculationSettings settings)
+    public static SKBitmap Calculate(ChannelSource first, ChannelSource second, CalculationSettings settings, ChannelSource? mask = null)
     {
         if (first.Document.Width != second.Document.Width || first.Document.Height != second.Document.Height) throw new InvalidOperationException("Source images must have the same pixel dimensions.");
         Validate(settings);
         using var a = Source(first); var result = Source(second); var left = MemoryMarshal.Cast<byte, float>(a.GetPixelSpan()); var right = MemoryMarshal.Cast<byte, float>(result.GetPixelSpan());
-        for (var i = 0; i < right.Length; i += 4) for (var c = 0; c < 3; c++) right[i + c] = (float)(right[i + c] + (Blend(left[i + c], right[i + c], settings) - right[i + c]) * settings.Opacity);
+        // A mask holds the blend back where it is dark, as Photoshop's Mask… does.
+        using var gate = mask is null ? null : Source(mask); var gated = gate is null ? default : MemoryMarshal.Cast<byte, float>(gate.GetPixelSpan());
+        for (var i = 0; i < right.Length; i += 4) for (var c = 0; c < 3; c++) right[i + c] = (float)(right[i + c] + (Blend(left[i + c], right[i + c], settings) - right[i + c]) * settings.Opacity * (gate is null ? 1 : gated[i]));
         return result;
     }
     public static bool Apply(CanvasDocument document, Guid layerID, ChannelSource source, CalculationSettings settings, ChannelSource? mask = null)
@@ -83,6 +85,10 @@ public static class ChannelCalculations
         ChannelBlend.Darken => Math.Min(a, b), ChannelBlend.Lighten => Math.Max(a, b), ChannelBlend.Difference => Math.Abs(a - b),
         ChannelBlend.Exclusion => a + b - 2 * a * b, ChannelBlend.Add => (a + b) / s.Scale + s.Offset / 255,
         ChannelBlend.Subtract => (b - a) / s.Scale + s.Offset / 255, ChannelBlend.Divide => a == 0 ? 1 : b / a,
-        ChannelBlend.ColorBurn => a <= 0 ? 0 : 1 - (1 - b) / a, ChannelBlend.ColorDodge => a >= 1 ? 1 : b / (1 - a), _ => a,
+        ChannelBlend.ColorBurn => a <= 0 ? 0 : 1 - (1 - b) / a, ChannelBlend.ColorDodge => a >= 1 ? 1 : b / (1 - a),
+        // One channel at a time, Darker and Lighter Color are the lesser and greater of the two, as Darken and Lighten.
+        ChannelBlend.LinearBurn => a + b - 1, ChannelBlend.DarkerColor => Math.Min(a, b), ChannelBlend.LinearDodge => a + b, ChannelBlend.LighterColor => Math.Max(a, b),
+        ChannelBlend.VividLight => a <= .5 ? (a <= 0 ? 0 : 1 - (1 - b) / (2 * a)) : (a >= 1 ? 1 : b / (2 * (1 - a))), ChannelBlend.LinearLight => b + 2 * a - 1,
+        ChannelBlend.PinLight => a <= .5 ? Math.Min(b, 2 * a) : Math.Max(b, 2 * a - 1), ChannelBlend.HardMix => a + b >= 1 ? 1 : 0, _ => a,
     }, 0, 1);
 }

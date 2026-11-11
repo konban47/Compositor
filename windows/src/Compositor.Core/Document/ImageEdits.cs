@@ -13,7 +13,7 @@ namespace Compositor.Core.Document;
 public static class ImageEdits
 {
     public static bool Resize(CanvasDocument document, int width, int height, double resolution,
-        LayerSampling sampling = LayerSampling.HighQuality)
+        LayerSampling sampling = LayerSampling.HighQuality, bool scaleStyles = true)
     {
         if (width is < 1 or > DocumentLimits.MaxSide || height is < 1 or > DocumentLimits.MaxSide) return false;
         if (!double.IsFinite(resolution) || resolution is < 1 or > 9600) return false;
@@ -113,7 +113,7 @@ public static class ImageEdits
             }
             layer.Transform = transform;
             layer.Shape = null; layer.Text = null;
-            if (layer.Effects is { } effects) layer.Effects = effects.Scaled(Math.Sqrt(sx * sy));
+            if (scaleStyles && layer.Effects is { } effects) layer.Effects = effects.Scaled(Math.Sqrt(sx * sy));
         }
         ChannelEdits.Transform(document, width, height, SKMatrix.CreateScale((float)sx, (float)sy));
         document.Width = width;

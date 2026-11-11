@@ -50,7 +50,7 @@ public sealed partial class MainWindow
         Check(tools.Items.OfType<MenuItem>().Count() <= 14 && _toolItems.Count >= 65, "Tool grouping lost tools or remains too long.");
         edit.IsSubMenuOpen = true; tools.IsSubMenuOpen = true; Save("tools-menu"); tools.IsSubMenuOpen = false; edit.IsSubMenuOpen = false;
         var image = _mainMenu.Items.OfType<MenuItem>().Single(m => m.Header?.ToString() == Localize.Text("_Image"));
-        Check(image.Items.OfType<MenuItem>().Single(m => m.Header?.ToString() == Localize.Text("Adjustments")).Items.OfType<MenuItem>().Count() >= 22, "Image adjustments are missing.");
+        Check(image.Items.OfType<MenuItem>().Single(m => Equals(m.Tag, "Adjustments")).Items.OfType<MenuItem>().Count() >= 22, "Image adjustments are missing.");
         image.IsSubMenuOpen = true; Save("image-menu"); image.IsSubMenuOpen = false;
         OpenPluginsPanel(); Pump(); Check(_dockPanels.GetValueOrDefault("Plugins") is { Visible: true }, "Plugin panel not opened."); Save("plugins");
         var pluginPanel = _dockPanels["Plugins"]; FloatPanel(pluginPanel); Pump(); Check(pluginPanel.Floating is not null, "Plugin panel did not float.");
@@ -68,7 +68,7 @@ public sealed partial class MainWindow
         Click(dialog.GetVisualDescendants().OfType<Button>().Single(b => b.Content?.ToString() == Localize.Text("OK"))); Finish(pending);
         Check(doc.Image.Mode == ImageMode.Grayscale && layer.Asset!.Image.GetPixel(0, 0).Red == layer.Asset.Image.GetPixel(0, 0).Green, "Color mode dialog did not apply."); Undo(); Pump();
         var old = doc.Layers[0].Asset; pending = ExtendedImageAdjustment(ImageAdjustmentKind.Posterize, false); Pump();
-        dialog = OwnedWindows.OfType<FormDialog>().Single(); dialog.Close(false); Finish(pending); Check(ReferenceEquals(doc.Layers[0].Asset, old), "Adjustment cancel mutated pixels.");
+        OwnedWindows.OfType<ImageAdjustmentDialog>().Single().Close(false); Finish(pending); Check(ReferenceEquals(doc.Layers[0].Asset, old), "Adjustment cancel mutated pixels.");
         var id = TextEdits.Add(doc, new LayerTextStyle { Content = "中文排版 Typography\nParagraph settings", FontName = "Arial", FontSize = 32 }, new(80, 150))!.Value;
         ShowLayers(doc); Reselect(id); BuildProperties(); Pump();
         var horizontal = _properties.GetVisualDescendants().OfType<NumericUpDown>().Single(n => Equals(n.Tag, "text-hscale"));
@@ -81,5 +81,6 @@ public sealed partial class MainWindow
         Check(double.IsNaN(longButton.Height) && longButton.Bounds.Height >= 32 && row.RowDefinitions[0].Height.IsAuto, "Fixed dialog row still clips wrapped button text.");
         using (var capture = checkDialog.CaptureRenderedFrame()) capture!.Save(Path.ChangeExtension(output, "button-wrap.png"), new PngBitmapEncoderOptions());
         checkDialog.Close(false); Finish(shown); Save("final");
+        ImageMenuSelfCheck(output);
     }
 }

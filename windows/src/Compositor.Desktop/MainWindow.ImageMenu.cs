@@ -21,59 +21,112 @@ public sealed partial class MainWindow
     private static string ModeTitle(ImageMode mode) => mode switch
     { ImageMode.RGB => "RGB Color", ImageMode.CMYK => "CMYK Color", ImageMode.Lab => "Lab Color", ImageMode.Indexed => "Indexed Color", _ => mode.ToString() };
 
+    /// <summary>A row of the Image menu: <paramref name="header"/> carries its Alt key ("_Levels…"), shown in Chinese as
+    /// "色阶(L)…"; the command keeps its own name (<paramref name="id"/>), which shortcuts and customized menus key on.</summary>
+    private MenuItem Keyed(string header, Action action, string? key = null, string? id = null)
+    {
+        var item = Command(id ?? header.Replace("_", ""), action, key);
+        item.Header = Localize.Text(header);
+        return item;
+    }
+
+    /// <summary>
+    /// The Image menu, in the order, groups and Alt keys of Photoshop's screenshots: Mode and Adjustments; Auto Tone, Auto
+    /// Contrast and Auto Color; Image Size, Generative Upscale, Canvas Size, Image Rotation, Crop, Trim and Reveal All;
+    /// Duplicate, Apply Image and Calculations; Variables and Apply Data Set; Trap; Analysis. Rows that cannot act on the
+    /// document in front are greyed as Photoshop greys them: Crop without a selection, Apply Data Set without data sets,
+    /// Trap outside CMYK, Bitmap and Duotone outside Grayscale, Color Table outside Indexed Color.
+    /// </summary>
     private MenuItem BuildImageMenu()
     {
-        var menu = new MenuItem { Header = Localize.Text("_Image") };
-        var modes = new MenuItem { Header = Localize.Text("Mode") };
+        var menu = new MenuItem { Header = Localize.Text("_Image"), Tag = "Image" };
+        var modes = new MenuItem { Header = Localize.Text("_Mode"), Tag = "Mode" };
         var modeRows = new Dictionary<ImageMode, MenuItem>(); var depthRows = new Dictionary<int, MenuItem>();
+        var modeHeaders = new Dictionary<ImageMode, string>
+        {
+            [ImageMode.Bitmap] = "_Bitmap…", [ImageMode.Grayscale] = "_Grayscale", [ImageMode.Duotone] = "_Duotone…", [ImageMode.Indexed] = "_Indexed Color…",
+            [ImageMode.RGB] = "_RGB Color", [ImageMode.CMYK] = "_CMYK Color", [ImageMode.Lab] = "_Lab Color", [ImageMode.Multichannel] = "_Multichannel",
+        };
         foreach (var mode in Enum.GetValues<ImageMode>())
         {
-            var item = Command(ModeTitle(mode), () => _ = ConvertImageMode(mode)); item.ToggleType = MenuItemToggleType.Radio;
+            var item = Keyed(modeHeaders[mode], () => _ = ConvertImageMode(mode), id: ModeTitle(mode)); item.ToggleType = MenuItemToggleType.Radio;
             modes.Items.Add(item); modeRows[mode] = item;
         }
         modes.Items.Add(new Separator());
-        foreach (var bits in new[] { 8, 16, 32 })
+        foreach (var (bits, header) in new[] { (8, "8 Bits/Ch_annel"), (16, "16 Bits/Cha_nnel"), (32, "32 Bits/C_hannel") })
         {
-            var item = Command($"{bits} Bits/Channel", () => _ = ConvertImageDepth(bits)); item.ToggleType = MenuItemToggleType.Radio;
+            var item = Keyed(header, () => _ = ConvertImageDepth(bits), id: $"{bits} Bits/Channel"); item.ToggleType = MenuItemToggleType.Radio;
             modes.Items.Add(item); depthRows[bits] = item;
         }
-        modes.Items.Add(new Separator()); modes.Items.Add(Command("Color Table…", () => _ = ColorTable()));
+        var colorTable = Keyed("Color _Table…", () => _ = ColorTable(), id: "Color Table…");
+        modes.Items.Add(new Separator()); modes.Items.Add(colorTable);
         modes.SubmenuOpened += (_, _) =>
         {
-            foreach (var pair in modeRows) pair.Value.IsChecked = _document?.Image.Mode == pair.Key;
+            var current = _document?.Image.Mode;
+            foreach (var pair in modeRows)
+            {
+                pair.Value.IsChecked = current == pair.Key;
+                // Bitmap and Duotone are reached from Grayscale, as in Photoshop.
+                pair.Value.IsEnabled = _document is not null && (pair.Key is not (ImageMode.Bitmap or ImageMode.Duotone) || current is ImageMode.Grayscale || current == pair.Key);
+            }
             foreach (var pair in depthRows) { pair.Value.IsChecked = _document?.Image.Depth == pair.Key; pair.Value.IsEnabled = _document is { } d && (pair.Key == 8 || d.Image.Mode is not (ImageMode.Bitmap or ImageMode.Indexed or ImageMode.Duotone)); }
+            colorTable.IsEnabled = current == ImageMode.Indexed;
         };
-        menu.Items.Add(modes);
-        menu.Items.Add(Command("Split Channels", SplitChannels));
-        var adjustments = new MenuItem { Header = Localize.Text("Adjustments") };
-        void Existing(string title, AdjustmentKind kind, string? key = null) => adjustments.Items.Add(Command(title, () => _ = ImageAdjustment(kind), key));
-        void Added(ImageAdjustmentKind kind, bool immediate = false, string? key = null) => adjustments.Items.Add(Command(ImageAdjustmentTitle(kind) + (immediate ? "" : "…"), () => _ = ExtendedImageAdjustment(kind, immediate), key));
-        Added(ImageAdjustmentKind.BrightnessContrast); Existing("Levels…", AdjustmentKind.Levels, "Levels"); Existing("Curves…", AdjustmentKind.Curves, "Curves"); Existing("Exposure…", AdjustmentKind.Exposure);
-        adjustments.Items.Add(new Separator()); Added(ImageAdjustmentKind.Vibrance); Existing("Hue/Saturation…", AdjustmentKind.HueSaturation, "Hue/Saturation"); Existing("Color Balance…", AdjustmentKind.ColorBalance, "Color Balance");
-        Existing("Black & White…", AdjustmentKind.BlackWhite, "Black & White"); Added(ImageAdjustmentKind.PhotoFilter); Added(ImageAdjustmentKind.ChannelMixer); Added(ImageAdjustmentKind.ColorLookup);
-        adjustments.Items.Add(new Separator()); Existing("Invert", AdjustmentKind.Invert, "Invert"); Added(ImageAdjustmentKind.Posterize); Added(ImageAdjustmentKind.Threshold); Existing("Gradient Map…", AdjustmentKind.GradientMap); Added(ImageAdjustmentKind.SelectiveColor);
-        adjustments.Items.Add(new Separator()); Added(ImageAdjustmentKind.ShadowsHighlights); Added(ImageAdjustmentKind.HdrToning);
-        adjustments.Items.Add(new Separator()); Added(ImageAdjustmentKind.Desaturate, true, "Desaturate"); Added(ImageAdjustmentKind.MatchColor); Added(ImageAdjustmentKind.ReplaceColor); Added(ImageAdjustmentKind.Equalize, true);
+        menu.Items.Add(modes); menu.Items.Add(new Separator());
+
+        var adjustments = new MenuItem { Header = Localize.Text("Ad_justments"), Tag = "Adjustments" };
+        void Existing(string header, AdjustmentKind kind, string? key = null) => adjustments.Items.Add(Keyed(header, () => _ = ImageAdjustment(kind), key, header.Replace("_", "")));
+        void Added(string header, ImageAdjustmentKind kind, bool immediate = false, string? key = null) =>
+            adjustments.Items.Add(Keyed(header, () => _ = ExtendedImageAdjustment(kind, immediate), key, ImageAdjustmentTitle(kind) + (immediate ? "" : "…")));
+        Added("Brightness/_Contrast…", ImageAdjustmentKind.BrightnessContrast); Existing("_Levels…", AdjustmentKind.Levels, "Levels"); Existing("C_urves…", AdjustmentKind.Curves, "Curves"); Existing("_Exposure…", AdjustmentKind.Exposure);
+        adjustments.Items.Add(new Separator());
+        Added("_Vibrance…", ImageAdjustmentKind.Vibrance); Existing("_Hue/Saturation…", AdjustmentKind.HueSaturation, "Hue/Saturation"); Existing("Color _Balance…", AdjustmentKind.ColorBalance, "Color Balance");
+        Existing("Blac_k & White…", AdjustmentKind.BlackWhite, "Black & White"); Added("Photo _Filter…", ImageAdjustmentKind.PhotoFilter); Added("Channel Mi_xer…", ImageAdjustmentKind.ChannelMixer); Added("Color Lookup…", ImageAdjustmentKind.ColorLookup);
+        adjustments.Items.Add(new Separator());
+        Existing("_Invert", AdjustmentKind.Invert, "Invert"); Added("_Posterize…", ImageAdjustmentKind.Posterize); Added("_Threshold…", ImageAdjustmentKind.Threshold); Existing("_Gradient Map…", AdjustmentKind.GradientMap); Added("_Selective Color…", ImageAdjustmentKind.SelectiveColor);
+        adjustments.Items.Add(new Separator());
+        Added("Shado_ws/Highlights…", ImageAdjustmentKind.ShadowsHighlights); Added("HDR Toning…", ImageAdjustmentKind.HdrToning);
+        adjustments.Items.Add(new Separator());
+        Added("_Desaturate", ImageAdjustmentKind.Desaturate, true, "Desaturate"); Added("_Match Color…", ImageAdjustmentKind.MatchColor); Added("_Replace Color…", ImageAdjustmentKind.ReplaceColor); Added("E_qualize", ImageAdjustmentKind.Equalize, true);
         menu.Items.Add(adjustments); menu.Items.Add(new Separator());
-        menu.Items.Add(Command("Auto Tone", () => AutoLevels(LevelsAuto.Color), "Auto Tone"));
-        menu.Items.Add(Command("Auto Contrast", () => AutoLevels(LevelsAuto.Contrast), "Auto Contrast"));
-        menu.Items.Add(Command("Auto Color", () => AutoLevels(LevelsAuto.Neutral), "Auto Color"));
-        menu.Items.Add(new Separator()); menu.Items.Add(Command("Image Size…", () => _ = ImageSize(), "Image Size"));
-        menu.Items.Add(Command("Generative Upscale…", () => _ = GenerativeUpscale()));
-        menu.Items.Add(Command("Canvas Size…", () => _ = CanvasSize(), "Canvas Size"));
-        var rotation = new MenuItem { Header = Localize.Text("Image Rotation") };
-        rotation.Items.Add(Command("180°", () => Change("Rotate Canvas", d => ImageGeometry.Rotate(d, 180))));
-        rotation.Items.Add(Command("90° Clockwise", () => RotateCanvas(true))); rotation.Items.Add(Command("90° Counterclockwise", () => RotateCanvas(false)));
-        rotation.Items.Add(Command("Arbitrary…", () => _ = RotateImageArbitrary())); rotation.Items.Add(new Separator());
-        rotation.Items.Add(Command("Flip Canvas Horizontal", () => Flip(true, true))); rotation.Items.Add(Command("Flip Canvas Vertical", () => Flip(false, true))); menu.Items.Add(rotation);
-        menu.Items.Add(Command("Crop", CropImageSelection)); menu.Items.Add(Command("Trim…", () => _ = Trim())); menu.Items.Add(Command("Reveal All", () => Change("Reveal All", ImageGeometry.RevealAll)));
-        menu.Items.Add(new Separator()); menu.Items.Add(Command("Duplicate Image…", () => _ = DuplicateImage()));
-        menu.Items.Add(Command("Apply Image…", () => _ = ChannelCalculation(false))); menu.Items.Add(Command("Calculations…", () => _ = ChannelCalculation(true)));
-        menu.Items.Add(new Separator()); var variables = new MenuItem { Header = Localize.Text("Variables") };
-        variables.Items.Add(Command("Define…", () => _ = DefineImageVariables())); variables.Items.Add(Command("Data Sets…", () => _ = ImageDataSets(false)));
-        menu.Items.Add(variables); menu.Items.Add(Command("Apply Data Set…", () => _ = ImageDataSets(true)));
-        menu.Items.Add(new Separator()); menu.Items.Add(Command("Trap…", () => _ = TrapImage())); menu.Items.Add(new Separator()); menu.Items.Add(BuildAnalysisMenu());
-        menu.SubmenuOpened += (_, _) => { foreach (var item in menu.Items.OfType<MenuItem>()) item.IsEnabled = _document is not null; };
+
+        menu.Items.Add(Keyed("Auto To_ne", () => AutoLevels(LevelsAuto.Color), "Auto Tone"));
+        menu.Items.Add(Keyed("A_uto Contrast", () => AutoLevels(LevelsAuto.Contrast), "Auto Contrast"));
+        menu.Items.Add(Keyed("Auto C_olor", () => AutoLevels(LevelsAuto.Neutral), "Auto Color"));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Keyed("_Image Size…", () => _ = ImageSize(), "Image Size", "Image Size…"));
+        menu.Items.Add(Keyed("Generative Upscale…", () => _ = GenerativeUpscale(), "Generative Upscale"));
+        menu.Items.Add(Keyed("Canva_s Size…", () => _ = CanvasSize(), "Canvas Size", "Canvas Size…"));
+        var rotation = new MenuItem { Header = Localize.Text("Ima_ge Rotation"), Tag = "Image Rotation" };
+        rotation.Items.Add(Keyed("_180°", () => Change("Rotate Canvas", d => ImageGeometry.Rotate(d, 180)), id: "180°"));
+        rotation.Items.Add(Keyed("_90° Clockwise", () => RotateCanvas(true), id: "90° Clockwise")); rotation.Items.Add(Keyed("9_0° Counterclockwise", () => RotateCanvas(false), id: "90° Counterclockwise"));
+        rotation.Items.Add(Keyed("_Arbitrary…", () => _ = RotateImageArbitrary(), id: "Arbitrary…")); rotation.Items.Add(new Separator());
+        rotation.Items.Add(Keyed("Flip Canvas _Horizontal", () => Flip(true, true), id: "Flip Canvas Horizontal")); rotation.Items.Add(Keyed("Flip Canvas _Vertical", () => Flip(false, true), id: "Flip Canvas Vertical"));
+        menu.Items.Add(rotation);
+        var crop = Keyed("Cro_p", CropImageSelection, id: "Crop"); menu.Items.Add(crop);
+        menu.Items.Add(Keyed("T_rim…", () => _ = Trim(), id: "Trim…")); menu.Items.Add(Keyed("Re_veal All", () => Change("Reveal All", ImageGeometry.RevealAll), id: "Reveal All"));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Keyed("_Duplicate…", () => _ = DuplicateImage(), id: "Duplicate Image…"));
+        menu.Items.Add(Keyed("Appl_y Image…", () => _ = ChannelCalculation(false), id: "Apply Image…")); menu.Items.Add(Keyed("_Calculations…", () => _ = ChannelCalculation(true), id: "Calculations…"));
+        menu.Items.Add(new Separator());
+        var variables = new MenuItem { Header = Localize.Text("Varia_bles"), Tag = "Variables" };
+        var dataSets = Keyed("Data _Sets…", () => _ = ImageDataSets(false), id: "Data Sets…");
+        variables.Items.Add(Keyed("_Define…", () => _ = DefineImageVariables(), id: "Define…")); variables.Items.Add(dataSets);
+        var applySet = Keyed("App_ly Data Set…", () => _ = ImageDataSets(true), id: "Apply Data Set…");
+        menu.Items.Add(variables); menu.Items.Add(applySet);
+        menu.Items.Add(new Separator());
+        var trap = Keyed("_Trap…", () => _ = TrapImage(), id: "Trap…"); menu.Items.Add(trap);
+        ToolTip.SetTip(trap, Localize.Text("Trap is for CMYK documents. Convert with Image ▸ Mode ▸ CMYK Color first."));
+        menu.Items.Add(new Separator()); menu.Items.Add(BuildAnalysisMenu());
+        menu.SubmenuOpened += (_, _) =>
+        {
+            foreach (var item in menu.Items.OfType<MenuItem>()) item.IsEnabled = _document is not null;
+            // Crop needs a selection; data sets need variables and sets; Trap needs CMYK, as Photoshop greys them.
+            crop.IsEnabled = _document?.Selection.Path is not null;
+            dataSets.IsEnabled = _document?.Variables.Count > 0;
+            applySet.IsEnabled = _document?.DataSets.Count > 0;
+            trap.IsEnabled = _document?.Image.Mode == ImageMode.CMYK;
+        };
         return menu;
     }
 
@@ -85,62 +138,16 @@ public sealed partial class MainWindow
         var settings = editingLayer is { } existing ? doc.Layers.First(l => l.ID == existing).Adjustment!.Extended!.Copy() : new ImageAdjustmentSettings { Kind = kind }; var title = ImageAdjustmentTitle(kind); var revision = _history.CurrentRevision;
         if (!immediate)
         {
-            var dialog = new FormDialog(title, 540, kind is ImageAdjustmentKind.ChannelMixer or ImageAdjustmentKind.SelectiveColor ? 670 : 540);
-            void Number(string key, double min, double max, double value = 0, string? label = null) { value = settings.Get(key, value); settings.Values[key] = value; dialog.Number(label ?? key, value, min, max, n => settings.Values[key] = n); }
-            switch (kind)
-            {
-                case ImageAdjustmentKind.BrightnessContrast: Number("Brightness", -150, 150); Number("Contrast", -100, 100); break;
-                case ImageAdjustmentKind.ClarityDehaze: Number("Clarity", -100, 100, 25); Number("Dehaze", -100, 100, 15); break;
-                case ImageAdjustmentKind.Vibrance: Number("Vibrance", -100, 100); Number("Saturation", -100, 100); break;
-                case ImageAdjustmentKind.PhotoFilter:
-                    Number("Density", 0, 100, 25); ColorInput(dialog, "Filter Color", settings.Color, c => settings.Color = c);
-                    dialog.Check("Preserve Luminosity", settings.PreserveLuminosity, on => settings.PreserveLuminosity = on); break;
-                case ImageAdjustmentKind.ChannelMixer:
-                    for (var channel = 0; channel < 3; channel++)
-                    {
-                        dialog.Description(new[] { "Output Red", "Output Green", "Output Blue" }[channel]);
-                        foreach (var (input, index) in new[] { ("R", 0), ("G", 1), ("B", 2) }) Number($"{channel}{input}", -200, 200, channel == index ? 100 : 0, new[] { "Red (%)", "Green (%)", "Blue (%)" }[index]);
-                        Number($"{channel}Constant", -200, 200, 0, "Constant (%)");
-                    }
-                    dialog.Check("Monochrome", settings.Monochrome, on => settings.Monochrome = on); break;
-                case ImageAdjustmentKind.ColorLookup:
-                    dialog.Description("Load a .cube 3D color lookup file.");
-                    var lutLabel = new TextBlock { Text = Localize.Text(settings.Cube is null ? "No color lookup loaded" : "Embedded color lookup loaded"), TextWrapping = Avalonia.Media.TextWrapping.Wrap }; dialog.Fields.Children.Add(lutLabel);
-                    dialog.Fields.Children.Add(FormDialog.ActionButton("Load Color Lookup…", async () =>
-                    {
-                        var files = await dialog.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = Localize.Text("Load Color Lookup…"), FileTypeFilter = [new FilePickerFileType("Color lookup") { Patterns = ["*.cube"] }] });
-                        if (files.FirstOrDefault()?.TryGetLocalPath() is not { } path) return;
-                        try { settings.Cube = ColorCube.Parse(await File.ReadAllTextAsync(path)); lutLabel.Text = Path.GetFileName(path); dialog.Changed?.Invoke(); }
-                        catch (Exception e) { lutLabel.Text = e.Message; }
-                    })); dialog.Validate = () => settings.Cube is null ? "Load a color lookup first." : null; break;
-                case ImageAdjustmentKind.Posterize: Number("Levels", 2, 256, 4); break;
-                case ImageAdjustmentKind.Threshold: Number("Threshold", 0, 255, 128); break;
-                case ImageAdjustmentKind.SelectiveColor:
-                    var fields = new Dictionary<string, NumericUpDown>(); var switchingRange = false;
-                    dialog.Choice("Colors", ["Reds", "Yellows", "Greens", "Cyans", "Blues", "Magentas", "Whites", "Neutrals", "Blacks"], settings.Range, selected =>
-                    { switchingRange = true; settings.Range = selected; foreach (var p in fields) p.Value.Value = (decimal)settings.Get($"{selected}{p.Key}"); switchingRange = false; });
-                    foreach (var (key, label) in new[] { ("C", "Cyan"), ("M", "Magenta"), ("Y", "Yellow"), ("K", "Black") })
-                        fields[key] = dialog.Number(label, settings.Get($"{settings.Range}{key}"), -100, 100, v => { if (!switchingRange) settings.Values[$"{settings.Range}{key}"] = v; });
-                    dialog.Check("Absolute", settings.Absolute, on => settings.Absolute = on); break;
-                case ImageAdjustmentKind.ShadowsHighlights:
-                    Number("Shadows", 0, 100, 35); Number("Shadow Width", 1, 100, 50); Number("Highlights", 0, 100); Number("Highlight Width", 1, 100, 50); Number("Radius", 1, 250, 30); Number("Midtone Contrast", -100, 100); break;
-                case ImageAdjustmentKind.HdrToning:
-                    Number("Exposure", -20, 20); Number("Gamma", .1, 10, 1); Number("Detail", -100, 100, 30); Number("Radius", 1, 250, 30); Number("Saturation", -100, 100); break;
-                case ImageAdjustmentKind.MatchColor:
-                    var sources = _tabs.Where(t => t.Document is not null).ToArray();
-                    void Source(int index) { using var image = DocumentRenderer.Render(sources[index].Document!); var stats = ImageAdjustments.Statistics(image); settings.ReferenceMean = stats.Mean; settings.ReferenceDeviation = stats.Deviation; }
-                    Source(0); dialog.Choice("Source Document", sources.Select(t => t.Document!.ID == doc.ID ? Localize.Text("Current Document") : t.Name), 0, Source);
-                    Number("Luminance", 1, 200, 100); Number("Color Intensity", 0, 200, 100); Number("Fade", 0, 100); break;
-                case ImageAdjustmentKind.ReplaceColor:
-                    ColorInput(dialog, "Sample Color", settings.Color, c => settings.Color = c); ColorInput(dialog, "Replacement Color", settings.Replacement, c => settings.Replacement = c); Number("Fuzziness", 0, 255, 40); break;
-            }
+            var documents = _tabs.Where(t => t.Document is not null && !ReferenceEquals(t.Document, doc)).Select(t => (t.Name, t.Document!)).ToArray();
+            var context = new ImageAdjustmentContext(AdjustmentPicture(doc, adjustmentLayer ? null : layer?.ID), doc, _open.Name, documents);
+            var dialog = new ImageAdjustmentDialog(title, settings, context);
             if (!adjustmentLayer)
             {
-                dialog.Preview(); StartPreview(doc, layer!.ID);
+                StartPreview(doc, layer!.ID);
                 dialog.Changed = () => { var copy = settings.Copy(); RequestPreview((target, id) => !dialog.PreviewEnabled || ImageAdjustments.Apply(target, id, copy)); };
             }
-            bool accepted; try { accepted = await dialog.ShowDialog<bool>(this); } finally { StopPreview(); }
-            if (!accepted || !ReferenceEquals(_document, doc) || revision != _history.CurrentRevision) return;
+            try { await dialog.ShowDialog<bool>(this); } finally { if (!adjustmentLayer) StopPreview(); }
+            if (!dialog.Accepted || !ReferenceEquals(_document, doc) || revision != _history.CurrentRevision) return;
         }
         if (adjustmentLayer)
         {

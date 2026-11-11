@@ -1083,6 +1083,7 @@ public sealed partial class MainWindow : Window
         Does("Auto Color", () => AutoLevels(LevelsAuto.Neutral));
         Does("Canvas Size", () => _ = CanvasSize());
         Does("Image Size", () => _ = ImageSize());
+        Does("Generative Upscale", () => _ = GenerativeUpscale());
         Does("Layer via Copy", () => LayerViaSelection(false));
         Does("Duplicate Layer", DuplicateLayer);
         Does("Toggle Clipping Mask", ToggleClipping);
@@ -4320,7 +4321,7 @@ public sealed partial class MainWindow : Window
         if (settings.Extended is { } extended) { await ExtendedImageAdjustment(extended.Kind, adjustmentLayer: true, editingLayer: id); return; }
         StartPreview(document, id);
         var asked = await AdjustmentDialog.Ask(this, settings,
-            changed => RequestPreview((target, layer) => LayerAdjustmentEdits.Set(target, layer, changed)));
+            changed => RequestPreview((target, layer) => LayerAdjustmentEdits.Set(target, layer, changed)), AdjustmentPicture(document, null));
         StopPreview();
         if (asked is not { } changed) return;
         if (_document is not { } current) return;
@@ -4334,6 +4335,26 @@ public sealed partial class MainWindow : Window
     /// selected layer's own pixels, held to the selection, as one undo step. The same settings can be left
     /// on an adjustment layer instead, from the Layer menu.
     /// </summary>
+    /// <summary>
+    /// What an adjustment dialog counts its histogram from, works Auto out of and samples with its eyedroppers: the layer's
+    /// own pixels, or for an adjustment layer (<paramref name="layerID"/> null) the picture as it is drawn, at most 512
+    /// pixels across so counting stays quick.
+    /// </summary>
+    private static Func<SKBitmap?> AdjustmentPicture(CanvasDocument document, Guid? layerID) => () =>
+    {
+        var source = layerID is { } id ? document.Layers.FirstOrDefault(l => l.ID == id)?.Asset?.Image : null;
+        var owned = source is null;
+        try
+        {
+            source ??= DocumentRenderer.Render(document);
+            var scale = Math.Min(1, 512.0 / Math.Max(1, Math.Max(source.Width, source.Height)));
+            var info = new SKImageInfo(Math.Max(1, (int)Math.Round(source.Width * scale)), Math.Max(1, (int)Math.Round(source.Height * scale)), SKColorType.Rgba8888, SKAlphaType.Premul);
+            return source.Resize(info, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+        }
+        catch (Exception e) when (e is InvalidOperationException or ArgumentException) { return null; }
+        finally { if (owned) source?.Dispose(); }
+    };
+
     private async Task ImageAdjustment(AdjustmentKind kind)
     {
         if (_document is not { } document || Selected is not { } id) return;
@@ -4344,7 +4365,7 @@ public sealed partial class MainWindow : Window
         }
         StartPreview(document, id);
         var asked = await AdjustmentDialog.Ask(this, new LayerAdjustment { Kind = kind },
-            settings => RequestPreview((target, layer) => FilterEdits.ApplyAdjustment(target, layer, settings)));
+            settings => RequestPreview((target, layer) => FilterEdits.ApplyAdjustment(target, layer, settings)), AdjustmentPicture(document, id));
         StopPreview();
         if (asked is not { } settings) return;
         if (_document is not { } current) return;
@@ -4516,13 +4537,10 @@ public sealed partial class MainWindow : Window
     private async Task ImageSize()
     {
         if (_document is not { } document) return;
-        if (await ImageSizeDialog.Ask(this, document.Width, document.Height, document.Resolution,
-                LayerSampling.HighQuality) is not { } asked)
-        {
-            return;
-        }
+        if (await ImageSizeDialog.Ask(this, document.Width, document.Height, document.Resolution, document.Image, AdjustmentPicture(document, null)) is not { } asked) return;
+        if (asked.Upscale) { await GenerativeUpscale(); return; }
         if (_document is not { } current) return;
-        if (!Edit("Image Size", () => ImageEdits.Resize(current, asked.Width, asked.Height, asked.Resolution, asked.Sampling)))
+        if (!Edit("Image Size", () => ImageEdits.Resize(current, asked.Width, asked.Height, asked.Resolution, asked.Sampling, asked.ScaleStyles)))
         {
             Say("That size is too large to resample to.");
             return;
@@ -4985,7 +5003,9 @@ public sealed partial class MainWindow : Window
             Say("Auto Levels needs a layer with pixels of its own");
             return;
         }
-        if (!Edit("Auto Levels", () => LevelsEdits.Auto(document, id, mode))) Say("There is nothing in that layer to stretch");
+        // The clip shares saved in Auto Color Correction Options apply here too, as in Photoshop.
+        var options = AutoColorCorrectionDialog.Current;
+        if (!Edit("Auto Levels", () => LevelsEdits.Auto(document, id, mode, options.ShadowClip / 100, options.HighlightClip / 100))) Say("There is nothing in that layer to stretch");
         else Say($"Auto Levels: {mode}");
         Reselect(id);
     }
@@ -5235,9 +5255,13 @@ public sealed partial class MainWindow : Window
     private async Task CanvasSize()
     {
         if (_document is not { } document) return;
-        if (await CanvasSizeDialog.Ask(this, document.Width, document.Height, CanvasEdits.CentreAnchor) is not { } asked) return;
+        // The extension color fills the new canvas only under a Background layer, as Photoshop's does.
+        var background = document.Layers.FirstOrDefault() is { Name: "Background", IsGroup: false, Asset: not null } bottom && bottom.Transform is { X: 0, Y: 0 } && bottom.Transform.Width == document.Width;
+        uint Packed(SKColor c) => 0xff000000u | (uint)c.Red << 16 | (uint)c.Green << 8 | c.Blue;
+        if (await CanvasSizeDialog.Ask(this, document.Width, document.Height, CanvasEdits.CentreAnchor, document.Resolution, document.Image, background,
+                Packed(BrushColour()), Packed(BackgroundColour())) is not { } asked) return;
         if (_document is not { } current) return;
-        Edit("Canvas Size", () => CanvasEdits.Resize(current, asked.Width, asked.Height, asked.Anchor));
+        Edit("Canvas Size", () => CanvasEdits.Resize(current, asked.Width, asked.Height, asked.Anchor, asked.Fill));
         Say($"Canvas is now {asked.Width} x {asked.Height}");
     }
 

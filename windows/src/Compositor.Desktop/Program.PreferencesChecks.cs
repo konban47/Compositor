@@ -79,9 +79,9 @@ public sealed partial class MainWindow
         var invalid=original.Copy();invalid.CheckerLight="bad";invalid.GpuCacheMB=int.MaxValue;invalid.BrushSmoothing=double.NaN;invalid.Normalize();
         Check(invalid.CheckerLight=="#454545" && invalid.GpuCacheMB==2048 && invalid.BrushSmoothing==0,"Invalid settings were not normalized.");
         var layerId=doc.Layers[0].ID;Reselect(layerId);task=ExtendedImageAdjustment(ImageAdjustmentKind.BrightnessContrast,adjustmentLayer:true);Pump();
-        var form=OwnedWindows.OfType<FormDialog>().Single();form.GetVisualDescendants().OfType<NumericUpDown>().Single(n=>Equals(n.Tag,"Brightness")).Value=37;Click(form,"OK");Finish(task);
+        var form=OwnedWindows.OfType<ImageAdjustmentDialog>().Single();form.GetVisualDescendants().OfType<ValueBox>().Single(n=>Equals(n.Tag,"Brightness value")).Value=37;Click(form,"OK");Finish(task);
         Check(doc.Layers.Last().Adjustment?.Extended?.Get("Brightness")==37,"Adjustment layer was not created.");
-        task=EditAdjustment();Pump();form=OwnedWindows.OfType<FormDialog>().Single();Check(form.GetVisualDescendants().OfType<NumericUpDown>().Single(n=>Equals(n.Tag,"Brightness")).Value==37,"Reopening reset adjustment parameters.");Click(form,"Cancel");Finish(task);Undo();Pump();
+        task=EditAdjustment();Pump();form=OwnedWindows.OfType<ImageAdjustmentDialog>().Single();Check(form.GetVisualDescendants().OfType<ValueBox>().Single(n=>Equals(n.Tag,"Brightness value")).Value==37,"Reopening reset adjustment parameters.");Click(form,"Cancel");Finish(task);Undo();Pump();
         doc=_document!;Reselect(layerId);SetTool(Tool.Pen);Pump();
         var screen=_canvas.TranslatePoint(new Point(50,50),this)!.Value;this.MouseMove(screen);Pump();var builds=_canvas.SceneBuildCount;
         this.MouseMove(screen+new Vector(5,5));Pump();Check(_canvas.SceneBuildCount==builds,"Pointer-only movement rebuilt the display scene.");Check(_canvas.PenCursorEnabled,"Pen cursor not selected.");

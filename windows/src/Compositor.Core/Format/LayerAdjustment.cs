@@ -185,8 +185,37 @@ public sealed class GradientMapSettings
     public AdjustmentColor Shadows { get; set; } = AdjustmentColor.From(0, 0, 0);
     public AdjustmentColor Highlights { get; set; } = AdjustmentColor.From(1, 1, 1);
     public bool Reversed { get; set; }
+    /// <summary>A gradient of more than two colors, as Photoshop's gradient picker gives one (Windows extension 35). When set
+    /// it replaces Shadows and Highlights, which still hold its two ends for readers that know only them.</summary>
+    public Document.GradientStopValue[]? Stops { get; set; }
+    /// <summary>How the colors between stops are blended (Windows extension 35); a straight line when absent, as before.</summary>
+    public Document.GradientMethod? Method { get; set; }
+    /// <summary>Dither (Windows extension 35): noise of less than one level, which hides banding.</summary>
+    public bool? Dither { get; set; }
+    [JsonIgnore] public bool NeedsVersion35 => Stops is not null || Method is not null || Dither is not null;
 
-    public bool IsValid => Shadows.IsValid && Highlights.IsValid;
+    public bool IsValid => Shadows.IsValid && Highlights.IsValid
+        && (Stops is null || new Document.GradientPaintSettings { Stops = Stops }.IsValid) && (Method is null || Enum.IsDefined(Method.Value));
+
+    /// <summary>The color this map gives a brightness of <paramref name="t"/>, from shadows (0) to highlights (1).</summary>
+    public (double Red, double Green, double Blue) Sample(double t)
+    {
+        t = Math.Clamp(Reversed ? 1 - t : t, 0, 1);
+        if (Stops is null && Method is null)
+            return (Shadows.Red + (Highlights.Red - Shadows.Red) * t, Shadows.Green + (Highlights.Green - Shadows.Green) * t,
+                Shadows.Blue + (Highlights.Blue - Shadows.Blue) * t);
+        var paint = new Document.GradientPaintSettings
+        {
+            Method = Method ?? Document.GradientMethod.Linear, Dither = false,
+            Stops = Stops ?? [new(0, Pack(Shadows)), new(1, Pack(Highlights))],
+        };
+        var color = paint.Sample(t);
+        return (color.Red, color.Green, color.Blue);
+    }
+
+    /// <summary>A color as the gradient stops hold it, opaque.</summary>
+    public static uint Pack(AdjustmentColor color) => 0xff000000u | (uint)Math.Round(Math.Clamp(color.Red, 0, 1) * 255) << 16
+        | (uint)Math.Round(Math.Clamp(color.Green, 0, 1) * 255) << 8 | (uint)Math.Round(Math.Clamp(color.Blue, 0, 1) * 255);
 }
 
 /// <summary>Film grain: brightness noise, strongest in the midtones, fixed in document space by `seed`.</summary>

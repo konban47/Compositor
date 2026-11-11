@@ -405,17 +405,16 @@ public static class AdjustmentOperators
     {
         var settings = adjustment.GradientMap;
         if (!settings.IsValid) return;
-        var first = settings.Reversed ? settings.Highlights : settings.Shadows;
-        var last = settings.Reversed ? settings.Shadows : settings.Highlights;
         var table = Compositor.Core.Model.MemoryBudget.Allocate<byte>(checked(256 * 3));
         for (int i = 0; i < 256; i++)
         {
-            double t = i / 255.0;
-            table[i * 3] = GradientChannel(first.Red, last.Red, t);
-            table[i * 3 + 1] = GradientChannel(first.Green, last.Green, t);
-            table[i * 3 + 2] = GradientChannel(first.Blue, last.Blue, t);
+            // Two ends make a straight line, as before; stops and a method sample the gradient the picker chose.
+            var color = settings.Sample(i / 255.0);
+            table[i * 3] = GradientChannel(color.Red, color.Red, 0);
+            table[i * 3 + 1] = GradientChannel(color.Green, color.Green, 0);
+            table[i * 3 + 2] = GradientChannel(color.Blue, color.Blue, 0);
         }
-        AdjustPixels.GradientMap(rgba, width, height, stride, table);
+        AdjustPixels.GradientMap(rgba, width, height, stride, table, settings.Dither == true);
     }
 
     private static byte GradientChannel(double from, double to, double t)

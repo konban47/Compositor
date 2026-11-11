@@ -17,6 +17,10 @@ public enum LevelsAuto
 
     /// <summary>As Colour, and each channel's midtone is brought to middle grey.</summary>
     Neutral,
+
+    /// <summary>Photoshop's Enhance Brightness and Contrast: one shared interval, then the master gamma that brings the
+    /// picture's mean brightness to middle grey, so the colours keep their relationship.</summary>
+    Brightness,
 }
 
 /// <summary>
@@ -33,31 +37,50 @@ public static class LevelsEdits
     /// The levels this picture asks for. <paramref name="premultiplied"/> is the layer as the kernels see it;
     /// fully transparent pixels are left out of the count, as they are for every other kernel.
     /// </summary>
-    public static LevelsSettings Automatic(SKBitmap premultiplied, LevelsAuto mode)
+    public static LevelsSettings Automatic(SKBitmap premultiplied, LevelsAuto mode) => Automatic(premultiplied, mode, Clip, Clip);
+
+    /// <summary>The same with the share of shadows and highlights clipped given, as Auto Color Correction Options sets
+    /// them (0.1% each by default); <paramref name="snapNeutral"/> brings each channel's midtone to grey as Neutral does.</summary>
+    public static LevelsSettings Automatic(SKBitmap premultiplied, LevelsAuto mode, double shadowClip, double highlightClip, bool snapNeutral = false)
     {
+        shadowClip = Math.Clamp(shadowClip, 0, .1); highlightClip = Math.Clamp(highlightClip, 0, .1);
+        if (mode == LevelsAuto.Color && snapNeutral) mode = LevelsAuto.Neutral;
         var bins = new double[1024];
         LevelsPixels.LevelsHistogram(premultiplied.GetPixelSpan(), [], premultiplied.Width * premultiplied.Height,
             bins);
         var settings = new LevelsSettings();
-        if (mode == LevelsAuto.Contrast)
+        if (mode is LevelsAuto.Contrast or LevelsAuto.Brightness)
         {
             // One interval for all three, so a colour is stretched by the same amount as the others.
             double? low = null, high = null;
             for (var channel = 1; channel <= 3; channel++)
             {
-                if (Endpoints(bins, channel) is not { } limits) continue;
+                if (Endpoints(bins, channel, shadowClip, highlightClip) is not { } limits) continue;
                 low = low is { } least ? Math.Min(least, limits.Low) : limits.Low;
                 high = high is { } most ? Math.Max(most, limits.High) : limits.High;
             }
             if (low is { } black && high is { } white && black < white)
             {
                 settings.Ranges[0] = new LevelsChannelRange { Black = black, White = white };
+                if (mode == LevelsAuto.Brightness)
+                {
+                    // The mean brightness after the stretch, and the gamma that brings it to the middle.
+                    double total = 0, mean = 0;
+                    for (var channel = 1; channel <= 3; channel++)
+                        for (var value = 0; value < 256; value++)
+                        {
+                            total += bins[channel * 256 + value];
+                            mean += Mapped(settings.Ranges[0], value / 255.0) * bins[channel * 256 + value];
+                        }
+                    if (total > 0 && (mean /= total) is > 0 and < 1)
+                        settings.Ranges[0].Gamma = Math.Clamp(Math.Log(mean) / Math.Log(0.5), 0.1, 9.99);
+                }
             }
             return settings;
         }
         for (var channel = 1; channel <= 3; channel++)
         {
-            if (Endpoints(bins, channel) is not { } limits) continue;
+            if (Endpoints(bins, channel, shadowClip, highlightClip) is not { } limits) continue;
             var range = new LevelsChannelRange { Black = limits.Low, White = limits.High };
             if (mode == LevelsAuto.Neutral)
             {
@@ -84,12 +107,15 @@ public static class LevelsEdits
     /// Puts the levels the picture asks for on a layer, held to the selection, as one edit. False when the
     /// layer cannot take it or when there is nothing to work out — a picture with no pixels of its own.
     /// </summary>
-    public static bool Auto(CanvasDocument document, Guid layerID, LevelsAuto mode)
+    public static bool Auto(CanvasDocument document, Guid layerID, LevelsAuto mode) => Auto(document, layerID, mode, Clip, Clip);
+
+    /// <summary>As above, with the clip shares and neutral snapping that Auto Color Correction Options sets.</summary>
+    public static bool Auto(CanvasDocument document, Guid layerID, LevelsAuto mode, double shadowClip, double highlightClip, bool snapNeutral = false)
     {
         if (document.Layers.FirstOrDefault(layer => layer.ID == layerID) is not { } layer) return false;
         if (!FilterSurface.Begin(layer, 0, out var work, out _)) return false;
         LevelsSettings settings;
-        using (work) settings = Automatic(work, mode);
+        using (work) settings = Automatic(work, mode, shadowClip, highlightClip, snapNeutral);
         var adjustment = new LayerAdjustment { Kind = AdjustmentKind.Levels, Levels = settings };
         if (!adjustment.IsValid) return false;
         // A picture with no range in it asks for nothing, and asking for nothing is not an edit: a flat
@@ -103,7 +129,7 @@ public static class LevelsEdits
     /// Where a channel's pixels start and end, leaving out the share at each end that is outliers: the black
     /// point below which almost nothing is, and the white point above which almost nothing is.
     /// </summary>
-    private static (double Low, double High)? Endpoints(ReadOnlySpan<double> bins, int channel)
+    private static (double Low, double High)? Endpoints(ReadOnlySpan<double> bins, int channel, double shadowClip, double highlightClip)
     {
         ReadOnlySpan<double> counts = bins.Slice(channel * 256, 256);
         var total = 0.0;
@@ -114,7 +140,7 @@ public static class LevelsEdits
         for (var value = 0; value < 256; value++)
         {
             running += counts[value];
-            if (running > total * Clip)
+            if (running > total * shadowClip)
             {
                 low = value;
                 break;
@@ -125,7 +151,7 @@ public static class LevelsEdits
         for (var value = 255; value >= 0; value--)
         {
             running += counts[value];
-            if (running > total * Clip)
+            if (running > total * highlightClip)
             {
                 high = value;
                 break;

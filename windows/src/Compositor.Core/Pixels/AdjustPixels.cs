@@ -13,7 +13,7 @@ public static partial class AdjustPixels
     /// Gradient Map: each pixel's luminance picks a color from <paramref name="table"/> (256 × 3 straight
     /// sRGB bytes, darkest first). Alpha is kept and fully transparent pixels are left alone.
     /// </summary>
-    public static void GradientMap(Span<byte> rgba, int width, int height, int stride, ReadOnlySpan<byte> table)
+    public static void GradientMap(Span<byte> rgba, int width, int height, int stride, ReadOnlySpan<byte> table, bool dither = false)
     {
         for (int y = 0; y < height; y++)
         {
@@ -35,9 +35,11 @@ public static partial class AdjustPixels
                 }
                 uint level = (2126u * r + 7152u * g + 722u * b + 5000u) / 10000u;
                 int color = (int)(level > 255 ? 255 : level) * 3;
-                rgba[p] = (byte)((table[color] * a + 127u) / 255u);
-                rgba[p + 1] = (byte)((table[color + 1] * a + 127u) / 255u);
-                rgba[p + 2] = (byte)((table[color + 2] * a + 127u) / 255u);
+                // Dither: up to one level of noise, fixed to the pixel, which hides the steps of a long gradient.
+                int noise = dither ? (int)(Mix32((uint)(x * 73856093) ^ (uint)(y * 19349663)) % 3) - 1 : 0;
+                rgba[p] = (byte)(((uint)Math.Clamp(table[color] + noise, 0, 255) * a + 127u) / 255u);
+                rgba[p + 1] = (byte)(((uint)Math.Clamp(table[color + 1] + noise, 0, 255) * a + 127u) / 255u);
+                rgba[p + 2] = (byte)(((uint)Math.Clamp(table[color + 2] + noise, 0, 255) * a + 127u) / 255u);
             }
         }
     }

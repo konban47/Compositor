@@ -119,7 +119,7 @@ public sealed partial class MainWindow
                 Button("Create Work Path", CreateTypePath); Button("Define Shape Preset…", () => _ = DefinePreset("Shape")); break;
             case "Notes": BuildNotesPanel(body); break;
             case "Measurement Log":
-                Button("Record Measurements", RecordMeasurements); Button("Measurement Log…", () => _ = MeasurementLog()); Button("Ruler tool", () => SetTool(Tool.Ruler)); break;
+                Button("Record Measurements", RecordMeasurements); Button("Measurement Log", () => _ = MeasurementLog()); Button("Ruler tool", () => SetTool(Tool.Ruler)); break;
             case "Info":
                 var info = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12 }; body.Children.Add(info);
                 _utilityRefresh[name] = () => info.Text = _document is { } doc ? $"{_open.Name}\n{doc.Width} × {doc.Height} px\n{Localize.Text("Layers")}: {doc.Layers.Count}\n{Localize.Text("Zoom")}: {_canvas.Viewport.Zoom:P0}\n{Localize.Text("Selected Layer")}: {PropertyLayer?.Name ?? "—"}" : Localize.Text("No document"); break;

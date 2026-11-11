@@ -48,15 +48,15 @@ public static class ProjectStore
         if (manifest.ImageSettings is { } imageSettings && (version < 18 || !imageSettings.IsValid || version < 20 && imageSettings.CmykProfile is not null)
             || manifest.MeasurementScale is { } scale && (version < 18 || !scale.IsValid)
             || manifest.Variables is { } variables && (version < 18 || variables.Count > 10000 || variables.Any(v => v is null
-                || !Enum.IsDefined(v.Kind) || string.IsNullOrWhiteSpace(v.Name) || v.Name.Length > 128
+                || !v.IsValid || version < 35 && v.NeedsVersion35 || string.IsNullOrWhiteSpace(v.Name) || v.Name.Length > 128
                 || !manifest.Layers.Any(l => l.ID == v.LayerID)) || variables.Select(v => v.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != variables.Count)
             || manifest.DataSets is { } dataSets && (version < 18 || dataSets.Count > 1000 || dataSets.Any(d => d is null
                 || string.IsNullOrWhiteSpace(d.Name) || d.Name.Length > 128 || d.Values is null || d.Values.Count > 10000
                 || d.Values.Any(v => v.Key.Length > 128 || v.Value is null || v.Value.Length > 100000)))
-            || manifest.Measurements is { } measurements && (version < 18 || measurements.Count > 10000 || measurements.Any(m => m is null
-                || m.Name is null || m.Name.Length > 1024 || m.Unit is null || m.Unit.Length > 64
-                || new[] { m.Area, m.Perimeter, m.Width, m.Height, m.Length, m.Angle, m.Mean }.Any(v => !double.IsFinite(v))))
-            || manifest.MeasurementFields is { } fields && (version < 18 || fields.Length > 8 || fields.Any(f => f is not ("Area" or "Perimeter" or "Width" or "Height" or "Length" or "Angle" or "Count" or "Mean"))))
+            || manifest.Measurements is { } measurements && (version < 18 || measurements.Count > 10000 || measurements.Any(m => m is null || !m.IsValid
+                || version < 35 && m.NeedsVersion35))
+            || manifest.MeasurementFields is { } fields && (version < 18 || fields.Length > Document.ImageAnalysis.DataPoints.Length || fields.Distinct().Count() != fields.Length
+                || fields.Any(f => !(version >= 35 ? Document.ImageAnalysis.DataPoints.Contains(f) : Document.ImageAnalysis.LegacyDataPoints.Contains(f)))))
             throw new ProjectException(ProjectError.Invalid);
         if (manifest.CountGroups is { } groups && (version < 26 || groups.Count > 256 || groups.Any(g => g is null || !g.IsValid)
             || groups.Select(g => g.Name).Distinct(StringComparer.Ordinal).Count() != groups.Count)) throw new ProjectException(ProjectError.Invalid);
@@ -74,6 +74,7 @@ public static class ProjectStore
         foreach (var layer in manifest.Layers)
         {
             if (version < 29 && (layer.Effects?.Items?.Any(e => e.ContourSamples is not null) == true || layer.Text?.Layout?.HasExtendedLayout == true || layer.Text?.StyleRuns?.Any(r => r.Style.Layout?.HasExtendedLayout == true) == true)) throw new ProjectException(ProjectError.Invalid);
+            if (version < 35 && layer.Adjustment?.GradientMapSettings?.NeedsVersion35 == true) throw new ProjectException(ProjectError.Invalid);
             if (layer.Gif is { } gif && (version < 17 || !gif.IsValid(layer.ID) || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null || layer.Text is not null || layer.Shape is not null || layer.SmartObjectFile is not null)) throw new ProjectException(ProjectError.Invalid);
             if (layer.FloatImageFile is not null && (version < 18 || layer.ImageFile is null || layer.ImageFile.EndsWith(".exr", StringComparison.OrdinalIgnoreCase) || layer.FloatImageFile != Model.FloatPixels.FileName(layer.ID)))
                 throw new ProjectException(ProjectError.Invalid);

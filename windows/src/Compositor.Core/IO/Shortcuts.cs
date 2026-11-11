@@ -238,6 +238,7 @@ public static class Shortcuts
         Menu("Auto Color", "B", Ctrl | Shift);
         Menu("Canvas Size", "C", Ctrl | Alt);
         Menu("Image Size", "I", Ctrl | Alt);
+        Menu("Generative Upscale", "U", Ctrl | Shift | Alt);
         Menu("Layer via Copy", "J", Ctrl);
         // The port has the Mac's one duplicate row twice over: Layer via Copy takes the copy that is bounded by
         // the selection, and the layer's own duplicate takes Shift with it rather than the same key twice.

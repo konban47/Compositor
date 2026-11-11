@@ -11,7 +11,21 @@ namespace Compositor.Core.Document;
 
 public static class ImageAnalysis
 {
-    public static MeasurementRecord Measure(CanvasDocument document, string name)
+    /// <summary>Photoshop's data points, in the groups Select Data Points lists them. "Mean" is Gray Value (Mean) and "Count"
+    /// the Count tool's count, the names the Windows build saved before extension 35.</summary>
+    public static readonly (string Group, string[] Fields)[] DataPointGroups =
+    [
+        ("General", ["Label", "Date and Time", "Document", "Source", "Scale", "Scale Units", "Scale Factor"]),
+        ("Selection", ["Selection Count", "Area", "Perimeter", "Circularity", "Height", "Width", "Gray Value (Minimum)", "Gray Value (Maximum)", "Mean",
+            "Gray Value (Median)", "Integrated Density", "Histogram"]),
+        ("Ruler Tool", ["Ruler Count", "Length", "Angle"]),
+        ("Count Tool", ["Count"]),
+    ];
+    public static readonly string[] DataPoints = DataPointGroups.SelectMany(g => g.Fields).ToArray();
+    /// <summary>The data points versions before 35 know.</summary>
+    public static readonly string[] LegacyDataPoints = ["Area", "Perimeter", "Width", "Height", "Length", "Angle", "Count", "Mean"];
+
+    public static MeasurementRecord Measure(CanvasDocument document, string name, string? documentName = null)
     {
         var scale = document.MeasurementScale; if (!scale.IsValid) throw new InvalidDataException("Invalid measurement scale.");
         var bounds = document.Selection.Path is null ? SKRectI.Create(document.Width, document.Height) : document.Selection.CoverageRect(document.Width, document.Height);
@@ -19,19 +33,53 @@ public static class ImageAnalysis
         if (bounds.IsEmpty) throw new InvalidOperationException("Select a non-empty area to measure.");
         using var mask = document.Selection.Coverage(bounds); using var composite = DocumentRenderer.RenderRegion(document, bounds);
         double area = 0, perimeter = 0, mean = 0;
+        var histogram = new int[256];
         var minX = bounds.Width; var minY = bounds.Height; var maxX = -1; var maxY = -1;
         double At(int x, int y) => x < 0 || y < 0 || x >= bounds.Width || y >= bounds.Height ? 0 : mask is null ? 1 : mask.GetPixelSpan()[y * mask.RowBytes + x] / 255.0;
         for (var y = 0; y < bounds.Height; y++) for (var x = 0; x < bounds.Width; x++)
         {
-            var a = At(x, y); if (a > 0) { minX = Math.Min(minX, x); minY = Math.Min(minY, y); maxX = Math.Max(maxX, x); maxY = Math.Max(maxY, y); } area += a; var c = composite.GetPixel(x, y); mean += a * (.2126 * c.Red + .7152 * c.Green + .0722 * c.Blue);
+            var a = At(x, y); if (a > 0) { minX = Math.Min(minX, x); minY = Math.Min(minY, y); maxX = Math.Max(maxX, x); maxY = Math.Max(maxY, y); }
+            area += a; var c = composite.GetPixel(x, y); var gray = .2126 * c.Red + .7152 * c.Green + .0722 * c.Blue; mean += a * gray;
+            if (a >= .5) histogram[Math.Clamp((int)Math.Round(gray), 0, 255)]++;
             perimeter += Math.Abs(a - At(x - 1, y)) + Math.Abs(a - At(x, y - 1));
             if (x == bounds.Width - 1) perimeter += a; if (y == bounds.Height - 1) perimeter += a;
         }
         var ruler = document.Marks.LastOrDefault(m => m.Kind == MarkKind.Measure && m.Visible);
         var factor = scale.Units / scale.Pixels; var length = ruler is null ? 0 : Math.Sqrt(ruler.Width * ruler.Width + ruler.Height * ruler.Height);
+        // The gray range and median over the pixels at least half selected, as Photoshop counts them.
+        var total = histogram.Sum(); double? minimum = null, maximum = null, median = null;
+        if (total > 0)
+        {
+            minimum = Array.FindIndex(histogram, v => v > 0); maximum = Array.FindLastIndex(histogram, v => v > 0);
+            var running = 0; for (var i = 0; i < 256; i++) { running += histogram[i]; if (running * 2 >= total) { median = i; break; } }
+        }
+        var source = document.Selection.Path is not null ? "Selection" : ruler is not null ? "Ruler Tool" : document.Marks.Any(m => m.Kind == MarkKind.Count && m.Visible) ? "Count Tool" : "Selection";
         return new(name, DateTimeOffset.UtcNow, area * factor * factor, perimeter * factor, Math.Max(0, maxX - minX + 1) * factor, Math.Max(0, maxY - minY + 1) * factor,
             length * factor, ruler is null ? 0 : Math.Atan2(ruler.Height, ruler.Width) * 180 / Math.PI,
-            document.Marks.Count(m => m.Kind == MarkKind.Count && m.Visible), area > 0 ? mean / area : 0, scale.Unit);
+            document.Marks.Count(m => m.Kind == MarkKind.Count && m.Visible), area > 0 ? mean / area : 0, scale.Unit,
+            minimum, maximum, median, histogram, source, documentName is { Length: > 0 and <= 1024 } ? documentName : null);
+    }
+
+    /// <summary>What one data point of a record reads in the log and the exported file.</summary>
+    public static string Value(CanvasDocument document, MeasurementRecord record, string field)
+    {
+        string Number(double value) => value.ToString("0.######", CultureInfo.InvariantCulture);
+        var scale = document.MeasurementScale;
+        return field switch
+        {
+            "Label" => record.Name, "Date and Time" => record.Time.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss", CultureInfo.InvariantCulture),
+            "Document" => record.Document ?? "", "Source" => record.Source ?? "",
+            "Scale" => $"{Number(scale.Pixels)} px = {scale.Units.ToString("0.0000", CultureInfo.InvariantCulture)} {scale.Unit}",
+            "Scale Units" => record.Unit, "Scale Factor" => (scale.Units / scale.Pixels).ToString("0.000000", CultureInfo.InvariantCulture),
+            "Selection Count" => record.Area > 0 ? "1" : "0", "Area" => Number(record.Area), "Perimeter" => Number(record.Perimeter),
+            "Circularity" => record.Perimeter > 0 ? Math.Min(1, 4 * Math.PI * record.Area / (record.Perimeter * record.Perimeter)).ToString("0.000000", CultureInfo.InvariantCulture) : "",
+            "Height" => Number(record.Height), "Width" => Number(record.Width),
+            "Gray Value (Minimum)" => record.GrayMinimum is { } min ? Number(min) : "", "Gray Value (Maximum)" => record.GrayMaximum is { } max ? Number(max) : "",
+            "Mean" => Number(record.Mean), "Gray Value (Median)" => record.GrayMedian is { } median ? Number(median) : "",
+            "Integrated Density" => Number(record.Area * record.Mean), "Histogram" => record.Histogram is { } h ? string.Join(' ', h) : "",
+            "Ruler Count" => record.Length > 0 ? "1" : "0", "Length" => Number(record.Length), "Angle" => Number(record.Angle),
+            "Count" => record.Count.ToString(CultureInfo.InvariantCulture), _ => "",
+        };
     }
     public static string Csv(CanvasDocument document)
     {
@@ -40,29 +88,45 @@ public static class ImageAnalysis
         foreach (var record in document.Measurements)
         {
             builder.Append(Quote(record.Name)).Append(',').Append(record.Time.ToString("O", CultureInfo.InvariantCulture)).Append(',').Append(Quote(record.Unit));
-            foreach (var field in document.MeasurementFields)
-            {
-                var value = field switch { "Area" => record.Area, "Perimeter" => record.Perimeter, "Width" => record.Width, "Height" => record.Height,
-                    "Length" => record.Length, "Angle" => record.Angle, "Count" => record.Count, _ => record.Mean };
-                builder.Append(',').Append(value.ToString("G12", CultureInfo.InvariantCulture));
-            }
+            foreach (var field in document.MeasurementFields) builder.Append(',').Append(Quote(Value(document, record, field)));
             builder.AppendLine();
         }
         return builder.ToString();
     }
-    public static bool ScaleMarker(CanvasDocument document, double units, string label, bool white)
+
+    /// <summary>The rows of the given records as tab-separated text, the format Photoshop's Export Selected Measurements writes.</summary>
+    public static string Tsv(CanvasDocument document, IEnumerable<MeasurementRecord> records)
     {
-        if (!document.MeasurementScale.IsValid || !double.IsFinite(units) || units <= 0) return false;
+        var builder = new StringBuilder(string.Join('\t', document.MeasurementFields)).AppendLine();
+        foreach (var record in records) builder.AppendLine(string.Join('\t', document.MeasurementFields.Select(f => Value(document, record, f).Replace('\t', ' '))));
+        return builder.ToString();
+    }
+
+    public static bool ScaleMarker(CanvasDocument document, double units, string label, bool white) =>
+        ScaleMarker(document, units, label, white, SKTypeface.Default.FamilyName, 15 * 72 / Math.Max(1, document.Resolution), true, false);
+
+    /// <summary>
+    /// Image ▸ Analysis ▸ Place Scale Marker: a bar <paramref name="units"/> long in the measurement scale, with its length
+    /// written under it (or over it, <paramref name="textOnTop"/>) in <paramref name="family"/> at <paramref name="points"/>,
+    /// black or white, as a layer of its own at the lower left.
+    /// </summary>
+    public static bool ScaleMarker(CanvasDocument document, double units, string label, bool white, string family, double points, bool showText, bool textOnTop)
+    {
+        if (!document.MeasurementScale.IsValid || !double.IsFinite(units) || units <= 0 || !double.IsFinite(points) || points is < 1 or > 1296) return false;
         var length = units * document.MeasurementScale.Pixels / document.MeasurementScale.Units;
         if (length > document.Width - 20 || length < 1 || document.Layers.Count >= LayerPlacement.MaxLayers) return false;
-        var pixels = Bitmaps.Allocate(Bitmaps.ColorInfo(Math.Max(32, (int)Math.Ceiling(length + 20)), 64)); pixels.Erase(SKColors.Transparent);
+        var size = (float)Math.Clamp(points * document.Resolution / 72, 4, 2000);
+        using var typeface = SKTypeface.FromFamilyName(family) ?? SKTypeface.Default; using var font = new SKFont(typeface, size);
+        var textWidth = showText ? font.MeasureText(label) : 0; var bar = Math.Max(5f, size / 3);
+        var textHeight = showText ? size * 1.3f : 0;
+        var pixels = Bitmaps.Allocate(Bitmaps.ColorInfo(Math.Max(32, (int)Math.Ceiling(Math.Max(length, textWidth) + 20)), (int)Math.Ceiling(bar + textHeight + 24))); pixels.Erase(SKColors.Transparent);
         using (var canvas = new SKCanvas(pixels))
         {
             using var paint = new SKPaint { Color = white ? SKColors.White : SKColors.Black, IsAntialias = true };
-            canvas.DrawRect(10, 8, (float)length, 5, paint); using var font = new SKFont(SKTypeface.Default, 15);
-            canvas.DrawText(label, 10, 38, SKTextAlign.Left, font, paint);
+            var barTop = textOnTop ? 8 + textHeight : 8; canvas.DrawRect(10, barTop, (float)length, bar, paint);
+            if (showText) canvas.DrawText(label, 10, textOnTop ? 8 + size : barTop + bar + size, SKTextAlign.Left, font, paint);
         }
-        document.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(pixels, label), new Model.LayerTransform(10, Math.Max(0, document.Height - 74), pixels.Width, pixels.Height), label)); return true;
+        document.Layers.Add(new ImageLayer(Guid.NewGuid(), ImportedImage.Create(pixels, label), new Model.LayerTransform(10, Math.Max(0, document.Height - pixels.Height - 10), pixels.Width, pixels.Height), label)); return true;
     }
 }
 
@@ -118,7 +182,23 @@ public static class ImageVariables
                     var path = Path.GetFullPath(value, baseDirectory); var replacement = ImageImporter.Decode(path);
                     if (draft.Layers.Where(l => l.ID != layer.ID).Sum(l => (long)(l.Asset?.Width ?? 0) * (l.Asset?.Height ?? 0)) + (long)replacement.Width * replacement.Height > DocumentLimits.DocumentPixelBudget)
                     { replacement.Dispose(); throw new InvalidDataException("Data set images exceed the pixel budget."); }
-                    layer.Asset = replacement; layer.Shape = null; layer.Text = null; break;
+                    layer.Shape = null; layer.Text = null;
+                    if ((variable.Method ?? PixelMethod.Conform) == PixelMethod.Conform) { layer.Asset = replacement; break; }
+                    // Fit, Fill or As Is: the image keeps its proportions, set in the layer's box at the alignment, and with Clip
+                    // cut to the box, as Photoshop places a replacement.
+                    var box = layer.Transform; var sw = (double)replacement.Width; var sh = (double)replacement.Height;
+                    var scale = variable.Method switch { PixelMethod.Fit => Math.Min(box.Width / sw, box.Height / sh), PixelMethod.Fill => Math.Max(box.Width / sw, box.Height / sh), _ => 1 };
+                    var alignment = variable.Alignment ?? 4; var w = sw * scale; var h = sh * scale;
+                    var x = box.X + (box.Width - w) * (alignment % 3) / 2; var y = box.Y + (box.Height - h) * (alignment / 3) / 2;
+                    if (variable.Clip == true && (w > box.Width + .5 || h > box.Height + .5))
+                    {
+                        var clipped = Bitmaps.Allocate(Bitmaps.ColorInfo(Math.Max(1, (int)Math.Round(box.Width)), Math.Max(1, (int)Math.Round(box.Height)))); clipped.Erase(SKColors.Transparent);
+                        using (var canvas = new SKCanvas(clipped)) using (var picture = SKImage.FromBitmap(replacement.Image))
+                            canvas.DrawImage(picture, SKRect.Create((float)(x - box.X), (float)(y - box.Y), (float)w, (float)h), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+                        layer.Asset = ImportedImage.Create(clipped, replacement.Name); replacement.Dispose();
+                    }
+                    else { layer.Asset = replacement; layer.Transform = box with { X = x, Y = y, Width = w, Height = h }; }
+                    break;
             }
             if (layer.Asset is { } made && !ReferenceEquals(made, previous)) allocated.Add(made);
         }
