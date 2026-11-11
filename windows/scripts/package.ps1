@@ -1,6 +1,6 @@
 param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\dist'),
-    [string]$Version = '1.6.6.1',
+    [string]$Version = '1.6.6.2',
     [string]$Dotnet = 'dotnet',
     [string]$InnoCompiler = (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
     [switch]$Installer
