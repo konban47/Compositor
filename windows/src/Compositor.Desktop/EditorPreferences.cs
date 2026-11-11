@@ -212,11 +212,17 @@ internal sealed class EditorPreferences
         CameraRaw ??= new(); CameraRaw.Normalize();
     }
     /// <summary>Photoshop's Transparency grid colors: each a light and a dark square.</summary>
-    internal static readonly (string Name, string Light, string Dark)[] CheckerPresets =
-    [
-        ("Light", "#FFFFFF", "#CCCCCC"), ("Medium", "#CCCCCC", "#999999"), ("Dark", "#666666", "#333333"), ("Red", "#FFFFFF", "#FFCCCC"),
-        ("Orange", "#FFFFFF", "#FFE0CC"), ("Green", "#FFFFFF", "#CCFFCC"), ("Blue", "#FFFFFF", "#CCE5FF"), ("Purple", "#FFFFFF", "#E6CCFF"), ("Custom", "", ""),
-    ];
+    /// <remarks>Kept in a class of its own: <see cref="Current"/> loads and normalizes during this class's static
+    /// initialization, before any static field declared below it is set.</remarks>
+    internal static (string Name, string Light, string Dark)[] CheckerPresets => CheckerTable.Presets;
+    private static class CheckerTable
+    {
+        internal static readonly (string Name, string Light, string Dark)[] Presets =
+        [
+            ("Light", "#FFFFFF", "#CCCCCC"), ("Medium", "#CCCCCC", "#999999"), ("Dark", "#666666", "#333333"), ("Red", "#FFFFFF", "#FFCCCC"),
+            ("Orange", "#FFFFFF", "#FFE0CC"), ("Green", "#FFFFFF", "#CCFFCC"), ("Blue", "#FFFFFF", "#CCE5FF"), ("Purple", "#FFFFFF", "#E6CCFF"), ("Custom", "", ""),
+        ];
+    }
     /// <summary>The pasteboard each of Photoshop's named shades stands for.</summary>
     internal static string ShadeColor(string preset, string custom) => preset switch
     { "Black" => "#000000", "Dark Gray" => "#282828", "Medium Gray" => "#808080", "Light Gray" => "#BFBFBF", "Custom" => custom, _ => "#282828" };
