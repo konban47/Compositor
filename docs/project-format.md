@@ -1,4 +1,4 @@
-# Compositor project format, macOS versions 1–21 and Windows extensions 12–34
+# Compositor project format, macOS versions 1–21 and Windows extensions 12–35
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
@@ -369,5 +369,18 @@ Windows **1.6.6.3 Preview** reads versions 1–34 and writes the lowest version 
 - A smart-object layer may carry `smartObjectStackMode`, one of `Standard Deviation`, `Range`, `Variance`, `Kurtosis`, `Skewness`, `Mean`, `Entropy`, `Median`, `Summation`, `Maximum` or `Minimum`, only together with `smartObjectFile`. The layer's cached image is then the per-pixel statistic of the contents' visible layers instead of their composite; omitted means None. Every layer sharing the smart object's ID carries the same mode.
 - Layer effects may carry `globalLightAltitude` (0–90 degrees) beside `globalLightAngle`.
 - A style effect may carry Photoshop's further options, each optional and omitted meaning the earlier behavior: `antiAlias` (smooths the contour), `range` (1–100, the part of a glow's contour used) and `jitter` (0–100, random variation of a glow gradient), `dither` (gradient overlay and glow gradients), `gradientMethod` (0 Perceptual, 1 Linear, 2 Classic, 3 Smooth, 4 Stripes), `gradientStops` (2–64 `{position, color}` entries, position 0–1 and color as a 32-bit ARGB integer, which replace the two end colors), `overprint` (false draws an inside or center stroke with Normal under the fill), `knocksOut` (a drop shadow hidden under the layer's own opaque pixels), `glossSamples` (65 samples 0–1 of the bevel's Gloss Contour) and `textureInvert` (inverts the bevel texture).
+
+This extends the independent Windows format; it does not change upstream macOS format compatibility.
+
+## Windows extension version 35
+
+Windows **1.6.6.4 Preview** reads versions 1–35 and writes the lowest version required by document contents. Version 35 is required by any of the following, and earlier Windows builds reject it:
+
+- An adjustment's `gradientMapSettings` may carry `stops` (2–64 `{position, color}` entries, position 0–1 in ascending order and color as a 32-bit ARGB integer), `method` (`Perceptual`, `Linear`, `Classic`, `Smooth` or `Stripes`) and `dither` (true adds less than one level of fixed per-pixel noise). With `stops` the map follows them and `shadows` and `highlights` still hold the two ends for readers that know only those; without `stops` or `method` the map is the straight line from `shadows` to `highlights`, as before. A Gradient Map made in 1.6.6.4 starts with `method` `Smooth`, as Photoshop's does.
+- A `measurements` record may carry `grayMinimum`, `grayMaximum` and `grayMedian` (0–255, over the pixels at least half selected), `histogram` (256 non-negative counts), `source` (`Selection`, `Ruler Tool` or `Count Tool`, at most 64 characters) and `document` (the document's name, at most 1024 characters).
+- `measurementFields` may name any of Photoshop's data points: `Label`, `Date and Time`, `Document`, `Source`, `Scale`, `Scale Units`, `Scale Factor`, `Selection Count`, `Area`, `Perimeter`, `Circularity`, `Height`, `Width`, `Gray Value (Minimum)`, `Gray Value (Maximum)`, `Mean` (Gray Value (Mean)), `Gray Value (Median)`, `Integrated Density`, `Histogram`, `Ruler Count`, `Length`, `Angle` and `Count` (the Count tool's), each at most once. Versions 18–34 accept only `Area`, `Perimeter`, `Width`, `Height`, `Length`, `Angle`, `Count` and `Mean`.
+- A pixel-replacement entry in `variables` may carry `method` (`Fit`, `Fill`, `AsIs` or `Conform`), `alignment` (0–8, left to right then top to bottom) and `clip` (cut a Fill or As Is image to the layer's box). Without `method` a replacement image is stretched to the layer's box (`Conform`), as before.
+
+Image adjustments keep their amounts by name in `extended.values`; 1.6.6.4 adds names there (`Legacy` for Brightness/Contrast; `Method`, `Strength`, `Smooth`, `Shadow`, `Highlight`, `Vibrance`, `CurveCount` and `Curve{n}X`/`Curve{n}Y` for HDR Toning; `Shift`, `Hue`, `Saturation`, `Lightness` for Replace Color; `Neutralize` and `IgnoreSelection` for Match Color; `Filter` for Photo Filter). These need no new version: earlier builds read the record and leave names they do not know unused.
 
 This extends the independent Windows format; it does not change upstream macOS format compatibility.
