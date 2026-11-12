@@ -98,7 +98,7 @@ public static class SmartObjectStacks
         using var contents = smart.Open().ToDocument();
         using var rendered = Render(contents, mode);
         var updated = new SmartObjectData(smart.ID, smart.Package) { LinkedPath = smart.LinkedPath, LinkedHash = smart.LinkedHash, StackMode = mode };
-        foreach (var layer in layers) { layer.SmartObject = updated; layer.Asset = ImportedImage.Create(rendered.Copy(), layer.Name); }
+        foreach (var layer in layers) { layer.SmartObject = updated; layer.Asset = SmartFilterEdits.Bake(layer, rendered); }
         return true;
     }
 }

@@ -142,7 +142,7 @@ public sealed partial class MainWindow
     }
 
     /// <summary>The panels Photoshop docks under the document, across the window.</summary>
-    private static readonly string[] BottomPanels = ["Timeline", "Measurement Log"];
+    private static readonly string[] BottomPanels = ["Timeline"];
     /// <summary>The panels that start in the workspace, which never need placing.</summary>
     private static readonly string[] CorePanels = ["Properties", "History", "Layers", "Channels"];
     /// <summary>Panels Photoshop keeps in one tab group: opening one joins the others when they're showing.</summary>
@@ -156,11 +156,12 @@ public sealed partial class MainWindow
     {
         "Timeline" => new Size(1160, 540), "Character" => new Size(350, 480), "Paragraph" => new Size(350, 450), "Layer Comps" => new Size(400, 300),
         "Brush Settings" => new Size(500, 810), "Navigator" or "Histogram" or "Info" => new Size(300, 320), "Glyphs" => new Size(420, 360),
-        "Brushes" => new Size(380, 520), "Actions" or "Tool Presets" or "Clone Source" => new Size(320, 400), "Notes" => new Size(320, 300), _ => null,
+        "Brushes" => new Size(380, 520), "Actions" or "Tool Presets" or "Clone Source" => new Size(320, 400), "Notes" => new Size(320, 300),
+        "Measurement Log" => new Size(1000, 380), _ => null,
     };
 
     /// <summary>
-    /// The first time a panel opens, it goes where Photoshop puts it: the Timeline and Measurement Log under the canvas;
+    /// The first time a panel opens, it goes where Photoshop puts it: the Timeline under the canvas, the Measurement Log floating;
     /// Paths with Layers; Adjustments in the Properties group; the color panels in a group of their own at the top of the
     /// dock; a panel of a tab group with its fellows; anything else floating beside the dock.
     /// </summary>

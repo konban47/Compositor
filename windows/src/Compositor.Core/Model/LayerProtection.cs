@@ -84,7 +84,9 @@ public static class LayerProtection
                 layer.Transform = old.Transform;
                 layer.ParentID = old.ParentID;
             }
-            if (old.SmartObject is not null && layer.SmartObject is not null && operation != "Update Smart Object")
+            // A smart object's picture is its contents (through its smart filters): it changes only with them.
+            if (old.SmartObject is not null && layer.SmartObject is not null && operation != "Update Smart Object"
+                && ReferenceEquals(old.SmartObject, layer.SmartObject) && ReferenceEquals(old.SmartFilters, layer.SmartFilters))
             { layer.Asset = old.Asset; layer.Shape = old.Shape; layer.Text = old.Text; layer.Gradient = old.Gradient; }
             if (protection.HasFlag(LayerLocks.Pixels))
             {

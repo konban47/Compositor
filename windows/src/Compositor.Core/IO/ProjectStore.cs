@@ -75,6 +75,7 @@ public static class ProjectStore
         {
             if (version < 29 && (layer.Effects?.Items?.Any(e => e.ContourSamples is not null) == true || layer.Text?.Layout?.HasExtendedLayout == true || layer.Text?.StyleRuns?.Any(r => r.Style.Layout?.HasExtendedLayout == true) == true)) throw new ProjectException(ProjectError.Invalid);
             if (version < 35 && layer.Adjustment?.GradientMapSettings?.NeedsVersion35 == true) throw new ProjectException(ProjectError.Invalid);
+            if (layer.SmartFilters is { } smartFilters && (version < 36 || layer.SmartObjectFile is null || !smartFilters.IsValid)) throw new ProjectException(ProjectError.Invalid);
             if (layer.Gif is { } gif && (version < 17 || !gif.IsValid(layer.ID) || layer.ImageFile is null || layer.IsGroup == true || layer.Adjustment is not null || layer.Text is not null || layer.Shape is not null || layer.SmartObjectFile is not null)) throw new ProjectException(ProjectError.Invalid);
             if (layer.FloatImageFile is not null && (version < 18 || layer.ImageFile is null || layer.ImageFile.EndsWith(".exr", StringComparison.OrdinalIgnoreCase) || layer.FloatImageFile != Model.FloatPixels.FileName(layer.ID)))
                 throw new ProjectException(ProjectError.Invalid);

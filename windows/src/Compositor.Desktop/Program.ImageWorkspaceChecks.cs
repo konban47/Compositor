@@ -61,11 +61,18 @@ public sealed partial class MainWindow
         var more = _properties.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Tag, "property-more-Alignment"));
         var target = _properties.GetVisualDescendants().OfType<ComboBox>().Single(c => Equals(c.Tag, "alignment-target"));
         Check(target.IsEffectivelyVisible, "Alignment advanced options initially missing."); Click(more); Check(!target.IsEffectivelyVisible, "Ellipsis did not collapse."); Click(more); Check(target.IsEffectivelyVisible, "Ellipsis did not expand."); Save("pixel-properties");
+        // A layered document asks first, as Photoshop's Figure 4: Merge, Cancel or Don't Merge.
         var revision = _history.CurrentRevision; var pending = ConvertImageMode(ImageMode.Grayscale); Pump();
-        var dialog = OwnedWindows.OfType<FormDialog>().Single(); dialog.Close(false); Finish(pending); Check(doc.Image.Mode == ImageMode.RGB && revision == _history.CurrentRevision, "Cancel changed color mode.");
-        pending = ConvertImageMode(ImageMode.Grayscale); Pump(); dialog = OwnedWindows.OfType<FormDialog>().Single();
-        using (var capture = dialog.CaptureRenderedFrame()) capture!.Save(Path.ChangeExtension(output, "mode-dialog.png"), new PngBitmapEncoderOptions());
-        Click(dialog.GetVisualDescendants().OfType<Button>().Single(b => b.Content?.ToString() == Localize.Text("OK"))); Finish(pending);
+        var alert = OwnedWindows.OfType<AlertDialog>().SingleOrDefault();
+        Check(doc.Layers.Count < 2 || alert is { Buttons.Count: 3 }, "A layered document changed mode without asking whether to merge.");
+        if (alert is not null)
+        {
+            Click(alert.Buttons[1]); Finish(pending); Check(doc.Image.Mode == ImageMode.RGB && revision == _history.CurrentRevision, "Cancel changed color mode.");
+            pending = ConvertImageMode(ImageMode.Grayscale); Pump(); alert = OwnedWindows.OfType<AlertDialog>().Single();
+            using (var capture = alert.CaptureRenderedFrame()) capture!.Save(Path.ChangeExtension(output, "mode-dialog.png"), new PngBitmapEncoderOptions());
+            Click(alert.Buttons[2]);
+        }
+        Finish(pending);
         Check(doc.Image.Mode == ImageMode.Grayscale && layer.Asset!.Image.GetPixel(0, 0).Red == layer.Asset.Image.GetPixel(0, 0).Green, "Color mode dialog did not apply."); Undo(); Pump();
         var old = doc.Layers[0].Asset; pending = ExtendedImageAdjustment(ImageAdjustmentKind.Posterize, false); Pump();
         OwnedWindows.OfType<ImageAdjustmentDialog>().Single().Close(false); Finish(pending); Check(ReferenceEquals(doc.Layers[0].Asset, old), "Adjustment cancel mutated pixels.");

@@ -2967,19 +2967,46 @@ public sealed partial class MainWindow : Window
     private async Task NewProject()
     {
         FinishPlacement(true);
-        if (await NewDocumentDialog.Ask(this) is not { } asked) return;
+        // The name the tab would take, offered as the document's name as Photoshop offers Untitled-1.
+        var reuse = _open.Document is null && _tabs.Count <= 1;
+        var taken = _tabs.Where(t => t.Path is null).Select(t => t.UntitledNumber).ToHashSet();
+        var number = reuse ? _open.UntitledNumber : Enumerable.Range(1, taken.Count + 1).First(n => !taken.Contains(n));
+        var untitled = Localize.Text("Untitled") + (number == 1 ? "" : " " + number);
+        NewDocumentDialog.EditorBackground = (uint)BackgroundColour();
+        var clipboard = _clipboard is { } copied ? (copied.Image.Width, copied.Image.Height) : ((int, int)?)null;
+        if (await NewDocumentDialog.Ask(this, clipboard, untitled) is not { } asked) return;
         var made = LayerPlacement.NewDocument(asked.Width, asked.Height, asked.Resolution);
         if (made is null)
         {
             Say("That size is too large for a canvas");
             return;
         }
-        if (asked.Background != 0 && made.Layers.FirstOrDefault()?.Asset is { } background)
-            background.Image.Erase(asked.Background == 1 ? SKColors.White : SKColors.Black);
+        // Background Contents other than Transparent paint the first layer; Transparent leaves it empty.
+        if (asked.BackgroundColor >> 24 != 0 && made.Layers.FirstOrDefault() is { } first)
+        {
+            var paint = new SKBitmap(Bitmaps.ColorInfo(made.Width, made.Height));
+            paint.Erase(new SKColor(asked.BackgroundColor));
+            first.Asset = ImportedImage.Create(paint, first.Name);
+        }
         var ocio = ColorDefaults.Ocio;
-        made.Image = made.Image with { ColorProfile = IccProfiles.Resolve(ColorDefaults.Settings.Rgb).ToArray(), Depth = ocio.Enabled && ocio.Depth != 0 ? ocio.Depth : 8,
+        made.Image = made.Image with { ColorProfile = IccProfiles.Resolve(ColorDefaults.Settings.Rgb).ToArray(),
             OcioConfiguration = ocio.Enabled ? ocio.EffectiveConfig : null, OcioWorkingSpace = ocio.Enabled ? ocio.WorkingSpace : null };
+        // The mode and depth chosen are a conversion of the blank page, so each is what Image ▸ Mode would make.
+        if ((asked.Mode != ImageMode.RGB || asked.Depth != 8) && !ImageModeEdits.Convert(made, made.Image with { Mode = asked.Mode, Depth = asked.Mode == ImageMode.Bitmap ? 8 : asked.Depth }))
+        {
+            made.Dispose(); Say("Could not make a document in that mode");
+            return;
+        }
+        // A profile chosen other than the working one is assigned, and Don't Color Manage leaves the document untagged.
+        if (asked.Profile is { } profile && made.Image.Mode is ImageMode.RGB or ImageMode.CMYK or ImageMode.Grayscale)
+        {
+            try { made.Image = ProfileAssignment.Assign(made.Image, profile.Length == 0 ? null : IccProfiles.Resolve(profile).ToArray(), ColorDefaults.Settings); }
+            catch (Exception e) when (e is InvalidDataException or InvalidOperationException) { Say("The color profile does not fit this mode, so the working profile is used"); }
+        }
+        if (asked.Artboard && made.Layers.Count > 0)
+            LayerWorkflow.MakeContainer(made, [made.Layers[0].ID], LayerContainer.Artboard, Localize.Text("Artboard") + " 1", new SKRect(0, 0, made.Width, made.Height));
         _open = TabForNew();
+        if (asked.Name != untitled) _open.CustomName = asked.Name;
         _document = made;
         _projectPath = null;
         _history.Reset();
@@ -4117,6 +4144,13 @@ public sealed partial class MainWindow : Window
         // Volumetric Light's depth model, downloaded the first time: the haze guesses until it's here, then redraws.
         var depth = kind == FilterKind.VolumetricLight ? DepthModel.PrepareAsync() : null;
         FilterSettings? extract = null;
+        // On a smart object the filter becomes a smart filter, as in Photoshop: the contents stay, the filter is listed under the layer.
+        if (document.Layers.First(layer => layer.ID == id).SmartObject is not null)
+        {
+            if (kind is FilterKind.RimLight or FilterKind.VolumetricLight) { Say("Rim Light and Volumetric Light need a layer with pixels of its own; rasterize the smart object first."); return; }
+            await AddSmartFilter(document, id, kind);
+            return;
+        }
         StartPreview(document, id);
         var asked = await FilterDialog.Ask(this, kind, _filterAmounts, settings =>
         {

@@ -23,7 +23,8 @@ public sealed partial class MainWindow
     private Control BuildChannelsPanel()
     {
         var panel = new DockPanel();
-        var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(8, 4, 8, 6) };
+        // The four buttons sit at the right of the footer, as Photoshop's Channels panel has them.
+        var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(8, 4, 8, 6), HorizontalAlignment = HorizontalAlignment.Right, Tag = "channel-footer" };
         footer.Children.Add(PanelButton("selection", "Load Channel as Selection", LoadChannelSelection));
         footer.Children.Add(PanelButton("mask", "Save Selection as Channel", () => NewAlpha(true)));
         footer.Children.Add(PanelButton("add", "New Alpha Channel", () => NewAlpha(false)));

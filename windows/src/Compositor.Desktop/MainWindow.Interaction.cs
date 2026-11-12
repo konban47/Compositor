@@ -149,6 +149,50 @@ public sealed partial class MainWindow
         _canvas.InvalidateVisual();
     }
 
+    /// <summary>How close to a row's top or bottom edge the pointer must be to stand on the line between two layers.</summary>
+    private const double ClipReach = 6;
+
+    /// <summary>
+    /// The upper of the two layers whose dividing line the pointer is on, in the panel's order: near the bottom of a row it is
+    /// that row's layer, near the top the layer listed above it. Null away from a line, or at the very top or bottom.
+    /// </summary>
+    private Guid? ClipBoundary(Guid rowLayer, double y, double height)
+    {
+        var index = _rows.IndexOf(rowLayer); if (index < 0) return null;
+        if (y >= height - ClipReach) return index + 1 < _rows.Count ? rowLayer : null;
+        if (y <= ClipReach) return index > 0 ? _rows[index - 1] : null;
+        return null;
+    }
+
+    /// <summary>Alt-click between two layers: the upper one clipped to the one under it, or released when it already is.</summary>
+    internal void ClipAtBoundary(Guid upper)
+    {
+        if (_document is not { } document || !document.Layers.Any(l => l.ID == upper)) return;
+        Edit(LayerMaskEdits.ReleasesSelected(document, [upper]) ? "Release Clipping Mask" : "Create Clipping Mask", () => LayerMaskEdits.ToggleSelected(document, [upper]));
+        ShowLayers(document); Reselect(upper);
+    }
+
+    private static Cursor? _clipCursor;
+    /// <summary>Photoshop's clipping cursor: an arrow bending down beside a small square.</summary>
+    private static Cursor ClipCursor => _clipCursor ??= MakeClipCursor();
+    private static Cursor MakeClipCursor()
+    {
+        using var bitmap = new SKBitmap(32, 32, SKColorType.Bgra8888, SKAlphaType.Premul); bitmap.Erase(SKColors.Transparent);
+        using (var canvas = new SKCanvas(bitmap))
+        using (var outline = new SKPaint { Color = SKColors.White, StrokeWidth = 5, Style = SKPaintStyle.Stroke, IsAntialias = true, StrokeCap = SKStrokeCap.Round })
+        using (var ink = new SKPaint { Color = SKColors.Black, StrokeWidth = 2.4f, Style = SKPaintStyle.Stroke, IsAntialias = true, StrokeCap = SKStrokeCap.Round })
+        using (var fill = new SKPaint { Color = SKColors.Black, Style = SKPaintStyle.Fill, IsAntialias = true })
+        using (var white = new SKPaint { Color = SKColors.White, Style = SKPaintStyle.Fill })
+        {
+            using var hook = SKPath.ParseSvgPathData("M15,4 L8,4 L8,18");
+            canvas.DrawPath(hook, outline); canvas.DrawPath(hook, ink);
+            using var head = SKPath.ParseSvgPathData("M2,16 L14,16 L8,24 Z");
+            canvas.DrawPath(head, outline); canvas.DrawPath(head, fill);
+            canvas.DrawRect(17, 2, 12, 12, white); canvas.DrawRect(17, 2, 12, 12, ink);
+        }
+        return new Cursor(Eyedroppers.Thumbnail(bitmap), new PixelPoint(8, 24));
+    }
+
     private Control LayerRow(ImageLayer layer, int depth, string notes)
     {
         ImageLayer? Current() => _document?.Layers.FirstOrDefault(item => item.ID == layer.ID);
@@ -166,16 +210,43 @@ public sealed partial class MainWindow
         panel.PointerEntered += (_, _) => { if (!_layerDragging && EditorPreferences.Current.MoveLayerHoverBounds) { _moveHoverBox = layer.IsGroup && _document is { } doc ? TransformEdits.GroupBox(doc, [layer.ID]) : layer.Transform; _canvas.InvalidateOverlay(); } };
         panel.PointerExited += (_, _) => { _moveHoverBox = null; _canvas.InvalidateOverlay(); };
         panel.Children.Add(new Border { Child = eye, Background = Skin.ChromeBrush, BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(0, 0, 1, 0) });
+        // Alt over the line between two layers shows Photoshop's clipping cursor; a click there clips the upper layer to the one
+        // under it, or releases it, as Create/Release Clipping Mask does.
+        panel.PointerMoved += (_, e) => panel.Cursor = e.KeyModifiers.HasFlag(KeyModifiers.Alt) && ClipBoundary(layer.ID, e.GetPosition(panel).Y, panel.Bounds.Height) is not null ? ClipCursor : null;
+        panel.PointerExited += (_, _) => panel.Cursor = null;
+        panel.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (!e.KeyModifiers.HasFlag(KeyModifiers.Alt) || !e.GetCurrentPoint(panel).Properties.IsLeftButtonPressed
+                || ClipBoundary(layer.ID, e.GetPosition(panel).Y, panel.Bounds.Height) is not { } upper) return;
+            ClipAtBoundary(upper); e.Handled = true;
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         if (layer.Label != Compositor.Core.Format.LayerLabel.None)
         {
             var color = layer.Label switch { Compositor.Core.Format.LayerLabel.Red => "#994c4c", Compositor.Core.Format.LayerLabel.Orange => "#996432", Compositor.Core.Format.LayerLabel.Yellow => "#8d853c", Compositor.Core.Format.LayerLabel.Green => "#4e7c4e", Compositor.Core.Format.LayerLabel.Blue => "#47668a", Compositor.Core.Format.LayerLabel.Violet => "#785489", Compositor.Core.Format.LayerLabel.Teal => "#19969a", Compositor.Core.Format.LayerLabel.Indigo => "#655bf0", Compositor.Core.Format.LayerLabel.Magenta => "#d62d93", Compositor.Core.Format.LayerLabel.Purple => "#ba38c8", _ => "#686868" };
             eye.Background = new SolidColorBrush(Avalonia.Media.Color.Parse(color));
         }
+        // The marks at the right, left to right as Photoshop orders them: smart filters, layer style, then the arrow that shows or
+        // hides the rows under the layer. They sit side by side, so none covers another.
+        var marks = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, VerticalAlignment = VerticalAlignment.Center, Tag = "layer-marks" };
+        if (layer.SmartObject is not null && layer.SmartFilters is not null)
+        {
+            var filters = new Border { Child = new SmartFilterGlyph { Width = 18, Height = 18 }, Width = 24, Height = 24, Padding = new Thickness(3), Tag = "smart-filter-mark", Background = Brushes.Transparent };
+            ToolTip.SetTip(filters, Localize.Text("Smart Filters")); marks.Children.Add(filters);
+        }
         if (layer.Effects is not null || layer.Blending is { IsDefault: false })
         {
             var fx = PanelButton("fx", "Layer Style", () => { SelectLayerRow(layer.ID); _ = EditLayerStyle(); }); fx.Width = 26; fx.Opacity = layer.Effects?.Enabled == false ? 0.4 : 1;
-            Grid.SetColumn(fx, 6); panel.Children.Add(fx);
+            marks.Children.Add(fx);
         }
+        if (layer.SmartObject is not null && layer.SmartFilters is not null)
+        {
+            var open = !_open.Collapsed.Contains(layer.ID);
+            var toggle = new Button { Content = open ? "⌃" : "⌄", Width = 18, Height = 24, Padding = default, Background = Brushes.Transparent, BorderThickness = default, Focusable = false, Tag = "smart-filter-toggle", HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
+            ToolTip.SetTip(toggle, Localize.Text(open ? "Hide the smart filters" : "Show the smart filters"));
+            toggle.Click += (_, e) => { if (!_open.Collapsed.Add(layer.ID)) _open.Collapsed.Remove(layer.ID); if (_document is { } d) { ShowLayers(d); SelectLayerRow(layer.ID); } e.Handled = true; };
+            marks.Children.Add(toggle);
+        }
+        Grid.SetColumn(marks, 6); panel.Children.Add(marks);
         panel.DoubleTapped += (_, e) => { if (e.Handled) return; SelectLayerRow(layer.ID); _ = EditLayerStyle(); e.Handled = true; };
         var arrow = new Button { Content = layer.IsGroup ? (_open.Collapsed.Contains(layer.ID) ? "▸" : "▾") : "",
             Width = 18, Height = 28, Margin = new Thickness(depth * 10, 0, 0, 0), Padding = new Thickness(0),
@@ -189,7 +260,7 @@ public sealed partial class MainWindow
         Grid.SetColumn(arrow, 1); panel.Children.Add(arrow);
         var thumbnail = new LayerThumbnail(() => Current()?.LiveText is not null ? null : Current()?.Asset?.Thumbnail,
             layer.IsGroup ? "folder" : layer.LiveText is not null ? "T" : layer.Adjustment is not null ? "◐" : "")
-            { Width = layer.IsGroup || EditorPreferences.Current.LayerThumbnailSize == 0 ? 20 : EditorPreferences.Current.LayerThumbnailSize, Height = layer.IsGroup || EditorPreferences.Current.LayerThumbnailSize == 0 ? 20 : EditorPreferences.Current.LayerThumbnailSize, HideImage = EditorPreferences.Current.LayerThumbnailSize == 0, LayerBounds = () => (Current()?.Transform, _document?.Width ?? 1, _document?.Height ?? 1), Margin = new Thickness(layer.IsGroup ? 0 : depth * 12, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Active = () => Selected == layer.ID && !MaskTarget };
+            { Smart = layer.SmartObject is not null, Width = layer.IsGroup || EditorPreferences.Current.LayerThumbnailSize == 0 ? 20 : EditorPreferences.Current.LayerThumbnailSize, Height = layer.IsGroup || EditorPreferences.Current.LayerThumbnailSize == 0 ? 20 : EditorPreferences.Current.LayerThumbnailSize, HideImage = EditorPreferences.Current.LayerThumbnailSize == 0, LayerBounds = () => (Current()?.Transform, _document?.Width ?? 1, _document?.Height ?? 1), Margin = new Thickness(layer.IsGroup ? 0 : depth * 12, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Active = () => Selected == layer.ID && !MaskTarget };
         if (layer.Asset?.BitDepth > 8) notes = (layer.Asset.BitDepth == 32 ? "HDR" : "16-Bit") + (string.IsNullOrEmpty(notes) ? "" : " · " + notes);
         _layerThumbnails.Add(thumbnail);
         thumbnail.PointerPressed += (_, e) =>
@@ -228,7 +299,9 @@ public sealed partial class MainWindow
             unlock.Width = 24; unlock.IsEnabled = layer.Locks != LayerLocks.None;
             Grid.SetColumn(unlock, 7); panel.Children.Add(unlock);
         }
-        return new Border { BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(0, 0, 0, 1), Child = panel };
+        // A smart object's filters are listed inside its own row, so selecting, dragging or hiding the layer takes them along.
+        Control content = SmartFilterRows(layer) is { } filterRows ? new StackPanel { Children = { panel, filterRows } } : panel;
+        return new Border { BorderBrush = Skin.BorderSubtleBrush, BorderThickness = new Thickness(0, 0, 0, 1), Child = content };
     }
 
 

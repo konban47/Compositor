@@ -276,7 +276,23 @@ internal sealed class LayerThumbnail(Func<SKBitmap?> source, string kind = "") :
     public Func<bool>? Active { get; init; }
     public bool HideImage { get; init; }
     public Func<(Compositor.Core.Model.LayerTransform? Transform, int Width, int Height)>? LayerBounds { get; init; }
+    /// <summary>A smart object: Photoshop's badge, a page with a turned corner over a second page, at the lower right.</summary>
+    public bool Smart { get; init; }
     public override void Render(DrawingContext context)
+    {
+        RenderPicture(context);
+        if (!Smart || Bounds.Width < 16) return;
+        var size = Math.Clamp(Bounds.Width * .42, 10, 18); var box = new Rect(Bounds.Width - size - 1, Bounds.Height - size - 1, size, size);
+        context.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)), null, box);
+        var u = size / 12; var pen = new Pen(Brushes.White, Math.Max(1, u));
+        var back = new Rect(box.X + 2 * u, box.Y + 4 * u, 6 * u, 6 * u); var front = new Rect(box.X + 4 * u, box.Y + 2 * u, 6 * u, 7 * u);
+        context.DrawRectangle(new SolidColorBrush(Color.FromRgb(0xBF, 0xBF, 0xBF)), pen, back);
+        var page = new StreamGeometry();
+        using (var g = page.Open()) { g.BeginFigure(front.TopLeft, true); g.LineTo(new Point(front.Right - 2 * u, front.Top)); g.LineTo(new Point(front.Right, front.Top + 2 * u)); g.LineTo(front.BottomRight); g.LineTo(front.BottomLeft); g.EndFigure(true); }
+        context.DrawGeometry(Brushes.White, new Pen(new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)), Math.Max(.8, u * .8)), page);
+    }
+
+    private void RenderPicture(DrawingContext context)
     {
         if (Active?.Invoke() == true) context.DrawRectangle(null, new Pen(Skin.LabelBrush, 1), new Rect(.5, .5, Math.Max(0, Bounds.Width - 1), Math.Max(0, Bounds.Height - 1)));
         if (kind == "folder")

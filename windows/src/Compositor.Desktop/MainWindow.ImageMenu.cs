@@ -49,13 +49,15 @@ public sealed partial class MainWindow
         };
         foreach (var mode in Enum.GetValues<ImageMode>())
         {
-            var item = Keyed(modeHeaders[mode], () => _ = ConvertImageMode(mode), id: ModeTitle(mode)); item.ToggleType = MenuItemToggleType.Radio;
+            // Modes and depths are two radio groups: without their own names Avalonia makes one group of the whole submenu, and
+            // ticking the depth would untick the mode.
+            var item = Keyed(modeHeaders[mode], () => _ = ConvertImageMode(mode), id: ModeTitle(mode)); item.ToggleType = MenuItemToggleType.Radio; item.GroupName = "image-mode";
             modes.Items.Add(item); modeRows[mode] = item;
         }
         modes.Items.Add(new Separator());
         foreach (var (bits, header) in new[] { (8, "8 Bits/Ch_annel"), (16, "16 Bits/Cha_nnel"), (32, "32 Bits/C_hannel") })
         {
-            var item = Keyed(header, () => _ = ConvertImageDepth(bits), id: $"{bits} Bits/Channel"); item.ToggleType = MenuItemToggleType.Radio;
+            var item = Keyed(header, () => _ = ConvertImageDepth(bits), id: $"{bits} Bits/Channel"); item.ToggleType = MenuItemToggleType.Radio; item.GroupName = "image-depth";
             modes.Items.Add(item); depthRows[bits] = item;
         }
         var colorTable = Keyed("Color _Table…", () => _ = ColorTable(), id: "Color Table…");

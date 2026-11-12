@@ -58,9 +58,21 @@ public sealed partial class MainWindow
         _effectsMenu.Items.Add(Item("_Hide All Effects", ToggleEffects, ready: () => Editable() && PropertyLayer?.Effects is not null));
         _effectsMenu.Items.Add(Item("Scale E_ffects…", () => _ = ScaleLayerEffects(), ready: () => Editable() && PropertyLayer?.Effects is not null));
         menu.Items.Add(_effectsMenu);
-        const string NoSmartFilters = "Filters are applied to pixels or kept as filter layers; editable smart-filter stacks on smart objects are not supported.";
-        menu.Items.Add(Group("Smart Filters", Missing("Disable Smart Filters", NoSmartFilters), new Separator(), Missing("Delete Filter Mask", NoSmartFilters),
-            Missing("Disa_ble Filter Mask", NoSmartFilters), new Separator(), Missing("Clear Smart Filters", NoSmartFilters)));
+        // Smart Filters: the filters a smart object carries, switched off together, their mask deleted or switched off, or cleared.
+        bool Filtered() => Smart() && PropertyLayer?.SmartFilters is not null;
+        var stackToggle = Item("Disable Smart Filters", () => SmartFilterCommand(SmartFilterAction.ToggleStack), ready: Filtered);
+        var maskDelete = Item("Delete Filter Mask", () => SmartFilterCommand(SmartFilterAction.ToggleMask), ready: Filtered);
+        var maskToggle = Item("Disa_ble Filter Mask", () => SmartFilterCommand(SmartFilterAction.ToggleMaskEnabled), ready: () => Filtered() && PropertyLayer!.SmartFilters!.HasMask);
+        var clearFilters = Item("Clear Smart Filters", () => SmartFilterCommand(SmartFilterAction.Clear), ready: Filtered);
+        var smartFilters = Group("Smart Filters", stackToggle, new Separator(), maskDelete, maskToggle, new Separator(), clearFilters);
+        smartFilters.SubmenuOpened += (_, _) =>
+        {
+            var stack = PropertyLayer?.SmartFilters;
+            stackToggle.Header = Localize.Text(stack?.Enabled == false ? "Enable Smart Filters" : "Disable Smart Filters");
+            maskDelete.Header = Localize.Text(stack?.HasMask == false ? "Add Filter Mask" : "Delete Filter Mask");
+            maskToggle.Header = Localize.Text(stack?.MaskEnabled == false ? "Ena_ble Filter Mask" : "Disa_ble Filter Mask");
+        };
+        menu.Items.Add(smartFilters);
         menu.Items.Add(new Separator());
         menu.Items.Add(Group("Ne_w Fill Layer", Item("S_olid Color…", () => _ = NewFillLayer(StyleEffectKind.ColorOverlay), ready: Document),
             Item("_Gradient…", () => _ = NewFillLayer(StyleEffectKind.GradientOverlay), ready: Document), Item("Patte_rn…", () => _ = NewFillLayer(StyleEffectKind.PatternOverlay), ready: Document)));

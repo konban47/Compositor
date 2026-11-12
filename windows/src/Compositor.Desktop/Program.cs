@@ -180,7 +180,7 @@ internal static partial class Program
         var folder = Path.GetDirectoryName(Path.GetFullPath(output))!;
         foreach (var (name, file, width, body) in new (string, string, double, Control)[]
                  {
-                     ("New Project", "new-project.png", 400, new NewDocumentDialog().TakeBody()),
+                     ("New Project", "new-project.png", 1290,new NewDocumentDialog().TakeBody()),
                      ("Grid Settings", "grid-settings.png", 380, new GridSettingsDialog(new LayoutGrid()).TakeBody()),
                      ("Controls", "controls.png", 420, Controls()),
                  })

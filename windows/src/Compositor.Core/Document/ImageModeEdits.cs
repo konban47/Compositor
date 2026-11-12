@@ -16,6 +16,7 @@ public static class ImageModeEdits
         if (settings.Mode == ImageMode.CMYK && settings.CmykProfile is null) settings = settings with { CmykProfile = IccProfiles.Resolve(ColorDefaults.Settings.Cmyk).ToArray() };
         var replacements = new List<(ImageLayer Layer, ImportedImage Asset)>();
         var flatten = settings.Mode is ImageMode.Bitmap or ImageMode.Indexed or ImageMode.Duotone or ImageMode.Multichannel;
+        var intoCmyk = settings.Mode == ImageMode.CMYK && document.Image.Mode != ImageMode.CMYK;
         if (flatten)
         {
             using var composite = DocumentRenderer.RenderDeep(document);
@@ -33,7 +34,7 @@ public static class ImageModeEdits
             replacements.Add((layer, Converted(composite, layer.Name, settings, dither, threshold)));
         }
         else foreach (var layer in document.Layers.Where(l => l.Asset is not null))
-            replacements.Add((layer, Converted(layer.Asset!.WorkingImage, layer.Name, settings, dither, threshold)));
+            replacements.Add((layer, Converted(layer.Asset!.WorkingImage, layer.Name, settings, dither, threshold, intoCmyk ? settings.CmykProfile : null)));
         if (flatten)
         {
             document.Layers.Clear(); document.Layers.Add(replacements[0].Layer); document.Variables.Clear(); document.DataSets.Clear();
@@ -54,9 +55,10 @@ public static class ImageModeEdits
         return true;
     }
 
-    public static ImportedImage Converted(SKBitmap source, string name, ImageSettings settings, bool dither = false, double threshold = .5)
+    public static ImportedImage Converted(SKBitmap source, string name, ImageSettings settings, bool dither = false, double threshold = .5, byte[]? gamut = null)
     {
         var deep = DeepPixels.From(source); var p = MemoryMarshal.Cast<byte, float>(deep.GetPixelSpan());
+        if (gamut is not null) Gamut(deep, gamut);
         var palette = settings.Palette?.Select(Color3.From).ToArray(); var ink = Color3.From(settings.Ink);
         var spot = settings.Mode == ImageMode.Duotone ? IO.SpotTone.Curve(IO.ColorDefaults.Settings) : null;
         var error = dither && settings.Mode is ImageMode.Bitmap or ImageMode.Indexed ? new Color3[deep.Width + 2] : null;
@@ -86,6 +88,25 @@ public static class ImageModeEdits
         }
         if (settings.Depth > 8) return ImportedImage.CreateDeep(deep, name, settings.Depth);
         using (deep) return ImportedImage.Create(DeepPixels.Preview(deep), name);
+    }
+
+    /// <summary>
+    /// Converting into CMYK takes every color through the CMYK profile and back, as Photoshop's conversion does, so colors
+    /// the press cannot print come back as the nearest it can. The round trip runs through the ICC engine on an opaque
+    /// 8-bit copy, and the change it makes is added to the deep pixels, which keeps their finer steps.
+    /// </summary>
+    private static void Gamut(SKBitmap deep, byte[] profile)
+    {
+        var p = MemoryMarshal.Cast<byte, float>(deep.GetPixelSpan());
+        using var opaque = deep.Copy(); var o = MemoryMarshal.Cast<byte, float>(opaque.GetPixelSpan());
+        for (var i = 3; i < o.Length; i += 4) o[i] = 1;
+        using var before = DeepPixels.Preview(opaque); using var after = CmykColor.Proof(before, profile);
+        var b = before.GetPixelSpan(); var a = after.GetPixelSpan();
+        for (var y = 0; y < deep.Height; y++) for (var x = 0; x < deep.Width; x++)
+        {
+            var i = y * deep.RowBytes / 4 + x * 4; var j = y * before.RowBytes + x * 4; var k = y * after.RowBytes + x * 4;
+            for (var c = 0; c < 3; c++) p[i + c] = Math.Clamp(p[i + c] + (a[k + c] - b[j + c]) / 255f, 0, Math.Max(1, p[i + c]));
+        }
     }
 
     private static Color3 Closest(Color3 c, Color3[] palette)

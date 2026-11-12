@@ -203,6 +203,7 @@ public sealed class CanvasDocument : IDisposable
         Container = layer.Container == LayerContainer.Group ? null : layer.Container,
         ArtboardBackground = layer.Container == LayerContainer.Artboard && layer.ArtboardBackground != 0xffffffff ? layer.ArtboardBackground : null,
         SmartObjectFile = layer.SmartObject is null ? null : SmartObjectData.FileName(layer.ID),
+        SmartFilters = layer.SmartObject is null ? null : layer.SmartFilters,
         SmartObjectID = layer.SmartObject?.ID,
         SmartObjectLink = layer.SmartObject?.LinkedPath,
         SmartObjectLinkHash = layer.SmartObject?.LinkedHash,

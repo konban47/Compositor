@@ -78,6 +78,7 @@ public sealed partial class MainWindow
         Undo(); Pump(); Check(doc.Layers[0].SmartObject is not null, "Rasterize lost undo source.");
         if (Localize.IsChinese) Check(Localize.Text("Blending Options") == "混合选项" && Localize.Text("Mask All Objects") == "遮住所有对象", "New labels are not Chinese.");
         LayerMenuSelfCheck(output);
+        SmartFilterSelfCheck(output);
         Save(this, "final"); using var final = this.CaptureRenderedFrame(); final!.Save(output, new PngBitmapEncoderOptions());
     }
 }

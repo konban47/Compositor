@@ -17,20 +17,39 @@ public sealed partial class MainWindow
 {
     private async Task ConvertImageMode(ImageMode mode)
     {
-        if (_document is not { } doc) return;
+        if (_document is not { } doc || doc.Image.Mode == mode) return;
         var revision = _history.CurrentRevision; var options = doc.Image with { Mode = mode, Depth = mode is ImageMode.Bitmap or ImageMode.Indexed or ImageMode.Duotone ? 8 : doc.Image.Depth, Palette = null };
         int colors = 256; bool dither = true; double threshold = .5;
-        var dialog = new FormDialog("Convert Color Mode", 500, 400);
-        dialog.Description(ModeTitle(mode));
-        if (mode is ImageMode.Bitmap or ImageMode.Indexed or ImageMode.Duotone or ImageMode.Multichannel)
-            dialog.Description("This mode combines the visible image into one layer. Undo restores the original layers.");
-        if (mode == ImageMode.Indexed) dialog.Number("Colors", 256, 2, 256, v => colors = (int)v);
-        if (mode is ImageMode.Bitmap or ImageMode.Indexed) dialog.Check("Dither", true, v => dither = v);
-        if (mode == ImageMode.Bitmap) dialog.Number("Threshold", 128, 0, 255, v => threshold = v / 255);
-        if (mode == ImageMode.Duotone) ColorInput(dialog, "Ink Color", options.Ink, v => options = options with { Ink = v });
-        if (mode is ImageMode.CMYK or ImageMode.Lab) dialog.Description("The canvas uses an RGB preview. In Export As choose TIFF and Document Mode to write native color channels. Choose CMYK for ICC-managed printing.");
-        if (!await dialog.ShowDialog<bool>(this) || !ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
-        Edit("Convert Color Mode", () => ImageModeEdits.Convert(doc, options, colors, dither, threshold));
+        // Photoshop asks first when there is more than one layer: the flattening modes whether to flatten, the others whether to
+        // merge before the change, since blending looks different in another mode (Merge, Cancel, Don't Merge).
+        var flatten = mode is ImageMode.Bitmap or ImageMode.Indexed or ImageMode.Duotone or ImageMode.Multichannel;
+        var merge = false;
+        if (doc.Layers.Count > 1)
+        {
+            if (flatten)
+            {
+                if (await AlertDialog.Ask(this, "Flatten image?", [("Flatten", 'F'), ("Cancel", null)], 1) != 0) return;
+            }
+            else
+            {
+                var answer = await AlertDialog.Ask(this, "Changing modes can affect the appearance of layers. Merge layers before changing mode?",
+                    [("Merge", 'M'), ("Cancel", null), ("Don't Merge", 'D')], 1);
+                if (answer is -1 or 1) return;
+                merge = answer == 0;
+            }
+        }
+        if (mode is ImageMode.Indexed or ImageMode.Bitmap or ImageMode.Duotone)
+        {
+            // Only the modes with choices of their own open a dialog, as in Photoshop.
+            var dialog = new FormDialog(ModeTitle(mode), 500, 360);
+            if (mode == ImageMode.Indexed) dialog.Number("Colors", 256, 2, 256, v => colors = (int)v);
+            if (mode is ImageMode.Bitmap or ImageMode.Indexed) dialog.Check("Dither", true, v => dither = v);
+            if (mode == ImageMode.Bitmap) dialog.Number("Threshold", 128, 0, 255, v => threshold = v / 255);
+            if (mode == ImageMode.Duotone) ColorInput(dialog, "Ink Color", options.Ink, v => options = options with { Ink = v });
+            if (!await dialog.ShowDialog<bool>(this)) return;
+        }
+        if (!ReferenceEquals(doc, _document) || revision != _history.CurrentRevision) return;
+        Edit("Convert Color Mode", () => (!merge || LayerWorkflow.MergeVisible(doc, true) is not null) && ImageModeEdits.Convert(doc, options, colors, dither, threshold));
         _open.ActiveAlpha = null; _open.VisibleChannels = ColorChannels.RGB; doc.EditChannels = ColorChannels.RGB; Refresh();
     }
     private async Task ConvertImageDepth(int bits)
@@ -253,22 +272,24 @@ public sealed partial class MainWindow
         try
         {
             Edit("Record Measurements", () => { if (doc.Measurements.Count >= 10000) return false; doc.Measurements.Add(ImageAnalysis.Measure(doc, Localize.Text("Measurement") + " " + (doc.Measurements.Count + 1), _open.Name)); return true; });
-            if (MeasurementLogWindow.AutoShow) _ = MeasurementLog(); else _measurementLog?.Refresh();
+            if (MeasurementLogView.AutoShow) _ = MeasurementLog(); else _measurementLog?.Refresh();
         }
         catch (Exception e) { Say(e.Message); }
     }
 
-    private MeasurementLogWindow? _measurementLog;
-    /// <summary>Window ▸ Measurement Log: the panel, opened once and kept beside the canvas.</summary>
+    private MeasurementLogView? _measurementLog;
+    /// <summary>The Measurement Log panel's content: the table, its buttons and its menu, made once and kept in the panel.</summary>
+    private MeasurementLogView MeasurementLogContent() => _measurementLog ??= new MeasurementLogView(() => _document, RecordMeasurements, rows =>
+    {
+        if (_document is not { } doc) return;
+        Edit("Delete Measurements", () => { foreach (var row in rows.OrderByDescending(r => r)) if (row < doc.Measurements.Count) doc.Measurements.RemoveAt(row); return rows.Count > 0; });
+    }, ScaleMenu, DataPointsMenu, () => { if (_dockPanels.GetValueOrDefault("Measurement Log") is { } panel) HidePanel(panel); });
+
+    /// <summary>Window ▸ Measurement Log, and what Record Measurements opens: one floating panel, as Photoshop's.</summary>
     private Task MeasurementLog()
     {
-        if (_measurementLog is { } open) { open.Refresh(); open.Activate(); return Task.CompletedTask; }
-        var log = new MeasurementLogWindow(() => _document, RecordMeasurements, rows =>
-        {
-            if (_document is not { } doc) return;
-            Edit("Delete Measurements", () => { foreach (var row in rows.OrderByDescending(r => r)) if (row < doc.Measurements.Count) doc.Measurements.RemoveAt(row); return rows.Count > 0; });
-        }, ScaleMenu, DataPointsMenu);
-        log.Closed += (_, _) => _measurementLog = null; _measurementLog = log; log.Show(this);
+        OpenUtilityPanel("Measurement Log");
+        _measurementLog?.Refresh();
         return Task.CompletedTask;
     }
     private async Task PlaceScaleMarker()

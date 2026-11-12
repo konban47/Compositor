@@ -48,6 +48,8 @@ public sealed class ProjectLayerRecord
     public FrameStyle? FrameStyle { get; set; }
     public uint? ArtboardBackground { get; set; }
     public string? SmartObjectFile { get; set; }
+    /// <summary>Windows extension 36: the smart filters of a smart object layer.</summary>
+    public Document.SmartFilterStack? SmartFilters { get; set; }
     public Guid? SmartObjectID { get; set; }
     /// <summary>Windows v32: the file a linked smart object follows, and its SHA-256 when last read.</summary>
     public string? SmartObjectLink { get; set; }

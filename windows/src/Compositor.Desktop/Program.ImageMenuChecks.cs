@@ -33,7 +33,31 @@ public sealed partial class MainWindow
         Check(image.Items.OfType<MenuItem>().Single(m => Equals(m.Tag, "Mode")).Items.OfType<MenuItem>().Count() == 12, "Mode does not list 8 modes, 3 depths and Color Table.");
         if (Localize.IsChinese) Check(Localize.Text("_Levels…") == "色阶(_L)…" && Localize.Text("Ima_ge Rotation") == "图像旋转(_G)" && Localize.Text("_180°") == "180 度(_1)", "Image menu access keys are not placed as Photoshop's.");
 
+        // Mode shows the document's own mode and depth ticked.
+        var modeMenu = image.Items.OfType<MenuItem>().Single(m => Equals(m.Tag, "Mode"));
+        image.IsSubMenuOpen = true; Pump(); modeMenu.IsSubMenuOpen = true; Pump(100);
+        using (var frame = this.CaptureRenderedFrame()) frame!.Save(Path.ChangeExtension(output, "image-mode-menu.png"), new PngBitmapEncoderOptions());
+        var ticked = modeMenu.Items.OfType<MenuItem>().Where(m => m.IsChecked).Select(m => m.Tag as string).ToArray();
+        modeMenu.IsSubMenuOpen = false; image.IsSubMenuOpen = false; Pump();
+        Check(ticked.SequenceEqual(["RGB Color", "8 Bits/Channel"]), "Mode does not tick RGB Color and 8 Bits/Channel: " + string.Join(", ", ticked));
+
         var doc = _document!; var layer = doc.Layers.First(l => l.Asset is not null && !l.IsGroup && l.Adjustment is null);
+
+        // A layered document asks Photoshop's question (Figure 4) before Lab: Cancel keeps RGB, Don't Merge converts each layer.
+        Check(doc.Layers.Count > 1, "The image checks expect a layered document here.");
+        var converting = ConvertImageMode(ImageMode.Lab); var alert = Dialog<AlertDialog>(); Save(alert, "mode-merge-prompt");
+        Check(alert.Buttons.Select(b => b.Tag as string).SequenceEqual(["Merge", "Cancel", "Don't Merge"]), "The mode prompt does not offer Merge, Cancel and Don't Merge.");
+        alert.Buttons[1].RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Finish(converting); Check(doc.Image.Mode == ImageMode.RGB, "Cancel changed the mode.");
+        var layerCount = doc.Layers.Count; converting = ConvertImageMode(ImageMode.Lab); alert = Dialog<AlertDialog>();
+        alert.Buttons[2].RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Finish(converting);
+        Check(doc.Image.Mode == ImageMode.Lab && doc.Layers.Count == layerCount, "Don't Merge did not convert the layers to Lab.");
+        image.IsSubMenuOpen = true; Pump(); modeMenu.IsSubMenuOpen = true; Pump(100);
+        Check(modeMenu.Items.OfType<MenuItem>().Single(m => Equals(m.Tag, "Lab Color")).IsChecked, "Mode does not tick Lab Color after the change.");
+        modeMenu.IsSubMenuOpen = false; image.IsSubMenuOpen = false; Pump(); Undo(); Pump();
+        converting = ConvertImageMode(ImageMode.Lab); alert = Dialog<AlertDialog>(); alert.Buttons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Finish(converting);
+        Check(doc.Image.Mode == ImageMode.Lab && doc.Layers.Count == 1, "Merge did not flatten before changing mode."); Undo(); Pump();
+        Check(doc.Image.Mode == ImageMode.RGB && doc.Layers.Count == layerCount, "Undo did not bring the layers and RGB back.");
+        layer = doc.Layers.First(l => l.Asset is not null && !l.IsGroup && l.Adjustment is null);
         SelectLayerRow(layer.ID); Pump(); var revision = _history.CurrentRevision;
 
         // Levels: the histogram dialog, a black point typed, OK, and one undo step.
@@ -84,12 +108,34 @@ public sealed partial class MainWindow
         task = MeasurementFields(); var points = Dialog<DataPointsDialog>(); Save(points, "data-points");
         foreach (var box in points.GetLogicalDescendants().OfType<CheckBox>()) box.IsChecked = true; Click(points, "OK"); Finish(task);
         Check(doc.MeasurementFields.Length == ImageAnalysis.DataPoints.Length, "Select Data Points did not keep every data point.");
-        RecordMeasurements(); Pump(200); var log = OwnedWindows.OfType<MeasurementLogWindow>().Single(); log.Width = 1360; Save(log, "measurement-log");
-        Check(doc.Measurements.Count == 1 && doc.Measurements[0].Histogram is { Length: 256 }, "Record Measurements did not record the new data points."); log.Close(); Pump();
+        RecordMeasurements(); Pump(200); var logPanel = _dockPanels["Measurement Log"];
+        Check(logPanel is { Visible: true, Group.Window: not null }, "Record Measurements did not open the Measurement Log as a floating panel."); Save(logPanel.Group!.Window!, "measurement-log");
+        Check(doc.Measurements.Count == 1 && doc.Measurements[0].Histogram is { Length: 256 }, "Record Measurements did not record the new data points."); HidePanel(logPanel); Pump();
         Undo(); Undo(); Pump();
         task = SetMeasurementScale(); var scale = Dialog<MeasurementScaleDialog>(); Save(scale, "measurement-scale"); scale.Close(false); Finish(task);
         task = PlaceScaleMarker(); var marker = Dialog<ScaleMarkerDialog>(); Save(marker, "scale-marker"); marker.Close(false); Finish(task);
         var trap = new TrapDialog(doc.Resolution); var shown = trap.ShowDialog<bool>(this); Pump(); Save(trap, "trap"); trap.Close(false); Finish(shown);
         Check(revision == _history.CurrentRevision, "The Image menu checks left history steps behind.");
+
+        // File ▸ New as Photoshop's New Document: eight categories, cards, Preset Details, then a grayscale 16-bit page on black in an artboard.
+        var making = NewProject(); var newDocument = Dialog<NewDocumentDialog>(); Save(newDocument, "new-document");
+        var categories = newDocument.GetLogicalDescendants().OfType<Button>().Where(b => b.Tag is string t && t.StartsWith("category ", StringComparison.Ordinal)).ToArray();
+        Check(categories.Length == 8, "New Document does not show Photoshop's eight categories.");
+        Check(Find<WrapPanel>(newDocument, "preset-cards").Children.Count >= 1, "Recent has no cards.");
+        Click(newDocument, "category Print"); var cards = Find<WrapPanel>(newDocument, "preset-cards").Children.OfType<Border>().ToArray();
+        Check(cards.Length == NewDocumentDialog.Presets["Print"].Length, "Print does not list its presets."); Save(newDocument, "new-document-print");
+        newDocument.ChooseCard("A4"); Pump(); Check(cards.First(c => c.Tag is DocumentPreset { Name: "A4" }).BorderBrush == Skin.AccentBrush, "The chosen card has no blue edge."); Check(newDocument.UnitBox.SelectedIndex == 3 && newDocument.WidthBox.Value == 210 && newDocument.HeightBox.Value == 297 && newDocument.ResolutionBox.Value == 300, "Choosing A4 did not fill 210 x 297 mm at 300 ppi.");
+        newDocument.ModeBox.SelectedIndex = 3; Pump(); Check(newDocument.DepthBox.ItemCount == 2 && (newDocument.ProfileBox.Items[0] as string)!.StartsWith(Localize.Text("Working CMYK"), StringComparison.Ordinal), "CMYK does not offer 8 and 16 bit and the working CMYK profile.");
+        newDocument.ModeBox.SelectedIndex = 0; Pump(); Check(newDocument.DepthBox.ItemCount == 1, "Bitmap is not 1 bit only.");
+        newDocument.ModeBox.SelectedIndex = 1; Pump(); newDocument.DepthBox.SelectedIndex = 1; newDocument.BackgroundBox.SelectedIndex = 1; newDocument.ArtboardBox.IsChecked = true;
+        newDocument.UnitBox.SelectedIndex = 0; Pump(); newDocument.WidthBox.Value = 320; newDocument.HeightBox.Value = 200; newDocument.NameBox.Text = "Check Page"; Pump(); Save(newDocument, "new-document-details");
+        Click(newDocument, "Create"); Finish(making);
+        var made = _document!; Check(made != doc && made.Width == 320 && made.Height == 200 && made.Image.Mode == ImageMode.Grayscale && made.Image.Depth == 16, "Create did not make a 320 x 200 grayscale 16-bit document.");
+        Check(made.Layers.Any(l => l.Container == LayerContainer.Artboard) && _open.Name == "Check Page", "Create did not add the artboard or keep the name.");
+        Check(made.Layers.First(l => l.Asset is not null).Asset!.Image.GetPixel(10, 10).Red < 8, "The background is not black.");
+        image.IsSubMenuOpen = true; Pump(); modeMenu.IsSubMenuOpen = true; Pump(100);
+        ticked = modeMenu.Items.OfType<MenuItem>().Where(m => m.IsChecked).Select(m => m.Tag as string).ToArray();
+        modeMenu.IsSubMenuOpen = false; image.IsSubMenuOpen = false; Pump();
+        Check(ticked.SequenceEqual(["Grayscale", "16 Bits/Channel"]), "Mode does not tick the new document's Grayscale and 16 Bits/Channel: " + string.Join(", ", ticked));
     }
 }

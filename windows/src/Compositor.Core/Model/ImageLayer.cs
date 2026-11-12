@@ -82,6 +82,8 @@ public sealed class ImageLayer : IDisposable
     public Format.FrameStyle? FrameStyle { get; set; }
     public uint ArtboardBackground { get; set; } = 0xffffffff;
     public SmartObjectData? SmartObject { get; set; }
+    /// <summary>Windows extension 36: the smart filters over a smart object, replaced (never changed in place) by each edit.</summary>
+    public Document.SmartFilterStack? SmartFilters { get; set; }
 
     /// <summary>The shape this layer still is: null once its pixels were edited some other way.</summary>
     public Format.LayerShapeStyle? LiveShape =>
@@ -123,7 +125,7 @@ public sealed class ImageLayer : IDisposable
             Gradient = Gradient,
             Effects = Effects,
             Text = Text,
-            Blending = Blending, Label = Label, Container = Container, ArtboardBackground = ArtboardBackground, FrameStyle = FrameStyle, SmartObject = SmartObject,
+            Blending = Blending, Label = Label, Container = Container, ArtboardBackground = ArtboardBackground, FrameStyle = FrameStyle, SmartObject = SmartObject, SmartFilters = SmartFilters,
         };
 
     /// <summary>
@@ -138,7 +140,7 @@ public sealed class ImageLayer : IDisposable
         && ReferenceEquals(Asset?.Image, other.Asset?.Image) && ReferenceEquals(Gif, other.Gif)
         && SameMask(Mask, other.Mask)
         && ReferenceEquals(Adjustment, other.Adjustment) && ReferenceEquals(Shape, other.Shape)
-        && FrameStyle == other.FrameStyle && Label == other.Label && Container == other.Container && ArtboardBackground == other.ArtboardBackground && ReferenceEquals(Blending, other.Blending) && ReferenceEquals(SmartObject, other.SmartObject)
+        && FrameStyle == other.FrameStyle && Label == other.Label && Container == other.Container && ArtboardBackground == other.ArtboardBackground && ReferenceEquals(Blending, other.Blending) && ReferenceEquals(SmartObject, other.SmartObject) && ReferenceEquals(SmartFilters, other.SmartFilters)
         && ReferenceEquals(Effects, other.Effects) && ReferenceEquals(Text, other.Text) && ReferenceEquals(Gradient, other.Gradient);
 
     private static bool SameMask(LayerMask? left, LayerMask? right) =>

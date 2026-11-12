@@ -34,6 +34,12 @@ public sealed partial class MainWindow
                 BuildBrushSettingsPanel(body); body.Children.Clear(); tab.Content = _brushSettingsEditor;
                 RegisterPanel(name, _inspectorTabs, tab);
             }
+            else if (name == "Measurement Log")
+            {
+                // The log's own table fills the panel and scrolls itself, as Photoshop's does.
+                tab.Content = MeasurementLogContent(); _utilityRefresh[name] = () => _measurementLog?.Refresh();
+                RegisterPanel(name, _inspectorTabs, tab);
+            }
             else { RegisterPanel(name, _inspectorTabs, tab); BuildUtilityPanel(name, body); }
         }
         ShowDockPanel(name); RefreshUtilityPanels();
@@ -118,8 +124,6 @@ public sealed partial class MainWindow
                 Button("Delete Work Path", () => { CancelPen(); Edit("Delete Work Path", () => { if (_document?.WorkPath is null) return false; _document.WorkPath = null; return true; }); });
                 Button("Create Work Path", CreateTypePath); Button("Define Shape Preset…", () => _ = DefinePreset("Shape")); break;
             case "Notes": BuildNotesPanel(body); break;
-            case "Measurement Log":
-                Button("Record Measurements", RecordMeasurements); Button("Measurement Log", () => _ = MeasurementLog()); Button("Ruler tool", () => SetTool(Tool.Ruler)); break;
             case "Info":
                 var info = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12 }; body.Children.Add(info);
                 _utilityRefresh[name] = () => info.Text = _document is { } doc ? $"{_open.Name}\n{doc.Width} × {doc.Height} px\n{Localize.Text("Layers")}: {doc.Layers.Count}\n{Localize.Text("Zoom")}: {_canvas.Viewport.Zoom:P0}\n{Localize.Text("Selected Layer")}: {PropertyLayer?.Name ?? "—"}" : Localize.Text("No document"); break;

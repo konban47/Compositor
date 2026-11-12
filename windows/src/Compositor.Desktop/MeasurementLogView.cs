@@ -16,9 +16,9 @@ namespace Compositor.Desktop;
 /// The Measurement Log, as Photoshop's panel shows it: Record Measurements at the top left, Select All, Deselect All,
 /// Export Selected and Delete Selected at the right, a numbered row for each measurement under a column for each data
 /// point chosen, and the ≡ menu with Set Measurement Scale, Select Data Points, Auto Show Panel and Close. It stays open
-/// beside the canvas, following whichever document is in front.
+/// beside the canvas as the Window menu's Measurement Log panel, following whichever document is in front.
 /// </summary>
-internal sealed class MeasurementLogWindow : DialogWindow
+internal sealed class MeasurementLogView : DockPanel
 {
     /// <summary>Auto Show Panel: recording a measurement brings the log up.</summary>
     internal static bool AutoShow { get; set; } = true;
@@ -31,10 +31,10 @@ internal sealed class MeasurementLogWindow : DialogWindow
     private const double Column = 180, Number = 60;
     internal IReadOnlyCollection<int> Selected => _selected;
 
-    internal MeasurementLogWindow(Func<CanvasDocument?> document, Action record, Action<IReadOnlyList<int>> delete, Func<MenuItem> scaleMenu, Func<MenuItem> pointsMenu)
+    internal MeasurementLogView(Func<CanvasDocument?> document, Action record, Action<IReadOnlyList<int>> delete, Func<MenuItem> scaleMenu, Func<MenuItem> pointsMenu, Action close)
     {
         _document = document; _record = record; _delete = delete;
-        Title = Localize.Text("Measurement Log"); Width = 1360; Height = 420; MinWidth = 520; MinHeight = 220; CanResize = true; WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        Tag = "measurement-log"; MinHeight = 160; Focusable = true;
         var recordButton = FormDialog.ActionButton("Record Measurements", () => _record()); recordButton.Tag = "Record Measurements";
         Button Icon(string glyph, string tip, Action click) { var b = new Button { Content = new IconGlyph(glyph) { Width = 18, Height = 18 }, Width = 34, Height = 30, Padding = default, Background = Brushes.Transparent, BorderThickness = default, HorizontalContentAlignment = HorizontalAlignment.Center, Tag = tip }; ToolTip.SetTip(b, Localize.Text(tip)); b.Click += (_, _) => click(); return b; }
         var selectAll = Icon("selection", "Select All", SelectAll); var deselect = Icon("cancel", "Deselect All", DeselectAll);
@@ -46,7 +46,7 @@ internal sealed class MeasurementLogWindow : DialogWindow
         var exportItem = new MenuItem { Header = Localize.Text("Export Selected Measurements…"), Tag = "Export Selected Measurements…" }; exportItem.Click += async (_, _) => await Export();
         var deleteItem = new MenuItem { Header = Localize.Text("Delete Selected Measurements"), Tag = "Delete Selected Measurements" }; deleteItem.Click += (_, _) => Delete();
         var autoItem = new MenuItem { Header = Localize.Text("Auto Show Panel"), ToggleType = MenuItemToggleType.CheckBox, IsChecked = AutoShow, Tag = "Auto Show Panel" }; autoItem.Click += (_, _) => { AutoShow = !AutoShow; autoItem.IsChecked = AutoShow; };
-        var closeItem = new MenuItem { Header = Localize.Text("Close"), Tag = "Close" }; closeItem.Click += (_, _) => Close();
+        var closeItem = new MenuItem { Header = Localize.Text("Close"), Tag = "Close" }; closeItem.Click += (_, _) => close();
         var menuButton = new Button { Content = "☰", Width = 30, Height = 26, Padding = default, Background = Brushes.Transparent, BorderThickness = default, HorizontalContentAlignment = HorizontalAlignment.Center, Tag = "measurement log menu" };
         menuButton.Click += (_, _) =>
         {
@@ -62,8 +62,8 @@ internal sealed class MeasurementLogWindow : DialogWindow
         foreach (var (control, column) in new[] { ((Control)selectAll, 2), (deselect, 3), (export, 4), (remove, 5), (menuButton, 6) }) { Grid.SetColumn(control, column); bar.Children.Add(control); }
         var table = new StackPanel { Children = { _header, _rows } };
         var scroll = new ScrollViewer { Content = table, HorizontalScrollBarVisibility = ScrollBarVisibility.Visible, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = Skin.SurfaceDarkBrush };
-        var root = new Grid { RowDefinitions = new("Auto,*"), Children = { bar, scroll } }; Grid.SetRow(scroll, 1);
-        Content = root;
+        SetDock(bar, Dock.Top); Children.Add(bar); Children.Add(scroll);
+
         KeyDown += (_, e) => { if (e.Key == Key.Delete) { Delete(); e.Handled = true; } else if (e.Key == Key.A && e.KeyModifiers == KeyModifiers.Control) { SelectAll(); e.Handled = true; } };
         Refresh();
     }
@@ -117,7 +117,8 @@ internal sealed class MeasurementLogWindow : DialogWindow
     private async Task Export()
     {
         if (_document() is not { } doc || _selected.Count == 0) return;
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = Localize.Text("Export Selected Measurements…"), SuggestedFileName = "measurements.txt", DefaultExtension = ".txt",
+        if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage) return;
+        var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions { Title = Localize.Text("Export Selected Measurements…"), SuggestedFileName = "measurements.txt", DefaultExtension = ".txt",
             FileTypeChoices = [new FilePickerFileType(Localize.Text("Tab-delimited text")) { Patterns = ["*.txt"] }, new FilePickerFileType("CSV") { Patterns = ["*.csv"] }] });
         if (file?.TryGetLocalPath() is not { } path) return;
         var records = _selected.Order().Select(i => doc.Measurements[i]).ToArray();

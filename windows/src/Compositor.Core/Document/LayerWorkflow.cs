@@ -184,7 +184,8 @@ public static class LayerWorkflow
         var mode = layers[0].SmartObject!.StackMode;
         var smart = mode is null ? SmartObjectData.FromDocument(source, smartID) : new SmartObjectData(smartID, SmartObjectData.FromDocument(source, smartID).Package) { StackMode = mode };
         using var rendered = SmartObjectStacks.Render(source, mode);
-        foreach (var layer in layers) { layer.SmartObject = smart; layer.Asset = ImportedImage.Create(rendered.Copy(), layer.Name); }
+        // The new contents are seen through each layer's smart filters.
+        foreach (var layer in layers) { layer.SmartObject = smart; layer.Asset = SmartFilterEdits.Bake(layer, rendered); }
         return true;
     }
     public static bool Rasterize(CanvasDocument document, IEnumerable<Guid> ids)
