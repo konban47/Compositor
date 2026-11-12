@@ -1,4 +1,4 @@
-# Compositor project format, macOS versions 1–21 and Windows extensions 12–35
+# Compositor project format, macOS versions 1–21 and Windows extensions 12–36
 
 A `.comp` file is a macOS document package containing `manifest.json` and an `images/` directory of `<layer UUID>.png` assets.
 
@@ -382,5 +382,15 @@ Windows **1.6.6.4 Preview** reads versions 1–35 and writes the lowest version 
 - A pixel-replacement entry in `variables` may carry `method` (`Fit`, `Fill`, `AsIs` or `Conform`), `alignment` (0–8, left to right then top to bottom) and `clip` (cut a Fill or As Is image to the layer's box). Without `method` a replacement image is stretched to the layer's box (`Conform`), as before.
 
 Image adjustments keep their amounts by name in `extended.values`; 1.6.6.4 adds names there (`Legacy` for Brightness/Contrast; `Method`, `Strength`, `Smooth`, `Shadow`, `Highlight`, `Vibrance`, `CurveCount` and `Curve{n}X`/`Curve{n}Y` for HDR Toning; `Shift`, `Hue`, `Saturation`, `Lightness` for Replace Color; `Neutralize` and `IgnoreSelection` for Match Color; `Filter` for Photo Filter). These need no new version: earlier builds read the record and leave names they do not know unused.
+
+This extends the independent Windows format; it does not change upstream macOS format compatibility.
+
+## Windows extension version 36
+
+Windows **1.6.6.5 Preview** reads versions 1–36 and writes the lowest version required by document contents. Version 36 is required when a smart object layer carries smart filters, and earlier Windows builds reject it:
+
+- A layer record with `smartObjectFile` may carry `smartFilters`: `enabled` (false shows the contents without any filter), `items` (at most 64 filters in the order they apply, the first applied first; the Layers panel lists them newest on top), `hasMask` (false after Delete Filter Mask), `maskEnabled` (false keeps the mask but does not use it) and `mask` (a base64 gray PNG at the size of the smart object's picture, white where the filters show; absent means all white).
+- Each filter carries `kind` (a Filter menu filter by name, such as `GaussianBlur` or `AddNoise`; `RimLight` and `VolumetricLight` are not allowed), `settings` (the filter's amounts by name, as the filter dialog keeps them, such as `blurRadius`), `enabled`, `mode` (one of the 27 layer blend modes, by name) and `opacity` (0–1), Photoshop's Edit Smart Filter Blending Options.
+- The layer's own image is the contents seen through the filters, so a reader that does not know `smartFilters` still shows the filtered picture. A record with `smartFilters` but no `smartObjectFile`, more than 64 filters or an invalid filter is rejected.
 
 This extends the independent Windows format; it does not change upstream macOS format compatibility.
